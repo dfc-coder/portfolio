@@ -135,6 +135,8 @@ onBeforeUnmount(() => {
 
     <main id="top">
       <section class="hero">
+        <div class="paint-field paint-cobalt" aria-hidden="true" />
+        <div class="paint-field paint-vermilion" aria-hidden="true" />
         <div class="hero-interface" aria-hidden="true">
           <span class="coordinate coordinate-a">X / 034.61</span>
           <span class="coordinate coordinate-b">Y / 118.04</span>
@@ -143,7 +145,7 @@ onBeforeUnmount(() => {
           <div class="hero-axis axis-horizontal" /><div class="hero-axis axis-vertical" />
         </div>
 
-        <p class="hero-kicker"><span>PORTFOLIO / CV / AUTOBIOGRAPHICAL SYSTEM</span><span>BUENOS AIRES · 2026</span></p>
+        <p class="hero-kicker"><span>PORTFOLIO / CREATIVE PRACTICE / 2026</span><span>BUENOS AIRES · ARGENTINA</span></p>
 
         <h1 class="hero-title" aria-label="Diego Cano">
           <span class="title-line"><span class="title-inner">DIEGO</span></span>

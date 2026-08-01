@@ -65,10 +65,10 @@ onMounted(async () => {
       vec3 viewDir = normalize(cameraPosition - vWorld);
       float fresnel = pow(1.0 - abs(dot(viewDir, normalize(vNormal))), 2.6);
       float bands = sin(vWorld.y * 4.8 + vWorld.x * 1.6 - uTime * .22) * .5 + .5;
-      vec3 obsidian = vec3(.014, .035, .030);
-      vec3 mineral = vec3(.24, .54, .43);
-      vec3 spectral = vec3(.68, .94, .78);
-      vec3 ember = vec3(.91, .39, .18);
+      vec3 obsidian = vec3(.035, .04, .045);
+      vec3 mineral = vec3(.42, .49, .52);
+      vec3 spectral = vec3(.92, .95, .94);
+      vec3 ember = vec3(.94, .19, .055);
       vec3 color = mix(obsidian, mineral, smoothstep(-.65, .82, vWave));
       color = mix(color, spectral, fresnel * (.55 + bands * .3));
       color = mix(color, ember, smoothstep(.82, 1.0, fresnel + sin(uScroll * 3.1415) * .08) * .35);
@@ -90,7 +90,7 @@ onMounted(async () => {
 
   const wire = new THREE.Mesh(
     new THREE.IcosahedronGeometry(1.78, 4),
-    new THREE.MeshBasicMaterial({ color: 0xb7f5d1, wireframe: true, transparent: true, opacity: 0.055, blending: THREE.AdditiveBlending }),
+    new THREE.MeshBasicMaterial({ color: 0x173bdb, wireframe: true, transparent: true, opacity: 0.085 }),
   );
   scene.add(wire);
 
@@ -98,7 +98,7 @@ onMounted(async () => {
   [2.35, 2.72, 3.08].forEach((radius, index) => {
     const ring = new THREE.Mesh(
       new THREE.TorusGeometry(radius, 0.006 + index * 0.002, 8, 180),
-      new THREE.MeshBasicMaterial({ color: index === 1 ? 0xe95e30 : 0x90e9b8, transparent: true, opacity: index === 1 ? 0.24 : 0.15 }),
+      new THREE.MeshBasicMaterial({ color: index === 1 ? 0xf04418 : 0x173bdb, transparent: true, opacity: index === 1 ? 0.3 : 0.18 }),
     );
     ring.rotation.set(Math.PI * (0.32 + index * 0.13), Math.PI * (0.08 + index * 0.18), index * 0.32);
     ringGroup.add(ring);
@@ -118,7 +118,7 @@ onMounted(async () => {
   particleGeometry.setAttribute("position", new THREE.BufferAttribute(points, 3));
   const particles = new THREE.Points(
     particleGeometry,
-    new THREE.PointsMaterial({ color: 0xa8d8bc, size: 0.012, transparent: true, opacity: 0.48, depthWrite: false, blending: THREE.AdditiveBlending }),
+    new THREE.PointsMaterial({ color: 0x11110f, size: 0.011, transparent: true, opacity: 0.24, depthWrite: false }),
   );
   scene.add(particles);
 
@@ -155,7 +155,7 @@ onMounted(async () => {
     uniforms.uPointer.value.copy(pointer);
     matter.rotation.y += reduced ? 0 : 0.00135;
     matter.rotation.x = -0.2 + pointer.y * 0.09 + scroll * 0.42;
-    matter.position.x = pointer.x * 0.14 + Math.sin(scroll * Math.PI * 3) * 0.42;
+    matter.position.x = .7 + pointer.x * 0.14 + Math.sin(scroll * Math.PI * 3) * 0.42;
     matter.position.y = pointer.y * 0.11 - scroll * 0.28;
     matter.scale.setScalar(1 + Math.sin(scroll * Math.PI * 2.4) * 0.08);
     wire.rotation.copy(matter.rotation);
