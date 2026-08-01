@@ -1,51 +1,136 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import CreativeGallery from "./components/CreativeGallery.vue";
 
-const projects = [
-  ["01", "DOC / AI", "AI PRODUCT · BANKING · ON-PREMISE", "Secure Document Extractor", "Sensitive PDFs and images become validated, auditable financial data without leaving isolated infrastructure.", "Zero external API dependency", "signal", "2026"],
-  ["02", "NL / SQL", "AGENTS · NLP · DATA SECURITY", "NL-to-SQL Agent", "A schema-aware agent that resolves ambiguity, orchestrates tools and produces safe executable queries.", "Grounded, guarded SQL", "cobalt", "2026"],
-  ["03", "MCP / 03", "FINTECH · MCP · MULTI-AGENT", "Financial MCP Server", "Real-time market tools, technical indicators and multi-agent analysis shaped into portfolio recommendations.", "Signals into decisions", "ink", "2025"],
-  ["04", "SEARCH", "SEARCH · E-COMMERCE · AI", "Semantic Shopping Assistant", "An AI shopping assistant that understands intent and searches a catalogue of more than 50,000 products.", "60% faster · 40% more accurate", "coral", "2025"],
-  ["05", "RAG / AWS", "RAG · INSURANCE · AWS", "Insurance Knowledge Assistant", "AWS S3 ingestion, document indexing and retrieval connected to a dependable answer-generation API.", "Knowledge made operational", "ice", "2025"],
-  ["06", "AGENT / RAG", "PLATFORM · RAG · KNOWLEDGE", "Multi-Agent RAG Platform", "A multi-agent platform connected to internal knowledge bases for faster onboarding and technical diagnosis.", "−30% onboarding · −40% debugging", "sand", "2025"],
-] as const;
+type Project = {
+  id: string;
+  title: string;
+  kicker: string;
+  summary: string;
+  impact: string;
+  year: string;
+  code: string;
+};
 
-const cleanup: Array<() => void> = [];
-onMounted(() => {
+const projects: Project[] = [
+  { id: "01", title: "Secure Document\nExtractor", kicker: "AI PRODUCT · BANKING", summary: "Sensitive documents become validated, auditable financial data without leaving isolated infrastructure.", impact: "Zero external API dependency", year: "2026", code: "DOC—AI" },
+  { id: "02", title: "Natural Language\nto SQL", kicker: "AGENTS · DATA SECURITY", summary: "A schema-aware agent resolves ambiguity, orchestrates tools and produces guarded executable queries.", impact: "Grounded, guarded SQL", year: "2026", code: "NL—SQL" },
+  { id: "03", title: "Financial MCP\nServer", kicker: "FINTECH · MULTI-AGENT", summary: "Real-time market tools and technical signals shaped into clear portfolio recommendations.", impact: "Signals into decisions", year: "2025", code: "MCP—03" },
+  { id: "04", title: "Semantic Shopping\nAssistant", kicker: "SEARCH · E-COMMERCE", summary: "Intent-aware catalogue search across more than 50,000 products, designed around how people actually ask.", impact: "60% faster · 40% more accurate", year: "2025", code: "SEARCH" },
+];
+
+const root = ref<HTMLElement | null>(null);
+const work = ref<HTMLElement | null>(null);
+const rail = ref<HTMLElement | null>(null);
+let context: gsap.Context | null = null;
+
+onMounted(async () => {
+  await nextTick();
   gsap.registerPlugin(ScrollTrigger);
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!reduced) {
+
+  context = gsap.context(() => {
     gsap.timeline({ defaults: { ease: "power4.out" } })
-      .from(".intro-screen h1 span", { yPercent: 110, duration: 0.85, stagger: 0.08 })
-      .to(".intro-screen", { clipPath: "inset(0 0 100% 0)", duration: 1.05, delay: 0.3, ease: "power3.inOut" })
-      .set(".intro-screen", { display: "none" })
-      .from(".hero-line", { yPercent: 100, opacity: 0, duration: 1, stagger: 0.12 }, "-=.55");
-    gsap.utils.toArray<HTMLElement>(".reveal-item").forEach((element) => gsap.from(element, { y: 70, opacity: 0, duration: 1, scrollTrigger: { trigger: element, start: "top 82%" } }));
-  } else gsap.set(".intro-screen", { display: "none" });
-  gsap.to(".header-progress", { scaleX: 1, ease: "none", scrollTrigger: { start: 0, end: "max", scrub: 0.2 } });
-  if (matchMedia("(pointer:fine)").matches) {
-    const cursor = document.querySelector<HTMLElement>(".cursor");
-    let x = -100, y = -100, cx = -100, cy = -100, frame = 0;
-    const move = (event: PointerEvent) => { x = event.clientX; y = event.clientY; };
-    const render = () => { if (cursor) { cx += (x - cx) * 0.25; cy += (y - cy) * 0.25; cursor.style.transform = `translate3d(${cx - 17}px,${cy - 17}px,0)`; } frame = requestAnimationFrame(render); };
-    addEventListener("pointermove", move, { passive: true }); frame = requestAnimationFrame(render);
-    cleanup.push(() => { removeEventListener("pointermove", move); cancelAnimationFrame(frame); });
-  }
+      .from(".loader-word span", { yPercent: 110, duration: 0.8, stagger: 0.06 })
+      .to(".loader", { clipPath: "inset(0 0 100% 0)", duration: 1, delay: 0.22, ease: "power3.inOut" })
+      .set(".loader", { display: "none" })
+      .from(".hero-title .line-inner", { yPercent: 105, rotate: 2, duration: 1.15, stagger: 0.1 }, "-=.35")
+      .from(".hero-intro, .hero-index, .hero-orbit", { opacity: 0, y: 28, duration: 0.8, stagger: 0.09 }, "-=.7");
+
+    gsap.to(".progress", { scaleX: 1, ease: "none", scrollTrigger: { start: 0, end: "max", scrub: 0.25 } });
+
+    if (!reduced) {
+      gsap.to(".hero-title .line:first-child", { xPercent: -9, ease: "none", scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom top", scrub: 0.7 } });
+      gsap.to(".hero-title .line:last-child", { xPercent: 8, ease: "none", scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom top", scrub: 0.7 } });
+      gsap.to(".hero-orbit", { rotate: 190, scale: 0.72, ease: "none", scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom top", scrub: 0.8 } });
+      gsap.to(".hero-grid", { yPercent: 18, opacity: 0, ease: "none", scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom top", scrub: 1 } });
+
+      if (work.value && rail.value) {
+        const distance = () => Math.max(0, rail.value!.scrollWidth - innerWidth);
+        gsap.to(rail.value, {
+          x: () => -distance(),
+          ease: "none",
+          scrollTrigger: {
+            trigger: work.value,
+            start: "top top",
+            end: () => `+=${distance() + innerHeight * 0.75}`,
+            pin: true,
+            scrub: 0.65,
+            invalidateOnRefresh: true,
+          },
+        });
+      }
+
+      gsap.utils.toArray<HTMLElement>("[data-reveal]").forEach((element) => {
+        gsap.from(element, { y: 75, opacity: 0, duration: 1.05, ease: "power3.out", scrollTrigger: { trigger: element, start: "top 84%" } });
+      });
+      gsap.utils.toArray<HTMLElement>(".manifesto-word").forEach((word, index) => {
+        gsap.from(word, { opacity: 0.12, y: 18, duration: 0.45, scrollTrigger: { trigger: word, start: `top ${88 - (index % 4) * 3}%`, end: "top 56%", scrub: 0.4 } });
+      });
+    }
+  }, root.value ?? undefined);
 });
-onBeforeUnmount(() => { cleanup.forEach((fn) => fn()); ScrollTrigger.getAll().forEach((trigger) => trigger.kill()); });
+
+onBeforeUnmount(() => context?.revert());
 </script>
 
 <template>
-  <div class="noise" aria-hidden="true" /><div class="cursor" aria-hidden="true"><i class="cursor-ring" /></div>
-  <div class="intro-screen" aria-hidden="true"><span>DC® / 2026</span><h1><span>IDEAS NEED</span><span>FORM + FUNCTION.</span></h1><span>DESIGN × TECHNOLOGY</span></div>
-  <header class="site-header"><a class="brand" href="#top" aria-label="Diego Cano — home"><b>DC</b><span>Designer<br>Developer</span></a><nav class="nav"><a href="#work">Work</a><a href="#about">Profile</a><a href="#contact">Contact</a></nav><a class="availability" href="#contact"><i />Available for selected work</a><span class="header-progress" /></header>
-  <main id="top"><section class="hero"><div class="hero-meta"><span>BUENOS AIRES / ARG</span><span>PRODUCT · VISUAL · CODE</span><span>© 2026</span></div><h1><span class="hero-line">DESIGNER</span><span class="hero-line hero-line--alt"><em>&amp;</em> DEVELOPER</span></h1><div class="hero-foot"><p>I shape complex technology into clear, useful and memorable digital products.</p><a class="round-link" href="#work"><span>Selected work</span><span>↘</span></a></div><div class="hero-stamp"><span>THINK</span><b>↗</b><span>MAKE</span></div></section>
-    <div class="ticker"><div class="ticker-track"><span>DESIGN SYSTEMS ✦ AI PRODUCTS ✦ CREATIVE DEVELOPMENT ✦ INTERACTION DESIGN ✦</span><span>DESIGN SYSTEMS ✦ AI PRODUCTS ✦ CREATIVE DEVELOPMENT ✦ INTERACTION DESIGN ✦</span></div></div>
-    <section id="work" class="work"><div class="section-intro reveal-item"><span>01 / SELECTED WORK</span><h2>Built to be used.<br><em>Designed to be felt.</em></h2><p>Strategy, interface and engineering working as one discipline.</p></div><div class="project-grid"><article v-for="(project, index) in projects" :key="project[0]" :class="['project-card', project[6], { 'project-card--wide': index === 0 || index === 5 }]"><div class="project-top"><span>{{ project[0] }}</span><span>{{ project[2] }}</span><span>{{ project[7] }}</span></div><div class="project-art"><i /><i /><i /><strong>{{ project[1] }}</strong></div><div class="project-copy"><h3>{{ project[3] }}</h3><div><b>{{ project[5] }}</b><p>{{ project[4] }}</p></div><span class="project-arrow">↗</span></div></article></div></section>
-    <section id="about" class="profile"><div class="profile-label">02 / PROFILE</div><div class="profile-main reveal-item"><p class="profile-lead">I work where <em>design judgment</em> meets <em>technical depth.</em></p><p class="profile-note">From the first messy question to a production-ready system, I connect research, product thinking, visual language and code.</p></div><CreativeGallery /><div class="capability-grid"><div><span>01</span><h3>Product design</h3><p>Flows, information architecture, prototypes and design systems.</p></div><div><span>02</span><h3>Creative development</h3><p>Expressive, accessible interfaces built for real-world use.</p></div><div><span>03</span><h3>AI systems</h3><p>Agents, retrieval and intelligent workflows with visible reasoning.</p></div><div><span>04</span><h3>Full-stack delivery</h3><p>From interaction details to resilient product architecture.</p></div></div></section>
-    <section id="contact" class="contact"><span>03 / START A CONVERSATION</span><h2>Have a difficult<br>idea? <em>Good.</em></h2><div class="contact-row"><p>Let’s turn it into something clear,<br>useful and impossible to ignore.</p><a href="mailto:diegocanomera@gmail.com">diegocanomera@gmail.com ↗</a></div></section></main>
-  <footer><strong>Diego Cano</strong><span>Designer &amp; Developer</span><div><a href="https://github.com/dfc-coder">GitHub ↗</a><a href="https://linkedin.com/in/software-engineer-diegocano">LinkedIn ↗</a></div><span>Buenos Aires · 2026</span></footer>
+  <div ref="root" class="site-shell">
+    <div class="loader" aria-hidden="true"><div class="loader-meta"><span>DC® / PORTFOLIO</span><span>BUENOS AIRES / 2026</span></div><div class="loader-word"><span>FORM</span><span>MEETS</span><span>INTELLIGENCE.</span></div></div>
+    <div class="grain" aria-hidden="true" />
+    <header class="header"><a href="#top" class="logo" aria-label="Diego Cano — home"><b>DC</b><span>DESIGN ×<br>TECHNOLOGY</span></a><nav><a href="#work">WORK</a><a href="#profile">PROFILE</a><a href="#contact">CONTACT</a></nav><div class="availability"><i />AVAILABLE / 2026</div><div class="progress" /></header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-grid" aria-hidden="true" />
+        <div class="hero-index"><span>01 — 04</span><span>DESIGNER / DEVELOPER</span><span>ARG / GMT−3</span></div>
+        <div class="hero-orbit" aria-hidden="true"><span>DESIGN</span><i /><span>CODE</span><b>↗</b></div>
+        <h1 class="hero-title" aria-label="Diego Cano"><span class="line"><span class="line-inner">DIEGO</span></span><span class="line line-alt"><span class="line-inner">CA<em>N</em>O</span></span></h1>
+        <div class="hero-bottom"><p class="hero-intro">I turn complex systems into digital products that feel <em>clear, useful and alive.</em></p><a href="#work" class="hero-cta"><span>EXPLORE<br>SELECTED WORK</span><b>↓</b></a></div>
+      </section>
+
+      <section class="manifesto" id="profile">
+        <div class="section-label"><span>01 / POSITION</span><span>A PRACTICE BETWEEN DISCIPLINES</span></div>
+        <p class="manifesto-copy"><span v-for="word in 'Design judgment and technical depth should not live in separate rooms. I connect both to build intelligent products with a distinct point of view.'.split(' ')" :key="word" class="manifesto-word">{{ word }} </span></p>
+        <div class="manifesto-note" data-reveal><span>PRODUCT THINKING</span><p>From a messy question to a coherent system: research, interaction, visual language and production code.</p></div>
+      </section>
+
+      <section ref="work" id="work" class="work-section">
+        <div class="work-head"><span>02 / SELECTED WORK</span><p>FOUR SYSTEMS<br>ONE POINT OF VIEW</p><b>SCROLL TO EXPLORE →</b></div>
+        <div ref="rail" class="project-rail">
+          <article v-for="(project, index) in projects" :key="project.id" class="project-panel">
+            <div class="project-number">{{ project.id }}</div>
+            <div :class="['project-visual', `visual-${index + 1}`]" aria-hidden="true"><div class="visual-grid" /><span>{{ project.code }}</span><i /><i /><i /></div>
+            <div class="project-meta"><span>{{ project.kicker }}</span><span>{{ project.year }}</span></div>
+            <h2>{{ project.title }}</h2>
+            <div class="project-bottom"><strong>{{ project.impact }}</strong><p>{{ project.summary }}</p><button type="button" aria-label="Open project">↗</button></div>
+          </article>
+          <div class="rail-end"><span>END / 04</span><h3>More work<br><em>in progress.</em></h3><a href="#contact">START A CONVERSATION ↗</a></div>
+        </div>
+      </section>
+
+      <section class="method">
+        <div class="section-label"><span>03 / METHOD</span><span>HOW THE WORK MOVES</span></div>
+        <h2 data-reveal>From ambiguity<br>to <em>useful form.</em></h2>
+        <div class="method-grid">
+          <article data-reveal><span>01</span><h3>Frame</h3><p>Understand the real problem, the people inside it and the constraints that shape the answer.</p></article>
+          <article data-reveal><span>02</span><h3>Shape</h3><p>Turn research into flows, prototypes, visual systems and an interaction language with intent.</p></article>
+          <article data-reveal><span>03</span><h3>Build</h3><p>Translate the concept into clean, resilient software without sanding away its personality.</p></article>
+        </div>
+      </section>
+
+      <section class="profile-strip">
+        <div class="profile-statement" data-reveal><span>DESIGNER’S EYE</span><b>+</b><span>ENGINEER’S MIND</span></div>
+        <div class="profile-facts"><div><span>BASED</span><strong>Buenos Aires, AR</strong></div><div><span>FOCUS</span><strong>AI products · Systems · Interaction</strong></div><div><span>STACK</span><strong>Vue · TypeScript · Python · Java</strong></div></div>
+      </section>
+
+      <section id="contact" class="contact">
+        <span>04 / LET’S MAKE SOMETHING MATTER</span>
+        <h2 data-reveal>Have a difficult<br>idea? <em>Good.</em></h2>
+        <div class="contact-line"><p>I like projects where clarity is hard-earned.</p><a href="mailto:diegocanomera@gmail.com">DIEGOCANOMERA@GMAIL.COM <b>↗</b></a></div>
+      </section>
+    </main>
+    <footer><span>© 2026 DIEGO CANO</span><div><a href="https://github.com/dfc-coder">GITHUB ↗</a><a href="https://linkedin.com/in/software-engineer-diegocano">LINKEDIN ↗</a></div><span>DESIGNED & BUILT IN BUENOS AIRES</span></footer>
+  </div>
 </template>
