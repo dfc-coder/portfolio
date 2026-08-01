@@ -1,51 +1,211 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import LivingMatter from "./components/LivingMatter.vue";
 import CreativeGallery from "./components/CreativeGallery.vue";
+import ProjectVault from "./components/ProjectVault.vue";
+import ContactAssistant from "./components/ContactAssistant.vue";
 
-const projects = [
-  ["01", "DOC / AI", "AI PRODUCT · BANKING · ON-PREMISE", "Secure Document Extractor", "Sensitive PDFs and images become validated, auditable financial data without leaving isolated infrastructure.", "Zero external API dependency", "signal", "2026"],
-  ["02", "NL / SQL", "AGENTS · NLP · DATA SECURITY", "NL-to-SQL Agent", "A schema-aware agent that resolves ambiguity, orchestrates tools and produces safe executable queries.", "Grounded, guarded SQL", "cobalt", "2026"],
-  ["03", "MCP / 03", "FINTECH · MCP · MULTI-AGENT", "Financial MCP Server", "Real-time market tools, technical indicators and multi-agent analysis shaped into portfolio recommendations.", "Signals into decisions", "ink", "2025"],
-  ["04", "SEARCH", "SEARCH · E-COMMERCE · AI", "Semantic Shopping Assistant", "An AI shopping assistant that understands intent and searches a catalogue of more than 50,000 products.", "60% faster · 40% more accurate", "coral", "2025"],
-  ["05", "RAG / AWS", "RAG · INSURANCE · AWS", "Insurance Knowledge Assistant", "AWS S3 ingestion, document indexing and retrieval connected to a dependable answer-generation API.", "Knowledge made operational", "ice", "2025"],
-  ["06", "AGENT / RAG", "PLATFORM · RAG · KNOWLEDGE", "Multi-Agent RAG Platform", "A multi-agent platform connected to internal knowledge bases for faster onboarding and technical diagnosis.", "−30% onboarding · −40% debugging", "sand", "2025"],
-] as const;
+const root = ref<HTMLElement | null>(null);
+let context: gsap.Context | null = null;
+let media: gsap.MatchMedia | null = null;
 
-const cleanup: Array<() => void> = [];
-onMounted(() => {
+onMounted(async () => {
+  await nextTick();
   gsap.registerPlugin(ScrollTrigger);
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!reduced) {
-    gsap.timeline({ defaults: { ease: "power4.out" } })
-      .from(".intro-screen h1 span", { yPercent: 110, duration: 0.85, stagger: 0.08 })
-      .to(".intro-screen", { clipPath: "inset(0 0 100% 0)", duration: 1.05, delay: 0.3, ease: "power3.inOut" })
-      .set(".intro-screen", { display: "none" })
-      .from(".hero-line", { yPercent: 100, opacity: 0, duration: 1, stagger: 0.12 }, "-=.55");
-    gsap.utils.toArray<HTMLElement>(".reveal-item").forEach((element) => gsap.from(element, { y: 70, opacity: 0, duration: 1, scrollTrigger: { trigger: element, start: "top 82%" } }));
-  } else gsap.set(".intro-screen", { display: "none" });
-  gsap.to(".header-progress", { scaleX: 1, ease: "none", scrollTrigger: { start: 0, end: "max", scrub: 0.2 } });
-  if (matchMedia("(pointer:fine)").matches) {
-    const cursor = document.querySelector<HTMLElement>(".cursor");
-    let x = -100, y = -100, cx = -100, cy = -100, frame = 0;
-    const move = (event: PointerEvent) => { x = event.clientX; y = event.clientY; };
-    const render = () => { if (cursor) { cx += (x - cx) * 0.25; cy += (y - cy) * 0.25; cursor.style.transform = `translate3d(${cx - 17}px,${cy - 17}px,0)`; } frame = requestAnimationFrame(render); };
-    addEventListener("pointermove", move, { passive: true }); frame = requestAnimationFrame(render);
-    cleanup.push(() => { removeEventListener("pointermove", move); cancelAnimationFrame(frame); });
-  }
+
+  context = gsap.context(() => {
+    if (reduced) {
+      gsap.set(".loader", { display: "none" });
+    } else {
+      gsap.timeline({ defaults: { ease: "power4.out" } })
+        .from(".loader-signal i", { scaleY: 0, transformOrigin: "bottom", duration: 0.8, stagger: 0.045 })
+        .from(".loader-copy span", { yPercent: 120, duration: 0.72, stagger: 0.055 }, "-=.42")
+        .to(".loader-copy", { opacity: 0, y: -40, duration: 0.5, delay: 0.28, ease: "power2.in" })
+        .to(".loader", { clipPath: "inset(0 0 100% 0)", duration: 1.05, ease: "expo.inOut" }, "-=.14")
+        .set(".loader", { display: "none" })
+        .from(".hero-title .title-inner", { yPercent: 112, rotate: 2.5, duration: 1.2, stagger: 0.1 }, "-=.56")
+        .from(".hero-kicker, .hero-statement, .hero-scroll, .discipline-orbit", { opacity: 0, y: 24, duration: 0.85, stagger: 0.08 }, "-=.74");
+    }
+
+    gsap.to(".scroll-progress", {
+      scaleX: 1,
+      ease: "none",
+      scrollTrigger: { start: 0, end: "max", scrub: 0.25 },
+    });
+
+    if (!reduced) {
+      gsap.to(".hero-title .title-line:first-child", {
+        xPercent: -10,
+        scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom top", scrub: 0.8 },
+      });
+      gsap.to(".hero-title .title-line:last-child", {
+        xPercent: 11,
+        scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom top", scrub: 0.8 },
+      });
+      gsap.to(".discipline-orbit", {
+        rotation: 150,
+        scale: 0.72,
+        scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom top", scrub: 1 },
+      });
+      gsap.to(".hero-interface", {
+        yPercent: 18,
+        opacity: 0,
+        scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom 20%", scrub: 0.8 },
+      });
+
+      gsap.utils.toArray<HTMLElement>("[data-reveal]").forEach((element) => {
+        gsap.from(element, {
+          y: 80,
+          opacity: 0,
+          duration: 1.15,
+          ease: "power3.out",
+          scrollTrigger: { trigger: element, start: "top 86%" },
+        });
+      });
+
+      gsap.utils.toArray<HTMLElement>(".about-lead .word").forEach((word, index) => {
+        gsap.from(word, {
+          opacity: 0.09,
+          y: 22,
+          scrollTrigger: { trigger: word, start: `top ${90 - (index % 5) * 2}%`, end: "top 55%", scrub: 0.35 },
+        });
+      });
+
+      gsap.to(".chapter-signal", {
+        rotation: 280,
+        scrollTrigger: { trigger: ".about-intro", start: "top bottom", end: "bottom top", scrub: 0.6 },
+      });
+
+      media = gsap.matchMedia();
+      media.add("(min-width: 821px)", () => {
+        const vault = document.querySelector<HTMLElement>(".project-vault");
+        const rail = document.querySelector<HTMLElement>(".project-rail");
+        if (!vault || !rail) return;
+        const distance = () => Math.max(0, rail.scrollWidth - innerWidth);
+        gsap.to(rail, {
+          x: () => -distance(),
+          ease: "none",
+          scrollTrigger: {
+            trigger: vault,
+            start: "top top",
+            end: () => `+=${distance() + innerHeight * 0.65}`,
+            pin: true,
+            scrub: 0.7,
+            invalidateOnRefresh: true,
+          },
+        });
+      });
+    }
+
+    addEventListener("load", () => ScrollTrigger.refresh(), { once: true });
+  }, root.value ?? undefined);
 });
-onBeforeUnmount(() => { cleanup.forEach((fn) => fn()); ScrollTrigger.getAll().forEach((trigger) => trigger.kill()); });
+
+onBeforeUnmount(() => {
+  media?.revert();
+  context?.revert();
+});
 </script>
 
 <template>
-  <div class="noise" aria-hidden="true" /><div class="cursor" aria-hidden="true"><i class="cursor-ring" /></div>
-  <div class="intro-screen" aria-hidden="true"><span>DC® / 2026</span><h1><span>IDEAS NEED</span><span>FORM + FUNCTION.</span></h1><span>DESIGN × TECHNOLOGY</span></div>
-  <header class="site-header"><a class="brand" href="#top" aria-label="Diego Cano — home"><b>DC</b><span>Designer<br>Developer</span></a><nav class="nav"><a href="#work">Work</a><a href="#about">Profile</a><a href="#contact">Contact</a></nav><a class="availability" href="#contact"><i />Available for selected work</a><span class="header-progress" /></header>
-  <main id="top"><section class="hero"><div class="hero-meta"><span>BUENOS AIRES / ARG</span><span>PRODUCT · VISUAL · CODE</span><span>© 2026</span></div><h1><span class="hero-line">DESIGNER</span><span class="hero-line hero-line--alt"><em>&amp;</em> DEVELOPER</span></h1><div class="hero-foot"><p>I shape complex technology into clear, useful and memorable digital products.</p><a class="round-link" href="#work"><span>Selected work</span><span>↘</span></a></div><div class="hero-stamp"><span>THINK</span><b>↗</b><span>MAKE</span></div></section>
-    <div class="ticker"><div class="ticker-track"><span>DESIGN SYSTEMS ✦ AI PRODUCTS ✦ CREATIVE DEVELOPMENT ✦ INTERACTION DESIGN ✦</span><span>DESIGN SYSTEMS ✦ AI PRODUCTS ✦ CREATIVE DEVELOPMENT ✦ INTERACTION DESIGN ✦</span></div></div>
-    <section id="work" class="work"><div class="section-intro reveal-item"><span>01 / SELECTED WORK</span><h2>Built to be used.<br><em>Designed to be felt.</em></h2><p>Strategy, interface and engineering working as one discipline.</p></div><div class="project-grid"><article v-for="(project, index) in projects" :key="project[0]" :class="['project-card', project[6], { 'project-card--wide': index === 0 || index === 5 }]"><div class="project-top"><span>{{ project[0] }}</span><span>{{ project[2] }}</span><span>{{ project[7] }}</span></div><div class="project-art"><i /><i /><i /><strong>{{ project[1] }}</strong></div><div class="project-copy"><h3>{{ project[3] }}</h3><div><b>{{ project[5] }}</b><p>{{ project[4] }}</p></div><span class="project-arrow">↗</span></div></article></div></section>
-    <section id="about" class="profile"><div class="profile-label">02 / PROFILE</div><div class="profile-main reveal-item"><p class="profile-lead">I work where <em>design judgment</em> meets <em>technical depth.</em></p><p class="profile-note">From the first messy question to a production-ready system, I connect research, product thinking, visual language and code.</p></div><CreativeGallery /><div class="capability-grid"><div><span>01</span><h3>Product design</h3><p>Flows, information architecture, prototypes and design systems.</p></div><div><span>02</span><h3>Creative development</h3><p>Expressive, accessible interfaces built for real-world use.</p></div><div><span>03</span><h3>AI systems</h3><p>Agents, retrieval and intelligent workflows with visible reasoning.</p></div><div><span>04</span><h3>Full-stack delivery</h3><p>From interaction details to resilient product architecture.</p></div></div></section>
-    <section id="contact" class="contact"><span>03 / START A CONVERSATION</span><h2>Have a difficult<br>idea? <em>Good.</em></h2><div class="contact-row"><p>Let’s turn it into something clear,<br>useful and impossible to ignore.</p><a href="mailto:diegocanomera@gmail.com">diegocanomera@gmail.com ↗</a></div></section></main>
-  <footer><strong>Diego Cano</strong><span>Designer &amp; Developer</span><div><a href="https://github.com/dfc-coder">GitHub ↗</a><a href="https://linkedin.com/in/software-engineer-diegocano">LinkedIn ↗</a></div><span>Buenos Aires · 2026</span></footer>
+  <div ref="root" class="site-shell">
+    <div class="loader" aria-hidden="true">
+      <div class="loader-top"><span>DIEGO CANO / PORTFOLIO 2026</span><span>INITIALIZING LIVING SYSTEM</span></div>
+      <div class="loader-signal"><i v-for="n in 28" :key="n" /></div>
+      <div class="loader-copy"><span>SYSTEMS</span><span>WITH A</span><span><em>HUMAN</em> EDGE.</span></div>
+    </div>
+
+    <LivingMatter />
+    <div class="grain" aria-hidden="true" />
+    <div class="edge-vignette" aria-hidden="true" />
+
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Diego Cano, inicio"><b>DC</b><span>CREATIVE TECHNOLOGIST<br>+ INDUSTRIAL DESIGNER</span></a>
+      <nav aria-label="Navegación principal">
+        <a href="#about"><span>01</span>QUIÉN SOY</a>
+        <a href="#work"><span>02</span>PROYECTOS</a>
+        <a href="#contact"><span>03</span>CONTACTO</a>
+      </nav>
+      <div class="header-signal"><i />BAI · GMT−3</div>
+      <div class="scroll-progress" />
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-interface" aria-hidden="true">
+          <span class="coordinate coordinate-a">X / 034.61</span>
+          <span class="coordinate coordinate-b">Y / 118.04</span>
+          <span class="coordinate coordinate-c">MATTER / ACTIVE</span>
+          <span class="cross cross-a" /><span class="cross cross-b" />
+          <div class="hero-axis axis-horizontal" /><div class="hero-axis axis-vertical" />
+        </div>
+
+        <p class="hero-kicker"><span>PORTFOLIO / CV / AUTOBIOGRAPHICAL SYSTEM</span><span>BUENOS AIRES · 2026</span></p>
+
+        <h1 class="hero-title" aria-label="Diego Cano">
+          <span class="title-line"><span class="title-inner">DIEGO</span></span>
+          <span class="title-line title-offset"><span class="title-inner">CA<em>N</em>O</span></span>
+        </h1>
+
+        <div class="discipline-orbit" aria-hidden="true">
+          <svg viewBox="0 0 160 160"><defs><path id="orbit" d="M80,80 m-62,0 a62,62 0 1,1 124,0 a62,62 0 1,1 -124,0" /></defs><text><textPath href="#orbit">CODE · OBJECTS · INTELLIGENCE · SYSTEMS · </textPath></text></svg>
+          <i /><b>∿</b>
+        </div>
+
+        <div class="hero-bottom">
+          <p class="hero-statement">Diseño inteligencia, interfaces y objetos.<br><em>Una práctica entre código, materia y curiosidad.</em></p>
+          <div class="hero-facets" aria-label="Áreas de práctica">
+            <span>AI / SOFTWARE</span><span>ELECTRÓNICA / IoT</span><span>DISEÑO INDUSTRIAL</span><span>3D / IMAGEN</span>
+          </div>
+          <a class="hero-scroll" href="#about"><span>ENTRAR AL ATELIER</span><i>↓</i></a>
+        </div>
+      </section>
+
+      <section id="about" class="about-chapter">
+        <div class="about-intro">
+          <div class="chapter-code"><span>01</span><i />QUIÉN SOY</div>
+          <div class="chapter-signal" aria-hidden="true"><i /><i /><i /><b>DC</b></div>
+          <p class="about-lead">
+            <span v-for="word in 'Pienso como ingeniero pero observo como diseñador. Me interesan los sistemas que se pueden tocar, comprender y sentir.'.split(' ')" :key="word" class="word">{{ word }} </span>
+          </p>
+          <div class="about-note" data-reveal>
+            <span>STATEMENT / 01</span>
+            <p>Soy Diego Cano. Trabajo con AI y software, pero mi lenguaje también se formó entre circuitos, muebles, modelos 3D, interfaces y preguntas sobre cómo funcionan las cosas.</p>
+          </div>
+        </div>
+
+        <div class="practice-constellation" data-reveal>
+          <article><span>01 / LOGIC</span><h2>Inteligencia<br><em>aplicada.</em></h2><p>Agentes, RAG, datos y productos donde la complejidad se vuelve una experiencia legible.</p></article>
+          <article><span>02 / SIGNAL</span><h2>Electrónica<br><em>e IoT.</em></h2><p>Prototipos, sensores y curiosidad por el momento exacto en que el software entra al mundo físico.</p></article>
+          <article><span>03 / MATTER</span><h2>Objetos<br><em>y espacio.</em></h2><p>Diseño industrial, mobiliario, materialidad y modelado 3D como otra forma de pensar sistemas.</p></article>
+          <div class="constellation-line" aria-hidden="true" />
+        </div>
+
+        <div class="gallery-chapter">
+          <div class="gallery-context"><span>ARCHIVO MATERIAL / 10 PIEZAS</span><p>La galería no acompaña el relato.<br><em>Es parte del relato.</em></p></div>
+          <CreativeGallery />
+        </div>
+      </section>
+
+      <ProjectVault />
+
+      <section id="contact" class="contact-chapter">
+        <div class="contact-heading">
+          <div class="chapter-code"><span>03</span><i />CONTACTO / AI LIAISON</div>
+          <h2 data-reveal>La última interfaz<br>es una <em>conversación.</em></h2>
+          <p data-reveal>Una capa de contacto viva: responde sobre experiencia profesional, muestra evidencia aprobada y puede preparar una reunión sin operar fuera de sus límites.</p>
+        </div>
+        <ContactAssistant />
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div><span>DIEGO CANO © 2026</span><span>BUILT WITH VUE · THREE.JS · GSAP</span></div>
+      <p>SYSTEMS WITH<br><em>A HUMAN EDGE.</em></p>
+      <nav><a href="https://github.com/dfc-coder" target="_blank" rel="noreferrer">GITHUB ↗</a><a href="https://linkedin.com/in/software-engineer-diegocano" target="_blank" rel="noreferrer">LINKEDIN ↗</a><a href="mailto:diegocanomera@gmail.com">EMAIL ↗</a></nav>
+    </footer>
+  </div>
 </template>
