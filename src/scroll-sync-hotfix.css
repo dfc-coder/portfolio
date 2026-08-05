@@ -1,9 +1,16 @@
-/* Hotfix: ScrollTrigger is the only owner of scene progress.
-   The previous root scroll-timeline animations desynchronised visual state,
-   active scene state and pointer events in browsers that support scroll timelines. */
+/* ScrollTrigger is the only owner of scene progress.
+   Every adjacent visible state uses the same 36vh scroll interval:
+   18 intervals × 36vh + one sticky viewport = 748vh. */
+
+.ref-track {
+  height: 748vh !important;
+}
 
 .ref-scene--hero,
-.ref-scene--career {
+.ref-scene--career,
+.ref-scene--systems,
+.ref-scene--gallery,
+.ref-scene--agent {
   animation: none !important;
   animation-timeline: auto !important;
   animation-range: normal !important;
@@ -21,7 +28,7 @@
   filter: blur(calc((1 - var(--career)) * 4px)) !important;
 }
 
-/* Keep inactive scenes out of the interaction tree even during cross-fades. */
+/* Keep inactive scenes outside the interaction tree during cross-fades. */
 .ref-scene {
   pointer-events: none !important;
 }
