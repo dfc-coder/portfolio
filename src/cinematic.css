@@ -1,0 +1,431 @@
+/* Motion refinement and UI corrections for the cinematic portfolio. */
+
+html.is-intro-running,
+html.is-intro-running body {
+  overflow: hidden;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid #eeeae2;
+  outline-offset: 4px;
+}
+
+.scene--gallery,
+.scene--agent {
+  pointer-events: none;
+}
+
+.cinematic-stage[data-scene="gallery"] .scene--gallery,
+.cinematic-stage[data-scene="agent"] .scene--agent {
+  pointer-events: auto;
+}
+
+/* Opening transition */
+
+.intro-curtain {
+  position: fixed;
+  z-index: 600;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: var(--black);
+  background: var(--paper);
+  isolation: isolate;
+}
+
+.intro-curtain__panel {
+  position: absolute;
+  z-index: 0;
+  left: 0;
+  right: 0;
+  height: 50.2%;
+  background: var(--paper);
+  will-change: transform;
+}
+
+.intro-curtain__panel--top {
+  top: 0;
+  border-bottom: 1px solid rgba(9, 9, 8, 0.13);
+}
+
+.intro-curtain__panel--bottom {
+  bottom: 0;
+}
+
+.intro-curtain__meta {
+  position: absolute;
+  z-index: 3;
+  inset: 22px 24px auto;
+  display: flex;
+  justify-content: space-between;
+  color: #4f4b45;
+  font: 8px var(--mono);
+  letter-spacing: 0.09em;
+}
+
+.intro-curtain__line {
+  position: absolute;
+  z-index: 3;
+  left: 24px;
+  right: 24px;
+  top: 50%;
+  height: 1px;
+  overflow: hidden;
+  background: rgba(9, 9, 8, 0.13);
+}
+
+.intro-curtain__line i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--black);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.intro-curtain__word {
+  position: relative;
+  z-index: 4;
+  width: calc(100% - 48px);
+  overflow: hidden;
+  font-size: clamp(3.9rem, 10.8vw, 11.5rem);
+  font-weight: 600;
+  line-height: 0.73;
+  letter-spacing: -0.085em;
+}
+
+.intro-curtain__word span {
+  display: block;
+}
+
+.intro-curtain__word span:nth-child(2) {
+  padding-left: 21vw;
+}
+
+.intro-curtain__word em {
+  font-family: var(--serif);
+  font-weight: 400;
+}
+
+/* Stable chrome and legibility */
+
+.cinematic-header {
+  background: rgba(9, 9, 8, 0.68);
+  border-color: rgba(238, 234, 226, 0.25);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+  transition:
+    background 0.45s ease,
+    border-color 0.45s ease,
+    opacity 0.45s ease,
+    transform 0.45s ease;
+}
+
+.cinematic-stage[data-scene="agent"] ~ *,
+.cinematic-stage[data-scene="agent"] {
+  --line: rgba(238, 234, 226, 0.25);
+}
+
+.cinematic-index {
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.25);
+}
+
+.cinematic-index button {
+  position: relative;
+  overflow: hidden;
+}
+
+.cinematic-index button::after {
+  content: "";
+  position: absolute;
+  inset: auto 15px 12px;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.cinematic-index button:hover::after,
+.cinematic-index button:focus-visible::after {
+  transform: scaleX(1);
+}
+
+.scene-marker {
+  z-index: 75;
+  padding: 7px 10px;
+  background: rgba(9, 9, 8, 0.58);
+  border: 1px solid rgba(238, 234, 226, 0.12);
+  backdrop-filter: blur(12px);
+}
+
+.scene--agent .scene-marker {
+  color: var(--black);
+  background: rgba(238, 234, 226, 0.78);
+  border-color: rgba(9, 9, 8, 0.14);
+}
+
+/* A single damped motion system drives these transforms.
+   Remove secondary transition lag from the depth objects. */
+
+.system-slab,
+.gallery-plane {
+  transition:
+    opacity 0.22s linear,
+    filter 0.22s linear,
+    border-color 0.32s ease !important;
+  will-change: transform, opacity, filter;
+}
+
+.system-slab.active {
+  border-color: rgba(238, 234, 226, 0.62);
+  box-shadow:
+    0 45px 120px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px rgba(238, 234, 226, 0.08);
+}
+
+.gallery-plane {
+  display: grid;
+  place-items: center;
+  padding: clamp(8px, 1vw, 15px);
+}
+
+.gallery-plane img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #11100e;
+}
+
+.gallery-plane.active {
+  border-color: rgba(238, 234, 226, 0.7);
+  box-shadow:
+    0 52px 135px rgba(0, 0, 0, 0.58),
+    0 0 0 1px rgba(238, 234, 226, 0.08);
+}
+
+.gallery-plane.active:hover img {
+  transform: scale(1.012);
+}
+
+.scene-copy-enter-active,
+.scene-copy-leave-active {
+  transition:
+    opacity 0.48s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 0.58s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.48s ease;
+}
+
+.scene-copy-enter-from {
+  opacity: 0;
+  filter: blur(7px);
+  transform: translate3d(0, 34px, 0);
+}
+
+.scene-copy-leave-to {
+  opacity: 0;
+  filter: blur(5px);
+  transform: translate3d(0, -24px, 0);
+}
+
+/* Career navigation is interactive and remains readable. */
+
+.career-rail {
+  z-index: 45;
+  width: 20px;
+  margin-left: -10px;
+  background: transparent;
+}
+
+.career-rail::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line);
+}
+
+.career-rail button {
+  position: relative;
+  z-index: 1;
+  width: 19px;
+  height: 19px;
+  margin-left: 0;
+  padding: 5px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.career-rail button::before {
+  content: "";
+  display: block;
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--paper);
+  border-radius: 50%;
+  background: var(--black);
+  transition:
+    background 0.35s ease,
+    box-shadow 0.35s ease,
+    transform 0.35s ease;
+}
+
+.career-rail button:hover::before,
+.career-rail button:focus-visible::before {
+  transform: scale(1.28);
+}
+
+.career-rail button.active::before {
+  background: var(--paper);
+  box-shadow: 0 0 0 8px rgba(238, 234, 226, 0.08);
+}
+
+/* Gallery controls and captions */
+
+.gallery-caption {
+  max-width: 520px;
+  border: 1px solid rgba(9, 9, 8, 0.2);
+  backdrop-filter: blur(18px);
+  pointer-events: none;
+}
+
+.gallery-filmstrip {
+  left: 50%;
+  right: auto;
+  width: min(calc(100vw - 44px), 980px);
+  transform: translateX(-50%);
+  padding: 6px;
+  gap: 5px;
+  border: 1px solid rgba(238, 234, 226, 0.16);
+  background: rgba(9, 9, 8, 0.55);
+  backdrop-filter: blur(16px);
+}
+
+.gallery-filmstrip button {
+  min-width: 0;
+}
+
+.gallery-filmstrip button:hover,
+.gallery-filmstrip button.active {
+  transform: translateY(-3px);
+}
+
+.gallery-filmstrip button.active::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  border: 1px solid var(--paper);
+  pointer-events: none;
+}
+
+/* Agent composition */
+
+.agent-heading {
+  z-index: 5;
+}
+
+.agent-stage {
+  z-index: 4;
+  top: 13%;
+  height: 75%;
+  border-color: rgba(9, 9, 8, 0.78);
+  box-shadow:
+    14px 14px 0 #aaa399,
+    0 35px 90px rgba(45, 42, 37, 0.2);
+}
+
+.chat-prompts {
+  scrollbar-width: thin;
+}
+
+.chat-prompts button {
+  transition:
+    color 0.25s ease,
+    background 0.25s ease,
+    transform 0.25s ease;
+}
+
+.chat-prompts button:hover {
+  transform: translateY(-2px);
+}
+
+@media (max-width: 980px) {
+  .gallery-filmstrip {
+    width: calc(100vw - 28px);
+  }
+
+  .agent-stage {
+    top: 14%;
+    height: 75%;
+  }
+}
+
+@media (max-width: 680px) {
+  .intro-curtain__meta {
+    inset: 16px 14px auto;
+  }
+
+  .intro-curtain__meta span:last-child {
+    display: none;
+  }
+
+  .intro-curtain__line {
+    left: 14px;
+    right: 14px;
+  }
+
+  .intro-curtain__word {
+    width: calc(100% - 28px);
+    font-size: clamp(3.35rem, 18vw, 6.5rem);
+    line-height: 0.78;
+  }
+
+  .intro-curtain__word span:nth-child(2) {
+    padding-left: 9vw;
+  }
+
+  .scene-marker {
+    padding: 6px 8px;
+  }
+
+  .gallery-plane {
+    padding: 6px;
+  }
+
+  .gallery-caption {
+    bottom: 88px;
+    width: min(82vw, 360px);
+  }
+
+  .gallery-filmstrip {
+    left: 14px;
+    right: 14px;
+    width: auto;
+    transform: none;
+    padding: 4px;
+    overflow-x: auto;
+    grid-template-columns: repeat(10, 58px);
+    scroll-snap-type: x proximity;
+  }
+
+  .gallery-filmstrip button {
+    scroll-snap-align: center;
+  }
+
+  .agent-stage {
+    top: 31%;
+    height: 65%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-curtain {
+    display: none !important;
+  }
+}
