@@ -173,8 +173,19 @@ const artworks: Artwork[] = [
   },
 ];
 
-const GALLERY_START = 0.57;
-const GALLERY_END = 0.865;
+/*
+ * Every visible state lives on one integer node. The distance between any two
+ * consecutive states is therefore identical, independently of its section.
+ */
+const HERO_NODE = 0;
+const CAREER_START_NODE = 1;
+const SYSTEMS_START_NODE = CAREER_START_NODE + experiences.length;
+const GALLERY_START_NODE = SYSTEMS_START_NODE + projects.length;
+const AGENT_NODE = GALLERY_START_NODE + artworks.length;
+const LAST_NODE = AGENT_NODE;
+const STEP_HOLD_START = 0.2;
+const STEP_HOLD_END = 0.8;
+const SCENE_CROSSFADE_WIDTH = 0.46;
 
 const track = ref<HTMLElement | null>(null);
 const stage = ref<HTMLElement | null>(null);
@@ -213,40 +224,43 @@ const range = (value: number, start: number, end: number) =>
 const damp = (current: number, target: number, lambda: number, deltaSeconds: number) =>
   current + (target - current) * (1 - Math.exp(-lambda * deltaSeconds));
 
-const sceneForProgress = (progress: number): SceneName => {
-  if (progress < 0.125) return "hero";
-  if (progress < 0.315) return "career";
-  if (progress < 0.555) return "systems";
-  if (progress < 0.885) return "gallery";
+const progressToNode = (progress: number) => clamp01(progress) * LAST_NODE;
+const nodeToProgress = (node: number) => Math.min(LAST_NODE, Math.max(0, node)) / LAST_NODE;
+
+const collectionPosition = (nodePosition: number, startNode: number, count: number) => {
+  const lastIndex = count - 1;
+  const raw = Math.min(lastIndex, Math.max(0, nodePosition - startNode));
+  if (raw >= lastIndex) return lastIndex;
+
+  const index = Math.floor(raw);
+  const local = raw - index;
+
+  if (local <= STEP_HOLD_START) return index;
+  if (local >= STEP_HOLD_END) return index + 1;
+
+  return index + smoother((local - STEP_HOLD_START) / (STEP_HOLD_END - STEP_HOLD_START));
+};
+
+const crossfadeAt = (nodePosition: number, boundary: number) =>
+  range(
+    nodePosition,
+    boundary - SCENE_CROSSFADE_WIDTH / 2,
+    boundary + SCENE_CROSSFADE_WIDTH / 2,
+  );
+
+const sceneForNode = (nodePosition: number): SceneName => {
+  if (nodePosition < CAREER_START_NODE - 0.5) return "hero";
+  if (nodePosition < SYSTEMS_START_NODE - 0.5) return "career";
+  if (nodePosition < GALLERY_START_NODE - 0.5) return "systems";
+  if (nodePosition < AGENT_NODE - 0.5) return "gallery";
   return "agent";
 };
 
-const setActiveIndex = (position: number, current: number, length: number) => {
-  const next = Math.min(length - 1, Math.max(0, Math.round(position)));
-  return next === current ? current : next;
-};
-
-const preciseGalleryPosition = (progress: number) => {
-  const lastIndex = artworks.length - 1;
-  const raw = clamp01((progress - GALLERY_START) / (GALLERY_END - GALLERY_START)) * lastIndex;
-  if (raw >= lastIndex) return lastIndex;
-
-  const segment = Math.floor(raw);
-  const local = raw - segment;
-  const holdBefore = 0.34;
-  const holdAfter = 0.66;
-
-  if (local <= holdBefore) return segment;
-  if (local >= holdAfter) return segment + 1;
-
-  return segment + smoother((local - holdBefore) / (holdAfter - holdBefore));
-};
-
-const sceneOpacities = (progress: number) => {
-  const heroToCareer = range(progress, 0.105, 0.14);
-  const careerToSystems = range(progress, 0.295, 0.33);
-  const systemsToGallery = range(progress, 0.535, 0.57);
-  const galleryToAgent = range(progress, 0.865, 0.9);
+const sceneOpacities = (nodePosition: number) => {
+  const heroToCareer = crossfadeAt(nodePosition, CAREER_START_NODE - 0.5);
+  const careerToSystems = crossfadeAt(nodePosition, SYSTEMS_START_NODE - 0.5);
+  const systemsToGallery = crossfadeAt(nodePosition, GALLERY_START_NODE - 0.5);
+  const galleryToAgent = crossfadeAt(nodePosition, AGENT_NODE - 0.5);
 
   return {
     hero: 1 - heroToCareer,
@@ -255,6 +269,11 @@ const sceneOpacities = (progress: number) => {
     gallery: systemsToGallery * (1 - galleryToAgent),
     agent: galleryToAgent,
   };
+};
+
+const setActiveIndex = (position: number, current: number, length: number) => {
+  const next = Math.min(length - 1, Math.max(0, Math.round(position)));
+  return next === current ? current : next;
 };
 
 const updateDepthObjects = (projectPosition: number, artworkPosition: number) => {
@@ -299,14 +318,25 @@ const updateDepthObjects = (projectPosition: number, artworkPosition: number) =>
 const renderProgress = (progress: number) => {
   if (!stage.value) return;
 
-  const opacity = sceneOpacities(progress);
-  const experiencePosition =
-    clamp01((progress - 0.14) / (0.295 - 0.14)) * (experiences.length - 1);
-  const projectPosition =
-    clamp01((progress - 0.33) / (0.535 - 0.33)) * (projects.length - 1);
-  const artworkPosition = preciseGalleryPosition(progress);
+  const nodePosition = progressToNode(progress);
+  const opacity = sceneOpacities(nodePosition);
+  const experiencePosition = collectionPosition(
+    nodePosition,
+    CAREER_START_NODE,
+    experiences.length,
+  );
+  const projectPosition = collectionPosition(
+    nodePosition,
+    SYSTEMS_START_NODE,
+    projects.length,
+  );
+  const artworkPosition = collectionPosition(
+    nodePosition,
+    GALLERY_START_NODE,
+    artworks.length,
+  );
 
-  activeScene.value = sceneForProgress(progress);
+  activeScene.value = sceneForNode(nodePosition);
   stage.value.dataset.scene = activeScene.value;
   stage.value.style.setProperty("--progress", progress.toFixed(5));
   stage.value.style.setProperty("--hero", opacity.hero.toFixed(5));
@@ -333,29 +363,24 @@ const goTo = (progress: number) => {
   const start = scrollY + rect.top;
   const distance = Math.max(1, track.value.offsetHeight - innerHeight);
   scrollTo({
-    top: start + distance * progress,
+    top: start + distance * clamp01(progress),
     behavior: reducedMotion.value ? "auto" : "smooth",
   });
   menuOpen.value = false;
 };
 
-const goToExperience = (index: number) =>
-  goTo(0.14 + (index / Math.max(1, experiences.length - 1)) * (0.295 - 0.14));
-
-const goToProject = (index: number) =>
-  goTo(0.33 + (index / Math.max(1, projects.length - 1)) * (0.535 - 0.33));
-
-const goToArtwork = (index: number) =>
-  goTo(GALLERY_START + (index / Math.max(1, artworks.length - 1)) * (GALLERY_END - GALLERY_START));
+const goToNode = (node: number) => goTo(nodeToProgress(node));
+const goToExperience = (index: number) => goToNode(CAREER_START_NODE + index);
+const goToProject = (index: number) => goToNode(SYSTEMS_START_NODE + index);
+const goToArtwork = (index: number) => goToNode(GALLERY_START_NODE + index);
 
 const startMotionLoop = () => {
   const tick = (time: number) => {
     const deltaSeconds = Math.min(0.04, Math.max(0.001, (time - lastFrameTime) / 1000));
     lastFrameTime = time;
-    const response = activeScene.value === "gallery" ? 30 : 17;
     displayedProgress = reducedMotion.value
       ? targetProgress
-      : damp(displayedProgress, targetProgress, response, deltaSeconds);
+      : damp(displayedProgress, targetProgress, 22, deltaSeconds);
     renderProgress(displayedProgress);
     motionFrame = requestAnimationFrame(tick);
   };
@@ -495,7 +520,7 @@ onBeforeUnmount(() => {
     </div>
 
     <header class="ref-header">
-      <button type="button" class="ref-brand" aria-label="Return to opening" @click="goTo(0)">
+      <button type="button" class="ref-brand" aria-label="Return to opening" @click="goToNode(HERO_NODE)">
         <strong>DC</strong><span>SOFTWARE ENGINEER<br />+ CREATIVE TECHNOLOGIST</span>
       </button>
       <div class="ref-progress"><span>{{ progressLabel }}</span><i><b :style="{ transform: `scaleX(${Number(progressLabel) / 100})` }" /></i><span>100</span></div>
@@ -503,11 +528,11 @@ onBeforeUnmount(() => {
     </header>
 
     <nav :class="['ref-index', { 'is-open': menuOpen }]" aria-label="Portfolio index">
-      <button type="button" @click="goTo(0)"><span>01</span><strong>Opening</strong></button>
-      <button type="button" @click="goTo(0.16)"><span>02</span><strong>Trajectory</strong></button>
-      <button type="button" @click="goTo(0.36)"><span>03</span><strong>Systems</strong></button>
-      <button type="button" @click="goTo(0.6)"><span>04</span><strong>Visual archive</strong></button>
-      <button type="button" @click="goTo(0.92)"><span>05</span><strong>Agent</strong></button>
+      <button type="button" @click="goToNode(HERO_NODE)"><span>01</span><strong>Opening</strong></button>
+      <button type="button" @click="goToNode(CAREER_START_NODE)"><span>02</span><strong>Trajectory</strong></button>
+      <button type="button" @click="goToNode(SYSTEMS_START_NODE)"><span>03</span><strong>Systems</strong></button>
+      <button type="button" @click="goToNode(GALLERY_START_NODE)"><span>04</span><strong>Visual archive</strong></button>
+      <button type="button" @click="goToNode(AGENT_NODE)"><span>05</span><strong>Agent</strong></button>
     </nav>
 
     <main ref="track" class="ref-track">
