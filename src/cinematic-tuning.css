@@ -1,11 +1,33 @@
 /* Final interaction tuning: abstract opening, no ambient WebGL, precise gallery states. */
 
 .ref-track {
-  height: 810vh;
+  height: 740vh;
 }
 
 .ref-canvas {
   display: none !important;
+}
+
+.ref-hero__media {
+  display: none !important;
+}
+
+.ref-scene--hero::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 52% 48%, rgba(238, 234, 226, .055), transparent 34%),
+    linear-gradient(118deg, transparent 20%, rgba(238, 234, 226, .018) 50%, transparent 78%);
+}
+
+.ref-hero__meta,
+.ref-hero__title,
+.ref-hero__thesis,
+.ref-scroll-cue {
+  position: relative;
 }
 
 .ref-portfolio.is-intro .ref-header,
@@ -20,6 +42,24 @@
 .ref-intro__panel {
   z-index: 2;
   background: #090908;
+  transform: none !important;
+  will-change: opacity, filter;
+  animation: ref-intro-panel-dissolve 1.08s cubic-bezier(.55, 0, .18, 1) 1.82s forwards;
+}
+
+@keyframes ref-intro-panel-dissolve {
+  0% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  42% {
+    opacity: .76;
+    filter: blur(3px);
+  }
+  100% {
+    opacity: 0;
+    filter: blur(22px);
+  }
 }
 
 .ref-intro__aperture {
@@ -36,6 +76,33 @@
     inset 0 0 0 1px rgba(9, 9, 8, .45),
     0 0 0 100vmax rgba(9, 9, 8, .12);
   pointer-events: none;
+  animation: ref-intro-aperture-bloom 1.12s cubic-bezier(.2, .82, .2, 1) 1.48s forwards;
+}
+
+@keyframes ref-intro-aperture-bloom {
+  0% {
+    opacity: .72;
+    filter: blur(0);
+    box-shadow:
+      inset 0 0 0 1px rgba(9, 9, 8, .45),
+      0 0 0 100vmax rgba(9, 9, 8, .12);
+  }
+  52% {
+    opacity: 1;
+    filter: blur(0);
+    box-shadow:
+      inset 0 0 0 1px rgba(238, 234, 226, .1),
+      0 0 72px rgba(238, 234, 226, .12),
+      0 0 0 100vmax rgba(9, 9, 8, .06);
+  }
+  100% {
+    opacity: 0;
+    filter: blur(14px);
+    box-shadow:
+      inset 0 0 0 1px transparent,
+      0 0 130px rgba(238, 234, 226, 0),
+      0 0 0 100vmax rgba(9, 9, 8, 0);
+  }
 }
 
 .ref-intro__aperture::before,
@@ -104,6 +171,61 @@
   transition: opacity .18s linear;
 }
 
+.ref-hero__title {
+  transition: filter .68s cubic-bezier(.2, .8, .2, 1), transform .68s cubic-bezier(.2, .8, .2, 1);
+}
+
+.ref-portfolio.is-intro .ref-hero__title {
+  filter: blur(14px);
+  transform: translateY(-52%) scale(.965);
+}
+
+/* Leave the opening quickly without shortening the precise gallery intervals. */
+@supports (animation-timeline: scroll(root block)) {
+  .ref-scene--hero {
+    animation: ref-short-hero linear both;
+    animation-timeline: scroll(root block);
+    animation-range: 0 58vh;
+  }
+
+  .ref-scene--career {
+    animation: ref-early-career linear both;
+    animation-timeline: scroll(root block);
+    animation-range: 34vh 194vh;
+  }
+}
+
+@keyframes ref-short-hero {
+  0%, 18% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -3.5vh, 0) scale(.982);
+    filter: blur(6px);
+  }
+}
+
+@keyframes ref-early-career {
+  0%, 9% {
+    opacity: 0;
+    transform: translate3d(3vw, 1.5vh, 0);
+    filter: blur(6px);
+  }
+  24%, 82% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(-2vw, -1vh, 0);
+    filter: blur(5px);
+  }
+}
+
 /* JavaScript owns the gallery position. CSS must not add a second easing layer. */
 .ref-art-card {
   transition: none !important;
@@ -144,7 +266,7 @@
 
 @media (max-width: 680px) {
   .ref-track {
-    height: 900vh;
+    height: 820vh;
   }
 
   .ref-intro__aperture {
@@ -164,10 +286,25 @@
     gap: 6px;
     font-size: 7px;
   }
+
+  @supports (animation-timeline: scroll(root block)) {
+    .ref-scene--hero {
+      animation-range: 0 50vh;
+    }
+
+    .ref-scene--career {
+      animation-range: 30vh 205vh;
+    }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .ref-intro {
     display: none !important;
+  }
+
+  .ref-scene--hero,
+  .ref-scene--career {
+    animation: none !important;
   }
 }
