@@ -1,0 +1,173 @@
+/* Final interaction tuning: abstract opening, no ambient WebGL, precise gallery states. */
+
+.ref-track {
+  height: 810vh;
+}
+
+.ref-canvas {
+  display: none !important;
+}
+
+.ref-portfolio.is-intro .ref-header,
+.ref-portfolio.is-intro .ref-scene--hero {
+  opacity: 0;
+}
+
+.ref-intro {
+  background: transparent;
+}
+
+.ref-intro__panel {
+  z-index: 2;
+  background: #090908;
+}
+
+.ref-intro__aperture {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  top: 50%;
+  width: min(34vw, 520px);
+  height: min(66vh, 650px);
+  transform: translate(-50%, -50%);
+  clip-path: inset(50% 0 50% 0);
+  border: 1px solid rgba(238, 234, 226, .34);
+  box-shadow:
+    inset 0 0 0 1px rgba(9, 9, 8, .45),
+    0 0 0 100vmax rgba(9, 9, 8, .12);
+  pointer-events: none;
+}
+
+.ref-intro__aperture::before,
+.ref-intro__aperture::after {
+  content: "";
+  position: absolute;
+  background: rgba(238, 234, 226, .24);
+}
+
+.ref-intro__aperture::before {
+  left: 50%;
+  top: -12vh;
+  bottom: -12vh;
+  width: 1px;
+}
+
+.ref-intro__aperture::after {
+  left: -10vw;
+  right: -10vw;
+  top: 50%;
+  height: 1px;
+}
+
+.ref-intro__meta {
+  z-index: 6;
+  padding: 22px;
+}
+
+.ref-intro__mark {
+  position: absolute;
+  z-index: 7;
+  left: 50%;
+  top: 49%;
+  transform: translate(-50%, -50%);
+  font-size: clamp(8rem, 20vw, 22rem);
+  line-height: .7;
+  letter-spacing: -.12em;
+  font-weight: 600;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(238, 234, 226, .86);
+}
+
+.ref-intro__statement {
+  position: absolute;
+  z-index: 7;
+  left: 22px;
+  bottom: 46px;
+  margin: 0;
+  overflow: hidden;
+  display: flex;
+  gap: 18px;
+  font: 9px var(--ref-mono);
+  letter-spacing: .12em;
+}
+
+.ref-intro__statement span {
+  display: block;
+}
+
+.ref-intro__line {
+  z-index: 7;
+}
+
+.ref-scene--hero,
+.ref-header {
+  transition: opacity .18s linear;
+}
+
+/* JavaScript owns the gallery position. CSS must not add a second easing layer. */
+.ref-art-card {
+  transition: none !important;
+  transform-origin: center;
+}
+
+.ref-art-card.active {
+  border-color: rgba(238, 234, 226, .64);
+  box-shadow: 0 42px 110px rgba(0, 0, 0, .58);
+}
+
+.ref-gallery-stage {
+  perspective: 1800px;
+}
+
+.ref-scene--gallery .ref-copy-enter-active,
+.ref-scene--gallery .ref-copy-leave-active {
+  transition: opacity .16s linear, transform .2s cubic-bezier(.2, .8, .2, 1);
+}
+
+.ref-scene--gallery .ref-copy-enter-from {
+  opacity: 0;
+  transform: translate3d(14px, 0, 0);
+}
+
+.ref-scene--gallery .ref-copy-leave-to {
+  opacity: 0;
+  transform: translate3d(-10px, 0, 0);
+}
+
+.ref-filmstrip button {
+  transition: opacity .15s linear, transform .15s ease, border-color .15s linear;
+}
+
+.ref-filmstrip button.active {
+  transform: translateY(-4px);
+}
+
+@media (max-width: 680px) {
+  .ref-track {
+    height: 900vh;
+  }
+
+  .ref-intro__aperture {
+    width: 62vw;
+    height: 54vh;
+  }
+
+  .ref-intro__mark {
+    font-size: 37vw;
+  }
+
+  .ref-intro__statement {
+    left: 14px;
+    right: 14px;
+    bottom: 38px;
+    justify-content: space-between;
+    gap: 6px;
+    font-size: 7px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ref-intro {
+    display: none !important;
+  }
+}
