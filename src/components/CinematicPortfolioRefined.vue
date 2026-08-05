@@ -2,7 +2,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import * as THREE from "three";
 import ContactAssistant from "./ContactAssistant.vue";
 
 type Experience = {
@@ -174,9 +173,11 @@ const artworks: Artwork[] = [
   },
 ];
 
+const GALLERY_START = 0.57;
+const GALLERY_END = 0.865;
+
 const track = ref<HTMLElement | null>(null);
 const stage = ref<HTMLElement | null>(null);
-const canvas = ref<HTMLCanvasElement | null>(null);
 const activeExperience = ref(0);
 const activeProject = ref(0);
 const activeArtwork = ref(0);
@@ -192,13 +193,9 @@ const currentArtwork = computed(() => artworks[activeArtwork.value]);
 
 let trigger: ScrollTrigger | null = null;
 let motionFrame = 0;
-let threeFrame = 0;
 let introTimeline: gsap.core.Timeline | null = null;
-let renderer: THREE.WebGLRenderer | null = null;
-let cleanupThree: (() => void) | null = null;
 let targetProgress = 0;
 let displayedProgress = 0;
-let visualProgress = 0;
 let lastFrameTime = performance.now();
 let systemCards: HTMLElement[] = [];
 let artworkCards: HTMLElement[] = [];
@@ -227,6 +224,22 @@ const sceneForProgress = (progress: number): SceneName => {
 const setActiveIndex = (position: number, current: number, length: number) => {
   const next = Math.min(length - 1, Math.max(0, Math.round(position)));
   return next === current ? current : next;
+};
+
+const preciseGalleryPosition = (progress: number) => {
+  const lastIndex = artworks.length - 1;
+  const raw = clamp01((progress - GALLERY_START) / (GALLERY_END - GALLERY_START)) * lastIndex;
+  if (raw >= lastIndex) return lastIndex;
+
+  const segment = Math.floor(raw);
+  const local = raw - segment;
+  const holdBefore = 0.34;
+  const holdAfter = 0.66;
+
+  if (local <= holdBefore) return segment;
+  if (local >= holdAfter) return segment + 1;
+
+  return segment + smoother((local - holdBefore) / (holdAfter - holdBefore));
 };
 
 const sceneOpacities = (progress: number) => {
@@ -266,20 +279,20 @@ const updateDepthObjects = (projectPosition: number, artworkPosition: number) =>
   artworkCards.forEach((element, index) => {
     const offset = index - artworkPosition;
     const distance = Math.abs(offset);
-    const focus = Math.exp(-(offset * offset) * 4.6);
-    const visible = distance < 1.18;
+    const focus = Math.exp(-(offset * offset) * 5.8);
+    const visible = distance <= 1.02;
 
     element.style.visibility = visible ? "visible" : "hidden";
     element.style.transform = [
-      `translate3d(calc(-50% + ${offset * 15}vw), calc(-50% + ${offset * -0.6}vh), ${offset * -210}px)`,
-      `rotateY(${offset * -5.8}deg)`,
-      `rotateZ(${offset * 0.55}deg)`,
+      `translate3d(calc(-50% + ${offset * 12.5}vw), calc(-50% + ${offset * -0.35}vh), ${offset * -170}px)`,
+      `rotateY(${offset * -4.8}deg)`,
+      `rotateZ(${offset * 0.4}deg)`,
     ].join(" ");
-    element.style.opacity = String(focus + (visible ? 0.025 : 0));
-    element.style.filter = `grayscale(${1 - focus}) brightness(${0.38 + focus * 0.62})`;
-    element.style.zIndex = String(40 - Math.round(distance * 6));
+    element.style.opacity = String(visible ? Math.max(0.015, focus) : 0);
+    element.style.filter = `grayscale(${1 - focus}) brightness(${0.4 + focus * 0.6})`;
+    element.style.zIndex = String(40 - Math.round(distance * 7));
     element.style.pointerEvents =
-      activeScene.value === "gallery" && distance < 0.48 ? "auto" : "none";
+      activeScene.value === "gallery" && distance < 0.35 ? "auto" : "none";
   });
 };
 
@@ -291,8 +304,7 @@ const renderProgress = (progress: number) => {
     clamp01((progress - 0.14) / (0.295 - 0.14)) * (experiences.length - 1);
   const projectPosition =
     clamp01((progress - 0.33) / (0.535 - 0.33)) * (projects.length - 1);
-  const artworkPosition =
-    clamp01((progress - 0.57) / (0.865 - 0.57)) * (artworks.length - 1);
+  const artworkPosition = preciseGalleryPosition(progress);
 
   activeScene.value = sceneForProgress(progress);
   stage.value.dataset.scene = activeScene.value;
@@ -313,7 +325,6 @@ const renderProgress = (progress: number) => {
   activeArtwork.value = setActiveIndex(artworkPosition, activeArtwork.value, artworks.length);
 
   updateDepthObjects(projectPosition, artworkPosition);
-  visualProgress = progress;
 };
 
 const goTo = (progress: number) => {
@@ -335,154 +346,21 @@ const goToProject = (index: number) =>
   goTo(0.33 + (index / Math.max(1, projects.length - 1)) * (0.535 - 0.33));
 
 const goToArtwork = (index: number) =>
-  goTo(0.57 + (index / Math.max(1, artworks.length - 1)) * (0.865 - 0.57));
+  goTo(GALLERY_START + (index / Math.max(1, artworks.length - 1)) * (GALLERY_END - GALLERY_START));
 
 const startMotionLoop = () => {
   const tick = (time: number) => {
     const deltaSeconds = Math.min(0.04, Math.max(0.001, (time - lastFrameTime) / 1000));
     lastFrameTime = time;
+    const response = activeScene.value === "gallery" ? 30 : 17;
     displayedProgress = reducedMotion.value
       ? targetProgress
-      : damp(displayedProgress, targetProgress, 17, deltaSeconds);
+      : damp(displayedProgress, targetProgress, response, deltaSeconds);
     renderProgress(displayedProgress);
     motionFrame = requestAnimationFrame(tick);
   };
 
   motionFrame = requestAnimationFrame(tick);
-};
-
-const initThree = () => {
-  if (!canvas.value) return;
-
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 30);
-  camera.position.z = 7;
-
-  try {
-    renderer = new THREE.WebGLRenderer({
-      canvas: canvas.value,
-      alpha: true,
-      antialias: innerWidth > 760,
-      powerPreference: "high-performance",
-    });
-  } catch {
-    canvas.value.style.display = "none";
-    return;
-  }
-
-  renderer.setPixelRatio(Math.min(devicePixelRatio, innerWidth < 760 ? 1 : 1.35));
-  renderer.setSize(innerWidth, innerHeight);
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-
-  const lineCount = 130;
-  const lineGeometry = new THREE.BufferGeometry();
-  const linePositions = new Float32Array(lineCount * 3);
-  const lineBase = new Float32Array(lineCount * 3);
-
-  for (let index = 0; index < lineCount; index += 1) {
-    const t = index / (lineCount - 1);
-    const offset = index * 3;
-    lineBase[offset] = -5.4 + t * 10.8;
-    lineBase[offset + 1] = Math.sin(t * Math.PI * 2) * 0.5;
-    lineBase[offset + 2] = Math.cos(t * Math.PI * 2) * 0.25;
-    linePositions[offset] = lineBase[offset];
-    linePositions[offset + 1] = lineBase[offset + 1];
-    linePositions[offset + 2] = lineBase[offset + 2];
-  }
-
-  lineGeometry.setAttribute("position", new THREE.BufferAttribute(linePositions, 3));
-  const lineMaterial = new THREE.LineBasicMaterial({
-    color: 0xc9c3b8,
-    transparent: true,
-    opacity: 0.16,
-  });
-  const line = new THREE.Line(lineGeometry, lineMaterial);
-  line.rotation.z = -0.14;
-  line.position.y = 0.25;
-  scene.add(line);
-
-  const pointCount = innerWidth < 760 ? 70 : 130;
-  const pointGeometry = new THREE.BufferGeometry();
-  const points = new Float32Array(pointCount * 3);
-
-  for (let index = 0; index < pointCount; index += 1) {
-    points[index * 3] = (Math.random() - 0.5) * 10;
-    points[index * 3 + 1] = (Math.random() - 0.5) * 5.8;
-    points[index * 3 + 2] = (Math.random() - 0.5) * 3;
-  }
-
-  pointGeometry.setAttribute("position", new THREE.BufferAttribute(points, 3));
-  const pointMaterial = new THREE.PointsMaterial({
-    color: 0xe7e1d7,
-    size: 0.015,
-    transparent: true,
-    opacity: 0.2,
-    depthWrite: false,
-  });
-  const pointCloud = new THREE.Points(pointGeometry, pointMaterial);
-  scene.add(pointCloud);
-
-  let sceneProgress = 0;
-  let pointerX = 0;
-  let pointerY = 0;
-  const clock = new THREE.Clock();
-
-  const onPointer = (event: PointerEvent) => {
-    pointerX = (event.clientX / innerWidth - 0.5) * 2;
-    pointerY = (event.clientY / innerHeight - 0.5) * 2;
-  };
-
-  const onResize = () => {
-    camera.aspect = innerWidth / innerHeight;
-    camera.updateProjectionMatrix();
-    renderer?.setPixelRatio(Math.min(devicePixelRatio, innerWidth < 760 ? 1 : 1.35));
-    renderer?.setSize(innerWidth, innerHeight);
-    ScrollTrigger.refresh();
-  };
-
-  addEventListener("pointermove", onPointer, { passive: true });
-  addEventListener("resize", onResize);
-
-  const draw = () => {
-    const time = clock.getElapsedTime();
-    sceneProgress += (visualProgress - sceneProgress) * 0.065;
-    const attribute = lineGeometry.attributes.position as THREE.BufferAttribute;
-
-    for (let index = 0; index < lineCount; index += 1) {
-      const offset = index * 3;
-      const x = lineBase[offset];
-      const y = lineBase[offset + 1];
-      attribute.setY(
-        index,
-        y + Math.sin(x * 0.75 + time * 0.3 + sceneProgress * 8) * 0.22,
-      );
-      attribute.setZ(index, Math.cos(x * 0.52 - time * 0.22) * 0.14);
-    }
-
-    attribute.needsUpdate = true;
-    line.rotation.y = sceneProgress * 0.42 + pointerX * 0.018;
-    line.position.y = 0.25 + Math.sin(sceneProgress * Math.PI * 2) * 0.18;
-    lineMaterial.opacity = activeScene.value === "agent" ? 0 : 0.08 + (1 - sceneProgress) * 0.06;
-    pointCloud.rotation.y = time * 0.009 + sceneProgress * 0.28;
-    pointCloud.position.x = pointerX * 0.05;
-    pointCloud.position.y = pointerY * -0.04;
-
-    renderer?.render(scene, camera);
-    threeFrame = requestAnimationFrame(draw);
-  };
-
-  draw();
-
-  cleanupThree = () => {
-    cancelAnimationFrame(threeFrame);
-    removeEventListener("pointermove", onPointer);
-    removeEventListener("resize", onResize);
-    lineGeometry.dispose();
-    lineMaterial.dispose();
-    pointGeometry.dispose();
-    pointMaterial.dispose();
-    renderer?.dispose();
-  };
 };
 
 const runIntro = () => {
@@ -492,9 +370,10 @@ const runIntro = () => {
   }
 
   document.documentElement.classList.add("is-refined-intro");
-  gsap.set(".ref-hero__media figure, .ref-hero__title span, .ref-hero__meta, .ref-hero__thesis, .ref-scroll-cue, .ref-header", {
-    opacity: 0,
-  });
+  gsap.set(
+    ".ref-hero__media figure, .ref-hero__title span, .ref-hero__meta, .ref-hero__thesis, .ref-scroll-cue, .ref-header",
+    { opacity: 0 },
+  );
 
   introTimeline = gsap
     .timeline({
@@ -504,58 +383,59 @@ const runIntro = () => {
         document.documentElement.classList.remove("is-refined-intro");
       },
     })
-    .from(".ref-intro__title span", {
-      yPercent: 112,
-      duration: 0.76,
-      stagger: 0.07,
+    .from(".ref-intro__mark", {
+      opacity: 0,
+      scale: 0.72,
+      rotate: -7,
+      duration: 0.72,
     })
     .from(
-      ".ref-intro__media figure",
-      {
-        opacity: 0,
-        scale: 1.08,
-        y: 22,
-        duration: 0.82,
-        stagger: 0.08,
-      },
-      "-=0.55",
+      ".ref-intro__statement span",
+      { yPercent: 115, duration: 0.62, stagger: 0.055 },
+      "-=0.38",
     )
     .from(
       ".ref-intro__meta span",
-      { opacity: 0, y: 9, duration: 0.42, stagger: 0.06 },
-      "-=0.55",
+      { opacity: 0, y: 8, duration: 0.42, stagger: 0.05 },
+      "-=0.42",
     )
-    .to(".ref-intro__line i", { scaleX: 1, duration: 0.8, ease: "expo.inOut" }, "-=0.45")
+    .to(".ref-intro__line i", { scaleX: 1, duration: 0.72, ease: "expo.inOut" }, "-=0.34")
     .to(
-      ".ref-intro__title, .ref-intro__media, .ref-intro__meta, .ref-intro__line",
-      { opacity: 0, duration: 0.42, ease: "power2.in" },
-      "+=0.18",
+      ".ref-intro__aperture",
+      { clipPath: "inset(0% 0% 0% 0%)", duration: 0.82, ease: "expo.inOut" },
+      "+=0.08",
     )
     .to(
       ".ref-intro__panel--top",
-      { yPercent: -101, duration: 0.86, ease: "expo.inOut" },
-      "<",
+      { yPercent: -101, duration: 0.92, ease: "expo.inOut" },
+      "-=0.28",
     )
     .to(
       ".ref-intro__panel--bottom",
-      { yPercent: 101, duration: 0.86, ease: "expo.inOut" },
+      { yPercent: 101, duration: 0.92, ease: "expo.inOut" },
+      "<",
+    )
+    .to(
+      ".ref-intro__mark, .ref-intro__statement, .ref-intro__meta, .ref-intro__line",
+      { opacity: 0, duration: 0.34, ease: "power2.in" },
       "<",
     )
     .to(
       ".ref-hero__media figure",
-      { opacity: 1, scale: 1, y: 0, duration: 0.92, stagger: 0.07 },
-      "-=0.72",
+      { opacity: 1, scale: 1, y: 0, duration: 0.82, stagger: 0.06 },
+      "-=0.76",
     )
     .to(
       ".ref-hero__title span",
-      { opacity: 1, yPercent: 0, duration: 0.82, stagger: 0.07 },
-      "-=0.86",
+      { opacity: 1, yPercent: 0, duration: 0.74, stagger: 0.065 },
+      "-=0.72",
     )
     .to(
       ".ref-hero__meta, .ref-hero__thesis, .ref-scroll-cue, .ref-header",
-      { opacity: 1, y: 0, duration: 0.56, stagger: 0.06 },
-      "-=0.52",
-    );
+      { opacity: 1, y: 0, duration: 0.5, stagger: 0.05 },
+      "-=0.45",
+    )
+    .set(".ref-intro", { display: "none" });
 };
 
 onMounted(async () => {
@@ -578,7 +458,6 @@ onMounted(async () => {
       },
       invalidateOnRefresh: true,
     });
-    initThree();
     startMotionLoop();
   }
 
@@ -590,28 +469,28 @@ onBeforeUnmount(() => {
   trigger?.kill();
   introTimeline?.kill();
   cancelAnimationFrame(motionFrame);
-  cleanupThree?.();
   document.documentElement.classList.remove("is-refined-intro");
 });
 </script>
 
 <template>
-  <div class="ref-portfolio">
+  <div :class="['ref-portfolio', { 'is-intro': introVisible }]">
     <a class="ref-skip" href="#ref-fallback">Skip motion experience</a>
 
     <div v-if="introVisible" class="ref-intro" aria-hidden="true">
       <div class="ref-intro__panel ref-intro__panel--top" />
       <div class="ref-intro__panel ref-intro__panel--bottom" />
-      <div class="ref-intro__media">
-        <figure><img src="/studio/interior-shadow.png" alt="" /></figure>
-        <figure><img src="/studio/lounge-mint.png" alt="" /></figure>
-        <figure><img src="/studio/kempu.png" alt="" /></figure>
-      </div>
+      <div class="ref-intro__aperture" />
       <div class="ref-intro__meta">
-        <span>BUENOS AIRES · ARGENTINA</span>
-        <span>SELECTED PRACTICE / 2026</span>
+        <span>DIEGO CANO / PORTFOLIO 2026</span>
+        <span>BUENOS AIRES · GMT−3</span>
       </div>
-      <h1 class="ref-intro__title"><span>DIEGO</span><span>CA<em>N</em>O</span></h1>
+      <div class="ref-intro__mark">DC</div>
+      <p class="ref-intro__statement">
+        <span>SOFTWARE</span>
+        <span>INTELLIGENCE</span>
+        <span>OBJECTS</span>
+      </p>
       <div class="ref-intro__line"><i /></div>
     </div>
 
@@ -633,7 +512,6 @@ onBeforeUnmount(() => {
 
     <main ref="track" class="ref-track">
       <section ref="stage" class="ref-stage" data-scene="hero" aria-label="Scroll-driven portfolio narrative">
-        <canvas ref="canvas" class="ref-canvas" aria-hidden="true" />
         <div class="ref-grain" aria-hidden="true" />
 
         <article class="ref-scene ref-scene--hero">
