@@ -1,0 +1,4 @@
+.scene--gallery,
+.scene--agent {
+  pointer-events: auto;
+}
