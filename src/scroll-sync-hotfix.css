@@ -1,0 +1,34 @@
+/* Hotfix: ScrollTrigger is the only owner of scene progress.
+   The previous root scroll-timeline animations desynchronised visual state,
+   active scene state and pointer events in browsers that support scroll timelines. */
+
+.ref-scene--hero,
+.ref-scene--career {
+  animation: none !important;
+  animation-timeline: auto !important;
+  animation-range: normal !important;
+}
+
+.ref-scene--hero {
+  opacity: var(--hero) !important;
+  transform: scale(calc(.975 + var(--hero) * .025)) !important;
+  filter: blur(calc((1 - var(--hero)) * 4px)) !important;
+}
+
+.ref-scene--career {
+  opacity: var(--career) !important;
+  transform: translate3d(calc((1 - var(--career)) * 3vw), 0, 0) !important;
+  filter: blur(calc((1 - var(--career)) * 4px)) !important;
+}
+
+/* Keep inactive scenes out of the interaction tree even during cross-fades. */
+.ref-scene {
+  pointer-events: none !important;
+}
+
+.ref-stage[data-scene="career"] .ref-scene--career,
+.ref-stage[data-scene="systems"] .ref-scene--systems,
+.ref-stage[data-scene="gallery"] .ref-scene--gallery,
+.ref-stage[data-scene="agent"] .ref-scene--agent {
+  pointer-events: auto !important;
+}
