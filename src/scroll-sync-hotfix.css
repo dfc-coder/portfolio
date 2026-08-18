@@ -1,9 +1,10 @@
 /* ScrollTrigger is the only owner of scene progress.
    Every adjacent visible state uses the same 36vh scroll interval:
-   18 intervals × 36vh + one sticky viewport = 748vh. */
+   22 intervals × 36vh + one sticky viewport = 892vh
+   (hero + 4 chapter cards + career/systems/gallery/agent states). */
 
 .ref-track {
-  height: 748vh !important;
+  height: 892vh !important;
 }
 
 .ref-scene--hero,

@@ -1,14 +1,10 @@
 /* Final interaction tuning: abstract opening, no ambient WebGL, precise gallery states. */
 
 .ref-track {
-  height: 740vh;
+  height: 884vh;
 }
 
 .ref-canvas {
-  display: none !important;
-}
-
-.ref-hero__media {
   display: none !important;
 }
 
@@ -23,15 +19,15 @@
     linear-gradient(118deg, transparent 20%, rgba(238, 234, 226, .018) 50%, transparent 78%);
 }
 
-.ref-hero__meta,
-.ref-hero__title,
-.ref-hero__thesis,
-.ref-scroll-cue {
+/* Only the top meta row participates in normal flow. The title, thesis and
+   scroll cue keep the absolute positions defined in cinematic-refined.css —
+   forcing them to `relative` here was what made them stack on top of the
+   headline. */
+.ref-hero__meta {
   position: relative;
 }
 
-.ref-portfolio.is-intro .ref-header,
-.ref-portfolio.is-intro .ref-scene--hero {
+.ref-portfolio.is-intro .ref-header {
   opacity: 0;
 }
 
@@ -42,24 +38,7 @@
 .ref-intro__panel {
   z-index: 2;
   background: #090908;
-  transform: none !important;
-  will-change: opacity, filter;
-  animation: ref-intro-panel-dissolve 1.08s cubic-bezier(.55, 0, .18, 1) 1.82s forwards;
-}
-
-@keyframes ref-intro-panel-dissolve {
-  0% {
-    opacity: 1;
-    filter: blur(0);
-  }
-  42% {
-    opacity: .76;
-    filter: blur(3px);
-  }
-  100% {
-    opacity: 0;
-    filter: blur(22px);
-  }
+  will-change: transform;
 }
 
 .ref-intro__aperture {
@@ -76,33 +55,6 @@
     inset 0 0 0 1px rgba(9, 9, 8, .45),
     0 0 0 100vmax rgba(9, 9, 8, .12);
   pointer-events: none;
-  animation: ref-intro-aperture-bloom 1.12s cubic-bezier(.2, .82, .2, 1) 1.48s forwards;
-}
-
-@keyframes ref-intro-aperture-bloom {
-  0% {
-    opacity: .72;
-    filter: blur(0);
-    box-shadow:
-      inset 0 0 0 1px rgba(9, 9, 8, .45),
-      0 0 0 100vmax rgba(9, 9, 8, .12);
-  }
-  52% {
-    opacity: 1;
-    filter: blur(0);
-    box-shadow:
-      inset 0 0 0 1px rgba(238, 234, 226, .1),
-      0 0 72px rgba(238, 234, 226, .12),
-      0 0 0 100vmax rgba(9, 9, 8, .06);
-  }
-  100% {
-    opacity: 0;
-    filter: blur(14px);
-    box-shadow:
-      inset 0 0 0 1px transparent,
-      0 0 130px rgba(238, 234, 226, 0),
-      0 0 0 100vmax rgba(9, 9, 8, 0);
-  }
 }
 
 .ref-intro__aperture::before,
@@ -139,10 +91,11 @@
   transform: translate(-50%, -50%);
   font-size: clamp(8rem, 20vw, 22rem);
   line-height: .7;
-  letter-spacing: -.12em;
-  font-weight: 600;
+  letter-spacing: -.06em;
+  font-weight: 900;
   color: transparent;
-  -webkit-text-stroke: 1px rgba(238, 234, 226, .86);
+  -webkit-text-stroke: 2px rgba(238, 234, 226, .9);
+  will-change: transform;
 }
 
 .ref-intro__statement {
@@ -166,65 +119,11 @@
   z-index: 7;
 }
 
-.ref-scene--hero,
-.ref-header {
-  transition: opacity .18s linear;
-}
 
-.ref-hero__title {
-  transition: filter .68s cubic-bezier(.2, .8, .2, 1), transform .68s cubic-bezier(.2, .8, .2, 1);
-}
-
-.ref-portfolio.is-intro .ref-hero__title {
-  filter: blur(14px);
-  transform: translateY(-52%) scale(.965);
-}
-
-/* Leave the opening quickly without shortening the precise gallery intervals. */
-@supports (animation-timeline: scroll(root block)) {
-  .ref-scene--hero {
-    animation: ref-short-hero linear both;
-    animation-timeline: scroll(root block);
-    animation-range: 0 58vh;
-  }
-
-  .ref-scene--career {
-    animation: ref-early-career linear both;
-    animation-timeline: scroll(root block);
-    animation-range: 34vh 194vh;
-  }
-}
-
-@keyframes ref-short-hero {
-  0%, 18% {
-    opacity: 1;
-    transform: scale(1);
-    filter: blur(0);
-  }
-  100% {
-    opacity: 0;
-    transform: translate3d(0, -3.5vh, 0) scale(.982);
-    filter: blur(6px);
-  }
-}
-
-@keyframes ref-early-career {
-  0%, 9% {
-    opacity: 0;
-    transform: translate3d(3vw, 1.5vh, 0);
-    filter: blur(6px);
-  }
-  24%, 82% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-    filter: blur(0);
-  }
-  100% {
-    opacity: 0;
-    transform: translate3d(-2vw, -1vh, 0);
-    filter: blur(5px);
-  }
-}
+/* NOTE: earlier revisions accelerated the hero/career exit with CSS
+   scroll-timeline animations here. They competed with the JS scene variables
+   and were overridden in scroll-sync-hotfix.css. ScrollTrigger is now the sole
+   owner of scene progress, so those dead @keyframes were removed. */
 
 /* JavaScript owns the gallery position. CSS must not add a second easing layer. */
 .ref-art-card {
@@ -266,7 +165,7 @@
 
 @media (max-width: 680px) {
   .ref-track {
-    height: 820vh;
+    height: 980vh;
   }
 
   .ref-intro__aperture {
@@ -286,16 +185,6 @@
     gap: 6px;
     font-size: 7px;
   }
-
-  @supports (animation-timeline: scroll(root block)) {
-    .ref-scene--hero {
-      animation-range: 0 50vh;
-    }
-
-    .ref-scene--career {
-      animation-range: 30vh 205vh;
-    }
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -307,4 +196,215 @@
   .ref-scene--career {
     animation: none !important;
   }
+}
+
+/* ── Chapter scenes ──────────────────────────────────────────────────────────
+   Full bridge scenes between sections. Each owns one scroll node like every
+   other visible state, so the card enters with the crossfade, HOLDS at full
+   opacity for real reading time, and exits — scrubbable in both directions.
+   Each article reads its own JS-driven variable via data-chapter. */
+.ref-scene--chapter {
+  --ch: 0;
+  display: grid;
+  place-items: center;
+  opacity: var(--ch);
+  transform: translate3d(0, calc((1 - var(--ch)) * 2vh), 0);
+  filter: blur(calc((1 - var(--ch)) * 4px));
+  background:
+    radial-gradient(circle at 50% 47%, rgba(238, 234, 226, .035), transparent 46%),
+    var(--ref-black);
+}
+
+.ref-scene--chapter[data-chapter="career"] { --ch: var(--chapter-career, 0); }
+.ref-scene--chapter[data-chapter="systems"] { --ch: var(--chapter-systems, 0); }
+.ref-scene--chapter[data-chapter="gallery"] { --ch: var(--chapter-gallery, 0); }
+.ref-scene--chapter[data-chapter="agent"] { --ch: var(--chapter-agent, 0); }
+
+.ref-chapter {
+  max-width: min(880px, 90vw);
+  text-align: center;
+}
+
+.ref-chapter i {
+  display: block;
+  width: 66px;
+  height: 1px;
+  margin: 0 auto 18px;
+  background: var(--ref-accent);
+  transform: scaleX(var(--ch));
+}
+
+.ref-chapter span {
+  display: block;
+  margin-bottom: 18px;
+  color: #a39d92;
+  font: 9px var(--ref-mono);
+  letter-spacing: .32em;
+  text-indent: .32em;
+}
+
+.ref-chapter p {
+  margin: 0;
+  color: var(--ref-paper);
+  font-family: var(--ref-serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(2rem, 4vw, 3.4rem);
+  line-height: 1.12;
+  letter-spacing: -.02em;
+  text-wrap: balance;
+}
+
+/* ── Teleport transition ─────────────────────────────────────────────────────
+   Covers the viewport when goToNode() jumps across sections (menu navigation).
+   The scroll position changes instantly UNDER the cover, then it reveals the
+   destination — no frantic traversal of everything in between. GSAP drives the
+   clip-path wipe. */
+.ref-teleport {
+  position: fixed;
+  z-index: 1600;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(197, 103, 72, .075), transparent 52%),
+    repeating-linear-gradient(0deg, rgba(238, 234, 226, .035) 0 1px, transparent 1px 4px),
+    var(--ref-black);
+  will-change: clip-path;
+}
+
+.ref-teleport::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: rgba(238, 234, 226, .32);
+}
+
+.ref-teleport::after {
+  content: "DC";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0 14px;
+  background: var(--ref-black);
+  color: var(--ref-accent);
+  font: 10px var(--ref-mono);
+  letter-spacing: .3em;
+  text-indent: .3em;
+}
+
+/* ── Custom cursor ───────────────────────────────────────────────────────────
+   Minimal dot + trailing ring, pointer-fine devices only. The ring inverts
+   whatever passes under it (mix-blend difference = the chromatic morph), and
+   both elements reshape over interactive targets. Native cursor is hidden only
+   while the custom one is enabled; text fields keep a caret-shaped state. */
+.ref-portfolio.has-cursor,
+.ref-portfolio.has-cursor * {
+  cursor: none !important;
+}
+
+.ref-cursor,
+.ref-cursor-ring {
+  position: fixed;
+  z-index: 2000;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  opacity: 0;
+  border-radius: 50%;
+}
+
+.ref-cursor.is-on,
+.ref-cursor-ring.is-on {
+  opacity: 1;
+}
+
+.ref-cursor {
+  width: 0;
+  height: 0;
+  transition: opacity .25s linear;
+}
+
+.ref-cursor::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: currentcolor;
+  color: var(--ref-paper);
+  transform: translate(-50%, -50%);
+  width: 6px;
+  height: 6px;
+  left: 50%;
+  top: 50%;
+  transition:
+    width .28s cubic-bezier(.2, .8, .2, 1),
+    height .28s cubic-bezier(.2, .8, .2, 1),
+    border-radius .28s cubic-bezier(.2, .8, .2, 1),
+    color .3s linear;
+}
+
+.ref-cursor[data-state="hover"]::after {
+  width: 10px;
+  height: 10px;
+  color: var(--ref-accent);
+}
+
+.ref-cursor[data-state="press"]::after {
+  width: 5px;
+  height: 5px;
+  color: var(--ref-accent);
+}
+
+.ref-cursor[data-state="text"]::after {
+  width: 2px;
+  height: 16px;
+  border-radius: 1px;
+  color: var(--ref-paper);
+}
+
+.ref-cursor-ring {
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
+  border: 1px solid rgba(238, 234, 226, .55);
+  mix-blend-mode: difference;
+  transition:
+    opacity .25s linear,
+    width .3s cubic-bezier(.2, .8, .2, 1),
+    height .3s cubic-bezier(.2, .8, .2, 1),
+    margin .3s cubic-bezier(.2, .8, .2, 1),
+    border-color .3s linear,
+    background-color .3s linear;
+}
+
+.ref-cursor-ring[data-state="hover"] {
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  border-color: var(--ref-accent);
+  background: rgba(197, 103, 72, .08);
+}
+
+.ref-cursor-ring[data-state="press"] {
+  width: 26px;
+  height: 26px;
+  margin: -13px 0 0 -13px;
+  border-color: var(--ref-accent);
+}
+
+.ref-cursor-ring[data-state="text"] {
+  width: 22px;
+  height: 26px;
+  margin: -13px 0 0 -11px;
+  border-radius: 4px;
+  border-color: rgba(238, 234, 226, .4);
+}
+
+@media (max-width: 680px) {
+  .ref-chapter p { font-size: 8vw; }
 }

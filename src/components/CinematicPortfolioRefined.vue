@@ -30,7 +30,7 @@ type Artwork = {
   meta: string;
 };
 
-type SceneName = "hero" | "career" | "systems" | "gallery" | "agent";
+type SceneName = "hero" | "chapter" | "career" | "systems" | "gallery" | "agent";
 
 const experiences: Experience[] = [
   {
@@ -178,14 +178,31 @@ const artworks: Artwork[] = [
  * consecutive states is therefore identical, independently of its section.
  */
 const HERO_NODE = 0;
-const CAREER_START_NODE = 1;
-const SYSTEMS_START_NODE = CAREER_START_NODE + experiences.length;
-const GALLERY_START_NODE = SYSTEMS_START_NODE + projects.length;
-const AGENT_NODE = GALLERY_START_NODE + artworks.length;
+const CHAPTER_CAREER_NODE = 1;
+const CAREER_START_NODE = CHAPTER_CAREER_NODE + 1;
+const CHAPTER_SYSTEMS_NODE = CAREER_START_NODE + experiences.length;
+const SYSTEMS_START_NODE = CHAPTER_SYSTEMS_NODE + 1;
+const CHAPTER_GALLERY_NODE = SYSTEMS_START_NODE + projects.length;
+const GALLERY_START_NODE = CHAPTER_GALLERY_NODE + 1;
+const CHAPTER_AGENT_NODE = GALLERY_START_NODE + artworks.length;
+const AGENT_NODE = CHAPTER_AGENT_NODE + 1;
 const LAST_NODE = AGENT_NODE;
 const STEP_HOLD_START = 0.2;
 const STEP_HOLD_END = 0.8;
 const SCENE_CROSSFADE_WIDTH = 0.46;
+
+/* Chapter cards: full bridge scenes between sections, each owning one scroll
+   node like every other visible state — readable, scrubbable, scroll-driven. */
+const chapters = [
+  { key: "career", kicker: "CHAPTER 02 · THE RECORD", line: "First, the proof — where the practice was built." },
+  { key: "systems", kicker: "CHAPTER 03 · THE EVIDENCE", line: "Roles condense into systems that shipped." },
+  { key: "gallery", kicker: "CHAPTER 04 · A NOTE ON ORIGIN", line: "My first language was design — here the argument turns visual." },
+  { key: "agent", kicker: "CHAPTER 05 · THE INTERFACE", line: "Enough archive. Ask the work a question." },
+] as const;
+
+/* Menu jumps farther than this many nodes use the teleport cover instead of
+   smooth-scrolling through every section in between. */
+const TELEPORT_NODE_DISTANCE = 1.5;
 
 const track = ref<HTMLElement | null>(null);
 const stage = ref<HTMLElement | null>(null);
@@ -197,6 +214,11 @@ const menuOpen = ref(false);
 const progressLabel = ref("00");
 const reducedMotion = ref(false);
 const introVisible = ref(true);
+const teleport = ref<HTMLElement | null>(null);
+const cursorDot = ref<HTMLElement | null>(null);
+const cursorRing = ref<HTMLElement | null>(null);
+const cursorState = ref<"idle" | "hover" | "press" | "text">("idle");
+const cursorEnabled = ref(false);
 
 const currentExperience = computed(() => experiences[activeExperience.value]);
 const currentProject = computed(() => projects[activeProject.value]);
@@ -205,11 +227,18 @@ const currentArtwork = computed(() => artworks[activeArtwork.value]);
 let trigger: ScrollTrigger | null = null;
 let motionFrame = 0;
 let introTimeline: gsap.core.Timeline | null = null;
+let teleportTimeline: gsap.core.Timeline | null = null;
 let targetProgress = 0;
 let displayedProgress = 0;
 let lastFrameTime = performance.now();
 let systemCards: HTMLElement[] = [];
 let artworkCards: HTMLElement[] = [];
+let cursorFrame = 0;
+let pointerX = 0;
+let pointerY = 0;
+let ringX = 0;
+let ringY = 0;
+let cursorSeen = false;
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
@@ -249,25 +278,37 @@ const crossfadeAt = (nodePosition: number, boundary: number) =>
   );
 
 const sceneForNode = (nodePosition: number): SceneName => {
-  if (nodePosition < CAREER_START_NODE - 0.5) return "hero";
-  if (nodePosition < SYSTEMS_START_NODE - 0.5) return "career";
-  if (nodePosition < GALLERY_START_NODE - 0.5) return "systems";
-  if (nodePosition < AGENT_NODE - 0.5) return "gallery";
+  if (nodePosition < CHAPTER_CAREER_NODE - 0.5) return "hero";
+  if (nodePosition < CAREER_START_NODE - 0.5) return "chapter";
+  if (nodePosition < CHAPTER_SYSTEMS_NODE - 0.5) return "career";
+  if (nodePosition < SYSTEMS_START_NODE - 0.5) return "chapter";
+  if (nodePosition < CHAPTER_GALLERY_NODE - 0.5) return "systems";
+  if (nodePosition < GALLERY_START_NODE - 0.5) return "chapter";
+  if (nodePosition < CHAPTER_AGENT_NODE - 0.5) return "gallery";
+  if (nodePosition < AGENT_NODE - 0.5) return "chapter";
   return "agent";
 };
 
 const sceneOpacities = (nodePosition: number) => {
-  const heroToCareer = crossfadeAt(nodePosition, CAREER_START_NODE - 0.5);
-  const careerToSystems = crossfadeAt(nodePosition, SYSTEMS_START_NODE - 0.5);
-  const systemsToGallery = crossfadeAt(nodePosition, GALLERY_START_NODE - 0.5);
-  const galleryToAgent = crossfadeAt(nodePosition, AGENT_NODE - 0.5);
+  const heroToChapter = crossfadeAt(nodePosition, CHAPTER_CAREER_NODE - 0.5);
+  const chapterToCareer = crossfadeAt(nodePosition, CAREER_START_NODE - 0.5);
+  const careerToChapter = crossfadeAt(nodePosition, CHAPTER_SYSTEMS_NODE - 0.5);
+  const chapterToSystems = crossfadeAt(nodePosition, SYSTEMS_START_NODE - 0.5);
+  const systemsToChapter = crossfadeAt(nodePosition, CHAPTER_GALLERY_NODE - 0.5);
+  const chapterToGallery = crossfadeAt(nodePosition, GALLERY_START_NODE - 0.5);
+  const galleryToChapter = crossfadeAt(nodePosition, CHAPTER_AGENT_NODE - 0.5);
+  const chapterToAgent = crossfadeAt(nodePosition, AGENT_NODE - 0.5);
 
   return {
-    hero: 1 - heroToCareer,
-    career: heroToCareer * (1 - careerToSystems),
-    systems: careerToSystems * (1 - systemsToGallery),
-    gallery: systemsToGallery * (1 - galleryToAgent),
-    agent: galleryToAgent,
+    hero: 1 - heroToChapter,
+    chapterCareer: heroToChapter * (1 - chapterToCareer),
+    career: chapterToCareer * (1 - careerToChapter),
+    chapterSystems: careerToChapter * (1 - chapterToSystems),
+    systems: chapterToSystems * (1 - systemsToChapter),
+    chapterGallery: systemsToChapter * (1 - chapterToGallery),
+    gallery: chapterToGallery * (1 - galleryToChapter),
+    chapterAgent: galleryToChapter * (1 - chapterToAgent),
+    agent: chapterToAgent,
   };
 };
 
@@ -344,6 +385,10 @@ const renderProgress = (progress: number) => {
   stage.value.style.setProperty("--systems", opacity.systems.toFixed(5));
   stage.value.style.setProperty("--gallery", opacity.gallery.toFixed(5));
   stage.value.style.setProperty("--agent", opacity.agent.toFixed(5));
+  stage.value.style.setProperty("--chapter-career", opacity.chapterCareer.toFixed(5));
+  stage.value.style.setProperty("--chapter-systems", opacity.chapterSystems.toFixed(5));
+  stage.value.style.setProperty("--chapter-gallery", opacity.chapterGallery.toFixed(5));
+  stage.value.style.setProperty("--chapter-agent", opacity.chapterAgent.toFixed(5));
 
   progressLabel.value = String(Math.round(progress * 100)).padStart(2, "0");
   activeExperience.value = setActiveIndex(
@@ -362,17 +407,137 @@ const goTo = (progress: number) => {
   const rect = track.value.getBoundingClientRect();
   const start = scrollY + rect.top;
   const distance = Math.max(1, track.value.offsetHeight - innerHeight);
-  scrollTo({
-    top: start + distance * clamp01(progress),
-    behavior: reducedMotion.value ? "auto" : "smooth",
-  });
+  const top = start + distance * clamp01(progress);
   menuOpen.value = false;
+
+  if (reducedMotion.value) {
+    scrollTo({ top, behavior: "auto" });
+    return;
+  }
+
+  const currentNode = progressToNode(displayedProgress);
+  const targetNode = progressToNode(clamp01(progress));
+
+  /* Neighbouring states (gallery arrows, dot rails) keep the short smooth
+     scroll. Cross-section jumps (menu) teleport: cover the viewport, move the
+     scroll position instantly underneath, reveal the destination. */
+  if (Math.abs(targetNode - currentNode) <= TELEPORT_NODE_DISTANCE || !teleport.value) {
+    scrollTo({ top, behavior: "smooth" });
+    return;
+  }
+
+  const cover = teleport.value;
+  teleportTimeline?.kill();
+  teleportTimeline = gsap.timeline({
+    onComplete: () => gsap.set(cover, { visibility: "hidden" }),
+  });
+  teleportTimeline
+    .set(cover, { visibility: "visible" })
+    .fromTo(
+      cover,
+      { clipPath: "inset(0% 0% 100% 0%)" },
+      { clipPath: "inset(0% 0% 0% 0%)", duration: 0.3, ease: "expo.in" },
+    )
+    .add(() => {
+      scrollTo({ top, behavior: "auto" });
+      const progressAtTarget = clamp01(progress);
+      targetProgress = progressAtTarget;
+      displayedProgress = progressAtTarget;
+      renderProgress(progressAtTarget);
+    })
+    .to(cover, {
+      clipPath: "inset(100% 0% 0% 0%)",
+      duration: 0.44,
+      ease: "expo.out",
+      delay: 0.08,
+    });
 };
 
 const goToNode = (node: number) => goTo(nodeToProgress(node));
 const goToExperience = (index: number) => goToNode(CAREER_START_NODE + index);
 const goToProject = (index: number) => goToNode(SYSTEMS_START_NODE + index);
 const goToArtwork = (index: number) => goToNode(GALLERY_START_NODE + index);
+
+const onKeydown = (event: KeyboardEvent) => {
+  const target = event.target as HTMLElement | null;
+  if (
+    target &&
+    (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+  ) {
+    return;
+  }
+  if (activeScene.value !== "gallery") return;
+
+  if (event.key === "ArrowRight") {
+    event.preventDefault();
+    goToArtwork(Math.min(artworks.length - 1, activeArtwork.value + 1));
+  } else if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    goToArtwork(Math.max(0, activeArtwork.value - 1));
+  } else if (event.key === "Home") {
+    event.preventDefault();
+    goToArtwork(0);
+  } else if (event.key === "End") {
+    event.preventDefault();
+    goToArtwork(artworks.length - 1);
+  }
+};
+
+const CURSOR_INTERACTIVE = "button, a, input, textarea, select, [data-cursor]";
+
+const cursorStateFor = (element: Element | null): "idle" | "hover" | "text" => {
+  if (!element) return "idle";
+  const tag = element.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" ? "text" : "hover";
+};
+
+const onCursorMove = (event: PointerEvent) => {
+  pointerX = event.clientX;
+  pointerY = event.clientY;
+  if (!cursorSeen) {
+    cursorSeen = true;
+    ringX = pointerX;
+    ringY = pointerY;
+    cursorDot.value?.classList.add("is-on");
+    cursorRing.value?.classList.add("is-on");
+  }
+  if (cursorDot.value) {
+    cursorDot.value.style.transform = `translate3d(${pointerX}px, ${pointerY}px, 0)`;
+  }
+};
+
+const onCursorOver = (event: PointerEvent) => {
+  const interactive = (event.target as Element | null)?.closest?.(CURSOR_INTERACTIVE) ?? null;
+  cursorState.value = cursorStateFor(interactive);
+};
+
+const onCursorDown = () => {
+  if (cursorState.value !== "text") cursorState.value = "press";
+};
+
+const onCursorUp = (event: PointerEvent) => {
+  const interactive = (event.target as Element | null)?.closest?.(CURSOR_INTERACTIVE) ?? null;
+  cursorState.value = cursorStateFor(interactive);
+};
+
+const onCursorLeaveWindow = (event: PointerEvent) => {
+  if (event.relatedTarget) return;
+  cursorSeen = false;
+  cursorDot.value?.classList.remove("is-on");
+  cursorRing.value?.classList.remove("is-on");
+};
+
+const startCursorLoop = () => {
+  const tick = () => {
+    ringX += (pointerX - ringX) * 0.16;
+    ringY += (pointerY - ringY) * 0.16;
+    if (cursorRing.value) {
+      cursorRing.value.style.transform = `translate3d(${ringX}px, ${ringY}px, 0)`;
+    }
+    cursorFrame = requestAnimationFrame(tick);
+  };
+  cursorFrame = requestAnimationFrame(tick);
+};
 
 const startMotionLoop = () => {
   const tick = (time: number) => {
@@ -395,10 +560,24 @@ const runIntro = () => {
   }
 
   document.documentElement.classList.add("is-refined-intro");
-  gsap.set(
-    ".ref-hero__media figure, .ref-hero__title span, .ref-hero__meta, .ref-hero__thesis, .ref-scroll-cue, .ref-header",
-    { opacity: 0 },
-  );
+  gsap.set(".ref-hero__meta, .ref-hero__thesis, .ref-scroll-cue, .ref-header", { opacity: 0 });
+  gsap.set(".ref-hero__title span i", { yPercent: 112 });
+  gsap.set(".ref-intro__mark", { xPercent: -50, yPercent: -50, transformOrigin: "50% 50%" });
+
+  /* Handoff measurement: the giant DC mark travels and BECOMES the header
+     brand — the intro physically hands the site over to the hero. */
+  const markElement = document.querySelector<HTMLElement>(".ref-intro__mark");
+  const brandElement = document.querySelector<HTMLElement>(".ref-brand strong");
+  let markDeltaX = 0;
+  let markDeltaY = -window.innerHeight * 0.42;
+  let markScale = 0.1;
+  if (markElement && brandElement) {
+    const markRect = markElement.getBoundingClientRect();
+    const brandRect = brandElement.getBoundingClientRect();
+    markDeltaX = brandRect.left + brandRect.width / 2 - (markRect.left + markRect.width / 2);
+    markDeltaY = brandRect.top + brandRect.height / 2 - (markRect.top + markRect.height / 2);
+    markScale = Math.max(0.04, brandRect.height / Math.max(1, markRect.height));
+  }
 
   introTimeline = gsap
     .timeline({
@@ -408,16 +587,18 @@ const runIntro = () => {
         document.documentElement.classList.remove("is-refined-intro");
       },
     })
+    /* 1 — the mark blooms with a tracking crunch */
     .from(".ref-intro__mark", {
       opacity: 0,
-      scale: 0.72,
-      rotate: -7,
-      duration: 0.72,
+      scale: 0.9,
+      letterSpacing: "0.05em",
+      duration: 0.82,
+      ease: "expo.out",
     })
     .from(
       ".ref-intro__statement span",
       { yPercent: 115, duration: 0.62, stagger: 0.055 },
-      "-=0.38",
+      "-=0.44",
     )
     .from(
       ".ref-intro__meta span",
@@ -425,40 +606,51 @@ const runIntro = () => {
       "-=0.42",
     )
     .to(".ref-intro__line i", { scaleX: 1, duration: 0.72, ease: "expo.inOut" }, "-=0.34")
+    /* 2 — the aperture eye opens */
     .to(
       ".ref-intro__aperture",
-      { clipPath: "inset(0% 0% 0% 0%)", duration: 0.82, ease: "expo.inOut" },
-      "+=0.08",
+      { clipPath: "inset(0% 0% 0% 0%)", duration: 0.78, ease: "expo.inOut" },
+      "+=0.06",
+    )
+    /* 3 — THE HANDOFF: curtains part mechanically and, in the same breath,
+       DIEGO CANO punches up through its line masks while the mark flies into
+       the header brand slot. */
+    .addLabel("handoff", "+=0.12")
+    .to(".ref-intro__panel--top", { yPercent: -101, duration: 1.05, ease: "expo.inOut" }, "handoff")
+    .to(".ref-intro__panel--bottom", { yPercent: 101, duration: 1.05, ease: "expo.inOut" }, "handoff")
+    .to(
+      ".ref-intro__aperture",
+      { width: "100vw", height: "100vh", opacity: 0, duration: 0.9, ease: "expo.inOut" },
+      "handoff",
     )
     .to(
-      ".ref-intro__panel--top",
-      { yPercent: -101, duration: 0.92, ease: "expo.inOut" },
-      "-=0.28",
+      ".ref-intro__statement, .ref-intro__meta, .ref-intro__line",
+      { opacity: 0, y: -10, duration: 0.3, ease: "power2.in" },
+      "handoff",
     )
     .to(
-      ".ref-intro__panel--bottom",
-      { yPercent: 101, duration: 0.92, ease: "expo.inOut" },
-      "<",
+      ".ref-hero__title span i",
+      { yPercent: 0, duration: 1.0, stagger: 0.12, ease: "expo.out" },
+      "handoff+=0.22",
+    )
+    .fromTo(
+      ".ref-hero__title",
+      { letterSpacing: "0.015em" },
+      { letterSpacing: "-0.045em", duration: 1.05, ease: "expo.out" },
+      "handoff+=0.22",
     )
     .to(
-      ".ref-intro__mark, .ref-intro__statement, .ref-intro__meta, .ref-intro__line",
-      { opacity: 0, duration: 0.34, ease: "power2.in" },
-      "<",
+      ".ref-intro__mark",
+      { x: markDeltaX, y: markDeltaY, scale: markScale, duration: 0.95, ease: "expo.inOut" },
+      "handoff+=0.1",
     )
+    .to(".ref-header", { opacity: 1, duration: 0.4 }, "handoff+=0.78")
+    .to(".ref-intro__mark", { opacity: 0, duration: 0.22, ease: "power1.in" }, "handoff+=0.9")
+    /* 4 — the rest of the hero settles */
     .to(
-      ".ref-hero__media figure",
-      { opacity: 1, scale: 1, y: 0, duration: 0.82, stagger: 0.06 },
-      "-=0.76",
-    )
-    .to(
-      ".ref-hero__title span",
-      { opacity: 1, yPercent: 0, duration: 0.74, stagger: 0.065 },
-      "-=0.72",
-    )
-    .to(
-      ".ref-hero__meta, .ref-hero__thesis, .ref-scroll-cue, .ref-header",
-      { opacity: 1, y: 0, duration: 0.5, stagger: 0.05 },
-      "-=0.45",
+      ".ref-hero__meta, .ref-hero__thesis, .ref-scroll-cue",
+      { opacity: 1, y: 0, duration: 0.5, stagger: 0.06 },
+      "handoff+=0.72",
     )
     .set(".ref-intro", { display: "none" });
 };
@@ -488,18 +680,41 @@ onMounted(async () => {
 
   runIntro();
   addEventListener("load", () => ScrollTrigger.refresh(), { once: true });
+  addEventListener("keydown", onKeydown);
+
+  cursorEnabled.value = matchMedia("(pointer: fine)").matches && !reducedMotion.value;
+  if (cursorEnabled.value) {
+    await nextTick();
+    addEventListener("pointermove", onCursorMove, { passive: true });
+    addEventListener("pointerover", onCursorOver, { passive: true });
+    addEventListener("pointerdown", onCursorDown, { passive: true });
+    addEventListener("pointerup", onCursorUp, { passive: true });
+    document.documentElement.addEventListener("pointerout", onCursorLeaveWindow);
+    startCursorLoop();
+  }
 });
 
 onBeforeUnmount(() => {
   trigger?.kill();
   introTimeline?.kill();
+  teleportTimeline?.kill();
   cancelAnimationFrame(motionFrame);
+  cancelAnimationFrame(cursorFrame);
+  removeEventListener("keydown", onKeydown);
+  removeEventListener("pointermove", onCursorMove);
+  removeEventListener("pointerover", onCursorOver);
+  removeEventListener("pointerdown", onCursorDown);
+  removeEventListener("pointerup", onCursorUp);
+  document.documentElement.removeEventListener("pointerout", onCursorLeaveWindow);
   document.documentElement.classList.remove("is-refined-intro");
 });
 </script>
 
 <template>
-  <div :class="['ref-portfolio', { 'is-intro': introVisible }]">
+  <div :class="['ref-portfolio', { 'is-intro': introVisible, 'has-cursor': cursorEnabled }]">
+    <div ref="teleport" class="ref-teleport" aria-hidden="true" />
+    <div v-if="cursorEnabled" ref="cursorDot" class="ref-cursor" :data-state="cursorState" aria-hidden="true" />
+    <div v-if="cursorEnabled" ref="cursorRing" class="ref-cursor-ring" :data-state="cursorState" aria-hidden="true" />
     <a class="ref-skip" href="#ref-fallback">Skip motion experience</a>
 
     <div v-if="introVisible" class="ref-intro" aria-hidden="true">
@@ -540,13 +755,8 @@ onBeforeUnmount(() => {
         <div class="ref-grain" aria-hidden="true" />
 
         <article class="ref-scene ref-scene--hero">
-          <div class="ref-hero__media" aria-hidden="true">
-            <figure><img src="/studio/interior-shadow.png" alt="" /></figure>
-            <figure><img src="/studio/lounge-mint.png" alt="" /></figure>
-            <figure><img src="/studio/kempu.png" alt="" /></figure>
-          </div>
           <p class="ref-hero__meta"><span>BUENOS AIRES · ARGENTINA</span><span>SELECTED PRACTICE / 2026</span></p>
-          <h1 class="ref-hero__title"><span>DIEGO</span><span>CA<em>N</em>O</span></h1>
+          <h1 class="ref-hero__title"><span><i>DIEGO</i></span><span><i>CANO</i></span></h1>
           <p class="ref-hero__thesis">I design software systems, intelligent products and physical ideas with one principle: <em>complexity must become legible.</em></p>
           <div class="ref-scroll-cue"><span>SCROLL TO ENTER</span><i /></div>
         </article>
@@ -612,6 +822,14 @@ onBeforeUnmount(() => {
           <div class="ref-agent-heading"><span>EXPERIENCE · PROJECTS · AVAILABILITY</span><h2>A useful interface,<br /><em>not a decoration.</em></h2><p>Ask about the work or prepare a reviewable meeting request. Every visible control performs an action.</p></div>
           <div class="ref-agent-stage"><ContactAssistant /></div>
         </article>
+
+        <article v-for="chapter in chapters" :key="chapter.key" class="ref-scene ref-scene--chapter" :data-chapter="chapter.key" :aria-label="chapter.kicker">
+          <div class="ref-chapter">
+            <i />
+            <span>{{ chapter.kicker }}</span>
+            <p>{{ chapter.line }}</p>
+          </div>
+        </article>
       </section>
     </main>
 
@@ -619,6 +837,7 @@ onBeforeUnmount(() => {
       <header><span>DIEGO CANO / ACCESSIBLE INDEX</span><h1>Software, AI and material practice.</h1></header>
       <div><h2>Experience</h2><article v-for="item in experiences" :key="item.period"><span>{{ item.period }} · {{ item.company }}</span><h3>{{ item.role }}</h3><p>{{ item.summary }}</p></article></div>
       <div><h2>Technical systems</h2><article v-for="item in projects" :key="item.id"><span>{{ item.id }} · {{ item.field }}</span><h3>{{ item.title }}</h3><p>{{ item.premise }}</p></article></div>
+      <div><h2>A note on origin</h2><p>My first language was design — objects, proportion, material honesty. That eye never left the engineering; it only changed medium. What follows is the other half of the practice, where the argument is visual.</p></div>
       <div class="ref-fallback-art"><h2>Visual archive</h2><figure v-for="item in artworks" :key="item.src"><img :src="item.src" :alt="item.title" /><figcaption>{{ item.title }} · {{ item.type }}</figcaption></figure></div>
       <ContactAssistant />
     </section>
