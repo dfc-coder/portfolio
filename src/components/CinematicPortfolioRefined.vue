@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import ContactAssistant from "./ContactAssistant.vue";
+import AgentOS from "./AgentOS.vue";
 
 type Experience = {
   period: string;
@@ -173,10 +173,6 @@ const artworks: Artwork[] = [
   },
 ];
 
-/*
- * Every visible state lives on one integer node. The distance between any two
- * consecutive states is therefore identical, independently of its section.
- */
 const HERO_NODE = 0;
 const CHAPTER_CAREER_NODE = 1;
 const CAREER_START_NODE = CHAPTER_CAREER_NODE + 1;
@@ -191,8 +187,6 @@ const STEP_HOLD_START = 0.2;
 const STEP_HOLD_END = 0.8;
 const SCENE_CROSSFADE_WIDTH = 0.46;
 
-/* Chapter cards: full bridge scenes between sections, each owning one scroll
-   node like every other visible state — readable, scrubbable, scroll-driven. */
 const chapters = [
   { key: "career", kicker: "CHAPTER 02 · THE RECORD", line: "First, the proof — where the practice was built." },
   { key: "systems", kicker: "CHAPTER 03 · THE EVIDENCE", line: "Roles condense into systems that shipped." },
@@ -200,8 +194,6 @@ const chapters = [
   { key: "agent", kicker: "CHAPTER 05 · THE INTERFACE", line: "Enough archive. Ask the work a question." },
 ] as const;
 
-/* Menu jumps farther than this many nodes use the teleport cover instead of
-   smooth-scrolling through every section in between. */
 const TELEPORT_NODE_DISTANCE = 1.5;
 
 const track = ref<HTMLElement | null>(null);
@@ -418,9 +410,6 @@ const goTo = (progress: number) => {
   const currentNode = progressToNode(displayedProgress);
   const targetNode = progressToNode(clamp01(progress));
 
-  /* Neighbouring states (gallery arrows, dot rails) keep the short smooth
-     scroll. Cross-section jumps (menu) teleport: cover the viewport, move the
-     scroll position instantly underneath, reveal the destination. */
   if (Math.abs(targetNode - currentNode) <= TELEPORT_NODE_DISTANCE || !teleport.value) {
     scrollTo({ top, behavior: "smooth" });
     return;
@@ -564,8 +553,6 @@ const runIntro = () => {
   gsap.set(".ref-hero__title span i", { yPercent: 112 });
   gsap.set(".ref-intro__mark", { xPercent: -50, yPercent: -50, transformOrigin: "50% 50%" });
 
-  /* Handoff measurement: the giant DC mark travels and BECOMES the header
-     brand — the intro physically hands the site over to the hero. */
   const markElement = document.querySelector<HTMLElement>(".ref-intro__mark");
   const brandElement = document.querySelector<HTMLElement>(".ref-brand strong");
   let markDeltaX = 0;
@@ -587,7 +574,6 @@ const runIntro = () => {
         document.documentElement.classList.remove("is-refined-intro");
       },
     })
-    /* 1 — the mark blooms with a tracking crunch */
     .from(".ref-intro__mark", {
       opacity: 0,
       scale: 0.9,
@@ -606,15 +592,11 @@ const runIntro = () => {
       "-=0.42",
     )
     .to(".ref-intro__line i", { scaleX: 1, duration: 0.72, ease: "expo.inOut" }, "-=0.34")
-    /* 2 — the aperture eye opens */
     .to(
       ".ref-intro__aperture",
       { clipPath: "inset(0% 0% 0% 0%)", duration: 0.78, ease: "expo.inOut" },
       "+=0.06",
     )
-    /* 3 — THE HANDOFF: curtains part mechanically and, in the same breath,
-       DIEGO CANO punches up through its line masks while the mark flies into
-       the header brand slot. */
     .addLabel("handoff", "+=0.12")
     .to(".ref-intro__panel--top", { yPercent: -101, duration: 1.05, ease: "expo.inOut" }, "handoff")
     .to(".ref-intro__panel--bottom", { yPercent: 101, duration: 1.05, ease: "expo.inOut" }, "handoff")
@@ -646,7 +628,6 @@ const runIntro = () => {
     )
     .to(".ref-header", { opacity: 1, duration: 0.4 }, "handoff+=0.78")
     .to(".ref-intro__mark", { opacity: 0, duration: 0.22, ease: "power1.in" }, "handoff+=0.9")
-    /* 4 — the rest of the hero settles */
     .to(
       ".ref-hero__meta, .ref-hero__thesis, .ref-scroll-cue",
       { opacity: 1, y: 0, duration: 0.5, stagger: 0.06 },
@@ -818,9 +799,7 @@ onBeforeUnmount(() => {
         </article>
 
         <article class="ref-scene ref-scene--agent">
-          <div class="ref-marker"><span>05</span><i />PROFESSIONAL AGENT</div>
-          <div class="ref-agent-heading"><span>EXPERIENCE · PROJECTS · AVAILABILITY</span><h2>A useful interface,<br /><em>not a decoration.</em></h2><p>Ask about the work or prepare a reviewable meeting request. Every visible control performs an action.</p></div>
-          <div class="ref-agent-stage"><ContactAssistant /></div>
+          <AgentOS />
         </article>
 
         <article v-for="chapter in chapters" :key="chapter.key" class="ref-scene ref-scene--chapter" :data-chapter="chapter.key" :aria-label="chapter.kicker">
@@ -839,7 +818,6 @@ onBeforeUnmount(() => {
       <div><h2>Technical systems</h2><article v-for="item in projects" :key="item.id"><span>{{ item.id }} · {{ item.field }}</span><h3>{{ item.title }}</h3><p>{{ item.premise }}</p></article></div>
       <div><h2>A note on origin</h2><p>My first language was design — objects, proportion, material honesty. That eye never left the engineering; it only changed medium. What follows is the other half of the practice, where the argument is visual.</p></div>
       <div class="ref-fallback-art"><h2>Visual archive</h2><figure v-for="item in artworks" :key="item.src"><img :src="item.src" :alt="item.title" /><figcaption>{{ item.title }} · {{ item.type }}</figcaption></figure></div>
-      <ContactAssistant />
     </section>
   </div>
 </template>
