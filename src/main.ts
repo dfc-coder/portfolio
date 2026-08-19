@@ -4,5 +4,6 @@ import "./style.css";
 import "./cinematic-refined.css";
 import "./cinematic-tuning.css";
 import "./scroll-sync-hotfix.css";
+import "./agent-os.css";
 
 createApp(App).mount("#app");
