@@ -354,20 +354,41 @@ const updateDepthObjects = (projectPosition: number, artworkPosition: number) =>
   artworkCards.forEach((element, index) => {
     const offset = index - artworkPosition;
     const distance = Math.abs(offset);
-    const focus = Math.exp(-(offset * offset) * 5.8);
-    const visible = distance <= 1.02;
+    /* Wider focus falloff than the other collections: neighbours must stay
+       readable, because the depth only reads as depth if you can see the
+       pieces receding behind the active one. */
+    const focus = Math.exp(-(offset * offset) * 1.45);
+    const visible = distance <= 2.4;
+    const clamped = Math.min(distance, 3);
+
+    /* The previous build rotated 4.8deg per step, which at this perspective is
+       invisible — the scene was declared 3D but rendered flat. These values put
+       the pieces on a real arc: they turn away from the viewer and recede on
+       both sides, like objects on a turntable. */
+    const depth = -clamped * 330;
+    const sink = clamped * 2.4;
+    /* Rotation is capped below 90deg: past that the plane faces away and
+       backface-visibility would drop it out of the scene entirely. */
+    const turn = Math.max(-1.85, Math.min(1.85, offset)) * -38;
 
     element.style.visibility = visible ? "visible" : "hidden";
     element.style.transform = [
-      `translate3d(calc(-50% + ${offset * 12.5}vw), calc(-50% + ${offset * -0.35}vh), ${offset * -170}px)`,
-      `rotateY(${offset * -4.8}deg)`,
-      `rotateZ(${offset * 0.4}deg)`,
+      `translate3d(calc(-50% + ${offset * 17}vw), calc(-50% + ${sink}vh), ${depth}px)`,
+      `rotateY(${turn.toFixed(2)}deg)`,
+      `scale(${(1 - clamped * 0.05).toFixed(3)})`,
     ].join(" ");
-    element.style.opacity = String(visible ? Math.max(0.015, focus) : 0);
-    element.style.filter = `grayscale(${1 - focus}) brightness(${0.4 + focus * 0.6})`;
+    element.style.opacity = String(visible ? Math.max(0.05, 0.22 + focus * 0.78) : 0);
+    /* Depth of field: everything off-centre softens and desaturates, so the eye
+       is told which object is being presented. */
+    const blur = distance > 0.55 ? Math.min(5, (distance - 0.55) * 2.6) : 0;
+    element.style.filter = [
+      `grayscale(${(1 - focus).toFixed(3)})`,
+      `brightness(${(0.34 + focus * 0.66).toFixed(3)})`,
+      `blur(${blur.toFixed(2)}px)`,
+    ].join(" ");
     element.style.zIndex = String(40 - Math.round(distance * 7));
     element.style.pointerEvents =
-      activeScene.value === "gallery" && distance < 0.35 ? "auto" : "none";
+      activeScene.value === "gallery" && distance < 0.5 ? "auto" : "none";
   });
 };
 
@@ -506,6 +527,20 @@ const cursorStateFor = (element: Element | null): "idle" | "hover" | "text" => {
 const onCursorMove = (event: PointerEvent) => {
   pointerX = event.clientX;
   pointerY = event.clientY;
+
+  /* Gallery parallax: the whole arc turns a few degrees toward the cursor.
+     Small numbers on purpose — it should feel like the room has depth, not
+     like the scene is chasing the mouse. */
+  if (activeScene.value === "gallery") {
+    const stageElement = document.querySelector<HTMLElement>(".ref-gallery-stage");
+    if (stageElement) {
+      const nx = pointerX / window.innerWidth - 0.5;
+      const ny = pointerY / window.innerHeight - 0.5;
+      stageElement.style.setProperty("--tilt-y", `${(nx * 7).toFixed(2)}deg`);
+      stageElement.style.setProperty("--tilt-x", `${(ny * -4.5).toFixed(2)}deg`);
+    }
+  }
+
   if (!cursorSeen) {
     cursorSeen = true;
     ringX = pointerX;
@@ -614,22 +649,11 @@ const runIntro = () => {
       { opacity: 0, y: 8, duration: 0.42, stagger: 0.05 },
       "-=0.42",
     )
-    .to(".ref-intro__line i", { scaleX: 1, duration: 0.72, ease: "expo.inOut" }, "-=0.34")
-    .to(
-      ".ref-intro__aperture",
-      { clipPath: "inset(0% 0% 0% 0%)", duration: 0.78, ease: "expo.inOut" },
-      "+=0.06",
-    )
     .addLabel("handoff", "+=0.12")
     .to(".ref-intro__panel--top", { yPercent: -101, duration: 1.05, ease: "expo.inOut" }, "handoff")
     .to(".ref-intro__panel--bottom", { yPercent: 101, duration: 1.05, ease: "expo.inOut" }, "handoff")
     .to(
-      ".ref-intro__aperture",
-      { width: "100vw", height: "100vh", opacity: 0, duration: 0.9, ease: "expo.inOut" },
-      "handoff",
-    )
-    .to(
-      ".ref-intro__statement, .ref-intro__meta, .ref-intro__line",
+      ".ref-intro__statement, .ref-intro__meta",
       { opacity: 0, y: -10, duration: 0.3, ease: "power2.in" },
       "handoff",
     )
@@ -724,7 +748,6 @@ onBeforeUnmount(() => {
     <div v-if="introVisible" class="ref-intro" aria-hidden="true">
       <div class="ref-intro__panel ref-intro__panel--top" />
       <div class="ref-intro__panel ref-intro__panel--bottom" />
-      <div class="ref-intro__aperture" />
       <div class="ref-intro__meta">
         <span>DIEGO CANO / PORTFOLIO 2026</span>
         <span>BUENOS AIRES · GMT−3</span>
@@ -735,7 +758,6 @@ onBeforeUnmount(() => {
         <span>INTELLIGENCE</span>
         <span>OBJECTS</span>
       </p>
-      <div class="ref-intro__line"><i /></div>
     </div>
 
     <header class="ref-header">
@@ -839,6 +861,7 @@ onBeforeUnmount(() => {
               @click="goToArtwork(index)"><img :src="artwork.src" alt="" /><span>{{ String(index + 1).padStart(2, "0")
                 }}</span></button>
           </div>
+          <div class="ref-art-index" aria-hidden="true">{{ String(activeArtwork + 1).padStart(2, "0") }}</div>
         </article>
 
         <article class="ref-scene ref-scene--agent">

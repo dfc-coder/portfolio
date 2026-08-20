@@ -29,7 +29,8 @@
  *   unless the TypeScript is changed at the same time.
  * ---------------------------------------------------------------------------
  */
- @import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Archivo:wght@400;500;700;900&display=swap");
+ /* Fonts are loaded in index.html with preconnect: a CSS @import blocks
+    rendering until the stylesheet resolves, a <link> does not. */
  /* ==========================================================================
     01. DESIGN TOKENS
     ========================================================================== */
@@ -46,7 +47,7 @@
    --line-dark: rgba(9, 9, 8, 0.2);
    /* Typography */
    --font-mono: "DM Mono", monospace;
-   --font-sans: "Archivo", sans-serif;
+   --font-sans: "Instrument Sans", system-ui, sans-serif;
    --font-serif: "Instrument Serif", Georgia, serif;
    /* Gallery / museum composition */
    --gallery-artwork-width: min(54vw, 840px);
@@ -171,7 +172,7 @@
    font-size: 24px;
    line-height: 1;
    letter-spacing: -.06em;
-   font-weight: 900;
+   font-weight: 700;
  }
  
  .ref-brand span {
@@ -390,7 +391,7 @@
    font-size: clamp(7rem, 19vw, 21rem);
    line-height: .78;
    letter-spacing: -.045em;
-   font-weight: 900;
+   font-weight: 700;
  }
  
  .ref-hero__title span, .ref-intro__title span {
@@ -406,15 +407,8 @@
  }
  
  .ref-hero__title span:last-child i, .ref-intro__title span:last-child i {
-   color: transparent;
-   -webkit-text-stroke: 2px var(--color-paper);
- }
- 
- @supports not (-webkit-text-stroke: 2px #fff) {
-   .ref-hero__title span:last-child i, .ref-intro__title span:last-child i {
-     color: var(--color-paper);
-   }
- 
+   /* Superseded by the value-based treatment in type-system.css. */
+   color: rgba(238, 234, 226, .17);
  }
  
  .ref-hero__thesis {
@@ -556,7 +550,7 @@
    font-size: clamp(4rem, 8vw, 9rem);
    line-height: .84;
    letter-spacing: -.035em;
-   font-weight: 900;
+   font-weight: 700;
    text-transform: uppercase;
  }
  
@@ -1529,7 +1523,7 @@
    font-size: clamp(4rem, 10vw, 10rem);
    line-height: .84;
    letter-spacing: -.04em;
-   font-weight: 900;
+   font-weight: 700;
    text-transform: uppercase;
  }
  

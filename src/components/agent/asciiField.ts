@@ -133,6 +133,17 @@ export class AsciiField {
   private pointerY = -10
   private pointerEnergy = 0
 
+  /** Rising while the agent streams tokens, decaying otherwise. Drives the
+      outward surge so the shape visibly "speaks" instead of just pulsing.
+      `voice` is the smoothed value the renderer reads; `voiceTarget` is what
+      tokens push. Decoupling them turns per-token spikes into one continuous
+      swell instead of a strobe. */
+  private voice = 0
+  private voiceTarget = 0
+  /** Slow-rotating current angle; the flow field has a heading, not just noise,
+      which reads as a living current rather than static texture. */
+  private currentAngle = 0
+
   private raf = 0
   private running = false
   private paused = false
@@ -213,6 +224,16 @@ export class AsciiField {
     this.pointerEnergy = active ? 1 : 0
   }
 
+  /** Called once per streamed token. Nudges the voice *target*, not the value
+      the renderer reads — the renderer eases toward it, so a fast stream reads
+      as one sustained swell rather than a burst of jitter per token. The
+      target ceiling is deliberately low; presence comes from steadiness, not
+      amplitude. */
+  speak(amount = 1): void {
+    if (this.reduced) return
+    this.voiceTarget = Math.min(1, this.voiceTarget + amount * 0.14)
+  }
+
   /* ------------------------------------------------------------- frame --- */
 
   private loop = (ts: number): void => {
@@ -239,9 +260,18 @@ export class AsciiField {
     const target = ENVELOPES[this.state]
     this.env.flow = approach(this.env.flow, target.flow, 3.2, dt)
     this.env.turbulence = approach(this.env.turbulence, target.turbulence, 3.2, dt)
-    this.env.brightness = approach(this.env.brightness, target.brightness, 4.5, dt)
+    this.env.brightness = approach(this.env.brightness, target.brightness, 2.6, dt)
     this.env.aperture = approach(this.env.aperture, target.aperture, 2.6, dt)
     this.env.drift = approach(this.env.drift, target.drift, 3.0, dt)
+
+    // The token target decays on its own; the rendered value eases toward it
+    // slowly (slower on the way up than down) so speech is a sustained swell,
+    // never a per-token flicker. Low rates here are what kill the strobe.
+    this.voiceTarget = approach(this.voiceTarget, 0, 1.6, dt)
+    const rate = this.voice < this.voiceTarget ? 1.8 : 2.4
+    this.voice = approach(this.voice, this.voiceTarget, rate, dt)
+    const spin = this.state === 'thinking' ? 0.5 : this.state === 'speaking' ? 0.22 : 0.09
+    this.currentAngle += spin * dt
     this.env.breath = approach(this.env.breath, target.breath, 2.4, dt)
 
     if (this.ripples.length) {
@@ -296,8 +326,14 @@ export class AsciiField {
 
     const env = this.env
     const breathe = Math.sin(t * 0.62) * 0.035 + Math.sin(t * 0.23 + 1.7) * 0.022
-    const apertureR = env.aperture * (1 + breathe * env.breath)
+    // Voice swells the aperture outward as tokens arrive: the shape inflates
+    // while speaking and settles in silence.
+    const apertureR = env.aperture * (1 + breathe * env.breath + this.voice * 0.08)
     const flowT = t * 0.11
+    // The flow field has a heading that slowly rotates — a current, not just
+    // isotropic noise. Precomputed once per frame.
+    const curX = Math.cos(this.currentAngle)
+    const curY = Math.sin(this.currentAngle)
 
     for (let row = 0; row < rows; row += 1) {
       const ny = (row + 0.5) / rows
@@ -308,8 +344,12 @@ export class AsciiField {
         const px = (nx - 0.5) * 2 * aspect
 
         // --- flow advection: sample the shape at a warped position ---------
-        const fx = (fbm(px * 1.35 + flowT, py * 1.35) - 0.5) * env.flow * 2
-        const fy = (fbm(px * 1.35 + 7.3, py * 1.35 - flowT) - 0.5) * env.flow * 2
+        // Noise warp plus a directional current, so the texture drifts along a
+        // heading instead of shimmering in place.
+        const fx =
+          (fbm(px * 1.35 + flowT, py * 1.35) - 0.5) * env.flow * 2 + curX * env.flow * 0.6
+        const fy =
+          (fbm(px * 1.35 + 7.3, py * 1.35 - flowT) - 0.5) * env.flow * 2 + curY * env.flow * 0.6
         const sx = px + fx
         const sy = py + fy
 
@@ -334,6 +374,9 @@ export class AsciiField {
 
         let density =
           body + dust * clamp01(body * 2.4) - Math.max(0, r - 2) * 0.85 - Math.max(0, py) * 0.2
+
+        // Voice moves the shape (via apertureR) but no longer spikes per-glyph
+        // brightness — that double coupling was the source of the strobe.
 
         // --- chat impulses --------------------------------------------------
         let dx = 0

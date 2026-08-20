@@ -32,7 +32,9 @@ const onVisibility = () => field?.setPaused(document.hidden || props.paused);
 
 /** Exposed so the console can inject impulses at the exact bubble origin. */
 const pulse = (x: number, y: number, strength = 1) => field?.pulse(x, y, strength);
-defineExpose({ pulse });
+/** Exposed so each streamed token can swell the shape (morphological speech). */
+const speak = (amount = 1) => field?.speak(amount);
+defineExpose({ pulse, speak });
 
 onMounted(() => {
   if (!canvas.value) return;

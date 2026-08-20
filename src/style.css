@@ -1,4 +1,5 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Archivo:wght@400;500;700;900&display=swap");
+/* Fonts load in index.html with preconnect. A second @import here would
+   block rendering again and pull a family the type system no longer uses. */
 
 /* Base tokens + reset. The active experience (CinematicPortfolioRefined) defines
    its own --ref-* palette inside cinematic-refined.css; the variables below are
@@ -13,7 +14,7 @@
   --line-dark: rgba(9, 9, 8, 0.22);
   --accent: #c56748;
   --mono: "DM Mono", monospace;
-  --sans: "Archivo", sans-serif;
+  --sans: "Instrument Sans", system-ui, sans-serif;
   --serif: "Instrument Serif", Georgia, serif;
 }
 

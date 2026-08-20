@@ -2,33 +2,29 @@
    AGENT OS — section 05 / the interface
    Loaded last in main.ts, so it owns the agent scene end to end.
 
-   Hierarchy, in order of priority:
-     1. the transcript      always legible, never occluded
-     2. the prompt          the only affordance on screen
-     3. the ascii field     ambient; it is the agent's presence, so it is only
-                            loud while the agent is working
-   Chrome beyond the portfolio's own marker and footer is deliberately absent.
+   Layout: two columns that never overlap.
+     · left   the agent's ascii presence — a living morphology, beside the text
+     · right  the conversation — floating text, depth from shadow, no boxes
+   Because the columns are disjoint, the field is never behind the text: there
+   is no z-order to fight, and legibility (and accessibility) always win.
    ========================================================================== */
 
 :root {
   --os-void: #060708;
   --os-paper: #ece6d5;
   --os-gold: #cdb675;
-  --os-gold-soft: rgba(205, 182, 117, 0.22);
   --os-line: rgba(236, 230, 213, 0.12);
   --os-dim: rgba(236, 230, 213, 0.4);
   --os-mono: "DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* The scene was a paper card in the cinematic build. Section 05 is the one
-   place the portfolio goes fully dark — the aperture needs the black. */
+/* Section 05 is the one place the portfolio goes fully dark. */
 .ref-scene--agent {
   padding: 0;
   color: var(--os-paper);
   background: var(--os-void);
 }
 
-/* Section labelling follows the portfolio marker, not a bespoke header. */
 .ref-scene--agent .ref-marker {
   z-index: 4;
   color: var(--os-paper);
@@ -43,24 +39,31 @@
 /* -------------------------------------------------------------- shell --- */
 
 .agent-os {
-  --field-weight: 0.5;
+  --field-weight: 0.55;
   position: relative;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto auto;
-  gap: 16px;
+  grid-template-columns: minmax(300px, 42%) minmax(0, 1fr);
+  grid-template-rows: 1fr auto;
+  gap: clamp(20px, 4vw, 64px);
   width: 100%;
   height: 100%;
-  padding: 74px clamp(16px, 4vw, 48px) 18px;
+  padding: 74px clamp(20px, 4vw, 56px) 20px;
   color: var(--os-paper);
   font-family: var(--os-mono);
   isolation: isolate;
 }
 
-/* --------------------------------------------------------------- field --- */
+/* ------------------------------------------------------- left presence --- */
 
-.agent-os__field.ascii-fluid {
+.agent-presence {
+  position: relative;
+  grid-row: 1 / 2;
+  min-height: 0;
+  align-self: stretch;
+}
+
+.agent-presence__field.ascii-fluid {
   position: absolute;
-  z-index: 0;
   inset: 0;
   width: 100%;
   height: 100%;
@@ -68,72 +71,101 @@
   transition: opacity 0.7s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Vignette keeps the field off the edges so nothing crowds the marker,
-   the prompt or the footer. */
-.agent-os::after {
+/* Soft containment: the morphology fades at the column edge instead of being
+   clipped to a hard rectangle, so it reads as a presence, not a video. */
+.agent-presence::after {
   content: "";
   position: absolute;
-  z-index: 1;
   inset: 0;
   pointer-events: none;
   background: radial-gradient(
-    ellipse 58% 62% at 50% 44%,
-    transparent 38%,
-    rgba(6, 7, 8, 0.62) 76%,
+    ellipse 66% 70% at 46% 46%,
+    transparent 46%,
+    rgba(6, 7, 8, 0.5) 82%,
     var(--os-void) 100%
   );
 }
 
-/* ----------------------------------------------------------- transcript --- */
+.agent-presence__label {
+  position: absolute;
+  left: 4px;
+  bottom: 6px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  color: var(--os-dim);
+}
 
-/* One lane, bottom-anchored: the newest exchange always sits on the baseline
-   directly above the prompt, so the eye never has to hunt for the thread. */
+.agent-presence__label b {
+  font-weight: 400;
+  color: var(--os-gold);
+}
+
+.agent-presence__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--os-gold);
+  box-shadow: 0 0 12px rgba(205, 182, 117, 0.6);
+}
+
+.agent-os[data-state="thinking"] .agent-presence__dot,
+.agent-os[data-state="speaking"] .agent-presence__dot {
+  animation: os-blink 0.9s ease-in-out infinite;
+}
+
+/* ------------------------------------------------------- right column --- */
+
+.agent-chat {
+  grid-row: 1 / 2;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+
+/* Bottom-anchored transcript: the newest turn sits just above the prompt. */
 .agent-lane {
-  position: relative;
-  z-index: 2;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  gap: 12px;
-  width: min(100%, 780px);
+  gap: 20px;
   min-height: 0;
-  margin: 0 auto;
-  padding: 24px 4px 6px;
+  padding: 24px 6px 4px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 13%, #000 100%);
-  mask-image: linear-gradient(to bottom, transparent 0, #000 13%, #000 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 100%);
 }
 
 .agent-lane::-webkit-scrollbar {
   display: none;
 }
 
+/* No box. Depth is carried by a text shadow and a faint edge line, so the
+   fluid is never occluded by an opaque panel. */
 .agent-msg {
   flex: 0 0 auto;
-  max-width: 78%;
-  padding: 13px 16px 14px;
-  border: 1px solid var(--os-line);
-  border-radius: 10px;
-  background: rgba(9, 10, 11, 0.9);
-  backdrop-filter: blur(16px);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  max-width: 92%;
+  padding: 2px 2px 2px 16px;
+  border-left: 1px solid var(--os-line);
   animation: os-msg-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-/* The visitor speaks on the right, the agent answers on the left — the same
-   convention every chat surface uses. */
 .agent-msg--user {
   align-self: flex-end;
-  border-color: rgba(236, 230, 213, 0.2);
-  border-bottom-right-radius: 2px;
+  padding: 2px 16px 2px 2px;
+  border-left: 0;
+  border-right: 1px solid rgba(236, 230, 213, 0.22);
+  text-align: right;
 }
 
 .agent-msg--agent {
-  align-self: flex-start;
-  border-color: var(--os-gold-soft);
-  border-bottom-left-radius: 2px;
+  border-left-color: rgba(205, 182, 117, 0.5);
 }
 
 .agent-msg--pending {
@@ -144,10 +176,14 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 9px;
   font-size: 9px;
   letter-spacing: 0.1em;
   color: var(--os-dim);
+}
+
+.agent-msg--user .agent-msg__meta {
+  flex-direction: row-reverse;
 }
 
 .agent-msg--agent .agent-msg__meta span {
@@ -166,10 +202,12 @@
 }
 
 .agent-msg__body p {
-  margin: 0 0 4px;
-  font-size: clamp(11.5px, 0.82vw, 13.5px);
+  margin: 0 0 5px;
+  font-size: clamp(12px, 0.86vw, 14px);
   line-height: 1.62;
-  color: rgba(245, 241, 231, 0.94);
+  color: rgba(245, 241, 231, 0.95);
+  /* Depth without a box: a dark halo lifts the text off the field. */
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 14px rgba(0, 0, 0, 0.7);
 }
 
 .agent-msg__body p:last-child {
@@ -186,6 +224,7 @@
   grid-template-columns: 26px minmax(0, 1fr);
   gap: 8px;
   align-items: baseline;
+  text-align: left;
 }
 
 .agent-msg__item b {
@@ -203,12 +242,10 @@
   animation: os-blink 0.8s steps(1) infinite;
 }
 
-/* Waiting state lives in the thread, where the visitor is already looking,
-   instead of in a status readout somewhere else on screen. */
 .agent-dots {
   display: flex;
   gap: 5px;
-  padding: 3px 0 2px;
+  padding: 2px 0;
 }
 
 .agent-dots i {
@@ -230,19 +267,16 @@
 /* ---------------------------------------------------------------- ask --- */
 
 .agent-ask {
-  position: relative;
-  z-index: 3;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
-  width: min(100%, 780px);
-  min-height: 58px;
-  margin: 0 auto;
+  min-height: 56px;
   padding: 0 8px 0 20px;
-  border: 1px solid rgba(205, 182, 117, 0.45);
+  border: 1px solid rgba(205, 182, 117, 0.4);
   border-radius: 8px;
-  background: rgba(8, 9, 10, 0.94);
+  background: rgba(8, 9, 10, 0.72);
+  backdrop-filter: blur(10px);
   transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
@@ -299,10 +333,7 @@
 }
 
 .agent-os__error {
-  position: relative;
-  z-index: 3;
   margin: 0;
-  text-align: center;
   font-size: 10px;
   letter-spacing: 0.1em;
   color: #d08a6a;
@@ -311,8 +342,8 @@
 /* --------------------------------------------------------------- foot --- */
 
 .agent-os__foot {
-  position: relative;
-  z-index: 3;
+  grid-column: 1 / -1;
+  grid-row: 2 / 3;
   text-align: right;
   font-size: 8px;
   letter-spacing: 0.13em;
@@ -361,14 +392,40 @@
 
 /* ----------------------------------------------------------- responsive -- */
 
-@media (max-width: 860px) {
+/* Below the two-column threshold the field moves behind the chat as a faint
+   ambient layer, and the transcript takes the full width. The field never
+   sits behind readable text at full strength — it drops to a whisper. */
+@media (max-width: 820px) {
   .agent-os {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
     gap: 12px;
-    padding: 66px 16px 14px;
+    padding: 66px 18px 16px;
+  }
+
+  .agent-presence {
+    position: absolute;
+    inset: 60px 0 90px;
+    grid-row: auto;
+    pointer-events: none;
+  }
+
+  .agent-presence__field.ascii-fluid {
+    opacity: calc(var(--field-weight) * 0.4);
+  }
+
+  .agent-presence__label {
+    display: none;
+  }
+
+  .agent-chat {
+    grid-row: 1 / 2;
+    position: relative;
+    z-index: 1;
   }
 
   .agent-msg {
-    max-width: 88%;
+    max-width: 100%;
   }
 
   .agent-os__foot {
@@ -376,7 +433,7 @@
   }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 520px) {
   .agent-ask {
     min-height: 50px;
     gap: 10px;
@@ -392,11 +449,12 @@
 @media (prefers-reduced-motion: reduce) {
   .agent-msg,
   .agent-dots i,
-  .agent-msg__caret {
+  .agent-msg__caret,
+  .agent-presence__dot {
     animation: none;
   }
 
-  .agent-os__field.ascii-fluid {
+  .agent-presence__field.ascii-fluid {
     transition: none;
   }
 }

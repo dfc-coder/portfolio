@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import AsciiFluidCanvas from "./AsciiFluidCanvas.vue";
-import type { Occluder } from "./agent/asciiField";
 import { businessAgentProvider } from "./agent/businessAgentProvider";
 import { useAgentRuntime, type AgentProvider } from "./agent/useAgentRuntime";
 
@@ -19,49 +18,16 @@ const root = ref<HTMLElement | null>(null);
 const laneEl = ref<HTMLElement | null>(null);
 const inputEl = ref<HTMLInputElement | null>(null);
 const canvasRef = ref<InstanceType<typeof AsciiFluidCanvas> | null>(null);
-const bubbleEls = ref<HTMLElement[]>([]);
 
-const setBubbleRef = (el: unknown, index: number) => {
-  if (el instanceof HTMLElement) bubbleEls.value[index] = el;
-};
+/* ---------------------------------------------------------------- field --- */
 
-/* ------------------------------------------------------------ occluders --- */
+/* Two-column layout: the field owns the left column, the chat owns the right.
+   They never overlap, so there is no z-order to fight and no occluders to
+   compute — the field is beside the text, as its own presence, not behind it.
+   The field reacts through two channels:
+     · pulse()  a discrete impulse when a message is committed
+     · speak()  a continuous swell per streamed token (morphological speech) */
 
-const occluders = ref<Occluder[]>([]);
-let tokenTick = 0;
-
-/* The field spans the whole section, so occluders and impulses are normalised
-   against the section box — not the lane — or the parting lands off-target. */
-const measure = () => {
-  const host = root.value;
-  if (!host) return;
-  const box = host.getBoundingClientRect();
-  if (box.width < 2) return;
-  bubbleEls.value.length = messages.value.length;
-  occluders.value = bubbleEls.value.filter(Boolean).map((el) => {
-    const r = el.getBoundingClientRect();
-    return {
-      x: (r.left - box.left) / box.width,
-      y: (r.top - box.top) / box.height,
-      w: r.width / box.width,
-      h: r.height / box.height,
-    };
-  });
-};
-
-const pulseFrom = (el: HTMLElement | undefined, strength: number) => {
-  const host = root.value;
-  if (!host || !el) return;
-  const box = host.getBoundingClientRect();
-  const r = el.getBoundingClientRect();
-  canvasRef.value?.pulse(
-    (r.left + r.width / 2 - box.left) / box.width,
-    (r.top + r.height / 2 - box.top) / box.height,
-    strength,
-  );
-};
-
-/** Newest message always sits on the baseline, just above the prompt. */
 const stickToBottom = () => {
   const host = laneEl.value;
   if (!host) return;
@@ -69,18 +35,15 @@ const stickToBottom = () => {
 };
 
 const runtime = useAgentRuntime(props.provider, {
-  onMessage: () => {
-    void nextTick(() => {
-      stickToBottom();
-      measure();
-      pulseFrom(bubbleEls.value[messages.value.length - 1], 1);
-    });
+  onMessage: (message) => {
+    void nextTick(stickToBottom);
+    // A visitor message lands as a ripple; the agent's own turns are voiced
+    // through speak() instead, so the impulse here is the user's.
+    if (message.role === "user") canvasRef.value?.pulse(0.5, 0.5, 1);
   },
   onToken: () => {
-    tokenTick += 1;
-    if (tokenTick % 4 !== 0) return;
+    canvasRef.value?.speak(1);
     void nextTick(stickToBottom);
-    pulseFrom(bubbleEls.value[messages.value.length - 1], 0.22);
   },
 });
 
@@ -110,14 +73,21 @@ const linesOf = (text: string): Line[] =>
 
 const active = ref(true);
 let sceneObserver: MutationObserver | null = null;
-let resizeObserver: ResizeObserver | null = null;
 
-/** The field is the agent's presence, so it is only loud while the agent works.
-    When the visitor is reading, the transcript wins. */
+/** Field weight rises while the agent works, so its column breathes with the
+    conversation without ever competing with the text for legibility. */
 const fieldWeight = computed(() => {
   if (state.value === "thinking") return 1;
-  if (state.value === "speaking") return 0.78;
-  return 0.5;
+  if (state.value === "speaking") return 0.9;
+  if (state.value === "listening") return 0.7;
+  return 0.55;
+});
+
+const statusLabel = computed(() => {
+  if (state.value === "thinking") return "THINKING";
+  if (state.value === "speaking") return "RESPONDING";
+  if (state.value === "listening") return "LISTENING";
+  return "ONLINE";
 });
 
 const submit = () => {
@@ -126,12 +96,7 @@ const submit = () => {
 };
 
 onMounted(() => {
-  resizeObserver = new ResizeObserver(() => measure());
-  if (root.value) resizeObserver.observe(root.value);
-  void nextTick(() => {
-    stickToBottom();
-    measure();
-  });
+  void nextTick(stickToBottom);
 
   const stage = root.value?.closest(".ref-stage") as HTMLElement | null;
   if (stage) {
@@ -142,11 +107,10 @@ onMounted(() => {
   }
 });
 
-watch(messages, () => void nextTick(measure), { deep: true });
+watch(messages, () => void nextTick(stickToBottom), { deep: true });
 
 onBeforeUnmount(() => {
   sceneObserver?.disconnect();
-  resizeObserver?.disconnect();
 });
 </script>
 
@@ -156,66 +120,75 @@ onBeforeUnmount(() => {
     class="agent-os"
     :data-state="state"
     :style="{ '--field-weight': fieldWeight }"
-    aria-label="Business representative — ask about Diego's work or schedule a conversation"
+    aria-label="Agent — ask about Diego's work"
   >
     <div class="ref-marker"><span>05</span><i />THE INTERFACE</div>
 
-    <AsciiFluidCanvas
-      ref="canvasRef"
-      class="agent-os__field"
-      :state="state"
-      :occluders="occluders"
-      :paused="!active"
-    />
-
-    <div ref="laneEl" class="agent-lane" role="log" aria-live="polite">
-      <article
-        v-for="(message, index) in messages"
-        :key="message.id"
-        :ref="(el) => setBubbleRef(el, index)"
-        class="agent-msg"
-        :class="`agent-msg--${message.role}`"
-      >
-        <div class="agent-msg__meta">
-          <span>{{ message.role === "agent" ? "BUSINESS REP" : "YOU" }}</span>
-          <i />
-          <time>{{ message.time }}</time>
-        </div>
-
-        <div class="agent-msg__body">
-          <template v-for="(line, i) in linesOf(message.text)" :key="i">
-            <p v-if="line.kind === 'text' && line.value">{{ line.value }}</p>
-            <span v-else-if="line.kind === 'text'" class="agent-msg__gap" />
-            <p v-else class="agent-msg__item"><b>{{ line.index }}</b>{{ line.value }}</p>
-          </template>
-          <i v-if="message.streaming" class="agent-msg__caret" />
-        </div>
-      </article>
-
-      <div v-if="busy" class="agent-msg agent-msg--agent agent-msg--pending">
-        <div class="agent-msg__meta"><span>BUSINESS REP</span><i /><time>thinking</time></div>
-        <div class="agent-dots"><i /><i /><i /></div>
-      </div>
-    </div>
-
-    <form class="agent-ask" @submit.prevent="submit">
-      <span>ASK /</span>
-      <label class="sr-only" for="agent-os-prompt">Ask about Diego's work or availability</label>
-      <input
-        id="agent-os-prompt"
-        ref="inputEl"
-        v-model="draft"
-        type="text"
-        autocomplete="off"
-        spellcheck="false"
-        placeholder="Ask about the work, a project, or availability..."
-        @focus="focused = true"
-        @blur="focused = false"
+    <!-- Left column: the agent's morphological presence -->
+    <aside class="agent-presence" aria-hidden="true">
+      <AsciiFluidCanvas
+        ref="canvasRef"
+        class="agent-presence__field"
+        :state="state"
+        :paused="!active"
       />
-      <button type="submit" :disabled="!canSend" aria-label="Send question">→</button>
-    </form>
+      <div class="agent-presence__label">
+        <span class="agent-presence__dot" />
+        <span>AGENT</span>
+        <b>{{ statusLabel }}</b>
+      </div>
+    </aside>
 
-    <p v-if="error" class="agent-os__error" role="alert">{{ error }}</p>
+    <!-- Right column: the conversation. Text floats, depth comes from shadow. -->
+    <div class="agent-chat">
+      <div ref="laneEl" class="agent-lane" role="log" aria-live="polite">
+        <article
+          v-for="message in messages"
+          :key="message.id"
+          class="agent-msg"
+          :class="`agent-msg--${message.role}`"
+        >
+          <div class="agent-msg__meta">
+            <span>{{ message.role === "agent" ? "AGENT" : "YOU" }}</span>
+            <i />
+            <time>{{ message.time }}</time>
+          </div>
+
+          <div class="agent-msg__body">
+            <template v-for="(line, i) in linesOf(message.text)" :key="i">
+              <p v-if="line.kind === 'text' && line.value">{{ line.value }}</p>
+              <span v-else-if="line.kind === 'text'" class="agent-msg__gap" />
+              <p v-else class="agent-msg__item"><b>{{ line.index }}</b>{{ line.value }}</p>
+            </template>
+            <i v-if="message.streaming" class="agent-msg__caret" />
+          </div>
+        </article>
+
+        <div v-if="busy" class="agent-msg agent-msg--agent agent-msg--pending">
+          <div class="agent-msg__meta"><span>AGENT</span><i /><time>thinking</time></div>
+          <div class="agent-dots"><i /><i /><i /></div>
+        </div>
+      </div>
+
+      <form class="agent-ask" @submit.prevent="submit">
+        <span>ASK /</span>
+        <label class="sr-only" for="agent-os-prompt">Ask about Diego's work</label>
+        <input
+          id="agent-os-prompt"
+          ref="inputEl"
+          v-model="draft"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="Ask about the work, a project, or availability..."
+          @focus="focused = true"
+          @blur="focused = false"
+        />
+        <button type="submit" :disabled="!canSend" aria-label="Send question">→</button>
+      </form>
+
+      <p v-if="error" class="agent-os__error" role="alert">{{ error }}</p>
+    </div>
 
     <footer class="agent-os__foot">VUE / TYPESCRIPT / SERVER-SIDE AI / SSE</footer>
   </section>
