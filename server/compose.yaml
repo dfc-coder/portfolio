@@ -1,6 +1,6 @@
 services:
   llama:
-    image: ghcr.io/ggml-org/llama.cpp:server
+    image: ${LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
     restart: unless-stopped
     volumes:
       - ${LLAMA_MODELS_DIR:-./models}:/models:ro
