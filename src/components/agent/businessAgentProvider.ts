@@ -1,11 +1,13 @@
 import type { AgentMessage, AgentProvider } from "./useAgentRuntime";
-import { localProvider } from "./useAgentRuntime";
 
 const SESSION_KEY = "portfolio-business-representative-session";
 
-const apiBaseUrl = (): string | null => {
+const apiBaseUrl = (): string => {
   const configured = import.meta.env.VITE_AGENT_API_URL?.trim();
-  return configured ? configured.replace(/\/$/, "") : null;
+  if (!configured) {
+    throw new Error("VITE_AGENT_API_URL is not configured");
+  }
+  return configured.replace(/\/$/, "");
 };
 
 const sessionId = (): string => {
@@ -35,13 +37,7 @@ const parseFrame = (raw: string): SseFrame | null => {
 };
 
 async function* streamBusinessAgent(question: string): AsyncIterable<string> {
-  const baseUrl = apiBaseUrl();
-  if (!baseUrl) {
-    yield* localProvider.ask(question, []);
-    return;
-  }
-
-  const response = await fetch(`${baseUrl}/v1/chat/stream`, {
+  const response = await fetch(`${apiBaseUrl()}/v1/chat/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
