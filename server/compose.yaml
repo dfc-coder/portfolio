@@ -1,0 +1,47 @@
+services:
+  llama:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    restart: unless-stopped
+    volumes:
+      - ${LLAMA_MODELS_DIR:-./models}:/models:ro
+    command:
+      - -m
+      - /models/${LLAMA_MODEL_FILE:-Qwen3.5-2B-Q4_K_XL.gguf}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --ctx-size
+      - "8192"
+      - --parallel
+      - "1"
+      - --cache-prompt
+      - --cache-idle-slots
+      - --cache-reuse
+      - "64"
+      - --cache-ram
+      - "1024"
+      - --jinja
+      - --n-predict
+      - "256"
+      - --n-gpu-layers
+      - ${LLAMA_N_GPU_LAYERS:-0}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+
+  api:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      LLAMA_BASE_URL: http://llama:8080
+    ports:
+      - "8000:8000"
+    depends_on:
+      llama:
+        condition: service_healthy
