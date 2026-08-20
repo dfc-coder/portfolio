@@ -61,6 +61,29 @@ const experiences: Experience[] = [
 
 const projects: Project[] = [
   {
+    id: "00",
+    code: "REACT—AI",
+    field: "AGENTIC AI / LOCAL-FIRST",
+    title: "Reflective ReAct Agent",
+    premise:
+      "A general-purpose local assistant can reason, use tools and recover from execution failures without being tied to a specific domain.",
+    detail:
+      "A bounded ReAct loop combines injected tools, deterministic verification and triggered reflection. Local inference runs on Qwen through llama.cpp, with private retrieval and specialised embedding/reranking, while an AWS-compatible runtime provides the infrastructure needed to test the same agent as a real system.",
+    stack: [
+      "Python",
+      "Qwen3.5 2B",
+      "ReAct + Reflection",
+      "llama.cpp",
+      "OpenVINO",
+      "LangChain",
+      "AWS CDK / Lambda",
+      "S3 Vectors",
+      "Podman / Floci",
+    ],
+    outcome:
+      "General-purpose local agent · controlled autonomous execution",
+  },
+  {
     id: "01",
     code: "DOC—AI",
     field: "PRIVATE AI / BANKING",
@@ -719,15 +742,18 @@ onBeforeUnmount(() => {
       <button type="button" class="ref-brand" aria-label="Return to opening" @click="goToNode(HERO_NODE)">
         <strong>DC</strong><span>SOFTWARE ENGINEER<br />+ CREATIVE TECHNOLOGIST</span>
       </button>
-      <div class="ref-progress"><span>{{ progressLabel }}</span><i><b :style="{ transform: `scaleX(${Number(progressLabel) / 100})` }" /></i><span>100</span></div>
-      <button type="button" class="ref-index-toggle" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">{{ menuOpen ? "CLOSE" : "INDEX" }}</button>
+      <div class="ref-progress"><span>{{ progressLabel }}</span><i><b
+            :style="{ transform: `scaleX(${Number(progressLabel) / 100})` }" /></i><span>100</span></div>
+      <button type="button" class="ref-index-toggle" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">{{ menuOpen
+        ? "CLOSE" : "MENU" }}</button>
     </header>
 
     <nav :class="['ref-index', { 'is-open': menuOpen }]" aria-label="Portfolio index">
       <button type="button" @click="goToNode(HERO_NODE)"><span>01</span><strong>Opening</strong></button>
       <button type="button" @click="goToNode(CAREER_START_NODE)"><span>02</span><strong>Trajectory</strong></button>
       <button type="button" @click="goToNode(SYSTEMS_START_NODE)"><span>03</span><strong>Systems</strong></button>
-      <button type="button" @click="goToNode(GALLERY_START_NODE)"><span>04</span><strong>Visual archive</strong></button>
+      <button type="button" @click="goToNode(GALLERY_START_NODE)"><span>04</span><strong>Visual
+          archive</strong></button>
       <button type="button" @click="goToNode(AGENT_NODE)"><span>05</span><strong>Agent</strong></button>
     </nav>
 
@@ -738,21 +764,26 @@ onBeforeUnmount(() => {
         <article class="ref-scene ref-scene--hero">
           <p class="ref-hero__meta"><span>BUENOS AIRES · ARGENTINA</span><span>SELECTED PRACTICE / 2026</span></p>
           <h1 class="ref-hero__title"><span><i>DIEGO</i></span><span><i>CANO</i></span></h1>
-          <p class="ref-hero__thesis">I design software systems, intelligent products and physical ideas with one principle: <em>complexity must become legible.</em></p>
+          <p class="ref-hero__thesis">I design software systems, intelligent products and physical ideas with one
+            principle: <em>complexity must become legible.</em></p>
           <div class="ref-scroll-cue"><span>SCROLL TO ENTER</span><i /></div>
         </article>
 
         <article class="ref-scene ref-scene--career">
           <div class="ref-marker"><span>02</span><i />PROFESSIONAL TRAJECTORY</div>
           <div class="ref-career-nav" aria-label="Professional experience index">
-            <button v-for="(_, index) in experiences" :key="index" type="button" :class="{ active: index === activeExperience }" :aria-label="`Show experience ${index + 1}`" @click="goToExperience(index)" />
+            <button v-for="(_, index) in experiences" :key="index" type="button"
+              :class="{ active: index === activeExperience }" :aria-label="`Show experience ${index + 1}`"
+              @click="goToExperience(index)" />
           </div>
           <Transition name="ref-copy" mode="out-in">
             <div :key="currentExperience.period" class="ref-career-copy">
               <span>{{ currentExperience.period }} · {{ currentExperience.company }}</span>
               <h2>{{ currentExperience.role }}</h2>
               <p>{{ currentExperience.summary }}</p>
-              <ul><li v-for="item in currentExperience.focus" :key="item">{{ item }}</li></ul>
+              <ul>
+                <li v-for="item in currentExperience.focus" :key="item">{{ item }}</li>
+              </ul>
             </div>
           </Transition>
           <div class="ref-career-number" aria-hidden="true">{{ String(activeExperience + 1).padStart(2, "0") }}</div>
@@ -761,40 +792,52 @@ onBeforeUnmount(() => {
         <article class="ref-scene ref-scene--systems">
           <div class="ref-marker"><span>03</span><i />SELECTED TECHNICAL SYSTEMS</div>
           <div class="ref-system-stack" aria-hidden="true">
-            <div v-for="(project, index) in projects" :key="project.id" :class="['ref-system-card', { active: index === activeProject }]">
+            <div v-for="(project, index) in projects" :key="project.id"
+              :class="['ref-system-card', { active: index === activeProject }]">
               <div class="ref-system-card__grid" />
               <span>{{ project.code }}</span><b>{{ project.id }}</b><i /><i /><i />
             </div>
           </div>
           <Transition name="ref-copy" mode="out-in">
-            <div :key="currentProject.id" class="ref-system-copy">
+            <div :key="currentProject.id" class="ref-system-copy"> 
               <span>{{ currentProject.id }} · {{ currentProject.field }}</span>
               <h2>{{ currentProject.title }}</h2>
               <p class="ref-system-premise">{{ currentProject.premise }}</p>
               <p>{{ currentProject.detail }}</p>
               <div><span>OUTCOME</span><strong>{{ currentProject.outcome }}</strong></div>
-              <ul><li v-for="item in currentProject.stack" :key="item">{{ item }}</li></ul>
+              <ul>
+                <li v-for="item in currentProject.stack" :key="item">{{ item }}</li>
+              </ul>
             </div>
           </Transition>
           <div class="ref-system-nav" aria-label="Technical project index">
-            <button v-for="(_, index) in projects" :key="index" type="button" :class="{ active: index === activeProject }" :aria-label="`Show project ${index + 1}`" @click="goToProject(index)">{{ String(index + 1).padStart(2, "0") }}</button>
+            <button v-for="(_, index) in projects" :key="index" type="button"
+              :class="{ active: index === activeProject }" :aria-label="`Show project ${index + 1}`"
+              @click="goToProject(index)">{{ String(index + 1).padStart(2, "0") }}</button>
           </div>
         </article>
 
         <article class="ref-scene ref-scene--gallery">
           <div class="ref-marker"><span>04</span><i />VISUAL / MATERIAL ARCHIVE</div>
           <div class="ref-gallery-stage" aria-label="Ten visual works">
-            <button v-for="(artwork, index) in artworks" :key="artwork.src" :class="['ref-art-card', { active: index === activeArtwork }]" type="button" :aria-label="`Show ${artwork.title}`" @click="goToArtwork(index)"><img :src="artwork.src" :alt="artwork.title" /></button>
+            <button v-for="(artwork, index) in artworks" :key="artwork.src"
+              :class="['ref-art-card', { active: index === activeArtwork }]" type="button"
+              :aria-label="`Show ${artwork.title}`" @click="goToArtwork(index)"><img :src="artwork.src"
+                :alt="artwork.title" /></button>
           </div>
           <Transition name="ref-copy" mode="out-in">
             <div :key="currentArtwork.src" class="ref-art-caption">
-              <span>{{ String(activeArtwork + 1).padStart(2, "0") }} / {{ String(artworks.length).padStart(2, "0") }} · {{ currentArtwork.type }}</span>
+              <span>{{ String(activeArtwork + 1).padStart(2, "0") }} / {{ String(artworks.length).padStart(2, "0") }} ·
+                {{ currentArtwork.type }}</span>
               <h2>{{ currentArtwork.title }}</h2>
               <p>{{ currentArtwork.meta }}</p>
             </div>
           </Transition>
           <div class="ref-filmstrip" aria-label="Visual archive index">
-            <button v-for="(artwork, index) in artworks" :key="`${artwork.src}-thumb`" type="button" :class="{ active: index === activeArtwork }" :aria-label="`Go to ${artwork.title}`" @click="goToArtwork(index)"><img :src="artwork.src" alt="" /><span>{{ String(index + 1).padStart(2, "0") }}</span></button>
+            <button v-for="(artwork, index) in artworks" :key="`${artwork.src}-thumb`" type="button"
+              :class="{ active: index === activeArtwork }" :aria-label="`Go to ${artwork.title}`"
+              @click="goToArtwork(index)"><img :src="artwork.src" alt="" /><span>{{ String(index + 1).padStart(2, "0")
+                }}</span></button>
           </div>
         </article>
 
@@ -802,7 +845,8 @@ onBeforeUnmount(() => {
           <AgentOS />
         </article>
 
-        <article v-for="chapter in chapters" :key="chapter.key" class="ref-scene ref-scene--chapter" :data-chapter="chapter.key" :aria-label="chapter.kicker">
+        <article v-for="chapter in chapters" :key="chapter.key" class="ref-scene ref-scene--chapter"
+          :data-chapter="chapter.key" :aria-label="chapter.kicker">
           <div class="ref-chapter">
             <i />
             <span>{{ chapter.kicker }}</span>
@@ -813,11 +857,34 @@ onBeforeUnmount(() => {
     </main>
 
     <section id="ref-fallback" class="ref-fallback">
-      <header><span>DIEGO CANO / ACCESSIBLE INDEX</span><h1>Software, AI and material practice.</h1></header>
-      <div><h2>Experience</h2><article v-for="item in experiences" :key="item.period"><span>{{ item.period }} · {{ item.company }}</span><h3>{{ item.role }}</h3><p>{{ item.summary }}</p></article></div>
-      <div><h2>Technical systems</h2><article v-for="item in projects" :key="item.id"><span>{{ item.id }} · {{ item.field }}</span><h3>{{ item.title }}</h3><p>{{ item.premise }}</p></article></div>
-      <div><h2>A note on origin</h2><p>My first language was design — objects, proportion, material honesty. That eye never left the engineering; it only changed medium. What follows is the other half of the practice, where the argument is visual.</p></div>
-      <div class="ref-fallback-art"><h2>Visual archive</h2><figure v-for="item in artworks" :key="item.src"><img :src="item.src" :alt="item.title" /><figcaption>{{ item.title }} · {{ item.type }}</figcaption></figure></div>
+      <header><span>DIEGO CANO / ACCESSIBLE INDEX</span>
+        <h1>Software, AI and material practice.</h1>
+      </header>
+      <div>
+        <h2>Experience</h2>
+        <article v-for="item in experiences" :key="item.period"><span>{{ item.period }} · {{ item.company }}</span>
+          <h3>{{ item.role }}</h3>
+          <p>{{ item.summary }}</p>
+        </article>
+      </div>
+      <div>
+        <h2>Technical systems</h2>
+        <article v-for="item in projects" :key="item.id"><span>{{ item.id }} · {{ item.field }}</span>
+          <h3>{{ item.title }}</h3>
+          <p>{{ item.premise }}</p>
+        </article>
+      </div>
+      <div>
+        <h2>A note on origin</h2>
+        <p>My first language was design — objects, proportion, material honesty. That eye never left the engineering; it
+          only changed medium. What follows is the other half of the practice, where the argument is visual.</p>
+      </div>
+      <div class="ref-fallback-art">
+        <h2>Visual archive</h2>
+        <figure v-for="item in artworks" :key="item.src"><img :src="item.src" :alt="item.title" />
+          <figcaption>{{ item.title }} · {{ item.type }}</figcaption>
+        </figure>
+      </div>
     </section>
   </div>
 </template>

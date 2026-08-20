@@ -1,232 +1,322 @@
-.jarvis-ui {
+/* ==========================================================================
+   AGENT OS — section 05 / the interface
+   Loaded last in main.ts, so it owns the agent scene end to end.
+
+   Hierarchy, in order of priority:
+     1. the transcript      always legible, never occluded
+     2. the prompt          the only affordance on screen
+     3. the ascii field     ambient; it is the agent's presence, so it is only
+                            loud while the agent is working
+   Chrome beyond the portfolio's own marker and footer is deliberately absent.
+   ========================================================================== */
+
+:root {
+  --os-void: #060708;
+  --os-paper: #ece6d5;
+  --os-gold: #cdb675;
+  --os-gold-soft: rgba(205, 182, 117, 0.22);
+  --os-line: rgba(236, 230, 213, 0.12);
+  --os-dim: rgba(236, 230, 213, 0.4);
+  --os-mono: "DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* The scene was a paper card in the cinematic build. Section 05 is the one
+   place the portfolio goes fully dark — the aperture needs the black. */
+.ref-scene--agent {
+  padding: 0;
+  color: var(--os-paper);
+  background: var(--os-void);
+}
+
+/* Section labelling follows the portfolio marker, not a bespoke header. */
+.ref-scene--agent .ref-marker {
+  z-index: 4;
+  color: var(--os-paper);
+  border-color: var(--os-line);
+  background: rgba(6, 7, 8, 0.6);
+}
+
+.ref-scene--agent .ref-marker span {
+  color: var(--os-gold);
+}
+
+/* -------------------------------------------------------------- shell --- */
+
+.agent-os {
+  --field-weight: 0.5;
   position: relative;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  width: min(100%, 1180px);
-  height: min(74vh, 760px);
-  margin: 0 auto;
-  color: #ece6d5;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  gap: 16px;
+  width: 100%;
+  height: 100%;
+  padding: 74px clamp(16px, 4vw, 48px) 18px;
+  color: var(--os-paper);
+  font-family: var(--os-mono);
   isolation: isolate;
 }
 
-.jarvis-ui::before {
+/* --------------------------------------------------------------- field --- */
+
+.agent-os__field.ascii-fluid {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: var(--field-weight);
+  transition: opacity 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Vignette keeps the field off the edges so nothing crowds the marker,
+   the prompt or the footer. */
+.agent-os::after {
   content: "";
   position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(rgba(236, 230, 213, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(236, 230, 213, 0.02) 1px, transparent 1px);
-  background-size: 42px 42px;
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent 92%);
-  opacity: 0.45;
-  z-index: -1;
-}
-
-.jarvis-ui__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 2rem;
-  padding: 0.5rem 0 1.1rem;
-  border-bottom: 1px solid rgba(236, 230, 213, 0.12);
-}
-
-.jarvis-ui__title {
-  display: grid;
-  gap: 0.25rem;
-}
-
-.jarvis-ui__title strong {
-  font-size: clamp(0.9rem, 1.1vw, 1.15rem);
-  font-weight: 500;
-  letter-spacing: 0.08em;
-}
-
-.jarvis-ui__title span,
-.jarvis-ui__status {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.68rem;
-  letter-spacing: 0.08em;
-  color: rgba(236, 230, 213, 0.55);
-}
-
-.jarvis-ui__status {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  padding-top: 0.15rem;
-  color: rgba(236, 230, 213, 0.76);
-}
-
-.jarvis-ui__status-dot {
-  width: 0.45rem;
-  height: 0.45rem;
-  border-radius: 50%;
-  background: #cdb675;
-  box-shadow: 0 0 16px rgba(205, 182, 117, 0.45);
-}
-
-.jarvis-ui__field {
-  position: relative;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.jarvis-ui__field::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at center, transparent 36%, rgba(6, 7, 8, 0.22) 66%, rgba(6, 7, 8, 0.78) 100%),
-    linear-gradient(to bottom, rgba(6, 7, 8, 0.05), rgba(6, 7, 8, 0.25));
   z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 58% 62% at 50% 44%,
+    transparent 38%,
+    rgba(6, 7, 8, 0.62) 76%,
+    var(--os-void) 100%
+  );
 }
 
-.ascii-fluid {
-  position: absolute;
-  inset: 2% 2% 0;
-  width: 96%;
-  height: 96%;
-  opacity: 0.94;
-  filter: contrast(1.08);
-}
+/* ----------------------------------------------------------- transcript --- */
 
-.jarvis-bubble,
-.jarvis-thinking {
-  position: absolute;
+/* One lane, bottom-anchored: the newest exchange always sits on the baseline
+   directly above the prompt, so the eye never has to hunt for the thread. */
+.agent-lane {
+  position: relative;
   z-index: 2;
-  border: 1px solid rgba(236, 230, 213, 0.16);
-  background: rgba(8, 9, 10, 0.88);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.24);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 12px;
+  width: min(100%, 780px);
+  min-height: 0;
+  margin: 0 auto;
+  padding: 24px 4px 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 13%, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 13%, #000 100%);
 }
 
-.jarvis-bubble {
-  padding: 0.95rem 1rem 1rem;
-  border-radius: 0.8rem;
-  transform: translateY(-50%);
-  animation: jarvis-bubble-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+.agent-lane::-webkit-scrollbar {
+  display: none;
 }
 
-.jarvis-bubble--user {
-  border-color: rgba(236, 230, 213, 0.22);
+.agent-msg {
+  flex: 0 0 auto;
+  max-width: 78%;
+  padding: 13px 16px 14px;
+  border: 1px solid var(--os-line);
+  border-radius: 10px;
+  background: rgba(9, 10, 11, 0.9);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  animation: os-msg-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-.jarvis-bubble--agent {
-  border-color: rgba(205, 182, 117, 0.24);
+/* The visitor speaks on the right, the agent answers on the left — the same
+   convention every chat surface uses. */
+.agent-msg--user {
+  align-self: flex-end;
+  border-color: rgba(236, 230, 213, 0.2);
+  border-bottom-right-radius: 2px;
 }
 
-.jarvis-bubble__meta {
+.agent-msg--agent {
+  align-self: flex-start;
+  border-color: var(--os-gold-soft);
+  border-bottom-left-radius: 2px;
+}
+
+.agent-msg--pending {
+  opacity: 0.85;
+}
+
+.agent-msg__meta {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
-  margin-bottom: 0.55rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.62rem;
-  letter-spacing: 0.08em;
-  color: rgba(236, 230, 213, 0.48);
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--os-dim);
 }
 
-.jarvis-bubble__meta span {
-  color: #cdb675;
+.agent-msg--agent .agent-msg__meta span {
+  color: var(--os-gold);
 }
 
-.jarvis-bubble__meta i {
-  width: 1rem;
+.agent-msg__meta i {
+  width: 8px;
   height: 1px;
-  background: rgba(236, 230, 213, 0.2);
+  background: currentColor;
+  opacity: 0.5;
 }
 
-.jarvis-bubble p {
-  margin: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: clamp(0.72rem, 0.82vw, 0.88rem);
-  line-height: 1.55;
-  color: rgba(245, 241, 231, 0.92);
+.agent-msg__meta time {
+  font-variant-numeric: tabular-nums;
 }
 
-.jarvis-thinking {
-  left: 50%;
-  bottom: 8%;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.65rem 0.85rem;
-  transform: translateX(-50%);
-  border-radius: 999px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.62rem;
-  letter-spacing: 0.08em;
-  color: rgba(236, 230, 213, 0.66);
+.agent-msg__body p {
+  margin: 0 0 4px;
+  font-size: clamp(11.5px, 0.82vw, 13.5px);
+  line-height: 1.62;
+  color: rgba(245, 241, 231, 0.94);
 }
 
-.jarvis-thinking i {
-  width: 0.22rem;
-  height: 0.22rem;
+.agent-msg__body p:last-child {
+  margin-bottom: 0;
+}
+
+.agent-msg__gap {
+  display: block;
+  height: 9px;
+}
+
+.agent-msg__item {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+}
+
+.agent-msg__item b {
+  font-weight: 400;
+  color: var(--os-gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-msg__caret {
+  display: inline-block;
+  width: 7px;
+  height: 13px;
+  vertical-align: -2px;
+  background: var(--os-gold);
+  animation: os-blink 0.8s steps(1) infinite;
+}
+
+/* Waiting state lives in the thread, where the visitor is already looking,
+   instead of in a status readout somewhere else on screen. */
+.agent-dots {
+  display: flex;
+  gap: 5px;
+  padding: 3px 0 2px;
+}
+
+.agent-dots i {
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
-  background: #cdb675;
-  animation: jarvis-pulse 1s infinite ease-in-out;
+  background: var(--os-gold);
+  animation: os-dot 1.1s ease-in-out infinite;
 }
 
-.jarvis-thinking i:nth-child(3) { animation-delay: 120ms; }
-.jarvis-thinking i:nth-child(4) { animation-delay: 240ms; }
+.agent-dots i:nth-child(2) {
+  animation-delay: 0.14s;
+}
 
-.jarvis-input {
+.agent-dots i:nth-child(3) {
+  animation-delay: 0.28s;
+}
+
+/* ---------------------------------------------------------------- ask --- */
+
+.agent-ask {
+  position: relative;
+  z-index: 3;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.9rem;
-  min-height: 4rem;
-  padding: 0 1rem;
-  border: 1px solid rgba(205, 182, 117, 0.72);
-  border-radius: 0.55rem;
-  background: rgba(8, 9, 10, 0.92);
-  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.22);
+  gap: 14px;
+  width: min(100%, 780px);
+  min-height: 58px;
+  margin: 0 auto;
+  padding: 0 8px 0 20px;
+  border: 1px solid rgba(205, 182, 117, 0.45);
+  border-radius: 8px;
+  background: rgba(8, 9, 10, 0.94);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
-.jarvis-input > span {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.78rem;
-  color: #d5bb73;
-  letter-spacing: 0.06em;
+.agent-ask:focus-within {
+  border-color: var(--os-gold);
+  box-shadow: 0 0 0 1px rgba(205, 182, 117, 0.22), 0 0 40px rgba(205, 182, 117, 0.09);
 }
 
-.jarvis-input input {
+.agent-ask > span {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--os-gold);
+}
+
+.agent-ask input {
   width: 100%;
   min-width: 0;
   border: 0;
   outline: 0;
   background: transparent;
-  color: #f0ebdf;
-  font: 400 0.82rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--os-paper);
+  font: 400 13px/1.4 var(--os-mono);
 }
 
-.jarvis-input input::placeholder {
-  color: rgba(236, 230, 213, 0.32);
+.agent-ask input::placeholder {
+  color: rgba(236, 230, 213, 0.3);
 }
 
-.jarvis-input button {
+.agent-ask button {
   display: grid;
   place-items: center;
-  width: 2.6rem;
-  height: 2.6rem;
-  border: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
   background: transparent;
-  color: #d8c07a;
-  font-size: 1.3rem;
-  cursor: pointer;
-  transition: transform 160ms ease, opacity 160ms ease;
+  color: var(--os-gold);
+  font-size: 19px;
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
-.jarvis-input button:hover:not(:disabled) {
+.agent-ask button:hover:not(:disabled) {
   transform: translateX(3px);
 }
 
-.jarvis-input button:disabled {
-  opacity: 0.28;
+.agent-ask button:disabled {
+  opacity: 0.25;
   cursor: default;
+}
+
+.agent-ask button:focus-visible,
+.agent-ask input:focus-visible {
+  outline: 1px solid var(--os-gold);
+  outline-offset: 2px;
+}
+
+.agent-os__error {
+  position: relative;
+  z-index: 3;
+  margin: 0;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: #d08a6a;
+}
+
+/* --------------------------------------------------------------- foot --- */
+
+.agent-os__foot {
+  position: relative;
+  z-index: 3;
+  text-align: right;
+  font-size: 8px;
+  letter-spacing: 0.13em;
+  color: var(--os-dim);
 }
 
 .sr-only {
@@ -241,100 +331,72 @@
   border: 0;
 }
 
-@keyframes jarvis-bubble-in {
+/* ------------------------------------------------------------ keyframes -- */
+
+@keyframes os-msg-in {
   from {
     opacity: 0;
-    transform: translateY(calc(-50% + 10px));
+    transform: translateY(10px);
+    filter: blur(3px);
   }
-  to {
+}
+
+@keyframes os-blink {
+  50% {
+    opacity: 0.2;
+  }
+}
+
+@keyframes os-dot {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  50% {
     opacity: 1;
-    transform: translateY(-50%);
+    transform: translateY(-2px);
   }
 }
 
-@keyframes jarvis-pulse {
-  0%, 100% { opacity: 0.28; transform: scale(0.8); }
-  50% { opacity: 1; transform: scale(1.15); }
-}
+/* ----------------------------------------------------------- responsive -- */
 
-@media (max-width: 900px) {
-  .jarvis-ui {
-    height: min(72vh, 700px);
+@media (max-width: 860px) {
+  .agent-os {
+    gap: 12px;
+    padding: 66px 16px 14px;
   }
 
-  .jarvis-ui__header {
-    padding-bottom: 0.85rem;
+  .agent-msg {
+    max-width: 88%;
   }
 
-  .jarvis-bubble {
-    width: min(72%, 26rem) !important;
-  }
-
-  .jarvis-bubble--user {
-    left: 5% !important;
-  }
-
-  .jarvis-bubble--agent {
-    left: auto !important;
-    right: 5%;
+  .agent-os__foot {
+    display: none;
   }
 }
 
-@media (max-width: 640px) {
-  .jarvis-ui {
-    height: min(76vh, 690px);
+@media (max-width: 560px) {
+  .agent-ask {
+    min-height: 50px;
+    gap: 10px;
+    padding-left: 14px;
   }
 
-  .jarvis-ui__title strong {
-    font-size: 0.8rem;
-  }
-
-  .jarvis-ui__title span,
-  .jarvis-ui__status {
-    font-size: 0.56rem;
-  }
-
-  .jarvis-bubble {
-    width: 84% !important;
-    padding: 0.75rem 0.8rem;
-  }
-
-  .jarvis-bubble--user {
-    left: 2% !important;
-  }
-
-  .jarvis-bubble--agent {
-    right: 2%;
-  }
-
-  .jarvis-bubble p {
-    font-size: 0.68rem;
-  }
-
-  .ascii-fluid {
-    inset: 4% -10% 0;
-    width: 120%;
-    height: 92%;
-    opacity: 0.78;
-  }
-
-  .jarvis-input {
-    min-height: 3.4rem;
-    gap: 0.55rem;
-    padding: 0 0.7rem;
-  }
-
-  .jarvis-input > span,
-  .jarvis-input input {
-    font-size: 0.68rem;
+  .agent-ask > span,
+  .agent-ask input {
+    font-size: 11px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .jarvis-bubble,
-  .jarvis-thinking i,
-  .jarvis-input button {
+  .agent-msg,
+  .agent-dots i,
+  .agent-msg__caret {
     animation: none;
+  }
+
+  .agent-os__field.ascii-fluid {
     transition: none;
   }
 }

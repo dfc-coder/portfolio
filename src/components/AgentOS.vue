@@ -1,153 +1,228 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import AsciiFluidCanvas from "./AsciiFluidCanvas.vue";
+import type { Occluder } from "./agent/asciiField";
+import { localProvider, useAgentRuntime, type AgentProvider } from "./agent/useAgentRuntime";
 
-type Message = {
-  id: number;
-  role: "user" | "agent";
-  text: string;
-  x: number;
-  y: number;
-  width: number;
+const props = withDefaults(
+  defineProps<{
+    /** Swap for an on-device model without touching this component. */
+    provider?: AgentProvider;
+  }>(),
+  { provider: () => localProvider },
+);
+
+/* ------------------------------------------------------------------ dom --- */
+
+const root = ref<HTMLElement | null>(null);
+const laneEl = ref<HTMLElement | null>(null);
+const inputEl = ref<HTMLInputElement | null>(null);
+const canvasRef = ref<InstanceType<typeof AsciiFluidCanvas> | null>(null);
+const bubbleEls = ref<HTMLElement[]>([]);
+
+const setBubbleRef = (el: unknown, index: number) => {
+  if (el instanceof HTMLElement) bubbleEls.value[index] = el;
 };
 
-const input = ref("");
-const thinking = ref(false);
-const messageId = ref(3);
+/* ------------------------------------------------------------ occluders --- */
 
-const messages = ref<Message[]>([
-  {
-    id: 1,
-    role: "user",
-    text: "What has Diego built with RAG?",
-    x: 11,
-    y: 16,
-    width: 28,
+const occluders = ref<Occluder[]>([]);
+let tokenTick = 0;
+
+/* The field spans the whole section, so occluders and impulses are normalised
+   against the section box — not the lane — or the parting lands off-target. */
+const measure = () => {
+  const host = root.value;
+  if (!host) return;
+  const box = host.getBoundingClientRect();
+  if (box.width < 2) return;
+  bubbleEls.value.length = messages.value.length;
+  occluders.value = bubbleEls.value.filter(Boolean).map((el) => {
+    const r = el.getBoundingClientRect();
+    return {
+      x: (r.left - box.left) / box.width,
+      y: (r.top - box.top) / box.height,
+      w: r.width / box.width,
+      h: r.height / box.height,
+    };
+  });
+};
+
+const pulseFrom = (el: HTMLElement | undefined, strength: number) => {
+  const host = root.value;
+  if (!host || !el) return;
+  const box = host.getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  canvasRef.value?.pulse(
+    (r.left + r.width / 2 - box.left) / box.width,
+    (r.top + r.height / 2 - box.top) / box.height,
+    strength,
+  );
+};
+
+/** Newest message always sits on the baseline, just above the prompt. */
+const stickToBottom = () => {
+  const host = laneEl.value;
+  if (!host) return;
+  host.scrollTo({ top: host.scrollHeight, behavior: "smooth" });
+};
+
+const runtime = useAgentRuntime(props.provider, {
+  onMessage: () => {
+    void nextTick(() => {
+      stickToBottom();
+      measure();
+      pulseFrom(bubbleEls.value[messages.value.length - 1], 1);
+    });
   },
+  onToken: () => {
+    tokenTick += 1;
+    if (tokenTick % 4 !== 0) return;
+    void nextTick(stickToBottom);
+    pulseFrom(bubbleEls.value[messages.value.length - 1], 0.22);
+  },
+});
+
+const { messages, draft, focused, busy, error, state, canSend, send, seed } = runtime;
+
+/* ----------------------------------------------------------------- copy --- */
+
+seed([
+  { role: "user", text: "What has Diego built with RAG?" },
   {
-    id: 2,
     role: "agent",
-    text: "Diego has used Retrieval Augmented Generation in several production-grade systems: guarded NL→SQL, private document intelligence and intent-aware semantic search.",
-    x: 62,
-    y: 27,
-    width: 31,
-  },
-  {
-    id: 3,
-    role: "user",
-    text: "Can you compare their architectures?",
-    x: 15,
-    y: 62,
-    width: 31,
+    text: [
+      "Diego has used Retrieval Augmented Generation in several production-grade systems.",
+      "",
+      "01 Natural Language → SQL",
+      "02 Document Intelligence",
+      "03 Semantic Product Search",
+    ].join("\n"),
   },
 ]);
 
-const canSend = computed(() => input.value.trim().length > 0 && !thinking.value);
+/** "01 Label" lines become an indexed row; everything else is a paragraph. */
+type Line = { kind: "text"; value: string } | { kind: "item"; index: string; value: string };
 
-const responseFor = (question: string): string => {
-  if (/rag|retrieval|architecture|compare/i.test(question)) {
-    return "They share the same principle: retrieval narrows context before generation. NL→SQL retrieves only relevant schema and rules, document intelligence ranks evidence before extraction, and semantic search combines structured attributes with embeddings before ranking.";
-  }
+const linesOf = (text: string): Line[] =>
+  text.split("\n").map((line): Line => {
+    const match = /^(\d{2})\s+(.*)$/.exec(line);
+    return match
+      ? { kind: "item", index: match[1], value: match[2] }
+      : { kind: "text", value: line };
+  });
 
-  if (/experience|career|work/i.test(question)) {
-    return "Diego works across applied AI, distributed systems and integration architecture, with a focus on production APIs, RAG, agents, cloud workflows and maintainable software systems.";
-  }
+/* --------------------------------------------------------------- scene --- */
 
-  if (/project|build|system/i.test(question)) {
-    return "Selected systems include private document extraction, guarded NL→SQL, a financial MCP server and intent-aware semantic search. Each project emphasizes traceability, explicit contracts and production constraints.";
-  }
+const active = ref(true);
+let sceneObserver: MutationObserver | null = null;
+let resizeObserver: ResizeObserver | null = null;
 
-  if (/skill|stack|technology/i.test(question)) {
-    return "Core technologies include Python, TypeScript, Java, FastAPI, local LLMs, RAG, MCP, AWS and distributed integration patterns.";
-  }
+/** The field is the agent's presence, so it is only loud while the agent works.
+    When the visitor is reading, the transcript wins. */
+const fieldWeight = computed(() => {
+  if (state.value === "thinking") return 1;
+  if (state.value === "speaking") return 0.78;
+  return 0.5;
+});
 
-  if (/contact|available|availability|meeting/i.test(question)) {
-    return "You can use this interface to understand Diego's work and then continue through the contact details provided in the portfolio.";
-  }
-
-  return "Ask about Diego's experience, projects, architecture, stack or applied AI work. I answer only from the portfolio context.";
+const submit = () => {
+  void send();
+  inputEl.value?.focus();
 };
 
-const positions = [
-  { x: 58, y: 56, width: 34 },
-  { x: 12, y: 36, width: 31 },
-  { x: 60, y: 18, width: 31 },
-  { x: 16, y: 68, width: 33 },
-];
+onMounted(() => {
+  resizeObserver = new ResizeObserver(() => measure());
+  if (root.value) resizeObserver.observe(root.value);
+  void nextTick(() => {
+    stickToBottom();
+    measure();
+  });
 
-const addMessage = async (role: Message["role"], text: string) => {
-  messageId.value += 1;
-  const slot = positions[messageId.value % positions.length];
-  messages.value.push({ id: messageId.value, role, text, ...slot });
-  if (messages.value.length > 5) messages.value.shift();
-  await nextTick();
-};
+  const stage = root.value?.closest(".ref-stage") as HTMLElement | null;
+  if (stage) {
+    const sync = () => (active.value = stage.dataset.scene === "agent");
+    sceneObserver = new MutationObserver(sync);
+    sceneObserver.observe(stage, { attributes: true, attributeFilter: ["data-scene"] });
+    sync();
+  }
+});
 
-const send = async () => {
-  const question = input.value.trim();
-  if (!question || thinking.value) return;
+watch(messages, () => void nextTick(measure), { deep: true });
 
-  input.value = "";
-  await addMessage("user", question);
-  thinking.value = true;
-
-  window.setTimeout(async () => {
-    await addMessage("agent", responseFor(question));
-    thinking.value = false;
-  }, 420);
-};
+onBeforeUnmount(() => {
+  sceneObserver?.disconnect();
+  resizeObserver?.disconnect();
+});
 </script>
 
 <template>
-  <section class="jarvis-ui" aria-label="Agent 0 portfolio interface">
-    <header class="jarvis-ui__header">
-      <div class="jarvis-ui__title">
-        <strong>DC / AGENT 0</strong>
-        <span>SECTION 05 / THE INTERFACE</span>
-      </div>
-      <div class="jarvis-ui__status" aria-label="Agent status">
-        <span class="jarvis-ui__status-dot" />
-        <span>{{ thinking ? "THINKING" : "ONLINE" }}</span>
-      </div>
-    </header>
+  <section
+    ref="root"
+    class="agent-os"
+    :data-state="state"
+    :style="{ '--field-weight': fieldWeight }"
+    aria-label="Agent 0 — ask about Diego's work"
+  >
+    <div class="ref-marker"><span>05</span><i />THE INTERFACE</div>
 
-    <div class="jarvis-ui__field">
-      <AsciiFluidCanvas :active="thinking" />
+    <AsciiFluidCanvas
+      ref="canvasRef"
+      class="agent-os__field"
+      :state="state"
+      :occluders="occluders"
+      :paused="!active"
+    />
 
+    <div ref="laneEl" class="agent-lane" role="log" aria-live="polite">
       <article
-        v-for="message in messages"
+        v-for="(message, index) in messages"
         :key="message.id"
-        :class="['jarvis-bubble', `jarvis-bubble--${message.role}`]"
-        :style="{
-          left: `${message.x}%`,
-          top: `${message.y}%`,
-          width: `${message.width}%`,
-        }"
+        :ref="(el) => setBubbleRef(el, index)"
+        class="agent-msg"
+        :class="`agent-msg--${message.role}`"
       >
-        <div class="jarvis-bubble__meta">
+        <div class="agent-msg__meta">
           <span>{{ message.role === "agent" ? "AGENT 0" : "YOU" }}</span>
           <i />
+          <time>{{ message.time }}</time>
         </div>
-        <p>{{ message.text }}</p>
+
+        <div class="agent-msg__body">
+          <template v-for="(line, i) in linesOf(message.text)" :key="i">
+            <p v-if="line.kind === 'text' && line.value">{{ line.value }}</p>
+            <span v-else-if="line.kind === 'text'" class="agent-msg__gap" />
+            <p v-else class="agent-msg__item"><b>{{ line.index }}</b>{{ line.value }}</p>
+          </template>
+          <i v-if="message.streaming" class="agent-msg__caret" />
+        </div>
       </article>
 
-      <div v-if="thinking" class="jarvis-thinking" aria-live="polite">
-        <span>AGENT 0</span>
-        <i /><i /><i />
+      <div v-if="busy" class="agent-msg agent-msg--agent agent-msg--pending">
+        <div class="agent-msg__meta"><span>AGENT 0</span><i /><time>thinking</time></div>
+        <div class="agent-dots"><i /><i /><i /></div>
       </div>
     </div>
 
-    <form class="jarvis-input" @submit.prevent="send">
+    <form class="agent-ask" @submit.prevent="submit">
       <span>ASK /</span>
-      <label for="jarvis-question" class="sr-only">Ask Agent 0 about Diego's work</label>
+      <label class="sr-only" for="agent-os-prompt">Ask Agent 0 about Diego's work</label>
       <input
-        id="jarvis-question"
-        v-model="input"
+        id="agent-os-prompt"
+        ref="inputEl"
+        v-model="draft"
         type="text"
         autocomplete="off"
+        spellcheck="false"
         placeholder="Type your question about Diego's work..."
+        @focus="focused = true"
+        @blur="focused = false"
       />
       <button type="submit" :disabled="!canSend" aria-label="Send question">→</button>
     </form>
+
+    <p v-if="error" class="agent-os__error" role="alert">{{ error }}</p>
+
+    <footer class="agent-os__foot">BUILT WITH VUE / TS / WEBGL</footer>
   </section>
 </template>
