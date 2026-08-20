@@ -2,14 +2,15 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import AsciiFluidCanvas from "./AsciiFluidCanvas.vue";
 import type { Occluder } from "./agent/asciiField";
-import { localProvider, useAgentRuntime, type AgentProvider } from "./agent/useAgentRuntime";
+import { businessAgentProvider } from "./agent/businessAgentProvider";
+import { useAgentRuntime, type AgentProvider } from "./agent/useAgentRuntime";
 
 const props = withDefaults(
   defineProps<{
-    /** Swap for an on-device model without touching this component. */
+    /** Override for tests or alternate providers without touching the UI. */
     provider?: AgentProvider;
   }>(),
-  { provider: () => localProvider },
+  { provider: () => businessAgentProvider },
 );
 
 /* ------------------------------------------------------------------ dom --- */
@@ -88,16 +89,9 @@ const { messages, draft, focused, busy, error, state, canSend, send, seed } = ru
 /* ----------------------------------------------------------------- copy --- */
 
 seed([
-  { role: "user", text: "What has Diego built with RAG?" },
   {
     role: "agent",
-    text: [
-      "Diego has used Retrieval Augmented Generation in several production-grade systems.",
-      "",
-      "01 Natural Language → SQL",
-      "02 Document Intelligence",
-      "03 Semantic Product Search",
-    ].join("\n"),
+    text: "Hi. I can answer questions about Diego's work and, if useful, help you find a time to talk.",
   },
 ]);
 
@@ -162,7 +156,7 @@ onBeforeUnmount(() => {
     class="agent-os"
     :data-state="state"
     :style="{ '--field-weight': fieldWeight }"
-    aria-label="Agent 0 — ask about Diego's work"
+    aria-label="Business representative — ask about Diego's work or schedule a conversation"
   >
     <div class="ref-marker"><span>05</span><i />THE INTERFACE</div>
 
@@ -183,7 +177,7 @@ onBeforeUnmount(() => {
         :class="`agent-msg--${message.role}`"
       >
         <div class="agent-msg__meta">
-          <span>{{ message.role === "agent" ? "AGENT 0" : "YOU" }}</span>
+          <span>{{ message.role === "agent" ? "BUSINESS REP" : "YOU" }}</span>
           <i />
           <time>{{ message.time }}</time>
         </div>
@@ -199,14 +193,14 @@ onBeforeUnmount(() => {
       </article>
 
       <div v-if="busy" class="agent-msg agent-msg--agent agent-msg--pending">
-        <div class="agent-msg__meta"><span>AGENT 0</span><i /><time>thinking</time></div>
+        <div class="agent-msg__meta"><span>BUSINESS REP</span><i /><time>thinking</time></div>
         <div class="agent-dots"><i /><i /><i /></div>
       </div>
     </div>
 
     <form class="agent-ask" @submit.prevent="submit">
       <span>ASK /</span>
-      <label class="sr-only" for="agent-os-prompt">Ask Agent 0 about Diego's work</label>
+      <label class="sr-only" for="agent-os-prompt">Ask about Diego's work or availability</label>
       <input
         id="agent-os-prompt"
         ref="inputEl"
@@ -214,7 +208,7 @@ onBeforeUnmount(() => {
         type="text"
         autocomplete="off"
         spellcheck="false"
-        placeholder="Type your question about Diego's work..."
+        placeholder="Ask about the work, a project, or availability..."
         @focus="focused = true"
         @blur="focused = false"
       />
@@ -223,6 +217,6 @@ onBeforeUnmount(() => {
 
     <p v-if="error" class="agent-os__error" role="alert">{{ error }}</p>
 
-    <footer class="agent-os__foot">BUILT WITH VUE / TS / WEBGL</footer>
+    <footer class="agent-os__foot">VUE / TYPESCRIPT / SERVER-SIDE AI / SSE</footer>
   </section>
 </template>
