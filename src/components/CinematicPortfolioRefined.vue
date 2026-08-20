@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import ContactAssistant from "./ContactAssistant.vue";
+import AgentOS from "./AgentOS.vue";
 
 type Experience = {
   period: string;
@@ -60,6 +60,29 @@ const experiences: Experience[] = [
 ];
 
 const projects: Project[] = [
+  {
+    id: "00",
+    code: "REACT—AI",
+    field: "AGENTIC AI / LOCAL-FIRST",
+    title: "Reflective ReAct Agent",
+    premise:
+      "A general-purpose local assistant can reason, use tools and recover from execution failures without being tied to a specific domain.",
+    detail:
+      "A bounded ReAct loop combines injected tools, deterministic verification and triggered reflection. Local inference runs on Qwen through llama.cpp, with private retrieval and specialised embedding/reranking, while an AWS-compatible runtime provides the infrastructure needed to test the same agent as a real system.",
+    stack: [
+      "Python",
+      "Qwen3.5 2B",
+      "ReAct + Reflection",
+      "llama.cpp",
+      "OpenVINO",
+      "LangChain",
+      "AWS CDK / Lambda",
+      "S3 Vectors",
+      "Podman / Floci",
+    ],
+    outcome:
+      "General-purpose local agent · controlled autonomous execution",
+  },
   {
     id: "01",
     code: "DOC—AI",
@@ -173,10 +196,6 @@ const artworks: Artwork[] = [
   },
 ];
 
-/*
- * Every visible state lives on one integer node. The distance between any two
- * consecutive states is therefore identical, independently of its section.
- */
 const HERO_NODE = 0;
 const CHAPTER_CAREER_NODE = 1;
 const CAREER_START_NODE = CHAPTER_CAREER_NODE + 1;
@@ -191,8 +210,6 @@ const STEP_HOLD_START = 0.2;
 const STEP_HOLD_END = 0.8;
 const SCENE_CROSSFADE_WIDTH = 0.46;
 
-/* Chapter cards: full bridge scenes between sections, each owning one scroll
-   node like every other visible state — readable, scrubbable, scroll-driven. */
 const chapters = [
   { key: "career", kicker: "CHAPTER 02 · THE RECORD", line: "First, the proof — where the practice was built." },
   { key: "systems", kicker: "CHAPTER 03 · THE EVIDENCE", line: "Roles condense into systems that shipped." },
@@ -200,8 +217,6 @@ const chapters = [
   { key: "agent", kicker: "CHAPTER 05 · THE INTERFACE", line: "Enough archive. Ask the work a question." },
 ] as const;
 
-/* Menu jumps farther than this many nodes use the teleport cover instead of
-   smooth-scrolling through every section in between. */
 const TELEPORT_NODE_DISTANCE = 1.5;
 
 const track = ref<HTMLElement | null>(null);
@@ -339,20 +354,41 @@ const updateDepthObjects = (projectPosition: number, artworkPosition: number) =>
   artworkCards.forEach((element, index) => {
     const offset = index - artworkPosition;
     const distance = Math.abs(offset);
-    const focus = Math.exp(-(offset * offset) * 5.8);
-    const visible = distance <= 1.02;
+    /* Wider focus falloff than the other collections: neighbours must stay
+       readable, because the depth only reads as depth if you can see the
+       pieces receding behind the active one. */
+    const focus = Math.exp(-(offset * offset) * 1.45);
+    const visible = distance <= 2.4;
+    const clamped = Math.min(distance, 3);
+
+    /* The previous build rotated 4.8deg per step, which at this perspective is
+       invisible — the scene was declared 3D but rendered flat. These values put
+       the pieces on a real arc: they turn away from the viewer and recede on
+       both sides, like objects on a turntable. */
+    const depth = -clamped * 330;
+    const sink = clamped * 2.4;
+    /* Rotation is capped below 90deg: past that the plane faces away and
+       backface-visibility would drop it out of the scene entirely. */
+    const turn = Math.max(-1.85, Math.min(1.85, offset)) * -38;
 
     element.style.visibility = visible ? "visible" : "hidden";
     element.style.transform = [
-      `translate3d(calc(-50% + ${offset * 12.5}vw), calc(-50% + ${offset * -0.35}vh), ${offset * -170}px)`,
-      `rotateY(${offset * -4.8}deg)`,
-      `rotateZ(${offset * 0.4}deg)`,
+      `translate3d(calc(-50% + ${offset * 17}vw), calc(-50% + ${sink}vh), ${depth}px)`,
+      `rotateY(${turn.toFixed(2)}deg)`,
+      `scale(${(1 - clamped * 0.05).toFixed(3)})`,
     ].join(" ");
-    element.style.opacity = String(visible ? Math.max(0.015, focus) : 0);
-    element.style.filter = `grayscale(${1 - focus}) brightness(${0.4 + focus * 0.6})`;
+    element.style.opacity = String(visible ? Math.max(0.05, 0.22 + focus * 0.78) : 0);
+    /* Depth of field: everything off-centre softens and desaturates, so the eye
+       is told which object is being presented. */
+    const blur = distance > 0.55 ? Math.min(5, (distance - 0.55) * 2.6) : 0;
+    element.style.filter = [
+      `grayscale(${(1 - focus).toFixed(3)})`,
+      `brightness(${(0.34 + focus * 0.66).toFixed(3)})`,
+      `blur(${blur.toFixed(2)}px)`,
+    ].join(" ");
     element.style.zIndex = String(40 - Math.round(distance * 7));
     element.style.pointerEvents =
-      activeScene.value === "gallery" && distance < 0.35 ? "auto" : "none";
+      activeScene.value === "gallery" && distance < 0.5 ? "auto" : "none";
   });
 };
 
@@ -418,9 +454,6 @@ const goTo = (progress: number) => {
   const currentNode = progressToNode(displayedProgress);
   const targetNode = progressToNode(clamp01(progress));
 
-  /* Neighbouring states (gallery arrows, dot rails) keep the short smooth
-     scroll. Cross-section jumps (menu) teleport: cover the viewport, move the
-     scroll position instantly underneath, reveal the destination. */
   if (Math.abs(targetNode - currentNode) <= TELEPORT_NODE_DISTANCE || !teleport.value) {
     scrollTo({ top, behavior: "smooth" });
     return;
@@ -494,6 +527,20 @@ const cursorStateFor = (element: Element | null): "idle" | "hover" | "text" => {
 const onCursorMove = (event: PointerEvent) => {
   pointerX = event.clientX;
   pointerY = event.clientY;
+
+  /* Gallery parallax: the whole arc turns a few degrees toward the cursor.
+     Small numbers on purpose — it should feel like the room has depth, not
+     like the scene is chasing the mouse. */
+  if (activeScene.value === "gallery") {
+    const stageElement = document.querySelector<HTMLElement>(".ref-gallery-stage");
+    if (stageElement) {
+      const nx = pointerX / window.innerWidth - 0.5;
+      const ny = pointerY / window.innerHeight - 0.5;
+      stageElement.style.setProperty("--tilt-y", `${(nx * 7).toFixed(2)}deg`);
+      stageElement.style.setProperty("--tilt-x", `${(ny * -4.5).toFixed(2)}deg`);
+    }
+  }
+
   if (!cursorSeen) {
     cursorSeen = true;
     ringX = pointerX;
@@ -564,8 +611,6 @@ const runIntro = () => {
   gsap.set(".ref-hero__title span i", { yPercent: 112 });
   gsap.set(".ref-intro__mark", { xPercent: -50, yPercent: -50, transformOrigin: "50% 50%" });
 
-  /* Handoff measurement: the giant DC mark travels and BECOMES the header
-     brand — the intro physically hands the site over to the hero. */
   const markElement = document.querySelector<HTMLElement>(".ref-intro__mark");
   const brandElement = document.querySelector<HTMLElement>(".ref-brand strong");
   let markDeltaX = 0;
@@ -587,7 +632,6 @@ const runIntro = () => {
         document.documentElement.classList.remove("is-refined-intro");
       },
     })
-    /* 1 — the mark blooms with a tracking crunch */
     .from(".ref-intro__mark", {
       opacity: 0,
       scale: 0.9,
@@ -605,26 +649,11 @@ const runIntro = () => {
       { opacity: 0, y: 8, duration: 0.42, stagger: 0.05 },
       "-=0.42",
     )
-    .to(".ref-intro__line i", { scaleX: 1, duration: 0.72, ease: "expo.inOut" }, "-=0.34")
-    /* 2 — the aperture eye opens */
-    .to(
-      ".ref-intro__aperture",
-      { clipPath: "inset(0% 0% 0% 0%)", duration: 0.78, ease: "expo.inOut" },
-      "+=0.06",
-    )
-    /* 3 — THE HANDOFF: curtains part mechanically and, in the same breath,
-       DIEGO CANO punches up through its line masks while the mark flies into
-       the header brand slot. */
     .addLabel("handoff", "+=0.12")
     .to(".ref-intro__panel--top", { yPercent: -101, duration: 1.05, ease: "expo.inOut" }, "handoff")
     .to(".ref-intro__panel--bottom", { yPercent: 101, duration: 1.05, ease: "expo.inOut" }, "handoff")
     .to(
-      ".ref-intro__aperture",
-      { width: "100vw", height: "100vh", opacity: 0, duration: 0.9, ease: "expo.inOut" },
-      "handoff",
-    )
-    .to(
-      ".ref-intro__statement, .ref-intro__meta, .ref-intro__line",
+      ".ref-intro__statement, .ref-intro__meta",
       { opacity: 0, y: -10, duration: 0.3, ease: "power2.in" },
       "handoff",
     )
@@ -646,7 +675,6 @@ const runIntro = () => {
     )
     .to(".ref-header", { opacity: 1, duration: 0.4 }, "handoff+=0.78")
     .to(".ref-intro__mark", { opacity: 0, duration: 0.22, ease: "power1.in" }, "handoff+=0.9")
-    /* 4 — the rest of the hero settles */
     .to(
       ".ref-hero__meta, .ref-hero__thesis, .ref-scroll-cue",
       { opacity: 1, y: 0, duration: 0.5, stagger: 0.06 },
@@ -720,7 +748,6 @@ onBeforeUnmount(() => {
     <div v-if="introVisible" class="ref-intro" aria-hidden="true">
       <div class="ref-intro__panel ref-intro__panel--top" />
       <div class="ref-intro__panel ref-intro__panel--bottom" />
-      <div class="ref-intro__aperture" />
       <div class="ref-intro__meta">
         <span>DIEGO CANO / PORTFOLIO 2026</span>
         <span>BUENOS AIRES · GMT−3</span>
@@ -731,22 +758,24 @@ onBeforeUnmount(() => {
         <span>INTELLIGENCE</span>
         <span>OBJECTS</span>
       </p>
-      <div class="ref-intro__line"><i /></div>
     </div>
 
     <header class="ref-header">
       <button type="button" class="ref-brand" aria-label="Return to opening" @click="goToNode(HERO_NODE)">
         <strong>DC</strong><span>SOFTWARE ENGINEER<br />+ CREATIVE TECHNOLOGIST</span>
       </button>
-      <div class="ref-progress"><span>{{ progressLabel }}</span><i><b :style="{ transform: `scaleX(${Number(progressLabel) / 100})` }" /></i><span>100</span></div>
-      <button type="button" class="ref-index-toggle" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">{{ menuOpen ? "CLOSE" : "INDEX" }}</button>
+      <div class="ref-progress"><span>{{ progressLabel }}</span><i><b
+            :style="{ transform: `scaleX(${Number(progressLabel) / 100})` }" /></i><span>100</span></div>
+      <button type="button" class="ref-index-toggle" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">{{ menuOpen
+        ? "CLOSE" : "MENU" }}</button>
     </header>
 
     <nav :class="['ref-index', { 'is-open': menuOpen }]" aria-label="Portfolio index">
       <button type="button" @click="goToNode(HERO_NODE)"><span>01</span><strong>Opening</strong></button>
       <button type="button" @click="goToNode(CAREER_START_NODE)"><span>02</span><strong>Trajectory</strong></button>
       <button type="button" @click="goToNode(SYSTEMS_START_NODE)"><span>03</span><strong>Systems</strong></button>
-      <button type="button" @click="goToNode(GALLERY_START_NODE)"><span>04</span><strong>Visual archive</strong></button>
+      <button type="button" @click="goToNode(GALLERY_START_NODE)"><span>04</span><strong>Visual
+          archive</strong></button>
       <button type="button" @click="goToNode(AGENT_NODE)"><span>05</span><strong>Agent</strong></button>
     </nav>
 
@@ -757,21 +786,26 @@ onBeforeUnmount(() => {
         <article class="ref-scene ref-scene--hero">
           <p class="ref-hero__meta"><span>BUENOS AIRES · ARGENTINA</span><span>SELECTED PRACTICE / 2026</span></p>
           <h1 class="ref-hero__title"><span><i>DIEGO</i></span><span><i>CANO</i></span></h1>
-          <p class="ref-hero__thesis">I design software systems, intelligent products and physical ideas with one principle: <em>complexity must become legible.</em></p>
+          <p class="ref-hero__thesis">I design software systems, intelligent products and physical ideas with one
+            principle: <em>complexity must become legible.</em></p>
           <div class="ref-scroll-cue"><span>SCROLL TO ENTER</span><i /></div>
         </article>
 
         <article class="ref-scene ref-scene--career">
           <div class="ref-marker"><span>02</span><i />PROFESSIONAL TRAJECTORY</div>
           <div class="ref-career-nav" aria-label="Professional experience index">
-            <button v-for="(_, index) in experiences" :key="index" type="button" :class="{ active: index === activeExperience }" :aria-label="`Show experience ${index + 1}`" @click="goToExperience(index)" />
+            <button v-for="(_, index) in experiences" :key="index" type="button"
+              :class="{ active: index === activeExperience }" :aria-label="`Show experience ${index + 1}`"
+              @click="goToExperience(index)" />
           </div>
           <Transition name="ref-copy" mode="out-in">
             <div :key="currentExperience.period" class="ref-career-copy">
               <span>{{ currentExperience.period }} · {{ currentExperience.company }}</span>
               <h2>{{ currentExperience.role }}</h2>
               <p>{{ currentExperience.summary }}</p>
-              <ul><li v-for="item in currentExperience.focus" :key="item">{{ item }}</li></ul>
+              <ul>
+                <li v-for="item in currentExperience.focus" :key="item">{{ item }}</li>
+              </ul>
             </div>
           </Transition>
           <div class="ref-career-number" aria-hidden="true">{{ String(activeExperience + 1).padStart(2, "0") }}</div>
@@ -780,50 +814,62 @@ onBeforeUnmount(() => {
         <article class="ref-scene ref-scene--systems">
           <div class="ref-marker"><span>03</span><i />SELECTED TECHNICAL SYSTEMS</div>
           <div class="ref-system-stack" aria-hidden="true">
-            <div v-for="(project, index) in projects" :key="project.id" :class="['ref-system-card', { active: index === activeProject }]">
+            <div v-for="(project, index) in projects" :key="project.id"
+              :class="['ref-system-card', { active: index === activeProject }]">
               <div class="ref-system-card__grid" />
               <span>{{ project.code }}</span><b>{{ project.id }}</b><i /><i /><i />
             </div>
           </div>
           <Transition name="ref-copy" mode="out-in">
-            <div :key="currentProject.id" class="ref-system-copy">
+            <div :key="currentProject.id" class="ref-system-copy"> 
               <span>{{ currentProject.id }} · {{ currentProject.field }}</span>
               <h2>{{ currentProject.title }}</h2>
               <p class="ref-system-premise">{{ currentProject.premise }}</p>
               <p>{{ currentProject.detail }}</p>
               <div><span>OUTCOME</span><strong>{{ currentProject.outcome }}</strong></div>
-              <ul><li v-for="item in currentProject.stack" :key="item">{{ item }}</li></ul>
+              <ul>
+                <li v-for="item in currentProject.stack" :key="item">{{ item }}</li>
+              </ul>
             </div>
           </Transition>
           <div class="ref-system-nav" aria-label="Technical project index">
-            <button v-for="(_, index) in projects" :key="index" type="button" :class="{ active: index === activeProject }" :aria-label="`Show project ${index + 1}`" @click="goToProject(index)">{{ String(index + 1).padStart(2, "0") }}</button>
+            <button v-for="(_, index) in projects" :key="index" type="button"
+              :class="{ active: index === activeProject }" :aria-label="`Show project ${index + 1}`"
+              @click="goToProject(index)">{{ String(index + 1).padStart(2, "0") }}</button>
           </div>
         </article>
 
         <article class="ref-scene ref-scene--gallery">
           <div class="ref-marker"><span>04</span><i />VISUAL / MATERIAL ARCHIVE</div>
           <div class="ref-gallery-stage" aria-label="Ten visual works">
-            <button v-for="(artwork, index) in artworks" :key="artwork.src" :class="['ref-art-card', { active: index === activeArtwork }]" type="button" :aria-label="`Show ${artwork.title}`" @click="goToArtwork(index)"><img :src="artwork.src" :alt="artwork.title" /></button>
+            <button v-for="(artwork, index) in artworks" :key="artwork.src"
+              :class="['ref-art-card', { active: index === activeArtwork }]" type="button"
+              :aria-label="`Show ${artwork.title}`" @click="goToArtwork(index)"><img :src="artwork.src"
+                :alt="artwork.title" /></button>
           </div>
           <Transition name="ref-copy" mode="out-in">
             <div :key="currentArtwork.src" class="ref-art-caption">
-              <span>{{ String(activeArtwork + 1).padStart(2, "0") }} / {{ String(artworks.length).padStart(2, "0") }} · {{ currentArtwork.type }}</span>
+              <span>{{ String(activeArtwork + 1).padStart(2, "0") }} / {{ String(artworks.length).padStart(2, "0") }} ·
+                {{ currentArtwork.type }}</span>
               <h2>{{ currentArtwork.title }}</h2>
               <p>{{ currentArtwork.meta }}</p>
             </div>
           </Transition>
           <div class="ref-filmstrip" aria-label="Visual archive index">
-            <button v-for="(artwork, index) in artworks" :key="`${artwork.src}-thumb`" type="button" :class="{ active: index === activeArtwork }" :aria-label="`Go to ${artwork.title}`" @click="goToArtwork(index)"><img :src="artwork.src" alt="" /><span>{{ String(index + 1).padStart(2, "0") }}</span></button>
+            <button v-for="(artwork, index) in artworks" :key="`${artwork.src}-thumb`" type="button"
+              :class="{ active: index === activeArtwork }" :aria-label="`Go to ${artwork.title}`"
+              @click="goToArtwork(index)"><img :src="artwork.src" alt="" /><span>{{ String(index + 1).padStart(2, "0")
+                }}</span></button>
           </div>
+          <div class="ref-art-index" aria-hidden="true">{{ String(activeArtwork + 1).padStart(2, "0") }}</div>
         </article>
 
         <article class="ref-scene ref-scene--agent">
-          <div class="ref-marker"><span>05</span><i />PROFESSIONAL AGENT</div>
-          <div class="ref-agent-heading"><span>EXPERIENCE · PROJECTS · AVAILABILITY</span><h2>A useful interface,<br /><em>not a decoration.</em></h2><p>Ask about the work or prepare a reviewable meeting request. Every visible control performs an action.</p></div>
-          <div class="ref-agent-stage"><ContactAssistant /></div>
+          <AgentOS />
         </article>
 
-        <article v-for="chapter in chapters" :key="chapter.key" class="ref-scene ref-scene--chapter" :data-chapter="chapter.key" :aria-label="chapter.kicker">
+        <article v-for="chapter in chapters" :key="chapter.key" class="ref-scene ref-scene--chapter"
+          :data-chapter="chapter.key" :aria-label="chapter.kicker">
           <div class="ref-chapter">
             <i />
             <span>{{ chapter.kicker }}</span>
@@ -834,12 +880,34 @@ onBeforeUnmount(() => {
     </main>
 
     <section id="ref-fallback" class="ref-fallback">
-      <header><span>DIEGO CANO / ACCESSIBLE INDEX</span><h1>Software, AI and material practice.</h1></header>
-      <div><h2>Experience</h2><article v-for="item in experiences" :key="item.period"><span>{{ item.period }} · {{ item.company }}</span><h3>{{ item.role }}</h3><p>{{ item.summary }}</p></article></div>
-      <div><h2>Technical systems</h2><article v-for="item in projects" :key="item.id"><span>{{ item.id }} · {{ item.field }}</span><h3>{{ item.title }}</h3><p>{{ item.premise }}</p></article></div>
-      <div><h2>A note on origin</h2><p>My first language was design — objects, proportion, material honesty. That eye never left the engineering; it only changed medium. What follows is the other half of the practice, where the argument is visual.</p></div>
-      <div class="ref-fallback-art"><h2>Visual archive</h2><figure v-for="item in artworks" :key="item.src"><img :src="item.src" :alt="item.title" /><figcaption>{{ item.title }} · {{ item.type }}</figcaption></figure></div>
-      <ContactAssistant />
+      <header><span>DIEGO CANO / ACCESSIBLE INDEX</span>
+        <h1>Software, AI and material practice.</h1>
+      </header>
+      <div>
+        <h2>Experience</h2>
+        <article v-for="item in experiences" :key="item.period"><span>{{ item.period }} · {{ item.company }}</span>
+          <h3>{{ item.role }}</h3>
+          <p>{{ item.summary }}</p>
+        </article>
+      </div>
+      <div>
+        <h2>Technical systems</h2>
+        <article v-for="item in projects" :key="item.id"><span>{{ item.id }} · {{ item.field }}</span>
+          <h3>{{ item.title }}</h3>
+          <p>{{ item.premise }}</p>
+        </article>
+      </div>
+      <div>
+        <h2>A note on origin</h2>
+        <p>My first language was design — objects, proportion, material honesty. That eye never left the engineering; it
+          only changed medium. What follows is the other half of the practice, where the argument is visual.</p>
+      </div>
+      <div class="ref-fallback-art">
+        <h2>Visual archive</h2>
+        <figure v-for="item in artworks" :key="item.src"><img :src="item.src" :alt="item.title" />
+          <figcaption>{{ item.title }} · {{ item.type }}</figcaption>
+        </figure>
+      </div>
     </section>
   </div>
 </template>
