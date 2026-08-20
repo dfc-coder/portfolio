@@ -11,7 +11,7 @@ npm run dev
 
 Netlify builds the static frontend with `npm run build` and publishes `dist`.
 
-Set `VITE_AGENT_API_URL` to the public FastAPI URL. If it is absent, Chapter 05 falls back to the local demo corpus.
+Set `VITE_AGENT_API_URL` to the public FastAPI URL. Chapter 05 fails closed when the backend URL is missing; it does not simulate the business representative in the browser.
 
 ## Business representative
 
