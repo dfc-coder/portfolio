@@ -51,17 +51,20 @@ class BusinessRepresentative:
         self,
         state: SessionState,
         extra: list[dict[str, Any]] | None = None,
+        system_suffix: str | None = None,
     ) -> list[dict[str, Any]]:
+        """Build a Qwen-compatible conversation with exactly one leading system message."""
         local_now = datetime.now(timezone.utc).astimezone(self._policy.timezone)
+        system_content = (
+            f"{self._system_prompt}\n"
+            f"CURRENT_TIME={local_now.isoformat()}\n"
+            f"TIMEZONE={self._profile.scheduling.timezone}"
+        )
+        if system_suffix:
+            system_content = f"{system_content}\n{system_suffix}"
+
         messages: list[dict[str, Any]] = [
-            {"role": "system", "content": self._system_prompt},
-            {
-                "role": "system",
-                "content": (
-                    f"CURRENT_TIME={local_now.isoformat()} "
-                    f"TIMEZONE={self._profile.scheduling.timezone}"
-                ),
-            },
+            {"role": "system", "content": system_content}
         ]
         messages.extend({"role": turn.role, "content": turn.content} for turn in state.turns)
         if extra:
@@ -275,22 +278,17 @@ class BusinessRepresentative:
 
         state.last_booking_id = result.booking_id
         state.pending_booking = None
-        confirmation_context = [
-            {
-                "role": "system",
-                "content": (
-                    "The calendar write succeeded. Confirm the booking briefly in the visitor's language. "
-                    f"BOOKING={{\"start\":\"{pending.slot.start.isoformat()}\","
-                    f"\"end\":\"{pending.slot.end.isoformat()}\","
-                    f"\"subject\":{json.dumps(pending.subject)},"
-                    f"\"email\":{json.dumps(pending.visitor_email)}}}"
-                ),
-            }
-        ]
+        confirmation_context = (
+            "The calendar write succeeded. Confirm the booking briefly in the visitor's language. "
+            f"BOOKING={{\"start\":\"{pending.slot.start.isoformat()}\","
+            f"\"end\":\"{pending.slot.end.isoformat()}\","
+            f"\"subject\":{json.dumps(pending.subject)},"
+            f"\"email\":{json.dumps(pending.visitor_email)}}}"
+        )
         content = ""
         try:
             async for chunk in self._llama.stream_chat(
-                self._messages(state, extra=confirmation_context)
+                self._messages(state, system_suffix=confirmation_context)
             ):
                 content += chunk
                 yield chunk
