@@ -1,47 +1,26 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .agent import BusinessRepresentative
-from .api import create_router
-from .calendar_gateway import GoogleCalendarGateway, InMemoryCalendarGateway
-from .llama_client import LlamaClient
-from .policies import SchedulingPolicy
-from .profile import load_business_profile
-from .session import SessionStore
-from .settings import Settings
-from .slot_service import SlotService
-
-
-def build_agent(settings: Settings) -> tuple[BusinessRepresentative, LlamaClient]:
-    profile = load_business_profile(settings.profile_path)
-    policy = SchedulingPolicy(profile.scheduling)
-    sessions = SessionStore(settings.session_ttl_seconds, settings.session_max_turns)
-    calendar = (
-        GoogleCalendarGateway(settings)
-        if settings.calendar_mode == "google"
-        else InMemoryCalendarGateway()
-    )
-    slots = SlotService(calendar, policy)
-    llama = LlamaClient(
-        settings.llama_base_url,
-        settings.llama_model,
-        settings.llama_timeout_seconds,
-    )
-    return BusinessRepresentative(profile, sessions, policy, slots, calendar, llama), llama
+from app.api import create_router
+from app.bootstrap import build_agent
+from app.infrastructure.config.settings import Settings
+from app.ports.llm import LlmPort
 
 
 def create_app(
     settings: Settings | None = None,
-    agent: BusinessRepresentative | None = None,
+    agent: Any | None = None,
 ) -> FastAPI:
     resolved = settings or Settings.from_env()
-    llama: LlamaClient | None = None
+    llm: LlmPort | None = None
     if agent is None:
-        agent, llama = build_agent(resolved)
+        agent, llm = build_agent(resolved)
 
-    app = FastAPI(title="Portfolio Business Representative", version="0.1.0")
+    app = FastAPI(title="Portfolio Business Representative", version="0.2.0")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(resolved.allowed_origins),
@@ -57,7 +36,7 @@ def create_app(
 
     @app.get("/ready")
     async def ready() -> dict[str, str]:
-        if llama is not None and not await llama.health():
+        if llm is not None and not await llm.health():
             return {"status": "degraded", "llama": "unavailable"}
         return {"status": "ok", "llama": "ready"}
 

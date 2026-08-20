@@ -1,0 +1,7 @@
+{"stage":"business","input":"¿Trabajás con integraciones?","expected_path":"business_answer"}
+{"stage":"business","input":"Quiero una reunión el martes","expected_action":"get_availability"}
+{"stage":"scheduling_slot","input":"El segundo","expected_action":"select_slot","expected_slot_id":"S2"}
+{"stage":"scheduling_slot","input":"S2. Soy Ana, ana@example.com, para hablar de arquitectura","expected_action":"select_slot","expected_slot_id":"S2"}
+{"stage":"scheduling_details","input":"Soy Ana, ana@example.com, para hablar de arquitectura","expected_action":"prepare_booking"}
+{"stage":"scheduling_confirmation","input":"Sí, confirmo","expected_fast_path":"calendar_write"}
+{"stage":"scheduling_confirmation","input":"Tuesday could work","expected_fast_path":"confirmation_reminder"}
