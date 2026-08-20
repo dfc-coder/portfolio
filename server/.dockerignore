@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual envs / tooling
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Tests don't belong in production image
+tests/
+
+# CRITICAL: llama model is mounted, never built into FastAPI image
+models/
+*.gguf
+
+# Misc
+.git/
+.gitignore
+README.md
