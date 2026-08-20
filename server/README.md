@@ -17,7 +17,7 @@ docker compose up --build
 
 FastAPI: `http://localhost:8000`
 
-`llama.cpp` stays inside the compose network unless you explicitly publish it.
+`llama.cpp` stays inside the compose network unless you explicitly publish it. The compose defaults to the official CPU server image; override `LLAMA_IMAGE` and `LLAMA_N_GPU_LAYERS` for the accelerator/runtime used by the host.
 
 ## Connect the portfolio
 
@@ -27,7 +27,7 @@ Set at Netlify build time:
 VITE_AGENT_API_URL=https://agent-api.example.com
 ```
 
-The browser then calls only FastAPI. If the variable is absent, the current local corpus provider remains a development fallback.
+The browser then calls only FastAPI. The UI fails closed when the variable is missing; there is no production-side local corpus fallback.
 
 ## Google Calendar
 
