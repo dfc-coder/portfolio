@@ -26,13 +26,15 @@ Qwen3-Reranker-0.6B
                |                                 |
         business/general                   scheduling
                |                                 |
-        Qwen renderer                     bounded FSM
-                                                 |
-                                           micro-planner
-                                                 |
-                                             executor
+      grounded Qwen stream                  bounded FSM
+               |                                 |
+      rolling safety guard                  micro-planner
+               |                                 |
+              SSE                            executor
                                                  |
                                              verifier
+                                                 |
+                                         deterministic text
 ```
 
 Routing uses semantic route descriptions, not keyword/regex intent rules. Deterministic code remains authoritative only for workflow and safety invariants such as valid offered slots, explicit confirmation and Calendar writes.
@@ -51,6 +53,18 @@ app/
 ```
 
 Legacy top-level modules such as `app.profile` and `app.slot_service` are thin compatibility exports only.
+
+## Safe real streaming
+
+Business and general knowledge answers use llama.cpp with `stream=true` end-to-end. The backend does not wait for a complete answer and does not replay completed text with artificial delays.
+
+A small rolling character holdback sits between the model stream and SSE. It exists only to prevent restricted operational claims from crossing the HTTP boundary, including owner impersonation and generated claims that a meeting was booked, scheduled, placed on the calendar, or that an invitation was sent. It adds no timer or animation.
+
+Owner-specific claims are grounded by prompt contract against `BUSINESS_CONTEXT`: the renderer is instructed to use only explicitly supplied profile facts and to abstain when the requested fact is absent. Calendar side effects remain unreachable from the informational renderer.
+
+Scheduling output is intentionally different: slots, confirmation prompts and booking results are deterministic Python text and are emitted atomically. Only the Calendar workflow can report a successful booking, and only after the Calendar write succeeds.
+
+The completed streamed answer is checked again by the lightweight deterministic verifier for telemetry. This post-stream check never delays or rewrites content already sent to the visitor.
 
 ## Required models
 
@@ -136,4 +150,4 @@ The LLM never owns the destructive Calendar write. A booking is created only aft
 make check
 ```
 
-Coverage includes semantic routing cascade behavior, ambiguous-route fallback, scheduling interruptions/resumption, slot validation and explicit booking confirmation.
+Coverage includes semantic routing cascade behavior, ambiguous-route fallback, guarded real-stream output, scheduling interruptions/resumption, slot validation and explicit booking confirmation.
