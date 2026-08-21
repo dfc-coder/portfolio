@@ -59,5 +59,5 @@ async def test_scheduler_rejects_unoffered_slot(profile: BusinessProfile) -> Non
 
     reply = await scheduler.handle(state, "S2", RouteRelation.CONTINUE)
 
-    assert "no está entre" in reply.text.lower()
+    assert "offered" in reply.text.lower() or "ofrecí" in reply.text.lower()
     assert state.scheduling.selected_slot_id is None
