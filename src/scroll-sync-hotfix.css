@@ -1,0 +1,79 @@
+/* Keep the normal document scrollbar geometry during the intro. The base
+   stylesheet locks overflow, which changes the layout viewport width exactly
+   when the intro hands off to the vw-based hero title. We keep vertical
+   overflow measurable here and block wheel/touch input in the component
+   instead, so the intro and the Hero share one coordinate system. */
+html.is-refined-intro,
+html.is-refined-intro body {
+  overflow-y: auto !important;
+}
+
+html.is-refined-intro {
+  scrollbar-color: transparent transparent;
+}
+
+html.is-refined-intro::-webkit-scrollbar-thumb,
+html.is-refined-intro::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ScrollTrigger is the only owner of scene progress.
+   Every adjacent visible state uses the same 36vh scroll interval:
+   22 intervals × 36vh + one sticky viewport = 892vh
+   (hero + 4 chapter cards + career/systems/gallery/agent states). */
+
+.ref-track {
+  height: 892vh !important;
+}
+
+.ref-scene--hero,
+.ref-scene--career,
+.ref-scene--systems,
+.ref-scene--gallery,
+.ref-scene--agent {
+  animation: none !important;
+  animation-timeline: auto !important;
+  animation-range: normal !important;
+}
+
+.ref-scene--hero {
+  opacity: var(--hero) !important;
+  transform: scale(calc(.975 + var(--hero) * .025)) !important;
+  filter: blur(calc((1 - var(--hero)) * 4px)) !important;
+}
+
+.ref-scene--career {
+  opacity: var(--career) !important;
+  transform: translate3d(calc((1 - var(--career)) * 3vw), 0, 0) !important;
+  filter: blur(calc((1 - var(--career)) * 4px)) !important;
+}
+
+/* Keep inactive scenes outside the interaction tree during cross-fades. */
+.ref-scene {
+  pointer-events: none !important;
+}
+
+.ref-stage[data-scene="career"] .ref-scene--career,
+.ref-stage[data-scene="systems"] .ref-scene--systems,
+.ref-stage[data-scene="gallery"] .ref-scene--gallery,
+.ref-stage[data-scene="agent"] .ref-scene--agent {
+  pointer-events: auto !important;
+}
+
+/* Intro -> Hero morph.
+   D and C travel with the exact typography used by DIEGO/CANO. Because the
+   source glyphs already have their final dimensions, the FLIP transform is
+   effectively translation-only instead of visibly resizing the letters. */
+.ref-intro__mark {
+  font-family: var(--font-sans) !important;
+  font-size: clamp(7rem, 19vw, 21rem) !important;
+  font-weight: 700 !important;
+  line-height: .78 !important;
+  letter-spacing: -.045em !important;
+}
+
+@media (max-width: 680px) {
+  .ref-intro__mark {
+    font-size: clamp(7rem, 19vw, 21rem) !important;
+  }
+}

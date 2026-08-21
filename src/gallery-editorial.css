@@ -1,0 +1,306 @@
+/* ==========================================================================
+   VISUAL / MATERIAL ARCHIVE — section 04
+   Loaded after cinematic-refined.css and cinematic-tuning.css.
+
+   Three problems this fixes, in order of severity:
+
+   1. Letterboxing. The card had a fixed width AND height with the image set to
+      object-fit: contain, so every artwork that was not exactly that ratio got
+      black bands above and below. Here the card shrink-wraps the image, so each
+      piece keeps its true proportion and there is no dead space at all.
+
+   2. Collision. The caption was positioned off the artwork's bottom-right edge
+      and dropped straight onto the filmstrip. It now occupies the right-hand
+      column, which was empty, and the stage reserves room above the strip.
+
+   3. Voice. The archive is the design half of the portfolio, so it reads as a
+      catalogue rather than a dashboard: serif title, wall-label caption, a
+      studio floor under the object instead of a framed thumbnail.
+
+   Scene composition:
+      ┌──────────────────────────────────────────────┐
+      │ 04 · marker                                  │
+      │        [ artwork, true ratio ]   │ wall label │
+      │        ── studio floor ──        │ 08         │
+      │ ─────────── filmstrip ───────────────────────│
+      └──────────────────────────────────────────────┘
+   ========================================================================== */
+
+/* A soft studio spot: the object sits in light, the room falls away. Reinforces
+   that this section is about physical objects, not screens. */
+.ref-scene--gallery {
+  background:
+    radial-gradient(ellipse 58% 62% at 36% 44%, rgba(238, 234, 226, 0.055), transparent 68%),
+    radial-gradient(ellipse 90% 80% at 50% 50%, transparent 40%, rgba(9, 9, 8, 0.5) 100%);
+}
+
+/* Room above for the marker, room below for the strip: nothing overlaps. */
+/* Perspective lives on the scene so the stage itself can be tilted while its
+   children still share one 3D space. 1250px is close enough to read as a room;
+   1800px flattened everything out. */
+.ref-scene--gallery {
+  perspective: 1250px;
+  perspective-origin: 44% 42%;
+}
+
+.ref-scene--gallery .ref-gallery-stage {
+  left: 4vw;
+  right: 4vw;
+  top: 9%;
+  bottom: 24%;
+  perspective: none;
+  transform-style: preserve-3d;
+  transform: rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+  transition: transform 0.55s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* Horizon: a floor the objects can stand on. Without it the arc floats in
+   nothing and the depth stops reading. */
+.ref-scene--gallery .ref-gallery-stage::before {
+  content: "";
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  bottom: 4%;
+  height: 1px;
+  transform: translateZ(-340px);
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(238, 234, 226, 0.16) 22%,
+    rgba(238, 234, 226, 0.16) 78%,
+    transparent
+  );
+}
+
+/* ---- the artwork ------------------------------------------------------- */
+
+/* width/height auto is the whole fix: the button shrink-wraps its image, so the
+   frame is always exactly the artwork's shape. JS keeps owning the transform. */
+.ref-scene--gallery .ref-art-card {
+  left: 33%;
+  top: 46%;
+  width: auto;
+  height: auto;
+  max-width: min(46vw, 720px);
+  max-height: min(50vh, 560px);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+
+/* A real mirrored copy under each piece. -webkit-box-reflect is Blink/WebKit
+   only; Firefox simply renders no reflection, which degrades cleanly rather
+   than breaking the composition. */
+.ref-scene--gallery .ref-art-card img {
+  -webkit-box-reflect: below 14px
+    linear-gradient(transparent 52%, rgba(255, 255, 255, 0.22));
+}
+
+.ref-scene--gallery .ref-art-card img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(46vw, 720px);
+  max-height: min(50vh, 560px);
+  object-fit: contain;
+  background: transparent;
+  /* The object is lit and casts down — depth without a frame. */
+  box-shadow:
+    0 2px 0 rgba(238, 234, 226, 0.06),
+    0 48px 90px -32px rgba(0, 0, 0, 0.9),
+    0 12px 34px -12px rgba(0, 0, 0, 0.6);
+}
+
+.ref-scene--gallery .ref-art-card.active {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* ---- wall label: the previously empty right column --------------------- */
+
+.ref-scene--gallery .ref-art-caption {
+  left: auto;
+  right: 4vw;
+  top: 46%;
+  width: min(300px, 25vw);
+  padding: 0 0 0 26px;
+  transform: translateY(-50%);
+  border-left: 1px solid rgba(238, 234, 226, 0.22);
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-paper);
+  container-type: normal;
+}
+
+.ref-scene--gallery .ref-art-caption > span {
+  display: block;
+  margin-bottom: 18px;
+  color: var(--color-muted);
+  font: var(--w-regular) var(--t-label) / 1.4 var(--font-mono);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+
+/* Serif, mixed case: the archive speaks in the designer's voice, not the
+   engineer's. This is the one heading in the portfolio that is not a slab of
+   uppercase sans, and that contrast is the point. */
+.ref-scene--gallery .ref-art-caption h2 {
+  max-width: 100%;
+  margin: 0;
+  color: var(--color-paper);
+  font-family: var(--font-serif);
+  font-size: clamp(1.8rem, 2.5vw, 2.9rem);
+  font-weight: var(--w-regular);
+  line-height: 1.02;
+  letter-spacing: var(--track-normal);
+  text-transform: none;
+}
+
+.ref-scene--gallery .ref-art-caption p {
+  margin: 20px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid rgba(238, 234, 226, 0.14);
+  color: var(--color-muted);
+  font: var(--w-regular) var(--t-micro) / 1.7 var(--font-mono);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+
+/* ---- ghost index: the same device the career section uses, so the archive
+       stays inside the portfolio's existing vocabulary ---------------------- */
+
+.ref-scene--gallery .ref-art-index {
+  position: absolute;
+  z-index: 1;
+  left: 2vw;
+  bottom: -6vh;
+  color: rgba(238, 234, 226, 0.028);
+  font-family: var(--font-serif);
+  font-size: 34vw;
+  font-weight: var(--w-regular);
+  line-height: 0.65;
+  letter-spacing: -0.08em;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ---- filmstrip: an index, quieter than the work ------------------------ */
+
+.ref-scene--gallery .ref-filmstrip {
+  left: 4vw;
+  right: 4vw;
+  bottom: 22px;
+  height: 52px;
+  gap: 6px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(238, 234, 226, 0.12);
+}
+
+.ref-scene--gallery .ref-filmstrip button {
+  border: 0;
+  border-top: 1px solid transparent;
+  background: transparent;
+  opacity: 0.28;
+}
+
+.ref-scene--gallery .ref-filmstrip button:hover,
+.ref-scene--gallery .ref-filmstrip button.active {
+  transform: none;
+  opacity: 1;
+  border-top-color: var(--color-accent);
+}
+
+.ref-scene--gallery .ref-filmstrip img {
+  filter: grayscale(1) brightness(0.72);
+  transition: filter 0.25s ease;
+}
+
+.ref-scene--gallery .ref-filmstrip button.active img,
+.ref-scene--gallery .ref-filmstrip button:hover img {
+  filter: grayscale(0) brightness(1);
+}
+
+.ref-scene--gallery .ref-filmstrip span {
+  left: 5px;
+  bottom: 4px;
+  padding: 0;
+  background: transparent;
+  color: var(--color-paper);
+  font: var(--w-regular) 7px var(--font-mono);
+  letter-spacing: var(--track-label);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+/* ---- responsive -------------------------------------------------------- */
+
+@media (max-width: 1100px) {
+  .ref-scene--gallery .ref-art-card,
+  .ref-scene--gallery .ref-art-card img {
+    max-width: min(56vw, 620px);
+    max-height: min(52vh, 520px);
+  }
+
+  .ref-scene--gallery .ref-art-caption {
+    width: min(260px, 27vw);
+    padding-left: 20px;
+  }
+}
+
+/* Under this width the two-column spread stops working: the label moves below
+   the artwork and the strip shortens rather than letting them collide. */
+@media (max-width: 860px) {
+  .ref-scene--gallery .ref-gallery-stage {
+    top: 9%;
+    bottom: 34%;
+  }
+
+  .ref-scene--gallery .ref-art-card,
+  .ref-scene--gallery .ref-art-card img {
+    max-width: 84vw;
+    max-height: 42vh;
+  }
+
+  .ref-scene--gallery .ref-art-card {
+    left: 50%;
+    top: 44%;
+  }
+
+  .ref-scene--gallery .ref-art-caption {
+    left: 6vw;
+    right: 6vw;
+    top: auto;
+    bottom: 96px;
+    width: auto;
+    padding: 14px 0 0;
+    transform: none;
+    border-left: 0;
+    border-top: 1px solid rgba(238, 234, 226, 0.22);
+  }
+
+  .ref-scene--gallery .ref-art-caption h2 {
+    font-size: clamp(1.5rem, 6vw, 2.1rem);
+  }
+
+  .ref-scene--gallery .ref-art-caption p {
+    display: none;
+  }
+
+  .ref-scene--gallery .ref-filmstrip {
+    height: 40px;
+    bottom: 16px;
+  }
+
+  .ref-scene--gallery .ref-art-index {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ref-scene--gallery .ref-filmstrip img {
+    transition: none;
+  }
+}

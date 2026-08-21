@@ -1,0 +1,230 @@
+/* Self-hosted via @fontsource: a third-party <link> can fail silently or arrive
+   late, and the whole hierarchy depends on the metrics of these exact files.
+   Bundling them means the layout is computed against fonts that are guaranteed
+   to be there, and removes a render-blocking cross-origin request. */
+@import "@fontsource/syne/latin-700.css";
+@import "@fontsource/syne/latin-800.css";
+@import "@fontsource/instrument-sans/latin-400.css";
+@import "@fontsource/instrument-sans/latin-500.css";
+@import "@fontsource/instrument-sans/latin-600.css";
+@import "@fontsource/instrument-sans/latin-700.css";
+@import "@fontsource/instrument-sans/latin-400-italic.css";
+@import "@fontsource/instrument-serif/latin-400.css";
+@import "@fontsource/instrument-serif/latin-400-italic.css";
+@import "@fontsource/dm-mono/latin-300.css";
+@import "@fontsource/dm-mono/latin-400.css";
+@import "@fontsource/dm-mono/latin-500.css";
+
+/* ==========================================================================
+   TYPE SYSTEM — portfolio-wide
+   Loaded after cinematic-refined.css, so it re-tunes typography globally
+   without touching layout.
+
+   Pairing
+     Instrument Sans   — UI, body, technical headings
+     Instrument Serif  — editorial accents and the archive voice
+     DM Mono           — metadata, labels, the agent interface
+
+   Sans and Serif are companion designs from the same foundry: they share
+   skeleton, proportion and x-height, so they sit together without the
+   mismatch you get from pairing two unrelated families. Mono stays as the
+   third, deliberately contrasting voice for machine-readable data.
+
+   Hierarchy is built from a modular scale (ratio ~1.26) plus weight, tracking
+   and case — not from arbitrary pixel values scattered across components.
+   Nothing here relies on weight 900: contrast comes from size and tracking,
+   which reads as designed rather than shouted.
+   ========================================================================== */
+
+:root {
+  --font-mono: "DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: "Instrument Sans", "Archivo", system-ui, sans-serif;
+  --font-serif: "Instrument Serif", Georgia, serif;
+  /* Display voice: Syne is art-directed rather than neutral — extended,
+     idiosyncratic counters. It carries the name and the section titles so the
+     portfolio has a face instead of a default grotesque. */
+  /* Syne runs ~73% wider than the text face, so it is reserved for short
+     strings — the name and the mark. Section titles use the text face, which
+     is what keeps long words inside their columns. */
+  --font-display: "Syne", "Instrument Sans", system-ui, sans-serif;
+  --w-black: 800;
+
+  /* ---- modular scale (ratio ≈ 1.26, fluid between 360px and 1600px) ---- */
+  --t-micro: 9px;
+  --t-label: 10px;
+  --t-caption: clamp(0.82rem, 0.45vw + 0.68rem, 0.98rem);
+  --t-body: clamp(1.05rem, 0.62vw + 0.88rem, 1.32rem);
+  --t-lead: clamp(1.35rem, 1.5vw + 0.95rem, 2.15rem);
+  --t-h3: clamp(1.6rem, 2vw + 0.9rem, 2.8rem);
+  /* Sizes below are computed from measured glyph advances, not estimated.
+     The binding constraint is the longest unbreakable word in each column:
+     "INTEGRATIONS" = 7.17em in Instrument Sans 700 at -0.03em tracking.
+       systems column min(620px, 42vw) -> 620 / 7.17 = 86px max
+       career  column min(760px, 57vw) -> 760 / 7.17 = 106px max
+     Values sit just under those ceilings so nothing can clip. */
+  --t-h2: clamp(2.6rem, 5.2vw, 5rem);
+  --t-h2-wide: clamp(3rem, 6.4vw, 6.2rem);
+  /* Hero: "DIEGO" = 5.38em in Syne 800. 96vw available -> 17.84vw ceiling.
+     16.5vw leaves 7vw of slack for tracking and sub-pixel rounding. */
+  --t-display: clamp(4.2rem, 16.5vw, 19rem);
+
+  /* ---- weights ---- */
+  --w-regular: 400;
+  --w-medium: 500;
+  --w-semi: 600;
+  --w-bold: 700;
+
+  /* ---- tracking: tighter as type grows, looser as it shrinks ---- */
+  --track-display: -0.045em;
+  --track-tight: -0.03em;
+  --track-snug: -0.015em;
+  --track-normal: 0;
+  --track-label: 0.14em;
+  --track-micro: 0.18em;
+
+  /* ---- leading ---- */
+  --lead-solid: 0.82;
+  --lead-tight: 1.06;
+  --lead-snug: 1.3;
+  --lead-normal: 1.55;
+  --lead-loose: 1.68;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-weight: var(--w-regular);
+  letter-spacing: var(--track-snug);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---- display: the name. Size carries it; 700 keeps the counters open ---- */
+.ref-hero__title,
+.ref-intro__title,
+.ref-intro__mark,
+.ref-brand strong,
+.ref-brand {
+  font-family: var(--font-display);
+}
+
+.ref-hero__title,
+.ref-intro__title {
+  font-size: var(--t-display);
+  font-weight: var(--w-black);
+  letter-spacing: -0.03em;
+  line-height: 0.82;
+}
+
+/* The outline treatment is gone. -webkit-text-stroke paints every subpath of a
+   glyph independently, so a display face with constructed letterforms shows its
+   internal seams — that is the broken look on the A and the N, and no CSS fixes
+   it. The second line now recedes by value instead: same face, same weight, one
+   step down in luminance. Quieter, and it cannot break. */
+.ref-hero__title span:last-child i,
+.ref-intro__title span:last-child i {
+  color: rgba(238, 234, 226, 0.17);
+  -webkit-text-stroke: 0;
+}
+
+/* ---- section headings: technical voice ---- */
+.ref-career-copy h2,
+.ref-system-copy h2,
+.ref-agent-heading h2 {
+  font-family: var(--font-sans);
+  font-size: var(--t-h2);
+  font-weight: var(--w-bold);
+  letter-spacing: -0.03em;
+  line-height: 0.92;
+  text-transform: uppercase;
+  /* Long technical nouns must never break mid-word or spill the column. */
+  overflow-wrap: break-word;
+  hyphens: none;
+}
+
+/* The career column is wider, so it can carry a larger step in the scale.
+   Same face, same weight — hierarchy comes from measure, not from novelty. */
+.ref-career-copy h2 {
+  font-size: var(--t-h2-wide);
+}
+
+/* Serif italic is the accent across the whole portfolio: it marks the human
+   or conceptual clause inside an otherwise technical line. */
+.ref-career-copy h2 em,
+.ref-system-copy h2 em,
+.ref-art-caption h2 em,
+.ref-agent-heading h2 em,
+.ref-hero__thesis em,
+.ref-chapter p em {
+  font-family: var(--font-serif);
+  font-weight: var(--w-regular);
+  font-style: italic;
+  letter-spacing: var(--track-normal);
+  text-transform: none;
+}
+
+/* ---- kickers / eyebrow labels: mono, wide, quiet ---- */
+.ref-career-copy > span,
+.ref-system-copy > span,
+.ref-art-caption > span,
+.ref-agent-heading > span {
+  font: var(--w-regular) var(--t-label) / var(--lead-snug) var(--font-mono);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+
+/* ---- body copy ---- */
+.ref-career-copy p,
+.ref-system-copy p {
+  font-size: var(--t-body);
+  font-weight: var(--w-regular);
+  line-height: var(--lead-normal);
+  letter-spacing: var(--track-snug);
+}
+
+.ref-hero__thesis {
+  font-size: var(--t-lead);
+  font-weight: var(--w-medium);
+  line-height: var(--lead-tight);
+  letter-spacing: var(--track-tight);
+}
+
+/* ---- chapter interstitials: the editorial voice of the portfolio ---- */
+.ref-chapter p {
+  font-family: var(--font-serif);
+  font-size: var(--t-h3);
+  font-weight: var(--w-regular);
+  line-height: var(--lead-snug);
+  letter-spacing: var(--track-normal);
+}
+
+.ref-chapter span {
+  font: var(--w-regular) var(--t-label) / 1 var(--font-mono);
+  letter-spacing: var(--track-label);
+}
+
+/* ---- lists / focus tags ---- */
+.ref-career-copy ul {
+  font-size: var(--t-caption);
+  letter-spacing: var(--track-label);
+}
+
+/* ---- every mono label in the chrome shares one treatment ---- */
+.ref-marker,
+.ref-scroll-cue,
+.ref-hero__meta,
+.ref-filmstrip span {
+  font-family: var(--font-mono);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+
+/* Tabular numerals everywhere a figure can change while the eye rests on it,
+   so counters and indices never jitter. */
+.ref-career-number,
+.ref-art-index,
+.ref-filmstrip span,
+.ref-progress,
+.ref-art-caption > span {
+  font-variant-numeric: tabular-nums;
+}

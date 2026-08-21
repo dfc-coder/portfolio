@@ -1,21 +1,15 @@
 {
   "compilerOptions": {
-    "target": "ESNext",
-    "useDefineForClassFields": true,
-    "lib": ["DOM", "DOM.Iterable", "ESNext"],
-    "allowJs": false,
-    "skipLibCheck": true,
-    "esModuleInterop": false,
-    "allowSyntheticDefaultImports": true,
-    "strict": true,
-    "forceConsistentCasingInFileNames": true,
+    "target": "ES2022",
     "module": "ESNext",
-    "moduleResolution": "Node",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "jsx": "preserve",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true,
-    "jsx": "react-jsx"
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "noEmit": true
   },
-  "include": ["src"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "include": ["src/**/*.ts", "src/**/*.vue"]
 }

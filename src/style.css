@@ -1,0 +1,36 @@
+/* Fonts load in index.html with preconnect. A second @import here would
+   block rendering again and pull a family the type system no longer uses. */
+
+/* Base tokens + reset. The active experience (CinematicPortfolioRefined) defines
+   its own --ref-* palette inside cinematic-refined.css; the variables below are
+   kept as a neutral base and for any non-namespaced element. */
+:root {
+  --black: #090908;
+  --black-soft: #11110f;
+  --warm: #d8d2c6;
+  --paper: #eeeae2;
+  --gray: #8d887f;
+  --line: rgba(238, 234, 226, 0.2);
+  --line-dark: rgba(9, 9, 8, 0.22);
+  --accent: #c56748;
+  --mono: "DM Mono", monospace;
+  --sans: "Instrument Sans", system-ui, sans-serif;
+  --serif: "Instrument Serif", Georgia, serif;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--black); scroll-behavior: auto; }
+body { margin: 0; overflow-x: hidden; background: var(--black); color: var(--paper); font-family: var(--sans); }
+button, input, select { color: inherit; font: inherit; }
+button { border: 0; cursor: pointer; }
+a { color: inherit; text-decoration: none; }
+img { display: block; max-width: 100%; }
+::selection { color: var(--black); background: var(--warm); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
