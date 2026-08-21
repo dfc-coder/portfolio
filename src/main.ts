@@ -14,7 +14,7 @@ import "./agent-os.css";
 import "./hero-experience.css";
 import "./trajectory-experience.css";
 import "./trajectory-bridge.css";
-import "./systems-experience.css";
+import "./systems-experience-v3.css";
 import "./systems-integration-fix.css";
 
 /* Keep the first paint quiet while Vue, the self-hosted display face and the
