@@ -3,8 +3,9 @@ const clamp = (value: number, min: number, max: number) =>
 
 /**
  * Shared pointer field for all chapters.
- * Hero keeps its WebGL material; this layer supplies the same quiet physical
- * light to Trajectory, Systems and the remaining scenes.
+ * Hero keeps its WebGL material; this layer supplies one quiet ambient response
+ * to the remaining scenes. The light deliberately trails and offsets the cursor
+ * so it reads as surface illumination rather than a CSS spotlight.
  */
 export const mountVisualContinuity = () => {
   const stage = document.querySelector<HTMLElement>(".ref-stage");
@@ -18,8 +19,8 @@ export const mountVisualContinuity = () => {
   stage.append(light);
 
   let frame = 0;
-  let currentX = 50;
-  let currentY = 44;
+  let currentX = 47;
+  let currentY = 47;
   let targetX = currentX;
   let targetY = currentY;
   let currentVelocity = 0;
@@ -28,12 +29,15 @@ export const mountVisualContinuity = () => {
   let lastY = innerHeight * 0.44;
 
   const onPointerMove = (event: PointerEvent) => {
-    targetX = clamp((event.clientX / innerWidth) * 100, 0, 100);
-    targetY = clamp((event.clientY / innerHeight) * 100, 0, 100);
+    const normalizedX = (event.clientX / innerWidth) * 100;
+    const normalizedY = (event.clientY / innerHeight) * 100;
+
+    targetX = clamp(normalizedX - 2.4, -4, 104);
+    targetY = clamp(normalizedY + 2.8, -4, 104);
 
     const dx = event.clientX - lastX;
     const dy = event.clientY - lastY;
-    targetVelocity = clamp(Math.hypot(dx, dy) / 38, 0, 1);
+    targetVelocity = clamp(Math.hypot(dx, dy) / 46, 0, 1);
     lastX = event.clientX;
     lastY = event.clientY;
   };
@@ -43,10 +47,10 @@ export const mountVisualContinuity = () => {
   };
 
   const render = () => {
-    currentX += (targetX - currentX) * 0.115;
-    currentY += (targetY - currentY) * 0.115;
-    currentVelocity += (targetVelocity - currentVelocity) * 0.09;
-    targetVelocity *= 0.90;
+    currentX += (targetX - currentX) * 0.052;
+    currentY += (targetY - currentY) * 0.044;
+    currentVelocity += (targetVelocity - currentVelocity) * 0.07;
+    targetVelocity *= 0.88;
 
     const x = `${currentX.toFixed(3)}%`;
     const y = `${currentY.toFixed(3)}%`;
