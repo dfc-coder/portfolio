@@ -27,8 +27,8 @@ const cssBlock = (css, selector) => {
   return match[1];
 };
 
-const motion = await loadTsModule("src/systems-motion-contract.ts");
-const projectData = await loadTsModule("src/systems-projects.ts");
+const motion = await loadTsModule("src/experiences/systems-motion-contract.ts");
+const projectData = await loadTsModule("src/experiences/systems-projects.ts");
 
 test("BDD: Given Career is leaving, when THE EVIDENCE becomes readable, then Career is no longer a competing protagonist", () => {
   const systemsDelta = 0.11;
@@ -59,14 +59,8 @@ test("BDD: Given THE EVIDENCE owns the chapter beat, then rail and persistent Sy
     );
 
     if (state.introVisibility >= 0.35) {
-      assert.ok(
-        state.axisReveal < 0.01,
-        `rail leaked into intro beat at ${systemsDelta}: ${state.axisReveal}`,
-      );
-      assert.ok(
-        state.headerReveal < 0.01,
-        `header leaked into intro beat at ${systemsDelta}: ${state.headerReveal}`,
-      );
+      assert.ok(state.axisReveal < 0.01, `rail leaked into intro beat at ${systemsDelta}: ${state.axisReveal}`);
+      assert.ok(state.headerReveal < 0.01, `header leaked into intro beat at ${systemsDelta}: ${state.headerReveal}`);
     }
   }
 });
@@ -162,10 +156,7 @@ test("BDD: Given titles exchange ownership, when the viewport crosses the handof
     const outgoing = motion.motionForOffset(-progress).graph;
     const incoming = motion.motionForOffset(1 - progress).graph;
 
-    assert.ok(
-      Math.max(outgoing, incoming) >= 0.95,
-      `architecture coverage dropped at ${progress}`,
-    );
+    assert.ok(Math.max(outgoing, incoming) >= 0.95, `architecture coverage dropped at ${progress}`);
   }
 });
 
@@ -211,8 +202,8 @@ test("SDD: the five systems have five distinct architecture signatures", () => {
 });
 
 test("SDD: Trajectory and Systems rails share the same physical left/top/height contract", async () => {
-  const trajectoryCss = await readFile(resolve(root, "src/trajectory-experience.css"), "utf8");
-  const systemsCss = await readFile(resolve(root, "src/systems-experience-v5.css"), "utf8");
+  const trajectoryCss = await readFile(resolve(root, "src/experiences/trajectory.css"), "utf8");
+  const systemsCss = await readFile(resolve(root, "src/experiences/systems-motion.css"), "utf8");
 
   const trajectoryAxis = cssBlock(trajectoryCss, ".trajectory-axis");
   const systemsAxis = cssBlock(systemsCss, ".systems-axis,\n.systems-axis-items");
@@ -226,8 +217,8 @@ test("SDD: Trajectory and Systems rails share the same physical left/top/height 
 
 test("TDD regression: active CSS files contain real newlines and no escaped-newline corruption", async () => {
   for (const file of [
-    "src/systems-experience-v5.css",
-    "src/visual-continuity-v3.css",
+    "src/experiences/systems-motion.css",
+    "src/experiences/continuity.css",
   ]) {
     const css = await readFile(resolve(root, file), "utf8");
     assert.ok(css.split("\n").length > 40, `${file} must be a real multiline stylesheet`);
@@ -236,21 +227,15 @@ test("TDD regression: active CSS files contain real newlines and no escaped-newl
 });
 
 test("TDD regression: shared visual continuity must never mutate Systems direct-child positioning", async () => {
-  const css = await readFile(resolve(root, "src/visual-continuity-v3.css"), "utf8");
+  const css = await readFile(resolve(root, "src/experiences/continuity.css"), "utf8");
 
-  assert.doesNotMatch(
-    css,
-    /\.systems-experience\s*>\s*\*\s*\{[^}]*position\s*:\s*relative/is,
-  );
-  assert.doesNotMatch(
-    css,
-    /\.trajectory-experience\s*>\s*\*\s*\{[^}]*position\s*:\s*relative/is,
-  );
+  assert.doesNotMatch(css, /\.systems-experience\s*>\s*\*\s*\{[^}]*position\s*:\s*relative/is);
+  assert.doesNotMatch(css, /\.trajectory-experience\s*>\s*\*\s*\{[^}]*position\s*:\s*relative/is);
   assert.match(css, /\.systems-experience\s*\{[^}]*isolation\s*:\s*isolate/is);
 });
 
 test("TDD regression: Systems rail nodes cannot override their top origin with inset shorthand", async () => {
-  const css = await readFile(resolve(root, "src/systems-experience-v5.css"), "utf8");
+  const css = await readFile(resolve(root, "src/experiences/systems-motion.css"), "utf8");
   const railBlock = cssBlock(css, ".systems-axis,\n.systems-axis-items");
   const itemsBlock = cssBlock(css, ".systems-axis-items");
 
@@ -262,14 +247,14 @@ test("TDD regression: Systems rail nodes cannot override their top origin with i
 });
 
 test("TDD regression: rail state has one semantic active marker, never a second axis pseudo-marker", async () => {
-  const css = await readFile(resolve(root, "src/visual-continuity-v3.css"), "utf8");
+  const css = await readFile(resolve(root, "src/experiences/continuity.css"), "utf8");
 
   assert.doesNotMatch(css, /\.trajectory-axis::after/i);
   assert.doesNotMatch(css, /\.systems-axis::after/i);
 });
 
 test("TDD regression: pointer lighting uses one broad ambient field rather than stacked chapter spotlights", async () => {
-  const css = await readFile(resolve(root, "src/visual-continuity-v3.css"), "utf8");
+  const css = await readFile(resolve(root, "src/experiences/continuity.css"), "utf8");
 
   assert.match(css, /ellipse\s+54rem\s+38rem/i);
   assert.doesNotMatch(css, /\.trajectory-experience::after/i);
@@ -277,7 +262,7 @@ test("TDD regression: pointer lighting uses one broad ambient field rather than 
 });
 
 test("TDD regression: critical Systems composition layers are explicitly absolute", async () => {
-  const css = await readFile(resolve(root, "src/systems-experience-v5.css"), "utf8");
+  const css = await readFile(resolve(root, "src/experiences/systems-motion.css"), "utf8");
 
   for (const selector of [
     ".systems-intro",
@@ -295,21 +280,17 @@ test("TDD regression: critical Systems composition layers are explicitly absolut
   }
 });
 
-test("TDD regression: main mounts only the clean V5 Systems director and V3 continuity styles", async () => {
+test("TDD regression: main mounts canonical experience modules only", async () => {
   const main = await readFile(resolve(root, "src/main.ts"), "utf8");
 
-  assert.match(main, /systems-experience-v5/);
-  assert.match(main, /visual-continuity-v3\.css/);
-  assert.match(main, /systems-experience-v5\.css/);
-  assert.doesNotMatch(main, /systems-experience-v4\.css/);
-  assert.doesNotMatch(main, /visual-continuity-v2\.css/);
+  assert.match(main, /experiences\/systems/);
+  assert.match(main, /experiences\/continuity/);
+  assert.match(main, /experiences\/systems-motion\.css/);
+  assert.doesNotMatch(main, /-v\d|hotfix|integration-fix|cinematic-tuning/);
 });
 
 test("TDD regression: supporting System Note copy is readable and structurally anchored", async () => {
-  const css = await readFile(
-    resolve(root, "src/systems-experience-v5.css"),
-    "utf8",
-  );
+  const css = await readFile(resolve(root, "src/experiences/systems-motion.css"), "utf8");
 
   assert.match(css, /content: "SYSTEM NOTE"/);
   assert.match(css, /font-size: 12px !important/);

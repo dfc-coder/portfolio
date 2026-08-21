@@ -8,14 +8,6 @@ const read = (path) => readFile(resolve(root, path), "utf8");
 
 const forbiddenOwnership = /^\s*(position|inset|top|right|bottom|left|z-index|transform|translate|opacity|animation|transition|filter)\s*:/im;
 
-/* --------------------------------------------------------------------------
-   DESIGN SYSTEM V2 — golden-baseline guardrails.
-
-   The design system may define semantic tokens and opt-in classes, but it may
-   not take layout/motion ownership from an approved chapter. Migration happens
-   one primitive at a time after visual parity is demonstrated.
-   -------------------------------------------------------------------------- */
-
 test("SDD: the token layer defines the shared semantic vocabulary", async () => {
   const css = await read("src/design-system/tokens.css");
   for (const token of [
@@ -62,7 +54,7 @@ test("TDD: the design system has no runtime animation owner", async () => {
 
 test("TDD: static design-system layers load only after approved chapter styles", async () => {
   const main = await read("src/main.ts");
-  const systems = main.indexOf('import "./systems-experience-v5.css"');
+  const systems = main.indexOf('import "./experiences/systems-motion.css"');
   const tokens = main.indexOf('import "./design-system/tokens.css"');
   const primitives = main.indexOf('import "./design-system/primitives.css"');
   const templates = main.indexOf('import "./design-system/templates.css"');
@@ -71,7 +63,7 @@ test("TDD: static design-system layers load only after approved chapter styles",
 });
 
 test("BDD golden baseline: Record and Evidence keep the approved shared chapter grammar", async () => {
-  const css = await read("src/visual-continuity-v3.css");
+  const css = await read("src/experiences/continuity.css");
   assert.match(css, /\.trajectory-intro,\s*\n\.systems-intro\s*\{/);
   assert.match(css, /\.trajectory-intro__kicker,\s*\n\.systems-intro__kicker\s*\{/);
   assert.match(css, /\.trajectory-intro p,\s*\n\.systems-intro p\s*\{/);
@@ -79,14 +71,14 @@ test("BDD golden baseline: Record and Evidence keep the approved shared chapter 
 });
 
 test("BDD golden baseline: pointer field and rail continuity remain owned by the approved continuity layer", async () => {
-  const css = await read("src/visual-continuity-v3.css");
+  const css = await read("src/experiences/continuity.css");
   assert.match(css, /\.ref-global-pointer-light\s*\{/);
   assert.match(css, /ellipse 54rem 38rem/);
   assert.match(css, /\.trajectory-axis,\s*\n\.systems-axis\s*\{/);
 });
 
 test("TDD regression: Trajectory keeps focus-driven title hierarchy", async () => {
-  const css = await read("src/trajectory-experience.css");
+  const css = await read("src/experiences/trajectory.css");
   assert.match(
     css,
     /\.trajectory-entry h2\s*\{[^}]*color:\s*rgba\(238, 234, 226, calc\(\.10 \+ var\(--entry-focus\) \* \.90\)\)/is,
@@ -99,7 +91,7 @@ test("TDD regression: Trajectory keeps focus-driven title hierarchy", async () =
 });
 
 test("TDD regression: Trajectory director remains the owner of year movement", async () => {
-  const director = await read("src/trajectory-experience.ts");
+  const director = await read("src/experiences/trajectory.ts");
   assert.match(director, /element\.style\.transform = `translate3d\(0, calc\(-50% \+ \$\{y\.toFixed\(3\)\}vh\), 0\)`/);
 
   for (const file of [
