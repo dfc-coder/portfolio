@@ -35,18 +35,13 @@ class BoundedCapabilityLoop:
         self._max_steps = max(1, max_steps)
         self._max_repairs = max(0, max_repairs)
 
-    async def run(
-        self,
-        state,
-        command: SchedulingCommand,
-        user_message: str,
-    ) -> Observation:
+    async def run(self, state, command: SchedulingCommand, user_message: str) -> Observation:  # type: ignore[no-untyped-def]
         excluded: set[str] = set()
         repairs = 0
 
         for step in range(1, self._max_steps + 1):
             facts = set(self._belief.facts(state, command))
-            if self._safety._policy.is_explicit_confirmation(user_message):
+            if self._safety.is_explicit_confirmation(user_message):
                 facts.add("explicit_confirmation")
             frozen_facts = frozenset(facts)
 
@@ -73,6 +68,8 @@ class BoundedCapabilityLoop:
                     capability.name,
                     validation.issues,
                 )
+                if capability.name == "scheduling.select_slot":
+                    return Observation(type=ObservationType.INVALID_SLOT, data={"slot_id": command.slot_id})
                 excluded.add(capability.name)
                 if repairs >= self._max_repairs:
                     return Observation(
