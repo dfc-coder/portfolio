@@ -29,6 +29,7 @@ from app.scheduling.policy import SchedulingPolicy
 class SequenceLlm:
     def __init__(self, plans: list[dict[str, Any]]) -> None:
         self._plans = plans
+        self.stream_calls = 0
 
     async def complete(
         self,
@@ -39,12 +40,14 @@ class SequenceLlm:
         del messages, config
         if response_schema is Plan:
             return json.dumps(self._plans.pop(0))
-        return "Diego trabaja con arquitectura de integraciones, sistemas distribuidos y Applied AI."
+        raise AssertionError("Knowledge answers must use the streaming LLM path")
 
     async def stream(self, messages, config):  # type: ignore[no-untyped-def]
         del messages, config
-        if False:
-            yield ""
+        self.stream_calls += 1
+        yield "Diego trabaja con arquitectura de "
+        yield "integraciones, sistemas distribuidos "
+        yield "y Applied AI."
 
     async def health(self) -> bool:
         return True
@@ -78,7 +81,9 @@ class FixedSlots:
         return self._slots
 
 
-def build_agent(profile: BusinessProfile) -> tuple[BusinessRepresentative, MemorySessionStore, InMemoryCalendarGateway]:
+def build_agent(
+    profile: BusinessProfile,
+) -> tuple[BusinessRepresentative, MemorySessionStore, InMemoryCalendarGateway, SequenceLlm]:
     llm = SequenceLlm(
         [
             {
@@ -146,28 +151,29 @@ def build_agent(profile: BusinessProfile) -> tuple[BusinessRepresentative, Memor
         AgentVerifier(fsm),
         renderer,
     )
-    return representative, sessions, calendar
+    return representative, sessions, calendar, llm
 
 
 @pytest.mark.asyncio
 async def test_business_interrupt_preserves_scheduling_and_can_resume(profile: BusinessProfile) -> None:
-    agent, sessions, calendar = build_agent(profile)
+    agent, sessions, calendar, llm = build_agent(profile)
 
     first = "".join(
         [chunk async for chunk in agent.respond("session-123", "Quiero una reunión el 25 de agosto")]
     )
     assert "S2" in first
 
-    interrupted = "".join(
-        [
-            chunk
-            async for chunk in agent.respond(
-                "session-123",
-                "Antes, ¿en qué tecnologías trabaja Diego?",
-            )
-        ]
-    )
+    interrupted_chunks = [
+        chunk
+        async for chunk in agent.respond(
+            "session-123",
+            "Antes, ¿en qué tecnologías trabaja Diego?",
+        )
+    ]
+    interrupted = "".join(interrupted_chunks)
     state = await sessions.get("session-123")
+    assert len(interrupted_chunks) > 1
+    assert llm.stream_calls == 1
     assert "integraciones" in interrupted.lower()
     assert state.stage == ConversationStage.SCHEDULING_SLOT
     assert "S2" in state.offered_slots
