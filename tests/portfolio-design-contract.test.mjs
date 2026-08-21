@@ -102,3 +102,39 @@ test("TDD regression: Trajectory director remains the owner of year movement", a
     assert.doesNotMatch(css, /trajectory-year/i);
   }
 });
+
+test("Ponytail: dead global micro-interaction layer is gone", async () => {
+  await assert.rejects(access(resolve(root, "src/styles/interactions.css")));
+  const main = await read("src/main.ts");
+  assert.doesNotMatch(main, /interactions\.css|micro-interactions/i);
+});
+
+test("Ponytail: PortfolioExperience contains only canonical scene mount points", async () => {
+  const component = await read("src/components/PortfolioExperience.vue");
+
+  assert.doesNotMatch(component, /ref-career-nav|ref-career-copy|ref-system-stack|ref-system-nav|ref-system-copy/);
+  assert.doesNotMatch(component, /ref-filmstrip|ref-art-caption|ref-art-index/);
+  assert.doesNotMatch(component, /ScrollTrigger|Flip|displayedProgress|targetProgress|updateDepthObjects/);
+  assert.match(component, /<article class="ref-scene ref-scene--career"\s*\/>/);
+  assert.match(component, /<article class="ref-scene ref-scene--systems"\s*\/>/);
+});
+
+test("Ponytail: physical scroll has one runtime owner", async () => {
+  const component = await read("src/components/PortfolioExperience.vue");
+  const scroll = await read("src/experiences/scroll.ts");
+  const gallery = await read("src/experiences/gallery.ts");
+
+  assert.doesNotMatch(component, /ScrollTrigger|addEventListener\("wheel"/);
+  assert.doesNotMatch(gallery, /addEventListener\("wheel"|scrollToNode|WHEEL_EXIT_LOCK/);
+  assert.doesNotMatch(scroll, /Proxy\(|originalOnUpdate|MAX_INSTALL_ATTEMPTS|runAuthoritativeFrame/);
+  assert.match(scroll, /ScrollTrigger\.create/);
+});
+
+test("Ponytail: agent implementation is colocated", async () => {
+  await access(resolve(root, "src/components/agent/AgentOS.vue"));
+  await access(resolve(root, "src/components/agent/AsciiFluidCanvas.vue"));
+  await access(resolve(root, "src/components/agent/agent.css"));
+  await assert.rejects(access(resolve(root, "src/components/AgentOS.vue")));
+  await assert.rejects(access(resolve(root, "src/components/AsciiFluidCanvas.vue")));
+  await assert.rejects(access(resolve(root, "src/styles/agent.css")));
+});

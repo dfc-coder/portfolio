@@ -1,25 +1,20 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import AsciiFluidCanvas from "./AsciiFluidCanvas.vue";
-import { businessAgentProvider } from "./agent/businessAgentProvider";
-import { useAgentRuntime, type AgentProvider } from "./agent/useAgentRuntime";
+import { businessAgentProvider } from "./businessAgentProvider";
+import { useAgentRuntime, type AgentProvider } from "./useAgentRuntime";
 
 const props = withDefaults(
   defineProps<{
-    /** Override for tests or alternate providers without touching the UI. */
     provider?: AgentProvider;
   }>(),
   { provider: () => businessAgentProvider },
 );
 
-/* ------------------------------------------------------------------ dom --- */
-
 const root = ref<HTMLElement | null>(null);
 const laneEl = ref<HTMLElement | null>(null);
 const inputEl = ref<HTMLInputElement | null>(null);
 const canvasRef = ref<InstanceType<typeof AsciiFluidCanvas> | null>(null);
-
-/* ---------------------------------------------------------------- field --- */
 
 const tokenBeat = ref(0);
 let tokenSequence = 0;
@@ -39,10 +34,6 @@ const runtime = useAgentRuntime(props.provider, {
     tokenSequence += 1;
     tokenBeat.value = tokenSequence;
 
-    /* Every backend chunk drives two independent channels: a continuous swell
-       in the ASCII field and a small spatial impulse. The golden-angle walk
-       keeps successive impulses distributed around the core instead of making
-       the UI blink at one fixed point. */
     const angle = tokenSequence * 2.399963229728653;
     const radius = 0.11 + (tokenSequence % 6) * 0.018;
     const x = 0.5 + Math.cos(angle) * radius;
@@ -54,8 +45,6 @@ const runtime = useAgentRuntime(props.provider, {
 });
 
 const { messages, draft, focused, busy, error, state, canSend, send, seed } = runtime;
-
-/* ----------------------------------------------------------------- copy --- */
 
 seed([
   {
@@ -73,8 +62,6 @@ const linesOf = (text: string): Line[] =>
       ? { kind: "item", index: match[1], value: match[2] }
       : { kind: "text", value: line };
   });
-
-/* --------------------------------------------------------------- scene --- */
 
 const active = ref(true);
 let sceneObserver: MutationObserver | null = null;
@@ -108,12 +95,12 @@ onMounted(() => {
   void nextTick(stickToBottom);
 
   const stage = root.value?.closest(".ref-stage") as HTMLElement | null;
-  if (stage) {
-    const sync = () => (active.value = stage.dataset.scene === "agent");
-    sceneObserver = new MutationObserver(sync);
-    sceneObserver.observe(stage, { attributes: true, attributeFilter: ["data-scene"] });
-    sync();
-  }
+  if (!stage) return;
+
+  const sync = () => (active.value = stage.dataset.scene === "agent");
+  sceneObserver = new MutationObserver(sync);
+  sceneObserver.observe(stage, { attributes: true, attributeFilter: ["data-scene"] });
+  sync();
 });
 
 watch(messages, () => void nextTick(stickToBottom), { deep: true });
@@ -142,9 +129,7 @@ onBeforeUnmount(() => {
           :paused="!active"
         />
         <div class="agent-core__grid" />
-        <div class="agent-core__rings">
-          <i /><i /><i />
-        </div>
+        <div class="agent-core__rings"><i /><i /><i /></div>
         <div class="agent-core__reticle"><i /><i /></div>
         <i v-if="tokenBeat > 0" :key="tokenBeat" class="agent-core__token-ring" />
         <div class="agent-core__readout">

@@ -1,10 +1,10 @@
+import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { galleryItems } from "./gallery";
+import { systemsProjects } from "./systems-projects";
+import { experiences } from "./trajectory";
 
-const FALLBACK_EXPERIENCE_COUNT = 3;
-const FALLBACK_SYSTEM_COUNT = 5;
-const FALLBACK_ARTWORK_COUNT = 10;
 const SCROLL_STEP_VH = 36;
-const MAX_INSTALL_ATTEMPTS = 120;
 const SCENE_CROSSFADE_WIDTH = 0.46;
 const GALLERY_EXIT_START = 0.72;
 const GALLERY_EXIT_VIRTUAL_LEAD = 0.8;
@@ -34,19 +34,12 @@ type ScrollModel = {
 };
 
 const buildScrollModel = (): ScrollModel => {
-  const experienceCount =
-    document.querySelectorAll(".ref-career-nav button").length || FALLBACK_EXPERIENCE_COUNT;
-  const systemCount =
-    document.querySelectorAll(".ref-system-nav button").length || FALLBACK_SYSTEM_COUNT;
-  const artworkCount =
-    document.querySelectorAll(".ref-art-card").length || FALLBACK_ARTWORK_COUNT;
-
   const careerStartNode = 2;
-  const chapterSystemsNode = careerStartNode + experienceCount;
+  const chapterSystemsNode = careerStartNode + experiences.length;
   const systemsStartNode = chapterSystemsNode + 1;
-  const chapterGalleryNode = systemsStartNode + systemCount;
+  const chapterGalleryNode = systemsStartNode + systemsProjects.length;
   const galleryStartNode = chapterGalleryNode + 1;
-  const virtualChapterAgentNode = galleryStartNode + artworkCount;
+  const virtualChapterAgentNode = galleryStartNode + galleryItems.length;
   const virtualLastNode = virtualChapterAgentNode + 1;
   const physicalChapterAgentNode = galleryStartNode + 1;
   const physicalLastNode = physicalChapterAgentNode + 1;
@@ -64,15 +57,6 @@ const buildScrollModel = (): ScrollModel => {
   };
 };
 
-/**
- * Maps the real document position to the legacy virtual chapter model.
- *
- * The gallery no longer has ten physical scroll steps. While the gallery is on
- * screen its virtual progress is intentionally held still; only the final part
- * of the physical interval is used to reveal Chapter 05. This avoids the old
- * 10x progress acceleration that made the gallery/agent handoff and parallax
- * look detached from the scrollbar.
- */
 export const mapPhysicalProgressToVirtualProgress = (
   physicalProgress: number,
   model: ScrollModel,
@@ -166,29 +150,25 @@ export const mountScrollSyncController = () => {
   if (!track || !stage || !portfolio) return () => undefined;
   if (track.dataset.scrollSyncOwner === "physical") return () => undefined;
 
+  gsap.registerPlugin(ScrollTrigger);
+
   const model = buildScrollModel();
   const trackHeightVh = 100 + model.physicalLastNode * SCROLL_STEP_VH;
 
   track.dataset.scrollSyncOwner = "physical";
   track.style.setProperty("height", `${trackHeightVh}vh`, "important");
 
-  let latestPhysicalProgress = 0;
-  let latestVirtualProgress = 0;
-  let authoritativeFrame = 0;
-
-  const syncProgressChrome = (physicalProgress: number) => {
-    const progress = clamp01(physicalProgress);
-    portfolio.style.setProperty("--physical-scroll-progress", progress.toFixed(5));
-    progressCurrent?.setAttribute(
-      "data-scroll-progress",
-      String(Math.round(progress * 100)).padStart(2, "0"),
-    );
-  };
-
-  const applyAuthoritativeVisualState = () => {
-    const progress = latestVirtualProgress;
+  const applyState = (physicalProgress: number) => {
+    const physical = clamp01(physicalProgress);
+    const progress = mapPhysicalProgressToVirtualProgress(physical, model);
     const node = progress * model.virtualLastNode;
     const opacity = sceneOpacities(node, model);
+
+    portfolio.style.setProperty("--physical-scroll-progress", physical.toFixed(5));
+    progressCurrent?.setAttribute(
+      "data-scroll-progress",
+      String(Math.round(physical * 100)).padStart(2, "0"),
+    );
 
     stage.dataset.scene = sceneForNode(node, model);
     stage.style.setProperty("--progress", progress.toFixed(6));
@@ -204,15 +184,6 @@ export const mountScrollSyncController = () => {
     stage.style.setProperty("--chapter-agent", opacity.chapterAgent.toFixed(6));
   };
 
-  const runAuthoritativeFrame = () => {
-    /* Vue still owns internal active-item refs. It applies its damped progress
-       first; this controller deliberately writes the exact scroll state after
-       that frame and before the chapter-specific directors read --progress.
-       All visible parallax therefore shares one, non-lagging clock. */
-    applyAuthoritativeVisualState();
-    authoritativeFrame = requestAnimationFrame(runAuthoritativeFrame);
-  };
-
   const scrollToPhysicalNode = (node: number) => {
     const rect = track.getBoundingClientRect();
     const start = scrollY + rect.top;
@@ -223,12 +194,6 @@ export const mountScrollSyncController = () => {
 
   const indexButtons = Array.from(
     document.querySelectorAll<HTMLButtonElement>(".ref-index > button"),
-  );
-  const careerButtons = Array.from(
-    document.querySelectorAll<HTMLButtonElement>(".ref-career-nav button"),
-  );
-  const systemButtons = Array.from(
-    document.querySelectorAll<HTMLButtonElement>(".ref-system-nav button"),
   );
   const brand = document.querySelector<HTMLButtonElement>(".ref-brand");
   const indexToggle = document.querySelector<HTMLButtonElement>(".ref-index-toggle");
@@ -243,118 +208,48 @@ export const mountScrollSyncController = () => {
     model.galleryStartNode,
     model.physicalLastNode,
   ];
+
   indexButtons.forEach((button, index) => {
     const node = indexNodes[index];
     if (node !== undefined) navigationNodes.set(button, node);
   });
-  careerButtons.forEach((button, index) =>
-    navigationNodes.set(button, model.careerStartNode + index),
-  );
-  systemButtons.forEach((button, index) =>
-    navigationNodes.set(button, model.systemsStartNode + index),
-  );
 
   const onNavigationClick = (event: MouseEvent) => {
-    const target = event.target as Element | null;
-    const button = target?.closest<HTMLButtonElement>("button") ?? null;
+    const button = (event.target as Element | null)?.closest<HTMLButtonElement>("button") ?? null;
     if (!button) return;
 
     const node = navigationNodes.get(button);
     if (node === undefined) return;
 
     event.preventDefault();
-    event.stopImmediatePropagation();
-
     if (indexToggle?.getAttribute("aria-expanded") === "true") {
       indexToggle.click();
     }
-
     scrollToPhysicalNode(node);
   };
 
-  /* The gallery owns artwork selection through pointer/keyboard only. Native
-     wheel movement must remain attached to the physical document. Blocking the
-     legacy gallery wheel handler prevents a second, competing scroll clock. */
   const onWheelCapture = (event: WheelEvent) => {
     if (stage.dataset.scene !== "gallery") return;
-
-    if (document.querySelector(".ref-gallery-focus.is-open")) {
-      event.preventDefault();
-    }
-    event.stopImmediatePropagation();
+    if (!document.querySelector(".ref-gallery-focus.is-open")) return;
+    event.preventDefault();
   };
 
-  let replacementTrigger: ScrollTrigger | null = null;
-  let installFrame = 0;
-  let installAttempts = 0;
-  let originalOnUpdate: ((self: ScrollTrigger) => void) | undefined;
+  const trigger = ScrollTrigger.create({
+    trigger: track,
+    start: "top top",
+    end: "bottom bottom",
+    invalidateOnRefresh: true,
+    onUpdate: (self) => applyState(self.progress),
+    onRefresh: (self) => applyState(self.progress),
+  });
 
-  const forwardProgress = (self: ScrollTrigger) => {
-    latestPhysicalProgress = clamp01(self.progress);
-    latestVirtualProgress = mapPhysicalProgressToVirtualProgress(
-      latestPhysicalProgress,
-      model,
-    );
-
-    syncProgressChrome(latestPhysicalProgress);
-
-    if (originalOnUpdate) {
-      const virtualView = new Proxy(self, {
-        get(target, property) {
-          if (property === "progress") return latestVirtualProgress;
-          const value = Reflect.get(target, property, target);
-          return typeof value === "function" ? value.bind(target) : value;
-        },
-      }) as ScrollTrigger;
-
-      originalOnUpdate(virtualView);
-    }
-
-    /* ScrollTrigger may update between animation frames. Write immediately as
-       well, eliminating the one-frame phase error visible during fast wheel or
-       touchpad motion. */
-    applyAuthoritativeVisualState();
-  };
-
-  const install = () => {
-    const existing = ScrollTrigger.getAll().find(
-      (candidate) => candidate.trigger === track,
-    );
-
-    if (!existing) {
-      installAttempts += 1;
-      if (installAttempts < MAX_INSTALL_ATTEMPTS) {
-        installFrame = requestAnimationFrame(install);
-      }
-      return;
-    }
-
-    const callback = existing.vars.onUpdate;
-    originalOnUpdate = typeof callback === "function" ? callback : undefined;
-    existing.kill();
-
-    replacementTrigger = ScrollTrigger.create({
-      trigger: track,
-      start: "top top",
-      end: "bottom bottom",
-      invalidateOnRefresh: true,
-      onUpdate: forwardProgress,
-    });
-
-    forwardProgress(replacementTrigger);
-    authoritativeFrame = requestAnimationFrame(runAuthoritativeFrame);
-    ScrollTrigger.refresh();
-  };
-
-  syncProgressChrome(0);
   addEventListener("click", onNavigationClick, true);
   addEventListener("wheel", onWheelCapture, { capture: true, passive: false });
-  installFrame = requestAnimationFrame(install);
+  applyState(trigger.progress);
+  ScrollTrigger.refresh();
 
   return () => {
-    cancelAnimationFrame(installFrame);
-    cancelAnimationFrame(authoritativeFrame);
-    replacementTrigger?.kill();
+    trigger.kill();
     removeEventListener("click", onNavigationClick, true);
     removeEventListener("wheel", onWheelCapture, true);
     track.style.removeProperty("height");
@@ -362,6 +257,7 @@ export const mountScrollSyncController = () => {
     portfolio.style.removeProperty("--physical-scroll-progress");
     progressCurrent?.removeAttribute("data-scroll-progress");
     [
+      "--progress",
       "--scroll-director-progress",
       "--hero",
       "--career",

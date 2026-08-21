@@ -1,4 +1,4 @@
-const galleryItems = [
+export const galleryItems = [
   {
     src: "/studio/bench-detail.png",
     title: "Quiet Joinery",
@@ -64,9 +64,6 @@ const galleryItems = [
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
-const WHEEL_GESTURE_GAP_MS = 260;
-const WHEEL_EXIT_LOCK_MS = 720;
-
 type CardMetric = {
   centerX: number;
   centerY: number;
@@ -77,14 +74,13 @@ export const mountGalleryGel = () => {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return () => undefined;
 
   const stage = document.querySelector<HTMLElement>(".ref-stage");
-  const track = document.querySelector<HTMLElement>(".ref-track");
   const gallery = document.querySelector<HTMLElement>(".ref-scene--gallery");
   const galleryStage = gallery?.querySelector<HTMLElement>(".ref-gallery-stage");
   const cards = galleryStage
     ? Array.from(galleryStage.querySelectorAll<HTMLElement>(".ref-art-card"))
     : [];
 
-  if (!stage || !track || !gallery || !galleryStage || cards.length === 0) {
+  if (!stage || !gallery || !galleryStage || cards.length === 0) {
     return () => undefined;
   }
 
@@ -92,12 +88,10 @@ export const mountGalleryGel = () => {
 
   cards.forEach((card, index) => {
     card.dataset.gelIndex = String(index);
-    if (!card.querySelector(".ref-art-card__label")) {
-      const label = document.createElement("span");
-      label.className = "ref-art-card__label";
-      label.textContent = galleryItems[index]?.title ?? `Artwork ${index + 1}`;
-      card.append(label);
-    }
+    const label = document.createElement("span");
+    label.className = "ref-art-card__label";
+    label.textContent = galleryItems[index]?.title ?? `Artwork ${index + 1}`;
+    card.append(label);
   });
 
   const focus = document.createElement("div");
@@ -128,34 +122,12 @@ export const mountGalleryGel = () => {
 
   let selectedIndex = 0;
   let isOpen = false;
-  let wheelLockedUntil = 0;
-  let lastWheelAt = 0;
   let pointerFrame = 0;
   let pointerX = innerWidth * 0.5;
   let pointerY = innerHeight * 0.5;
   let cardMetrics: CardMetric[] = [];
 
-  const experienceCount = document.querySelectorAll(".trajectory-entry").length || 3;
-  const systemsCount = document.querySelectorAll(".systems-axis-item").length || 5;
-  const artworkCount = cards.length;
-  const careerStartNode = 2;
-  const chapterSystemsNode = careerStartNode + experienceCount;
-  const systemsStartNode = chapterSystemsNode + 1;
-  const chapterGalleryNode = systemsStartNode + systemsCount;
-  const galleryStartNode = chapterGalleryNode + 1;
-  const chapterAgentNode = galleryStartNode + artworkCount;
-  const agentNode = chapterAgentNode + 1;
-  const lastNode = agentNode;
-
   const galleryIsVisible = () => stage.dataset.scene === "gallery";
-
-  const scrollToNode = (node: number) => {
-    const rect = track.getBoundingClientRect();
-    const start = scrollY + rect.top;
-    const distance = Math.max(1, track.offsetHeight - innerHeight);
-    const progress = clamp(node / lastNode, 0, 1);
-    scrollTo({ top: start + distance * progress, behavior: "smooth" });
-  };
 
   const setSelected = (index: number) => {
     selectedIndex = (index + cards.length) % cards.length;
@@ -167,6 +139,7 @@ export const mountGalleryGel = () => {
   const renderFocus = () => {
     const item = galleryItems[selectedIndex];
     if (!item || !focusImage || !focusTitle || !focusType || !focusMeta || !focusIndex) return;
+
     focusImage.src = item.src;
     focusImage.alt = item.title;
     focusTitle.textContent = item.title;
@@ -199,14 +172,12 @@ export const mountGalleryGel = () => {
     const card = target?.closest<HTMLElement>(".ref-art-card");
     if (card) {
       event.preventDefault();
-      event.stopImmediatePropagation();
       openFocus(Number(card.dataset.gelIndex ?? 0));
       return;
     }
 
     if (target === focus || target?.closest(".ref-gallery-focus__close")) {
       event.preventDefault();
-      event.stopImmediatePropagation();
       closeFocus();
     }
   };
@@ -216,52 +187,19 @@ export const mountGalleryGel = () => {
 
     if (event.key === "Escape" && isOpen) {
       event.preventDefault();
-      event.stopImmediatePropagation();
       closeFocus();
       return;
     }
 
-    const navigationKey = ["ArrowRight", "ArrowLeft", "Home", "End", "Enter", " "].includes(
-      event.key,
-    );
-    if (!navigationKey) return;
+    if (!["ArrowRight", "ArrowLeft", "Home", "End", "Enter", " "].includes(event.key)) return;
 
     event.preventDefault();
-    event.stopImmediatePropagation();
-
     if (event.key === "ArrowRight") setSelected(selectedIndex + 1);
     if (event.key === "ArrowLeft") setSelected(selectedIndex - 1);
     if (event.key === "Home") setSelected(0);
     if (event.key === "End") setSelected(cards.length - 1);
     if (event.key === "Enter" || event.key === " ") openFocus(selectedIndex);
     if (isOpen) renderFocus();
-  };
-
-  const onWheel = (event: WheelEvent) => {
-    const now = performance.now();
-    const gestureGap = lastWheelAt === 0 ? Number.POSITIVE_INFINITY : now - lastWheelAt;
-    lastWheelAt = now;
-
-    if (!galleryIsVisible() && !isOpen) return;
-
-    if (isOpen) {
-      event.preventDefault();
-      return;
-    }
-
-    if (Math.abs(event.deltaY) < 8) return;
-
-    event.preventDefault();
-    event.stopImmediatePropagation();
-
-    /* Trackpads keep emitting inertial wheel events after the scroll that enters
-       the gallery. Treat those as the same gesture so entry never immediately
-       cascades into the next chapter. Only a fresh wheel gesture may exit. */
-    if (performance.now() < wheelLockedUntil || gestureGap < WHEEL_GESTURE_GAP_MS) return;
-
-    wheelLockedUntil = now + WHEEL_EXIT_LOCK_MS;
-    if (event.deltaY > 0) scrollToNode(chapterAgentNode);
-    else scrollToNode(chapterGalleryNode);
   };
 
   const measureCards = () => {
@@ -284,8 +222,7 @@ export const mountGalleryGel = () => {
 
       const dx = pointerX - metric.centerX;
       const dy = pointerY - metric.centerY;
-      const distance = Math.hypot(dx, dy);
-      const influence = clamp(1 - distance / 620, 0, 1);
+      const influence = clamp(1 - Math.hypot(dx, dy) / 620, 0, 1);
       card.style.setProperty("--gel-x", `${(dx * 0.018 * metric.depth * influence).toFixed(2)}px`);
       card.style.setProperty("--gel-y", `${(dy * 0.014 * metric.depth * influence).toFixed(2)}px`);
       card.style.setProperty("--gel-rx", `${(-dy * 0.006 * influence).toFixed(2)}deg`);
@@ -317,7 +254,6 @@ export const mountGalleryGel = () => {
   gallery.addEventListener("click", onGalleryClick, true);
   focus.addEventListener("pointerdown", onFocusPointerDown);
   addEventListener("keydown", onKeydown, true);
-  addEventListener("wheel", onWheel, { capture: true, passive: false });
   addEventListener("pointermove", onPointerMove, { passive: true });
   addEventListener("resize", onResize, { passive: true });
 
@@ -326,7 +262,6 @@ export const mountGalleryGel = () => {
     gallery.removeEventListener("click", onGalleryClick, true);
     focus.removeEventListener("pointerdown", onFocusPointerDown);
     removeEventListener("keydown", onKeydown, true);
-    removeEventListener("wheel", onWheel, true);
     removeEventListener("pointermove", onPointerMove);
     removeEventListener("resize", onResize);
     focus.remove();

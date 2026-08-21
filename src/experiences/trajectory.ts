@@ -1,4 +1,4 @@
-type Experience = {
+export type Experience = {
   period: string;
   role: string;
   company: string;
@@ -6,7 +6,7 @@ type Experience = {
   focus: string[];
 };
 
-const experiences: Experience[] = [
+export const experiences: Experience[] = [
   {
     period: "2025 — NOW",
     role: "AI Engineer",
@@ -158,8 +158,8 @@ export const mountTrajectoryExperience = () => {
     return () => undefined;
   }
 
-  const projectCount = document.querySelectorAll(".ref-system-nav button").length || 5;
-  const artworkCount = document.querySelectorAll(".ref-filmstrip button").length || 10;
+  const projectCount = 5;
+  const artworkCount = document.querySelectorAll(".ref-art-card").length || 10;
   const careerStartNode = 2;
   const chapterSystemsNode = careerStartNode + experiences.length;
   const systemsStartNode = chapterSystemsNode + 1;
@@ -212,15 +212,10 @@ export const mountTrajectoryExperience = () => {
     const trajectoryOut = range(node, chapterSystemsNode - 0.48, chapterSystemsNode + 0.16);
     const trajectoryVisibility = trajectoryIn * (1 - trajectoryOut);
 
-    /* Natural scroll grammar: the intro rises into place from below, holds,
-       then continues upward out of the viewport. There is no direction change
-       at the midpoint. */
     const introIn = range(node, 0.56, 0.82);
     const introOut = range(node, 1.16, 1.48);
     const introVisibility = introIn * (1 - introOut);
 
-    /* The chronology itself grows downward. This gives the bridge an opposing
-       motion to the typography: content rises, time descends. */
     const axisReveal = range(node, 1.18, 1.52);
     const contentReveal = range(node, 1.34, 1.74);
     const heroShell = 1 - range(node, chapterSystemsNode - 0.62, chapterSystemsNode + 0.12);
@@ -256,12 +251,6 @@ export const mountTrajectoryExperience = () => {
 
     const destination = axisGeometry();
     const source = bridgeOrigin;
-
-    /* Do not fly the cue upward to the top of the timeline. That was the motion
-       conflict visible in the recording. The bridge follows the scroll down:
-       it drifts left while its leading edge moves downward and lengthens. The
-       permanent axis then grows downward from its own top, making the handoff
-       read as one continuous vertical gesture rather than a diagonal teleport. */
     const bridgeLeft = lerp(source.left, destination.left, bridgeTravel);
     const bridgeTop = source.top + bridgeTravel * window.innerHeight * 0.18;
     const bridgeHeight = lerp(

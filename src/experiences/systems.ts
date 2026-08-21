@@ -182,7 +182,7 @@ export const mountSystemsExperience = () => {
 
   const experienceCount = document.querySelectorAll(".trajectory-entry").length || 3;
   const projectCount = projects.length;
-  const artworkCount = document.querySelectorAll(".ref-filmstrip button").length || 10;
+  const artworkCount = document.querySelectorAll(".ref-art-card").length || 10;
 
   const careerStartNode = 2;
   const chapterSystemsNode = careerStartNode + experienceCount;
