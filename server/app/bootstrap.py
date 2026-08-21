@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from app.agent.belief import BeliefUpdater
+from app.agent.capability_executor import CapabilityExecutor
+from app.agent.capability_registry import CapabilityRegistry
 from app.agent.context import ContextBuilder
-from app.agent.executor import ActionExecutor
-from app.agent.fsm import ConversationFSM
-from app.agent.planner import StructuredPlanner
+from app.agent.interpreter import SchedulingInterpreter
+from app.agent.loop import BoundedCapabilityLoop
 from app.agent.renderer import HybridRenderer
 from app.agent.representative import BusinessRepresentative
+from app.agent.safety import CapabilitySafetyGate
+from app.agent.selector import CapabilitySelector
 from app.agent.semantic_router import CascadingSemanticRouter
 from app.agent.verifier import AgentVerifier
 from app.infrastructure.calendar.google import GoogleCalendarGateway
@@ -20,32 +24,17 @@ from app.scheduling.policy import SchedulingPolicy
 from app.scheduling.slots import SlotService
 
 
-def build_agent(
-    settings: Settings,
-) -> tuple[BusinessRepresentative, LlamaCppClient, LlamaCppReranker]:
+def build_agent(settings: Settings) -> tuple[BusinessRepresentative, LlamaCppClient, LlamaCppReranker]:
     profile = load_business_profile(settings.profile_path)
     policy = SchedulingPolicy(profile.scheduling)
     sessions = MemorySessionStore(settings.session_ttl_seconds, settings.session_max_turns)
-    calendar = (
-        GoogleCalendarGateway(settings)
-        if settings.calendar_mode == "google"
-        else InMemoryCalendarGateway()
-    )
+    calendar = GoogleCalendarGateway(settings) if settings.calendar_mode == "google" else InMemoryCalendarGateway()
     slots = SlotService(calendar, policy)
-    llm = LlamaCppClient(
-        settings.llama_base_url,
-        settings.llama_model,
-        settings.llama_timeout_seconds,
-    )
-    reranker = LlamaCppReranker(
-        settings.reranker_base_url,
-        settings.reranker_model,
-        settings.reranker_timeout_seconds,
-    )
 
-    fsm = ConversationFSM()
-    context = ContextBuilder(profile, policy)
-    planner_config = GenerationConfig(
+    llm = LlamaCppClient(settings.llama_base_url, settings.llama_model, settings.llama_timeout_seconds)
+    reranker = LlamaCppReranker(settings.reranker_base_url, settings.reranker_model, settings.reranker_timeout_seconds)
+
+    interpreter_config = GenerationConfig(
         temperature=settings.planner_temperature,
         max_tokens=settings.planner_max_tokens,
         top_p=0.9,
@@ -70,28 +59,42 @@ def build_agent(
         top_k=10,
     )
 
-    semantic_router = CascadingSemanticRouter(
+    router = CascadingSemanticRouter(
         reranker,
         llm,
         judge_config,
         min_score=settings.router_min_score,
         min_margin=settings.router_min_margin,
     )
-    planner = StructuredPlanner(llm, context, fsm, planner_config, repair_config)
-    executor = ActionExecutor(slots)
-    verifier = AgentVerifier(fsm)
-    renderer = HybridRenderer(llm, context, renderer_config, repair_config)
+    interpreter = SchedulingInterpreter(llm, policy, interpreter_config)
+    belief = BeliefUpdater()
+    registry = CapabilityRegistry()
+    selector = CapabilitySelector(
+        reranker,
+        llm,
+        judge_config,
+        min_margin=settings.router_min_margin,
+    )
+    safety = CapabilitySafetyGate(policy)
+    capability_executor = CapabilityExecutor(slots, calendar, policy)
+    loop = BoundedCapabilityLoop(
+        belief,
+        registry,
+        selector,
+        safety,
+        capability_executor,
+        max_steps=settings.agent_max_steps,
+        max_repairs=settings.agent_max_repairs,
+    )
+    renderer = HybridRenderer(llm, ContextBuilder(profile, policy), renderer_config, repair_config)
     representative = BusinessRepresentative(
         sessions,
         policy,
-        calendar,
-        semantic_router,
-        planner,
-        executor,
-        fsm,
-        verifier,
+        router,
+        interpreter,
+        belief,
+        loop,
+        AgentVerifier(),
         renderer,
-        max_steps=settings.agent_max_steps,
-        max_repairs=settings.agent_max_repairs,
     )
     return representative, llm, reranker
