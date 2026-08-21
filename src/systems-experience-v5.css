@@ -1,5 +1,25 @@
 /* Systems V5: valid CSS, single temporal owner, populated rail and readable dossier. */
 
+/* Spatial contract: every major Systems layer is viewport-composed. Shared
+   continuity styles may change color/light, never the positioning model. */
+.systems-intro,
+.systems-header,
+.systems-axis,
+.systems-axis-items,
+.systems-projects,
+.systems-counter {
+  position: absolute !important;
+}
+
+.systems-projects,
+.systems-project {
+  inset: 0 !important;
+}
+
+.systems-project {
+  position: absolute !important;
+}
+
 .systems-intro {
   z-index: 46 !important;
 }
@@ -16,7 +36,6 @@
 }
 
 .systems-axis-items {
-  position: absolute !important;
   z-index: 28 !important;
   left: 15.5% !important;
   top: 30% !important;
