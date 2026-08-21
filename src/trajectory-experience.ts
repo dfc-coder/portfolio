@@ -72,6 +72,7 @@ const markup = () => `
       <div class="trajectory-header__meta"><span>2023 — NOW</span><span>${String(experiences.length).padStart(2, "0")} ROLES</span></div>
     </div>
 
+    <div class="trajectory-bridge-line" aria-hidden="true"><i></i></div>
     <div class="trajectory-axis" aria-hidden="true"><i></i></div>
 
     <div class="trajectory-years" aria-hidden="true">
@@ -125,6 +126,15 @@ const markup = () => `
   </div>
 `;
 
+type LineGeometry = {
+  left: number;
+  top: number;
+  height: number;
+};
+
+const lerp = (from: number, to: number, progress: number) =>
+  from + (to - from) * progress;
+
 export const mountTrajectoryExperience = () => {
   const stage = document.querySelector<HTMLElement>(".ref-stage");
   const career = document.querySelector<HTMLElement>(".ref-scene--career");
@@ -136,12 +146,14 @@ export const mountTrajectoryExperience = () => {
   const root = career.querySelector<HTMLElement>(".trajectory-experience");
   const intro = career.querySelector<HTMLElement>(".trajectory-intro");
   const header = career.querySelector<HTMLElement>(".trajectory-header");
+  const bridgeLine = career.querySelector<HTMLElement>(".trajectory-bridge-line");
   const axis = career.querySelector<HTMLElement>(".trajectory-axis");
+  const heroCueLine = document.querySelector<HTMLElement>(".ref-scroll-cue i");
   const yearNodes = Array.from(career.querySelectorAll<HTMLElement>(".trajectory-year"));
   const entries = Array.from(career.querySelectorAll<HTMLElement>(".trajectory-entry"));
   const counterTrack = career.querySelector<HTMLElement>(".trajectory-counter__track");
 
-  if (!root || !intro || !header || !axis || !counterTrack) {
+  if (!root || !intro || !header || !bridgeLine || !axis || !counterTrack) {
     root?.remove();
     return () => undefined;
   }
@@ -157,27 +169,54 @@ export const mountTrajectoryExperience = () => {
   const lastNode = chapterAgentNode + 1;
 
   let frame = 0;
+  let bridgeOrigin: LineGeometry | null = null;
+
+  const cueGeometry = (): LineGeometry => {
+    if (heroCueLine) {
+      const rect = heroCueLine.getBoundingClientRect();
+      return {
+        left: rect.left + rect.width / 2,
+        top: rect.top,
+        height: Math.max(1, rect.height),
+      };
+    }
+
+    return {
+      left: window.innerWidth / 2,
+      top: window.innerHeight - 62,
+      height: 44,
+    };
+  };
+
+  const axisGeometry = (): LineGeometry => {
+    const rect = axis.getBoundingClientRect();
+    return {
+      left: rect.left + rect.width / 2,
+      top: rect.top,
+      height: Math.max(1, rect.height),
+    };
+  };
 
   const render = () => {
     const progress = Number.parseFloat(stage.style.getPropertyValue("--progress")) || 0;
     const node = clamp01(progress) * lastNode;
 
-    /* The Hero cue keeps its elegant vertical travel, but it no longer bends
-       across the viewport into the career axis. The chronology is introduced
-       independently as a quiet editorial rule after the chapter beat. */
     const heroExit = range(node, 0.10, 0.86);
     const cueExit = range(node, 0.24, 1.08);
+    const bridgeAcquire = range(node, 0.54, 0.74);
+    const bridgeTravel = range(node, 0.72, 1.34);
+    const bridgeRelease = range(node, 1.28, 1.50);
+    const cueHandoff = range(node, 0.60, 0.78);
+
     const trajectoryIn = range(node, 0.26, 0.56);
     const trajectoryOut = range(node, chapterSystemsNode - 0.48, chapterSystemsNode + 0.16);
     const trajectoryVisibility = trajectoryIn * (1 - trajectoryOut);
 
-    /* Give the chapter sentence a readable plateau instead of making it a
-       passing frame when the user scrolls quickly. */
     const introIn = range(node, 0.58, 0.80);
     const introOut = range(node, 1.18, 1.48);
     const introVisibility = introIn * (1 - introOut);
 
-    const axisReveal = range(node, 1.18, 1.62);
+    const axisReveal = range(node, 1.30, 1.50);
     const contentReveal = range(node, 1.32, 1.72);
     const heroShell = 1 - range(node, chapterSystemsNode - 0.62, chapterSystemsNode + 0.12);
     const experiencePosition = collectionPosition(node, careerStartNode, experiences.length);
@@ -186,6 +225,10 @@ export const mountTrajectoryExperience = () => {
     stage.dataset.trajectory = node > 0.12 && node < chapterSystemsNode + 0.18 ? "true" : "false";
     stage.style.setProperty("--trajectory-hero-exit", heroExit.toFixed(5));
     stage.style.setProperty("--trajectory-cue-exit", cueExit.toFixed(5));
+    stage.style.setProperty(
+      "--trajectory-cue-handoff-opacity",
+      ((1 - cueExit) * (1 - cueHandoff)).toFixed(5),
+    );
     stage.style.setProperty("--trajectory-visibility", trajectoryVisibility.toFixed(5));
     stage.style.setProperty("--trajectory-intro", introVisibility.toFixed(5));
     stage.style.setProperty("--trajectory-axis-reveal", axisReveal.toFixed(5));
@@ -199,6 +242,25 @@ export const mountTrajectoryExperience = () => {
 
     header.style.opacity = (contentReveal * trajectoryVisibility).toFixed(5);
     header.style.transform = `translate3d(0, ${(6 * (1 - contentReveal)).toFixed(2)}px, 0)`;
+
+    /* Capture the exact on-screen cue geometry immediately before travel.
+       During the transition its animation is paused by CSS, so the source is
+       deterministic and reverse scrolling can re-acquire it without a snap. */
+    if (bridgeTravel <= 0.001 || !bridgeOrigin) {
+      bridgeOrigin = cueGeometry();
+    }
+
+    const destination = axisGeometry();
+    const source = bridgeOrigin;
+    const bridgeLeft = lerp(source.left, destination.left, bridgeTravel);
+    const bridgeTop = lerp(source.top, destination.top, bridgeTravel);
+    const bridgeHeight = lerp(source.height, destination.height, bridgeTravel);
+    const bridgeOpacity = trajectoryVisibility * bridgeAcquire * (1 - bridgeRelease);
+
+    bridgeLine.style.left = `${bridgeLeft.toFixed(2)}px`;
+    bridgeLine.style.top = `${bridgeTop.toFixed(2)}px`;
+    bridgeLine.style.height = `${bridgeHeight.toFixed(2)}px`;
+    bridgeLine.style.opacity = bridgeOpacity.toFixed(5);
     axis.style.opacity = (axisReveal * trajectoryVisibility).toFixed(5);
 
     yearNodes.forEach((element, index) => {
@@ -240,6 +302,7 @@ export const mountTrajectoryExperience = () => {
     [
       "--trajectory-hero-exit",
       "--trajectory-cue-exit",
+      "--trajectory-cue-handoff-opacity",
       "--trajectory-visibility",
       "--trajectory-intro",
       "--trajectory-axis-reveal",
