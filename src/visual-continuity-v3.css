@@ -17,46 +17,32 @@ body,
   font-synthesis: none;
 }
 
+/* One ambient field owns pointer lighting across chapters. It is deliberately
+   broad and asymmetric so the user never reads a circular CSS spotlight. */
 .ref-global-pointer-light {
   position: absolute;
   z-index: 5;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
-  opacity: 1;
+  opacity: .94;
   background: radial-gradient(
-    circle 38rem at var(--ref-pointer-x, 50%) var(--ref-pointer-y, 44%),
-    rgba(238, 234, 226, calc(.088 + var(--ref-pointer-velocity, 0) * .024)) 0%,
-    rgba(135, 147, 178, calc(.126 + var(--ref-pointer-velocity, 0) * .030)) 11%,
-    rgba(92, 106, 139, calc(.070 + var(--ref-pointer-velocity, 0) * .018)) 28%,
-    rgba(66, 76, 99, .026) 48%,
-    transparent 74%
+    ellipse 54rem 38rem at var(--ref-pointer-x, 47%) var(--ref-pointer-y, 47%),
+    rgba(238, 234, 226, calc(.050 + var(--ref-pointer-velocity, 0) * .014)) 0%,
+    rgba(151, 154, 164, calc(.054 + var(--ref-pointer-velocity, 0) * .016)) 20%,
+    rgba(104, 110, 126, calc(.032 + var(--ref-pointer-velocity, 0) * .010)) 44%,
+    rgba(72, 77, 91, .014) 66%,
+    transparent 90%
   );
   transform: translateZ(0);
   will-change: background;
 }
 
-/* The shared light owns only the ambient layer. It must never change the
-   positioning context of chapter children: Trajectory and Systems use absolute
-   composition as part of their spatial contract. */
+/* Shared lighting may establish an isolation boundary, but it must not inject
+   positioning or a second local radial field into chapter compositions. */
 .trajectory-experience,
 .systems-experience {
   isolation: isolate;
-}
-
-.trajectory-experience::after,
-.systems-experience::after {
-  content: "";
-  position: absolute;
-  z-index: 0;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(
-    circle 34rem at var(--ref-pointer-x, 50%) var(--ref-pointer-y, 44%),
-    rgba(150, 160, 188, .096),
-    rgba(104, 116, 148, .050) 30%,
-    transparent 70%
-  );
 }
 
 .trajectory-intro,
@@ -134,36 +120,12 @@ body,
   color: rgba(238, 234, 226, calc(.42 + var(--entry-focus) * .44)) !important;
 }
 
+/* Trajectory and Systems share one rail language: one physical rule, one
+   progress fill, and the semantic node itself as the only active marker. */
 .trajectory-axis,
 .systems-axis {
   background: rgba(238, 234, 226, .18) !important;
   box-shadow: 0 0 18px rgba(238, 234, 226, .024);
-}
-
-.trajectory-axis::after,
-.systems-axis::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: rgba(197, 103, 72, .98);
-  box-shadow:
-    0 0 0 5px rgba(197, 103, 72, .09),
-    0 0 20px rgba(197, 103, 72, .26);
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-
-.trajectory-axis::after {
-  top: calc(var(--trajectory-timeline-progress, 0) * 100%);
-  opacity: var(--trajectory-content, 0);
-}
-
-.systems-axis::after {
-  top: calc(var(--systems-progress, 0) * 100%);
-  opacity: var(--systems-content, 0);
 }
 
 .trajectory-axis > i,
@@ -203,7 +165,7 @@ body,
   }
 
   .ref-global-pointer-light {
-    opacity: .78;
+    opacity: .76;
   }
 }
 
