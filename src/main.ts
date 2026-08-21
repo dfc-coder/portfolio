@@ -25,6 +25,7 @@ createApp(App).mount("#app");
 void document.fonts.ready.then(() => {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
+      document.documentElement.classList.remove("creative-hero-pending");
       mountHeroExperience();
     });
   });
