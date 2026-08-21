@@ -1,17 +1,9 @@
 from __future__ import annotations
 
-from app.agent.belief import BeliefUpdater
-from app.agent.capability_executor import CapabilityExecutor
-from app.agent.capability_registry import CapabilityRegistry
-from app.agent.context import ContextBuilder
-from app.agent.interpreter import SchedulingInterpreter
-from app.agent.loop import BoundedCapabilityLoop
-from app.agent.renderer import HybridRenderer
 from app.agent.representative import BusinessRepresentative
-from app.agent.safety import CapabilitySafetyGate
-from app.agent.selector import CapabilitySelector
-from app.agent.semantic_router import CascadingSemanticRouter
-from app.agent.verifier import AgentVerifier
+from app.agent.responder import Responder
+from app.agent.router import SemanticRouter
+from app.agent.scheduler import Scheduler
 from app.infrastructure.calendar.google import GoogleCalendarGateway
 from app.infrastructure.calendar.memory import InMemoryCalendarGateway
 from app.infrastructure.config.profile_loader import load_business_profile
@@ -46,12 +38,6 @@ def build_agent(settings: Settings) -> tuple[BusinessRepresentative, LlamaCppCli
         top_p=0.9,
         top_k=20,
     )
-    repair_config = GenerationConfig(
-        temperature=settings.repair_temperature,
-        max_tokens=settings.repair_max_tokens,
-        top_p=0.9,
-        top_k=20,
-    )
     judge_config = GenerationConfig(
         temperature=settings.router_judge_temperature,
         max_tokens=settings.router_judge_max_tokens,
@@ -59,42 +45,14 @@ def build_agent(settings: Settings) -> tuple[BusinessRepresentative, LlamaCppCli
         top_k=10,
     )
 
-    router = CascadingSemanticRouter(
+    router = SemanticRouter(
         reranker,
         llm,
         judge_config,
         min_score=settings.router_min_score,
         min_margin=settings.router_min_margin,
     )
-    interpreter = SchedulingInterpreter(llm, policy, interpreter_config)
-    belief = BeliefUpdater()
-    registry = CapabilityRegistry()
-    selector = CapabilitySelector(
-        reranker,
-        llm,
-        judge_config,
-        min_margin=settings.router_min_margin,
-    )
-    safety = CapabilitySafetyGate(policy)
-    capability_executor = CapabilityExecutor(slots, calendar, policy)
-    loop = BoundedCapabilityLoop(
-        belief,
-        registry,
-        selector,
-        safety,
-        capability_executor,
-        max_steps=settings.agent_max_steps,
-        max_repairs=settings.agent_max_repairs,
-    )
-    renderer = HybridRenderer(llm, ContextBuilder(profile, policy), renderer_config, repair_config)
-    representative = BusinessRepresentative(
-        sessions,
-        policy,
-        router,
-        interpreter,
-        belief,
-        loop,
-        AgentVerifier(),
-        renderer,
-    )
+    scheduler = Scheduler(llm, slots, calendar, policy, interpreter_config)
+    responder = Responder(llm, profile, policy, renderer_config, scheduler.public_capabilities)
+    representative = BusinessRepresentative(sessions, router, scheduler, responder)
     return representative, llm, reranker
