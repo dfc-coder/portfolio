@@ -2,133 +2,106 @@
 
 ## Goal
 
-A portfolio visitor interacts with a concise server-side business representative. Semantic interpretation handles natural language, scheduling state is stored as facts, capabilities declare what can execute, and deterministic safety gates protect side effects.
+A portfolio visitor interacts with a concise server-side representative that can answer grounded business questions and safely coordinate meetings.
 
 ## Feature: business conversation
 
 ### Scenario: answer a portfolio question with real streaming
-Given the visitor opens the portfolio
-And the server-side model is ready
-When the visitor asks about experience, projects, technologies, tools, or services
-Then the representative routes the turn to business/general knowledge
-And the answer is streamed as the model generates it
-And owner-specific claims are grounded in the configured business profile
-And no calendar operation is executed
+Given the server-side model is ready
+When the visitor asks about Diego's experience, projects, technologies or services
+Then the turn is routed to business/general knowledge
+And the answer is streamed while the model generates it
+And owner-specific claims use only the configured business profile
+And no Calendar side effect is executed
+
+### Scenario: describe real agent tools
+Given the scheduler can check availability and create a confirmed meeting
+When the visitor asks "¿Podés usar herramientas?"
+Then the representative describes those enabled capabilities
+And it does not claim that it is unable to use tools
+And it does not claim that an action already happened
 
 ### Scenario: unknown owner-specific fact
-Given a visitor asks for a fact absent from the business profile
+Given the requested fact is absent from the business profile
 When the representative answers
-Then it must abstain rather than invent the fact
+Then it abstains rather than inventing the fact
 
 ## Feature: mixed-initiative scheduling
 
-### Scenario: start scheduling with a date
-Given there is no active scheduling workflow
-When the visitor asks for a meeting on a usable date
-Then the semantic interpreter extracts a scheduling request and date
-And scheduling belief stores the date range
-And `calendar.search_availability` becomes eligible
-And available slots are stored as S1, S2, and so on
+### Scenario: start with a date
+Given there is no active scheduling task
+When the visitor requests a meeting on a usable date
+Then the scheduler extracts the date
+And searches Calendar availability
+And stores offered slots as S1, S2, and so on
 
-### Scenario: scheduling starts without a date
-Given there is no known scheduling date range
+### Scenario: start without a date
+Given no scheduling date is known
 When the visitor asks to arrange a meeting
-Then the scheduling workflow becomes active
-And `scheduling.ask_dates` becomes eligible
+Then scheduling becomes active
 And the representative asks for a day or date range
 
 ### Scenario: select a slot from context
-Given scheduling belief contains offered slots S1, S2 and S3
+Given scheduling memory contains offered slots S1, S2 and S3
 When the visitor says "el segundo"
-Then the semantic interpreter returns act `select` with slot S2
-And only an offered slot may be selected
+Then S2 may be selected
+And an unoffered slot cannot be selected
 And the visitor does not need to repeat scheduling keywords
 
-### Scenario: business interruption preserves scheduling belief
-Given an active scheduling workflow contains offered slots
-When the visitor asks "¿Tenés herramientas?"
-Then the turn is handled as a business question
-And the answer uses the grounded real-stream path
-And the existing scheduling dates and slots remain unchanged
+### Scenario: interruption preserves meeting data
+Given an active scheduling task contains dates or slots
+When the visitor asks a business question
+Then the business answer uses real streaming
+And scheduling memory remains unchanged
+And a later scheduling turn can resume the meeting
 
 ### Scenario: false scheduling route escapes safely
-Given the semantic router initially routes a message to scheduling
-When the scheduling interpreter determines the message is `not_applicable`
-Then the system reroutes only across business/general candidates
-And the scheduling belief is preserved
-And no scheduling capability executes
-
-## Feature: declarative capability resolution
-
-### Scenario: impossible capabilities are filtered before selection
-Given a visitor intent has been interpreted
-And the current belief state is known
-When the capability registry resolves candidates
-Then capabilities missing required facts are excluded
-And capabilities forbidden by current facts are excluded
-And the model cannot select an excluded capability
-
-### Scenario: one eligible capability needs no semantic selector
-Given exactly one capability is applicable
-When the bounded loop resolves the next action
-Then that capability executes directly
-And no reranker or Qwen capability judge is required
-
-### Scenario: several eligible capabilities use semantic selection
-Given several safe capabilities are applicable
-When a capability must be selected
-Then the reranker ranks only those eligible capabilities
-And Qwen is used only if the ranking remains ambiguous
-
-## Feature: bounded capability loop
-
-### Scenario: multi-step scheduling turn
-Given selecting a slot also supplies all required visitor details
-When `scheduling.select_slot` succeeds
-Then its observation may request one additional step
-And the loop recomputes belief facts
-And `scheduling.prepare_booking` may become eligible
-And execution never exceeds `AGENT_MAX_STEPS`
-
-### Scenario: failed validation is bounded
-Given a selected capability violates a deterministic invariant
-When the safety gate rejects it
-Then no side effect occurs
-And the loop may reconsider at most `AGENT_MAX_REPAIRS` times
-And it never enters an unrestricted reflection loop
+Given routing initially selects scheduling
+When the narrow scheduling interpreter concludes the message is not a scheduling turn
+Then the representative reroutes only between business and general
+And scheduling memory is preserved
+And no Calendar operation executes
 
 ## Feature: safe booking
 
-### Scenario: prepare a meeting without writing Calendar
+### Scenario: prepare without writing Calendar
 Given an offered slot was selected
-And visitor name, email, and subject are known
-When `scheduling.prepare_booking` executes
-Then a pending booking is stored
-And no Google Calendar event is created
-And the representative requests explicit confirmation
+And visitor name, valid email and subject are known
+When the scheduler has enough information
+Then a pending booking is prepared
+And no Calendar event is created
+And explicit confirmation is requested
 
-### Scenario: ambiguous agreement is not explicit confirmation
+### Scenario: ambiguous agreement is not confirmation
 Given a pending booking exists
 When the visitor says "Tuesday could work"
-Then `calendar.create_booking` is not eligible
-And no calendar write occurs
+Then no Calendar write occurs
 And the pending booking remains available
 
-### Scenario: explicit confirmation creates exactly one event
-Given a pending booking exists
-And its selected slot was previously offered
-When the visitor explicitly says "Sí, confirmo" or another phrase accepted by the confirmation policy
-Then `calendar.create_booking` becomes eligible
-And the safety gate validates the write
-And FastAPI creates exactly one Calendar event
-And success is reported only after the Calendar API succeeds
+### Scenario: explicit confirmation creates one event
+Given a valid pending booking exists
+When the visitor explicitly confirms using a phrase accepted by confirmation policy
+Then exactly one Calendar write is attempted
+And success is reported only after Calendar accepts the write
+And the active scheduling task is cleared after success
 
 ### Scenario: Calendar write fails
 Given a valid pending booking exists
 When explicit confirmation is accepted
-And Google Calendar returns an error
-Then the representative reports that the operation did not complete
-And it must not claim success
+And Calendar returns an error
+Then the representative reports failure
+And does not claim that the meeting was created
+And the pending booking remains available for retry
+
+## Feature: streaming safety
+
+### Scenario: capability statement is allowed
+When the model says it can schedule a meeting after explicit confirmation
+Then the stream guard allows the statement
+
+### Scenario: unverified completion claim is blocked
+When free-form generation claims that a meeting already became booked or an invitation was sent
+Then the stream guard blocks that claim before it crosses SSE
 
 ## Feature: inference ownership
 
@@ -136,11 +109,4 @@ And it must not claim success
 Given the portfolio frontend is loaded
 When the visitor uses the representative
 Then only the web application is downloaded
-And Qwen3.5-0.8B and Qwen3-Reranker-0.6B remain resident server-side
-
-### Scenario: future classifier is additive
-Given reviewed routing examples become available
-When a supervised multi-head classifier is introduced
-Then high-confidence domain/relation/act decisions may bypass the reranker
-And low-confidence cases still fall through to the reranker
-And unresolved ambiguity may still fall through to the Qwen judge
+And Qwen3.5-0.8B and Qwen3-Reranker-0.6B remain server-side
