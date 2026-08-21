@@ -1,22 +1,20 @@
 /* ==========================================================================
    SCROLL CUE -> TRAJECTORY AXIS
-   Preserve the approved visual language: one quiet 1px line changes ownership
-   between Hero and Career without changing weight, color or character.
+   The cue and timeline share one restrained 1px language. During the handoff,
+   typography rises with the scroll while the line gesture travels downward.
    ========================================================================== */
 
-/* Once the trajectory handoff begins, stop the decorative pulse so the source
-   line has deterministic geometry while it is transferred. */
 html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i {
   animation: none;
 }
 
-/* The original cue keeps the same vertical travel, but its final opacity is now
-   coordinated with the bridge. Text still disappears earlier via the existing
-   trajectory rules. */
 html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue {
   opacity: var(--trajectory-cue-handoff-opacity, 1) !important;
 }
 
+/* The travelling piece remains visually identical to the Hero cue. It moves
+   down while drifting toward the chronology column; it never flies upward to
+   the timeline's top edge. */
 .trajectory-bridge-line {
   position: absolute;
   z-index: 8;
@@ -37,13 +35,29 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue {
   background: rgba(238, 234, 226, .58);
 }
 
-/* The bridge arrives already at the final timeline geometry. The permanent
-   chronology therefore only crossfades ownership; it does not scale or redraw
-   itself during the handoff. */
+/* The permanent chronology preserves the approved appearance, but its entrance
+   now has a clear physical direction: it grows from top to bottom. */
 .trajectory-axis {
-  transform: none !important;
-  transform-origin: top center;
-  will-change: opacity;
+  transform: scaleY(var(--trajectory-axis-reveal, 0)) !important;
+  transform-origin: top center !important;
+  will-change: transform, opacity;
+}
+
+/* Chapter 02 follows the natural document flow: it comes from below and exits
+   above. Children lag by only a few pixels, giving the intro a soft internal
+   parallax instead of moving like one rigid card. */
+.trajectory-intro__kicker {
+  translate: 0 calc(
+    (1 - var(--trajectory-intro-in, 0)) * 8px -
+    var(--trajectory-intro-out, 0) * 12px
+  );
+}
+
+.trajectory-intro p {
+  translate: 0 calc(
+    (1 - var(--trajectory-intro-in, 0)) * 15px -
+    var(--trajectory-intro-out, 0) * 22px
+  );
 }
 
 @media (prefers-reduced-motion: reduce) {
