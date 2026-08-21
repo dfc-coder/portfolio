@@ -59,3 +59,21 @@ html.is-refined-intro::-webkit-scrollbar-track {
 .ref-stage[data-scene="agent"] .ref-scene--agent {
   pointer-events: auto !important;
 }
+
+/* Intro -> Hero morph.
+   D and C travel with the exact typography used by DIEGO/CANO. Because the
+   source glyphs already have their final dimensions, the FLIP transform is
+   effectively translation-only instead of visibly resizing the letters. */
+.ref-intro__mark {
+  font-family: var(--font-sans) !important;
+  font-size: clamp(7rem, 19vw, 21rem) !important;
+  font-weight: 700 !important;
+  line-height: .78 !important;
+  letter-spacing: -.045em !important;
+}
+
+@media (max-width: 680px) {
+  .ref-intro__mark {
+    font-size: clamp(7rem, 19vw, 21rem) !important;
+  }
+}
