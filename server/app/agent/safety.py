@@ -17,18 +17,15 @@ class CapabilitySafetyGate:
     def __init__(self, policy: SchedulingPolicy) -> None:
         self._policy = policy
 
-    def validate(
-        self,
-        capability: CapabilitySpec,
-        state: SessionState,
-        command: SchedulingCommand,
-        user_message: str,
-    ) -> VerificationResult:
+    def is_explicit_confirmation(self, user_message: str) -> bool:
+        return self._policy.is_explicit_confirmation(user_message)
+
+    def validate(self, capability: CapabilitySpec, state: SessionState, command: SchedulingCommand, user_message: str) -> VerificationResult:
         issues: list[str] = []
         memory = state.scheduling
 
         if capability.side_effect == SideEffect.WRITE and capability.requires_confirmation:
-            if not self._policy.is_explicit_confirmation(user_message):
+            if not self.is_explicit_confirmation(user_message):
                 issues.append("A write capability requires explicit visitor confirmation.")
 
         if capability.name == "calendar.create_booking":
