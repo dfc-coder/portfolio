@@ -144,22 +144,26 @@ export const mountTrajectoryExperience = () => {
     const progress = Number.parseFloat(stage.style.getPropertyValue("--progress")) || 0;
     const node = clamp01(progress) * lastNode;
 
-    /* Hero -> trajectory is one spatial hand-off. The Hero leaves at different
-       depths while its central scroll axis survives long enough to become the
-       career timeline. */
-    const heroExit = range(node, 0.12, 1.18);
-    const axisMorph = range(node, 0.42, 1.48);
-    const trajectoryIn = range(node, 0.28, 0.72);
+    /* One protagonist per beat:
+       1. the Hero evacuates completely;
+       2. the chapter sentence occupies the quiet interval;
+       3. only then does the timeline content come into focus.
+       The background field survives, but Hero typography never ghosts behind
+       Trajectory. Everything remains reversible because it is derived from one
+       continuous scroll position. */
+    const heroExit = range(node, 0.10, 0.84);
+    const axisMorph = range(node, 0.28, 1.28);
+    const trajectoryIn = range(node, 0.24, 0.54);
     const trajectoryOut = range(node, chapterSystemsNode - 0.48, chapterSystemsNode + 0.16);
     const trajectoryVisibility = trajectoryIn * (1 - trajectoryOut);
-    const introIn = range(node, 0.52, 0.86);
-    const introOut = range(node, 1.16, 1.64);
+    const introIn = range(node, 0.60, 0.88);
+    const introOut = range(node, 1.04, 1.32);
     const introVisibility = introIn * (1 - introOut);
-    const contentReveal = range(node, 1.08, 1.72);
+    const contentReveal = range(node, 1.24, 1.68);
     const heroShell = 1 - range(node, chapterSystemsNode - 0.62, chapterSystemsNode + 0.12);
     const experiencePosition = collectionPosition(node, careerStartNode, experiences.length);
 
-    stage.dataset.trajectory = node > 0.16 && node < chapterSystemsNode + 0.18 ? "true" : "false";
+    stage.dataset.trajectory = node > 0.12 && node < chapterSystemsNode + 0.18 ? "true" : "false";
     stage.style.setProperty("--trajectory-hero-exit", heroExit.toFixed(5));
     stage.style.setProperty("--trajectory-axis-morph", axisMorph.toFixed(5));
     stage.style.setProperty("--trajectory-visibility", trajectoryVisibility.toFixed(5));
@@ -169,48 +173,49 @@ export const mountTrajectoryExperience = () => {
 
     root.style.opacity = trajectoryVisibility.toFixed(5);
 
-    /* Intro sentence is a beat, not a page. It rises out as the timeline grows
-       through it, so there is never a blank interstitial between sections. */
+    /* The chapter sentence is a single editorial beat. It arrives after the
+       Hero is almost gone and leaves before the role typography becomes the
+       protagonist, removing the layered pile-up visible in the previous pass. */
     intro.style.opacity = introVisibility.toFixed(5);
-    intro.style.transform = `translate3d(0, ${((1 - introIn) * 16 - introOut * 18).toFixed(2)}px, 0)`;
+    intro.style.transform = `translate3d(0, ${((1 - introIn) * 12 - introOut * 20).toFixed(2)}px, 0)`;
 
     header.style.opacity = (contentReveal * trajectoryVisibility).toFixed(5);
-    header.style.transform = `translate3d(0, ${(10 * (1 - contentReveal)).toFixed(2)}px, 0)`;
+    header.style.transform = `translate3d(0, ${(8 * (1 - contentReveal)).toFixed(2)}px, 0)`;
 
-    /* The axis begins where the Hero cue lives and drifts to the left while it
-       lengthens into the career chronology. This is the visual bridge between
-       identity and time. */
+    /* The cue and chronology overlap only as lines. Text never overlaps text.
+       The destination axis starts low/central and settles on the left focal
+       band while it lengthens. */
     const axisLeft = 50 - axisMorph * 36.5;
-    const axisTop = 78 - axisMorph * 31.5;
-    const axisHeight = 5 + axisMorph * 49;
+    const axisTop = 86 - axisMorph * 39.5;
+    const axisHeight = 4 + axisMorph * 47;
     axis.style.left = `${axisLeft.toFixed(3)}%`;
     axis.style.top = `${axisTop.toFixed(3)}%`;
     axis.style.height = `${axisHeight.toFixed(3)}vh`;
-    axis.style.opacity = (trajectoryVisibility * (0.2 + axisMorph * 0.8)).toFixed(5);
+    axis.style.opacity = (trajectoryVisibility * axisMorph).toFixed(5);
 
     yearNodes.forEach((element, index) => {
       const offset = index - experiencePosition;
-      const focus = Math.exp(-(offset * offset) * 2.8);
-      const y = offset * 13.5;
+      const focus = Math.exp(-(offset * offset) * 4.15);
+      const y = offset * 15;
       element.style.transform = `translate3d(0, calc(-50% + ${y.toFixed(3)}vh), 0)`;
-      element.style.opacity = (contentReveal * Math.max(0.16, focus)).toFixed(5);
+      element.style.opacity = (contentReveal * Math.max(0.12, focus)).toFixed(5);
       element.style.setProperty("--year-focus", focus.toFixed(5));
     });
 
     entries.forEach((element, index) => {
       const offset = index - experiencePosition;
       const distance = Math.abs(offset);
-      const focus = Math.exp(-(offset * offset) * 2.55);
+      const focus = Math.exp(-(offset * offset) * 4.6);
       const directionScale = offset < 0 ? 0.74 : 1;
 
-      element.style.visibility = distance < 1.72 ? "visible" : "hidden";
-      element.style.opacity = (contentReveal * Math.max(0.035, focus)).toFixed(5);
+      element.style.visibility = distance < 1.48 ? "visible" : "hidden";
+      element.style.opacity = (contentReveal * Math.max(0.018, focus)).toFixed(5);
       element.style.setProperty("--entry-focus", focus.toFixed(5));
-      element.style.setProperty("--role-y", `${(offset * 25 * directionScale).toFixed(3)}vh`);
-      element.style.setProperty("--meta-y", `${(offset * 18 * directionScale).toFixed(3)}vh`);
-      element.style.setProperty("--summary-y", `${(offset * 13.5 * directionScale).toFixed(3)}vh`);
-      element.style.setProperty("--tags-y", `${(offset * 10.5 * directionScale).toFixed(3)}vh`);
-      element.style.setProperty("--entry-x", `${(offset < 0 ? offset * 1.2 : offset * -1.8).toFixed(3)}vw`);
+      element.style.setProperty("--role-y", `${(offset * 31 * directionScale).toFixed(3)}vh`);
+      element.style.setProperty("--meta-y", `${(offset * 22 * directionScale).toFixed(3)}vh`);
+      element.style.setProperty("--summary-y", `${(offset * 17 * directionScale).toFixed(3)}vh`);
+      element.style.setProperty("--tags-y", `${(offset * 13.5 * directionScale).toFixed(3)}vh`);
+      element.style.setProperty("--entry-x", `${(offset < 0 ? offset * 0.8 : offset * -1.2).toFixed(3)}vw`);
     });
 
     counterTrack.style.transform = `translate3d(0, ${(-experiencePosition).toFixed(5)}em, 0)`;
