@@ -29,13 +29,17 @@ class NotApplicableScheduler:
         return SchedulerReply(not_applicable=True)
 
 
-class StreamingLlm:
+class CapabilityAwareLlm:
     async def complete(self, messages, config, response_schema=None):  # type: ignore[no-untyped-def]
         del messages, config, response_schema
         return ""
 
     async def stream(self, messages, config):  # type: ignore[no-untyped-def]
-        del messages, config
+        del config
+        system = messages[0]["content"]
+        assert "AGENT_CAPABILITIES:" in system
+        assert "Check calendar availability." in system
+        assert "Create a meeting after explicit confirmation." in system
         yield "Sí. Puedo usar las herramientas habilitadas para consultar disponibilidad y preparar reuniones."
 
     async def health(self) -> bool:
@@ -49,7 +53,7 @@ async def test_false_scheduling_route_falls_back_to_business_and_preserves_workf
     state = await sessions.get("session-tools")
     state.active_workflow = ActiveWorkflow.SCHEDULING
     state.scheduling.visitor_email = "ana@example.com"
-    llm = StreamingLlm()
+    llm = CapabilityAwareLlm()
     responder = Responder(
         llm,
         profile,
