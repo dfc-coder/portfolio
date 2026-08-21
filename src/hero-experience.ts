@@ -2,6 +2,8 @@ import gsap from "gsap";
 import * as THREE from "three";
 
 const HERO_SELECTOR = ".ref-scene--hero";
+const STRUCTURAL_EASE = "power3.inOut";
+const SETTLE_EASE = "power3.out";
 
 const vertexShader = /* glsl */ `
   varying vec2 vUv;
@@ -234,6 +236,27 @@ const createOpening = () => {
   return opening;
 };
 
+const ensureThesisParts = (thesis: HTMLElement) => {
+  let copy = thesis.querySelector<HTMLElement>(".ref-hero__thesis-copy");
+  let accent = thesis.querySelector<HTMLElement>(".ref-hero__thesis-accent");
+
+  if (!copy) {
+    copy = document.createElement("span");
+    copy.className = "ref-hero__thesis-copy";
+    while (thesis.firstChild) copy.append(thesis.firstChild);
+    thesis.append(copy);
+  }
+
+  if (!accent) {
+    accent = document.createElement("i");
+    accent.className = "ref-hero__thesis-accent";
+    accent.setAttribute("aria-hidden", "true");
+    thesis.prepend(accent);
+  }
+
+  return { copy, accent };
+};
+
 const lockInput = () => {
   const prevent = (event: Event) => event.preventDefault();
   const preventKeys = (event: KeyboardEvent) => {
@@ -277,14 +300,19 @@ export const mountHeroExperience = () => {
     return () => undefined;
   }
 
-  /* Retire all visual tweens from the legacy intro. Its Vue state may finish in
-     the background, but it no longer owns any visible hero element. */
+  const { copy: thesisCopy, accent: thesisAccent } = ensureThesisParts(thesis);
+
+  /* The legacy intro still exists in the Vue component, but it is no longer
+     allowed to own a visible Hero property. Kill its pending tweens first so
+     there is one choreography and one source of timing truth. */
   gsap.killTweensOf([
     ...heroWords,
     ...heroInitials,
     ...heroTails,
     meta,
     thesis,
+    thesisCopy,
+    thesisAccent,
     scrollCue,
     header,
     ".ref-intro",
@@ -297,15 +325,24 @@ export const mountHeroExperience = () => {
   gsap.set(heroInitials, { opacity: 1, clearProps: "clipPath" });
   gsap.set(heroTails, { opacity: 1, clearProps: "clipPath" });
   gsap.set(heroWords, {
-    yPercent: 118,
+    y: 26,
     opacity: 0,
-    filter: "blur(8px)",
-    willChange: "transform, opacity, filter",
+    willChange: "transform, opacity",
   });
-  gsap.set(meta, { opacity: 0, y: 10 });
-  gsap.set(thesis, { opacity: 0, y: 18 });
-  gsap.set(scrollCue, { opacity: 0, y: 10 });
-  gsap.set(header, { opacity: 0, y: -8 });
+  gsap.set(meta, { opacity: 0, y: 6 });
+  gsap.set(thesis, { opacity: 1, y: 0 });
+  gsap.set(thesisAccent, {
+    scaleY: 0,
+    transformOrigin: "top center",
+    willChange: "transform",
+  });
+  gsap.set(thesisCopy, {
+    opacity: 0,
+    x: -12,
+    willChange: "transform, opacity",
+  });
+  gsap.set(scrollCue, { opacity: 0, y: 8 });
+  gsap.set(header, { opacity: 0, y: -6 });
 
   const opening = createOpening();
   const unlockInput = lockInput();
@@ -317,19 +354,21 @@ export const mountHeroExperience = () => {
     console.warn("Hero WebGL field unavailable; continuing with DOM motion.", error);
   }
 
-  const openingCenter = opening.querySelector<HTMLElement>(".creative-opening__center");
   const openingMark = opening.querySelector<HTMLElement>(".creative-opening__mark");
   const openingRule = opening.querySelector<HTMLElement>(".creative-opening__rule");
   const openingLabel = opening.querySelector<HTMLElement>(".creative-opening__label");
   const openingMeta = opening.querySelector<HTMLElement>(".creative-opening__meta");
   const openingProgress = opening.querySelector<HTMLElement>(".creative-opening__progress > i");
 
+  /* ~1.96s total. Each beat has one visual protagonist:
+     opening -> structural curtain -> name -> thesis -> secondary chrome. */
   const timeline = gsap.timeline({
-    defaults: { ease: "power4.out" },
     onComplete: () => {
       opening.remove();
       unlockInput();
-      gsap.set(heroWords, { clearProps: "willChange,filter" });
+      gsap.set(heroWords, { clearProps: "willChange" });
+      gsap.set(thesisCopy, { clearProps: "willChange" });
+      gsap.set(thesisAccent, { clearProps: "willChange" });
       document.documentElement.classList.add("creative-hero-complete");
     },
   });
@@ -337,66 +376,75 @@ export const mountHeroExperience = () => {
   timeline
     .fromTo(
       openingMark,
-      { opacity: 0, y: 18, filter: "blur(8px)" },
-      { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.72 },
+      { opacity: 0, y: 10 },
+      { opacity: 1, y: 0, duration: 0.32, ease: SETTLE_EASE },
+      0,
     )
-    .to(openingRule, { scaleX: 1, duration: 0.66, ease: "power3.inOut" }, "-=0.42")
+    .to(
+      openingRule,
+      { scaleX: 1, duration: 0.34, ease: STRUCTURAL_EASE },
+      0.10,
+    )
     .fromTo(
       openingLabel,
-      { opacity: 0, x: -8 },
-      { opacity: 1, x: 0, duration: 0.46, ease: "power3.out" },
-      "-=0.42",
+      { opacity: 0, x: -6 },
+      { opacity: 1, x: 0, duration: 0.28, ease: SETTLE_EASE },
+      0.20,
     )
     .fromTo(
       openingMeta,
-      { opacity: 0, y: 6 },
-      { opacity: 1, y: 0, duration: 0.44, ease: "power3.out" },
-      "-=0.36",
-    )
-    .to(openingProgress, { scaleX: 1, duration: 0.9, ease: "power2.inOut" }, "-=0.46")
-    .addLabel("reveal", "+=0.12")
-    .to(
-      openingCenter,
-      { opacity: 0, y: -12, duration: 0.38, ease: "power2.in" },
-      "reveal",
+      { opacity: 0, y: 4 },
+      { opacity: 1, y: 0, duration: 0.24, ease: SETTLE_EASE },
+      0.24,
     )
     .to(
-      openingMeta,
-      { opacity: 0, y: -6, duration: 0.3, ease: "power2.in" },
-      "reveal",
+      openingProgress,
+      { scaleX: 1, duration: 0.42, ease: STRUCTURAL_EASE },
+      0.04,
     )
+    .addLabel("curtain", 0.46)
     .to(
       opening,
-      { clipPath: "inset(0% 0% 100% 0%)", duration: 1.02, ease: "power4.inOut" },
-      "reveal+=0.04",
+      { clipPath: "inset(0% 0% 100% 0%)", duration: 0.62, ease: STRUCTURAL_EASE },
+      "curtain",
     )
     .to(
       field?.revealUniform ?? { value: 0 },
-      { value: 1, duration: 1.15, ease: "power2.out" },
-      "reveal+=0.08",
+      { value: 1, duration: 0.60, ease: SETTLE_EASE },
+      "curtain+=0.03",
     )
+    .addLabel("name", "curtain+=0.28")
     .to(
       heroWords,
       {
-        yPercent: 0,
+        y: 0,
         opacity: 1,
-        filter: "blur(0px)",
-        duration: 1.12,
-        stagger: 0.085,
-        ease: "power4.out",
+        duration: 0.48,
+        stagger: 0.07,
+        ease: SETTLE_EASE,
       },
-      "reveal+=0.30",
+      "name",
     )
-    .to(meta, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, "reveal+=0.68")
-    .to(thesis, { opacity: 1, y: 0, duration: 0.66, ease: "power3.out" }, "reveal+=0.82")
-    .to(header, { opacity: 1, y: 0, duration: 0.52, ease: "power3.out" }, "reveal+=1.00")
-    .to(scrollCue, { opacity: 1, y: 0, duration: 0.46, ease: "power3.out" }, "reveal+=1.08");
+    .addLabel("thesis", "name+=0.60")
+    .to(
+      thesisAccent,
+      { scaleY: 1, duration: 0.16, ease: STRUCTURAL_EASE },
+      "thesis",
+    )
+    .to(
+      thesisCopy,
+      { opacity: 1, x: 0, duration: 0.24, ease: SETTLE_EASE },
+      "thesis+=0.04",
+    )
+    .to(meta, { opacity: 1, y: 0, duration: 0.18, ease: SETTLE_EASE }, "thesis+=0.32")
+    .to(header, { opacity: 1, y: 0, duration: 0.18, ease: SETTLE_EASE }, "thesis+=0.38")
+    .to(scrollCue, { opacity: 1, y: 0, duration: 0.18, ease: SETTLE_EASE }, "thesis+=0.44");
 
   const title = hero.querySelector<HTMLElement>(".ref-hero__title");
-  const titleX = title ? gsap.quickTo(title, "x", { duration: 1.25, ease: "power3.out" }) : null;
-  const titleY = title ? gsap.quickTo(title, "y", { duration: 1.25, ease: "power3.out" }) : null;
-  const thesisX = gsap.quickTo(thesis, "x", { duration: 1.4, ease: "power3.out" });
-  const thesisY = gsap.quickTo(thesis, "y", { duration: 1.4, ease: "power3.out" });
+  const titleX = title ? gsap.quickTo(title, "x", { duration: 1.25, ease: SETTLE_EASE }) : null;
+  const titleY = title ? gsap.quickTo(title, "y", { duration: 1.25, ease: SETTLE_EASE }) : null;
+  const thesisX = gsap.quickTo(thesis, "x", { duration: 1.4, ease: SETTLE_EASE });
+  const thesisY = gsap.quickTo(thesis, "y", { duration: 1.4, ease: SETTLE_EASE });
 
   const onHeroPointerMove = (event: PointerEvent) => {
     const rect = hero.getBoundingClientRect();
