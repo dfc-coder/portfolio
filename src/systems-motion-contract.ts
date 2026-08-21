@@ -12,13 +12,19 @@ export const SYSTEMS_TIMING = {
   priorChapterOut: [-0.48, 0.16] as const,
   sectionIn: [-0.30, 0.02] as const,
   introIn: [0.02, 0.20] as const,
-  introOut: [0.34, 0.56] as const,
-  axisReveal: [0.18, 0.46] as const,
-  headerReveal: [0.34, 0.62] as const,
-  contentReveal: [0.60, 0.90] as const,
-  initialGraphBuild: [0.66, 0.98] as const,
+  introOut: [0.28, 0.44] as const,
+  axisReveal: [0.18, 0.42] as const,
+  headerReveal: [0.30, 0.54] as const,
+  contentReveal: [0.44, 0.74] as const,
+  initialGraphBuild: [0.50, 0.86] as const,
   tailOut: [-0.38, -0.02] as const,
   galleryHandoff: [0.02, 0.30] as const,
+} as const;
+
+export const SYSTEMS_COLLECTION = {
+  firstHoldEnd: 0.42,
+  holdEnd: 0.30,
+  travelEnd: 0.84,
 } as const;
 
 export const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
@@ -42,9 +48,12 @@ export const collectionPosition = (
 
   const index = Math.floor(raw);
   const local = raw - index;
-  if (local <= 0.2) return index;
-  if (local >= 0.8) return index + 1;
-  return index + smoother((local - 0.2) / 0.6);
+  const holdEnd = index === 0 ? SYSTEMS_COLLECTION.firstHoldEnd : SYSTEMS_COLLECTION.holdEnd;
+  const travelEnd = SYSTEMS_COLLECTION.travelEnd;
+
+  if (local <= holdEnd) return index;
+  if (local >= travelEnd) return index + 1;
+  return index + smoother((local - holdEnd) / (travelEnd - holdEnd));
 };
 
 export const motionForOffset = (offset: number): MotionState => {
