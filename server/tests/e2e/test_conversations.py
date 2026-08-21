@@ -15,7 +15,9 @@ from app.agent.planner import StructuredPlanner
 from app.agent.renderer import HybridRenderer
 from app.agent.representative import BusinessRepresentative
 from app.agent.verifier import AgentVerifier
+from app.domain.conversation import ConversationStage
 from app.domain.planning import Plan
+from app.domain.routing import RouteDomain, RouteRelation, RoutingDecision
 from app.domain.scheduling import OfferedSlot
 from app.infrastructure.calendar.memory import InMemoryCalendarGateway
 from app.infrastructure.sessions.memory import MemorySessionStore
@@ -37,7 +39,7 @@ class SequenceLlm:
         del messages, config
         if response_schema is Plan:
             return json.dumps(self._plans.pop(0))
-        return "I can help with integration architecture and applied AI."
+        return "Diego trabaja con arquitectura de integraciones, sistemas distribuidos y Applied AI."
 
     async def stream(self, messages, config):  # type: ignore[no-untyped-def]
         del messages, config
@@ -46,6 +48,15 @@ class SequenceLlm:
 
     async def health(self) -> bool:
         return True
+
+
+class SequenceRouter:
+    def __init__(self, decisions: list[RoutingDecision]) -> None:
+        self._decisions = decisions
+
+    async def route(self, state, user_message):  # type: ignore[no-untyped-def]
+        del state, user_message
+        return self._decisions.pop(0)
 
 
 class FixedSlots:
@@ -82,9 +93,32 @@ def build_agent(profile: BusinessProfile) -> tuple[BusinessRepresentative, Memor
                 "visitor_email": "juan@example.com",
                 "subject": "Architecture discussion",
             },
-            {
-                "action": "prepare_booking"
-            },
+            {"action": "prepare_booking"},
+        ]
+    )
+    router = SequenceRouter(
+        [
+            RoutingDecision(
+                domain=RouteDomain.SCHEDULING,
+                relation=RouteRelation.NEW,
+                route_key="scheduling_new",
+                confidence=0.95,
+                source="test",
+            ),
+            RoutingDecision(
+                domain=RouteDomain.BUSINESS,
+                relation=RouteRelation.INTERRUPT,
+                route_key="business_interrupt",
+                confidence=0.95,
+                source="test",
+            ),
+            RoutingDecision(
+                domain=RouteDomain.SCHEDULING,
+                relation=RouteRelation.CONTINUE,
+                route_key="scheduling_continue",
+                confidence=0.95,
+                source="test",
+            ),
         ]
     )
     policy = SchedulingPolicy(profile.scheduling)
@@ -105,6 +139,7 @@ def build_agent(profile: BusinessProfile) -> tuple[BusinessRepresentative, Memor
         sessions,
         policy,
         calendar,
+        router,  # type: ignore[arg-type]
         planner,
         ActionExecutor(FixedSlots()),  # type: ignore[arg-type]
         fsm,
@@ -115,13 +150,28 @@ def build_agent(profile: BusinessProfile) -> tuple[BusinessRepresentative, Memor
 
 
 @pytest.mark.asyncio
-async def test_follow_up_slot_reference_stays_inside_scheduling_state(profile: BusinessProfile) -> None:
+async def test_business_interrupt_preserves_scheduling_and_can_resume(profile: BusinessProfile) -> None:
     agent, sessions, calendar = build_agent(profile)
 
     first = "".join(
         [chunk async for chunk in agent.respond("session-123", "Quiero una reunión el 25 de agosto")]
     )
     assert "S2" in first
+
+    interrupted = "".join(
+        [
+            chunk
+            async for chunk in agent.respond(
+                "session-123",
+                "Antes, ¿en qué tecnologías trabaja Diego?",
+            )
+        ]
+    )
+    state = await sessions.get("session-123")
+    assert "integraciones" in interrupted.lower()
+    assert state.stage == ConversationStage.SCHEDULING_SLOT
+    assert "S2" in state.offered_slots
+    assert state.active_workflow is not None
 
     second = "".join(
         [
@@ -143,5 +193,6 @@ async def test_follow_up_slot_reference_stays_inside_scheduling_state(profile: B
     )
     state = await sessions.get("session-123")
     assert state.pending_booking is None
+    assert state.active_workflow is None
     assert len(calendar.bookings) == 1
     assert "agendada" in third.lower()
