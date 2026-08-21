@@ -1,177 +1,119 @@
 # Portfolio Business Representative
 
-Server-side **bounded capability agent** optimized for Qwen3.5-0.8B. The browser never downloads model weights. Two small llama.cpp services stay resident:
+Server-side business representative optimized for Qwen3.5-0.8B. The browser never downloads model weights. Two llama.cpp services stay resident:
 
-- `llama`: Qwen3.5-0.8B for semantic extraction, low-confidence routing/capability fallback and grounded response generation.
-- `reranker`: Qwen3-Reranker-0.6B for zero-shot routing today and semantic capability selection as the tool catalog grows.
+- `llama`: Qwen3.5-0.8B for scheduling extraction, ambiguous-route fallback and grounded response generation.
+- `reranker`: Qwen3-Reranker-0.6B for dataset-free semantic routing.
 
 ## Architecture
 
 ```text
-visitor + compact context
-        |
-        v
-semantic router
-reranker -> Qwen judge on ambiguity
-        |
-        +---------------- business/general ----------------+
-        |                                                  |
-        |                                           grounded Qwen
-        |                                              real stream
-        |                                                  |
-        |                                           streaming guard
-        |                                                  |
-        |                                                 SSE
-        |
-        +---------------- scheduling ----------------------+
-                           |
-                  scheduling interpreter
-                 meaning + extracted args
-                    (never tool names)
-                           |
-                           v
-                      belief updater
-                    facts, not stages
-                           |
-                           v
-                   capability registry
-               declarative preconditions
-                           |
-                    eligible actions
-                           |
-               1 -> direct / N -> reranker
-                           |
-                           v
-                  bounded capability loop
-                 max steps / max repairs
-                           |
-                           v
-                       safety gate
-             schema + invariants + confirmation
-                           |
-                           v
-                  capability executor
-                Calendar / internal action
-                           |
-                           v
-                     observation
-                           |
-                    deterministic text
+visitor
+  |
+  v
+SemanticRouter
+reranker -> Qwen judge only on ambiguity
+  |
+  +---------------- BUSINESS / GENERAL ----------------+
+  |                                                    |
+  |                                              Responder
+  |                                          grounded real stream
+  |                                                    |
+  |                                                StreamGuard
+  |                                                    |
+  |                                                   SSE
+  |
+  +---------------- SCHEDULING ------------------------+
+                         |
+                      Scheduler
+                 structured turn extraction
+                         |
+                  SchedulingMemory
+                    facts, no stages
+                         |
+              +----------+----------+
+              |                     |
+         deterministic reply    CalendarPort
+                                   |
+                          availability / booking
 ```
 
-There is no conversational scheduling FSM. `SessionState` holds a `SchedulingMemory` with facts such as requested dates, offered slots, selected slot, visitor details and pending booking. Capabilities declare which facts they require or forbid. Adding a capability does not require adding combinations of conversation stages.
+The application intentionally does **not** contain a conversational FSM, capability registry, generic tool selector or generic ReAct loop. Those abstractions were removed because the current product has one bounded workflow and two real Calendar operations; they created more coordination points than value.
 
-The remaining deterministic rules are deliberate safety invariants: a selected slot must have been offered, writes require explicit confirmation, tool arguments must be valid, and the loop is bounded. These are not semantic intent rules.
-
-`SessionState.current_focus` is independent from `SessionState.active_workflow`. A visitor can interrupt an active scheduling task with a business/general question and later resume the same scheduling belief.
+`server/app/agent` contains only:
 
 ```text
-app/
-  api/                     HTTP + SSE boundary
-  agent/
-    semantic_router.py     domain/relation cascade
-    interpreter.py         scheduling act + argument extraction
-    belief.py              fact updates
-    capability_registry.py declarative applicability
-    selector.py            reranker + Qwen capability fallback
-    loop.py                bounded execution/repair
-    safety.py              deterministic side-effect invariants
-    capability_executor.py handler registry
-    renderer.py            deterministic workflow rendering + LLM stream
-    streaming_guard.py     rolling output safety holdback
-    representative.py      thin orchestrator
-  domain/
-    conversation.py        belief/session state
-    semantics.py           dialogue acts and commands
-    capabilities.py        capability metadata
-  scheduling/              date policy + availability calculation
-  ports/                   LLM, reranker, calendar, sessions
-  infrastructure/          llama.cpp, Google Calendar, config, sessions
-  bootstrap.py             composition root
+representative.py  thin orchestration
+router.py          BUSINESS / SCHEDULING / GENERAL routing
+scheduler.py       meeting workflow + hard write invariants
+responder.py       grounded knowledge streaming
+stream_guard.py    narrow rolling output safety boundary
 ```
 
-## Semantic routing and future classifier
+External boundaries remain separated under `ports/` and `infrastructure/`.
 
-The current router remains dataset-free:
+## Scheduling model
+
+Scheduling is represented by facts in `SchedulingMemory`:
+
+```text
+requested_start_date
+requested_end_date
+offered_slots
+selected_slot_id
+visitor_name
+visitor_email
+subject
+pending_booking
+```
+
+There are no `DATES -> SLOT -> DETAILS -> CONFIRMATION` conversation states. The scheduler looks at the structured memory and the latest extracted scheduling turn, then performs the next necessary operation.
+
+The only external Calendar operations are:
+
+```text
+read:  search availability
+write: create a prepared booking
+```
+
+The write remains deterministic and guarded:
+
+1. the slot must have been offered in this session;
+2. visitor details must exist and email must be valid;
+3. a `PendingBooking` must exist;
+4. the latest visitor message must satisfy explicit-confirmation policy;
+5. booking success is reported only after Calendar returns success.
+
+A business/general interruption does not clear `SchedulingMemory`, so the visitor can resume the meeting later.
+
+## Routing
+
+The router evaluates three semantic descriptions. During an active meeting task the candidates become scheduling continuation versus business/general interruption.
 
 ```text
 reranker
    |
-   +-- confident --> domain + relation
+   +-- clear margin --> route
    |
-   +-- ambiguous --> Qwen 0.8B constrained judge
+   +-- ambiguous ----> Qwen 0.8B constrained route choice
 ```
 
-With no active workflow the candidates are `business`, `scheduling`, and `general`. During scheduling they become `business/general interrupt` versus `scheduling continue`. If the scheduling interpreter determines that a routed message is actually `not_applicable`, the system reroutes across only business/general candidates and preserves scheduling facts.
+If the router sends a false positive into scheduling, `Scheduler` can return `not_applicable`; the representative then reroutes only between business and general without destroying meeting memory.
 
-The intended evolution once reviewed production examples exist is:
-
-```text
-multi-head classifier (domain / relation / act / OOS)
-        |
-   low confidence
-        v
-     reranker
-        |
-   still ambiguous
-        v
-   Qwen judge
-```
-
-The reranker is therefore not discarded when a classifier is introduced; it becomes the uncertainty/tool-selection layer.
-
-## Capability model
-
-Capabilities are declarations rather than conversation-state branches. Examples:
-
-```text
-calendar.search_availability
-  act: request | inform
-  requires: date_range
-  side_effect: read
-
-scheduling.select_slot
-  act: select
-  requires: offered_slots + slot_reference
-  side_effect: none
-
-calendar.create_booking
-  act: confirm
-  requires: pending_booking + explicit_confirmation
-  side_effect: write
-```
-
-The capability registry filters impossible actions before semantic selection. When only one capability is eligible it executes directly. If several are eligible, Qwen3-Reranker ranks only that reduced set; the 0.8B model is used only as an ambiguity fallback.
-
-## Bounded reflection/tool loop
-
-The loop is intentionally small:
-
-```text
-resolve eligible capabilities
-        |
-select capability
-        |
-validate invariants
-        |
-execute
-        |
-observation
-        |
-continue only when required
-```
-
-Defaults remain `AGENT_MAX_STEPS=3` and `AGENT_MAX_REPAIRS=1`. Reflection is triggered only by a failed applicability/validation path; there is no unbounded free-form Thought/Action loop.
-
-Calendar writes are never inferred from natural language alone. `calendar.create_booking` becomes eligible only when a pending booking exists and the deterministic confirmation policy accepts the latest visitor message. Successful booking text is emitted only after the Calendar call succeeds.
+A trained classifier is intentionally deferred until reviewed real examples exist. The reranker remains useful now because there is no training dataset and only three route candidates.
 
 ## Safe real streaming
 
-Business/general knowledge answers use llama.cpp with `stream=true` end-to-end. The backend does not wait for a complete answer and does not replay completed text with artificial delays.
+Business/general answers use llama.cpp with `stream=true` end-to-end. There is no post-completion typewriter effect.
 
-A small rolling character holdback sits between the model stream and SSE. It exists only to prevent restricted operational claims from crossing the HTTP boundary, including owner impersonation and generated claims that a meeting was booked or an invitation was sent. It adds no timer or typewriter animation.
+`StreamGuard` keeps a tiny rolling holdback and blocks only narrow operational claims such as owner impersonation or claiming that a Calendar action already completed. It does **not** block capability descriptions such as "I can schedule a meeting after you confirm."
 
-Owner-specific claims are grounded by prompt contract against `BUSINESS_CONTEXT`. Scheduling/tool results are deterministic Python text and are emitted atomically.
+The knowledge responder receives both:
+
+- `BUSINESS_CONTEXT`: authoritative owner/project facts;
+- `AGENT_CAPABILITIES`: authoritative actions the scheduler can actually perform.
+
+Therefore the assistant can accurately answer questions such as "¿Podés usar herramientas?" without giving the free-form renderer permission to execute side effects.
 
 ## Required models
 
@@ -182,15 +124,13 @@ Qwen3.5-0.8B-UD-Q4_K_XL.gguf
 qwen3-reranker-0.6b-q8_0.gguf
 ```
 
-The main model filename is configurable with `LLAMA_MODEL_FILE`; the reranker is configurable with `RERANKER_MODEL_FILE`.
-
-The reranker service starts with:
+The reranker starts with:
 
 ```text
 --embedding --rerank --pooling rank
 ```
 
-No embedder or vector database is required for the current router/capability catalog.
+No embedder or vector database is required.
 
 ## Run locally
 
@@ -216,8 +156,6 @@ make models
 make check
 ```
 
-For production, pin `LLAMA_IMAGE` to a known llama.cpp tag or digest rather than a floating tag.
-
 ## Google Calendar
 
 ```text
@@ -234,4 +172,4 @@ GOOGLE_REFRESH_TOKEN=...
 make check
 ```
 
-Coverage includes routing ambiguity, false scheduling-route escape, belief preservation across interruptions, declarative capability eligibility, guarded real streaming, slot validation, bounded scheduling execution, and explicit-confirmation Calendar writes.
+Regression coverage includes routing ambiguity, false scheduling-route escape, scheduling interruption/resume, invalid slot rejection, explicit-confirmation Calendar writes, capability-aware answers and guarded real streaming.
