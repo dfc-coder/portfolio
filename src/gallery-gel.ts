@@ -1,0 +1,301 @@
+const galleryItems = [
+  {
+    src: "/studio/bench-detail.png",
+    title: "Quiet Joinery",
+    type: "Furniture system",
+    meta: "Oak · leather · structural detail",
+  },
+  {
+    src: "/studio/mortar.png",
+    title: "Domestic Ritual",
+    type: "Object design",
+    meta: "Stone · timber · material contrast",
+  },
+  {
+    src: "/studio/radios.png",
+    title: "Portable Frequency",
+    type: "Product language",
+    meta: "CMF · retro-futurism · series",
+  },
+  {
+    src: "/studio/bench.png",
+    title: "Linear Rest",
+    type: "Furniture design",
+    meta: "Structure · proportion · restraint",
+  },
+  {
+    src: "/studio/lounge-mint.png",
+    title: "Soft Landscape",
+    type: "Seating concept",
+    meta: "Textile · tubular steel · comfort",
+  },
+  {
+    src: "/studio/interior-shadow.png",
+    title: "Shadow Room",
+    type: "Spatial direction",
+    meta: "Light · texture · atmosphere",
+  },
+  {
+    src: "/studio/interior-blue.png",
+    title: "Blue Alcove",
+    type: "Interior visualisation",
+    meta: "Materiality · composition · mood",
+  },
+  {
+    src: "/studio/chairs.png",
+    title: "Primary Structure",
+    type: "Furniture family",
+    meta: "Modularity · colour · assembly",
+  },
+  {
+    src: "/studio/kempu.png",
+    title: "Kempu",
+    type: "Art direction",
+    meta: "Campaign · typography · image",
+  },
+  {
+    src: "/studio/magnolias.png",
+    title: "Magnolias",
+    type: "Visual identity",
+    meta: "Editorial · type system · artwork",
+  },
+] as const;
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
+export const mountGalleryGel = () => {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return () => undefined;
+
+  const stage = document.querySelector<HTMLElement>(".ref-stage");
+  const track = document.querySelector<HTMLElement>(".ref-track");
+  const gallery = document.querySelector<HTMLElement>(".ref-scene--gallery");
+  const galleryStage = gallery?.querySelector<HTMLElement>(".ref-gallery-stage");
+  const cards = galleryStage
+    ? Array.from(galleryStage.querySelectorAll<HTMLElement>(".ref-art-card"))
+    : [];
+
+  if (!stage || !track || !gallery || !galleryStage || cards.length === 0) {
+    return () => undefined;
+  }
+
+  gallery.classList.add("ref-gallery-gel-ready");
+
+  cards.forEach((card, index) => {
+    card.dataset.gelIndex = String(index);
+    if (!card.querySelector(".ref-art-card__label")) {
+      const label = document.createElement("span");
+      label.className = "ref-art-card__label";
+      label.textContent = galleryItems[index]?.title ?? `Artwork ${index + 1}`;
+      card.append(label);
+    }
+  });
+
+  const focus = document.createElement("div");
+  focus.className = "ref-gallery-focus";
+  focus.setAttribute("role", "dialog");
+  focus.setAttribute("aria-modal", "true");
+  focus.setAttribute("aria-hidden", "true");
+  focus.innerHTML = `
+    <button class="ref-gallery-focus__close" type="button" aria-label="Close artwork">CLOSE</button>
+    <figure class="ref-gallery-focus__figure">
+      <div class="ref-gallery-focus__image-wrap"><img class="ref-gallery-focus__image" alt="" /></div>
+      <figcaption class="ref-gallery-focus__caption">
+        <div class="ref-gallery-focus__signal"><span></span><i></i><b>VISUAL ARCHIVE</b></div>
+        <h2></h2>
+        <p class="ref-gallery-focus__type"></p>
+        <p class="ref-gallery-focus__meta"></p>
+      </figcaption>
+    </figure>
+  `;
+  gallery.append(focus);
+
+  const focusImage = focus.querySelector<HTMLImageElement>(".ref-gallery-focus__image");
+  const focusTitle = focus.querySelector<HTMLElement>(".ref-gallery-focus__caption h2");
+  const focusType = focus.querySelector<HTMLElement>(".ref-gallery-focus__type");
+  const focusMeta = focus.querySelector<HTMLElement>(".ref-gallery-focus__meta");
+  const focusIndex = focus.querySelector<HTMLElement>(".ref-gallery-focus__signal span");
+  const closeButton = focus.querySelector<HTMLButtonElement>(".ref-gallery-focus__close");
+
+  let selectedIndex = 0;
+  let isOpen = false;
+  let wheelLockedUntil = 0;
+  let pointerFrame = 0;
+  let pointerX = innerWidth * 0.5;
+  let pointerY = innerHeight * 0.5;
+
+  const experienceCount = document.querySelectorAll(".trajectory-entry").length || 3;
+  const systemsCount = document.querySelectorAll(".systems-axis-item").length || 5;
+  const artworkCount = cards.length;
+  const careerStartNode = 2;
+  const chapterSystemsNode = careerStartNode + experienceCount;
+  const systemsStartNode = chapterSystemsNode + 1;
+  const chapterGalleryNode = systemsStartNode + systemsCount;
+  const galleryStartNode = chapterGalleryNode + 1;
+  const chapterAgentNode = galleryStartNode + artworkCount;
+  const agentNode = chapterAgentNode + 1;
+  const lastNode = agentNode;
+
+  const galleryIsVisible = () => stage.dataset.scene === "gallery";
+
+  const scrollToNode = (node: number) => {
+    const rect = track.getBoundingClientRect();
+    const start = scrollY + rect.top;
+    const distance = Math.max(1, track.offsetHeight - innerHeight);
+    const progress = clamp(node / lastNode, 0, 1);
+    scrollTo({ top: start + distance * progress, behavior: "smooth" });
+  };
+
+  const setSelected = (index: number) => {
+    selectedIndex = (index + cards.length) % cards.length;
+    cards.forEach((card, cardIndex) => {
+      card.classList.toggle("is-key-active", cardIndex === selectedIndex);
+    });
+  };
+
+  const renderFocus = () => {
+    const item = galleryItems[selectedIndex];
+    if (!item || !focusImage || !focusTitle || !focusType || !focusMeta || !focusIndex) return;
+    focusImage.src = item.src;
+    focusImage.alt = item.title;
+    focusTitle.textContent = item.title;
+    focusType.textContent = item.type;
+    focusMeta.textContent = item.meta;
+    focusIndex.textContent = String(selectedIndex + 1).padStart(2, "0");
+  };
+
+  const openFocus = (index: number) => {
+    setSelected(index);
+    renderFocus();
+    isOpen = true;
+    gallery.classList.add("is-gallery-focus-open");
+    focus.classList.add("is-open");
+    focus.setAttribute("aria-hidden", "false");
+    requestAnimationFrame(() => closeButton?.focus({ preventScroll: true }));
+  };
+
+  const closeFocus = () => {
+    if (!isOpen) return;
+    isOpen = false;
+    gallery.classList.remove("is-gallery-focus-open");
+    focus.classList.remove("is-open");
+    focus.setAttribute("aria-hidden", "true");
+    cards[selectedIndex]?.focus({ preventScroll: true });
+  };
+
+  const onGalleryClick = (event: MouseEvent) => {
+    const target = event.target as Element | null;
+    const card = target?.closest<HTMLElement>(".ref-art-card");
+    if (card) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      openFocus(Number(card.dataset.gelIndex ?? 0));
+      return;
+    }
+
+    if (target === focus || target?.closest(".ref-gallery-focus__close")) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closeFocus();
+    }
+  };
+
+  const onKeydown = (event: KeyboardEvent) => {
+    if (!galleryIsVisible() && !isOpen) return;
+
+    if (event.key === "Escape" && isOpen) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closeFocus();
+      return;
+    }
+
+    const navigationKey = ["ArrowRight", "ArrowLeft", "Home", "End", "Enter", " "].includes(
+      event.key,
+    );
+    if (!navigationKey) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+
+    if (event.key === "ArrowRight") setSelected(selectedIndex + 1);
+    if (event.key === "ArrowLeft") setSelected(selectedIndex - 1);
+    if (event.key === "Home") setSelected(0);
+    if (event.key === "End") setSelected(cards.length - 1);
+    if (event.key === "Enter" || event.key === " ") openFocus(selectedIndex);
+    if (isOpen) renderFocus();
+  };
+
+  const onWheel = (event: WheelEvent) => {
+    if (!galleryIsVisible() && !isOpen) return;
+
+    if (isOpen) {
+      event.preventDefault();
+      return;
+    }
+
+    if (Math.abs(event.deltaY) < 8 || performance.now() < wheelLockedUntil) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    wheelLockedUntil = performance.now() + 720;
+
+    if (event.deltaY > 0) scrollToNode(chapterAgentNode);
+    else scrollToNode(chapterGalleryNode);
+  };
+
+  const onPointerMove = (event: PointerEvent) => {
+    pointerX = event.clientX;
+    pointerY = event.clientY;
+  };
+
+  const updatePointerField = () => {
+    if (galleryIsVisible() && !isOpen) {
+      cards.forEach((card, index) => {
+        const rect = card.getBoundingClientRect();
+        const cx = rect.left + rect.width * 0.5;
+        const cy = rect.top + rect.height * 0.5;
+        const dx = pointerX - cx;
+        const dy = pointerY - cy;
+        const distance = Math.hypot(dx, dy);
+        const influence = clamp(1 - distance / 620, 0, 1);
+        const depth = 0.72 + (index % 5) * 0.11;
+        card.style.setProperty("--gel-x", `${(dx * 0.018 * depth * influence).toFixed(2)}px`);
+        card.style.setProperty("--gel-y", `${(dy * 0.014 * depth * influence).toFixed(2)}px`);
+        card.style.setProperty("--gel-rx", `${(-dy * 0.006 * influence).toFixed(2)}deg`);
+        card.style.setProperty("--gel-ry", `${(dx * 0.006 * influence).toFixed(2)}deg`);
+      });
+    }
+    pointerFrame = requestAnimationFrame(updatePointerField);
+  };
+
+  const onFocusPointerDown = (event: PointerEvent) => {
+    if (event.target === focus) closeFocus();
+  };
+
+  setSelected(0);
+  gallery.addEventListener("click", onGalleryClick, true);
+  focus.addEventListener("pointerdown", onFocusPointerDown);
+  addEventListener("keydown", onKeydown, true);
+  addEventListener("wheel", onWheel, { capture: true, passive: false });
+  addEventListener("pointermove", onPointerMove, { passive: true });
+  pointerFrame = requestAnimationFrame(updatePointerField);
+
+  return () => {
+    cancelAnimationFrame(pointerFrame);
+    gallery.removeEventListener("click", onGalleryClick, true);
+    focus.removeEventListener("pointerdown", onFocusPointerDown);
+    removeEventListener("keydown", onKeydown, true);
+    removeEventListener("wheel", onWheel, true);
+    removeEventListener("pointermove", onPointerMove);
+    focus.remove();
+    gallery.classList.remove("ref-gallery-gel-ready", "is-gallery-focus-open");
+    cards.forEach((card) => {
+      card.classList.remove("is-key-active");
+      card.querySelector(".ref-art-card__label")?.remove();
+      ["--gel-x", "--gel-y", "--gel-rx", "--gel-ry"].forEach((name) =>
+        card.style.removeProperty(name),
+      );
+    });
+  };
+};
