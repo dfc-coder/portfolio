@@ -29,6 +29,8 @@ class ContextBuilder:
         now = datetime.now(timezone.utc).astimezone(self._policy.timezone)
         system = REPAIR_SYSTEM_PROMPT if issues else PLANNER_SYSTEM_PROMPT
         state_payload = {
+            "current_focus": state.current_focus,
+            "active_workflow": state.active_workflow,
             "stage": state.stage,
             "requested_start_date": state.requested_start_date,
             "requested_end_date": state.requested_end_date,
@@ -68,6 +70,8 @@ class ContextBuilder:
             f"{BUSINESS_RENDERER_SYSTEM_PROMPT}\n"
             f"CURRENT_TIME={now.isoformat()}\n"
             f"TIMEZONE={self._profile.scheduling.timezone}\n"
+            f"CURRENT_FOCUS={state.current_focus.value}\n"
+            f"ACTIVE_WORKFLOW={state.active_workflow.value if state.active_workflow else 'none'}\n"
             f"BUSINESS_CONTEXT={self._profile.prompt_context()}"
         )
         messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
