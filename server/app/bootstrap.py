@@ -6,19 +6,23 @@ from app.agent.fsm import ConversationFSM
 from app.agent.planner import StructuredPlanner
 from app.agent.renderer import HybridRenderer
 from app.agent.representative import BusinessRepresentative
+from app.agent.semantic_router import CascadingSemanticRouter
 from app.agent.verifier import AgentVerifier
 from app.infrastructure.calendar.google import GoogleCalendarGateway
 from app.infrastructure.calendar.memory import InMemoryCalendarGateway
 from app.infrastructure.config.profile_loader import load_business_profile
 from app.infrastructure.config.settings import Settings
 from app.infrastructure.llm.llama_cpp import LlamaCppClient
+from app.infrastructure.reranker.llama_cpp import LlamaCppReranker
 from app.infrastructure.sessions.memory import MemorySessionStore
 from app.ports.llm import GenerationConfig
 from app.scheduling.policy import SchedulingPolicy
 from app.scheduling.slots import SlotService
 
 
-def build_agent(settings: Settings) -> tuple[BusinessRepresentative, LlamaCppClient]:
+def build_agent(
+    settings: Settings,
+) -> tuple[BusinessRepresentative, LlamaCppClient, LlamaCppReranker]:
     profile = load_business_profile(settings.profile_path)
     policy = SchedulingPolicy(profile.scheduling)
     sessions = MemorySessionStore(settings.session_ttl_seconds, settings.session_max_turns)
@@ -32,6 +36,11 @@ def build_agent(settings: Settings) -> tuple[BusinessRepresentative, LlamaCppCli
         settings.llama_base_url,
         settings.llama_model,
         settings.llama_timeout_seconds,
+    )
+    reranker = LlamaCppReranker(
+        settings.reranker_base_url,
+        settings.reranker_model,
+        settings.reranker_timeout_seconds,
     )
 
     fsm = ConversationFSM()
@@ -54,7 +63,20 @@ def build_agent(settings: Settings) -> tuple[BusinessRepresentative, LlamaCppCli
         top_p=0.9,
         top_k=20,
     )
+    judge_config = GenerationConfig(
+        temperature=settings.router_judge_temperature,
+        max_tokens=settings.router_judge_max_tokens,
+        top_p=0.8,
+        top_k=10,
+    )
 
+    semantic_router = CascadingSemanticRouter(
+        reranker,
+        llm,
+        judge_config,
+        min_score=settings.router_min_score,
+        min_margin=settings.router_min_margin,
+    )
     planner = StructuredPlanner(llm, context, fsm, planner_config, repair_config)
     executor = ActionExecutor(slots)
     verifier = AgentVerifier(fsm)
@@ -63,6 +85,7 @@ def build_agent(settings: Settings) -> tuple[BusinessRepresentative, LlamaCppCli
         sessions,
         policy,
         calendar,
+        semantic_router,
         planner,
         executor,
         fsm,
@@ -71,4 +94,4 @@ def build_agent(settings: Settings) -> tuple[BusinessRepresentative, LlamaCppCli
         max_steps=settings.agent_max_steps,
         max_repairs=settings.agent_max_repairs,
     )
-    return representative, llm
+    return representative, llm, reranker
