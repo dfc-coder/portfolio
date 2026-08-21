@@ -1,0 +1,84 @@
+/* Chapter 04 uses the exact editorial bridge grammar established by THE EVIDENCE. */
+.ref-scene--chapter[data-chapter="gallery"] .ref-chapter {
+  width: min(680px, 72vw);
+  max-width: none;
+  display: grid;
+  grid-template-columns: auto 52px auto;
+  justify-content: center;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 22px;
+  text-align: center;
+}
+
+.ref-scene--chapter[data-chapter="gallery"] .ref-chapter::before {
+  content: "04";
+  grid-column: 1;
+  grid-row: 1;
+  color: var(--color-accent);
+  font: 8.5px/1 var(--font-mono);
+  letter-spacing: .16em;
+}
+
+.ref-scene--chapter[data-chapter="gallery"] .ref-chapter > i {
+  grid-column: 2;
+  grid-row: 1;
+  width: 52px;
+  height: 1px;
+  margin: 0;
+  background: rgba(238, 234, 226, .44);
+  transform: none;
+}
+
+.ref-scene--chapter[data-chapter="gallery"] .ref-chapter > span {
+  grid-column: 3;
+  grid-row: 1;
+  margin: 0;
+  color: rgba(238, 234, 226, .64);
+  font-size: 0;
+  letter-spacing: 0;
+  text-indent: 0;
+}
+
+.ref-scene--chapter[data-chapter="gallery"] .ref-chapter > span::after {
+  content: "A NOTE ON ORIGIN";
+  color: rgba(238, 234, 226, .64);
+  font: 8.5px/1 var(--font-mono);
+  letter-spacing: .16em;
+  white-space: nowrap;
+}
+
+.ref-scene--chapter[data-chapter="gallery"] .ref-chapter > p {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  width: min(680px, 72vw);
+  max-width: 680px;
+  margin: 0 auto;
+  color: var(--ref-paper-strong, rgba(238, 234, 226, .985));
+  font-family: var(--font-serif);
+  font-size: clamp(2.35rem, 3.55vw, 4.15rem);
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.03;
+  letter-spacing: -.03em;
+  text-align: center;
+  text-wrap: balance;
+}
+
+@media (max-width: 680px) {
+  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter {
+    width: 76vw;
+    grid-template-columns: auto 42px auto;
+    column-gap: 8px;
+    row-gap: 18px;
+  }
+
+  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter > i {
+    width: 42px;
+  }
+
+  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter > p {
+    width: 76vw;
+    font-size: clamp(2rem, 8vw, 3.4rem);
+  }
+}
