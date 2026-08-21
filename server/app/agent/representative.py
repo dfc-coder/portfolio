@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
-from typing import Final
 
 from app.domain.conversation import ActiveWorkflow, ConversationStage, SessionState
 from app.domain.planning import Observation, ObservationType
@@ -15,9 +15,10 @@ from .fsm import ConversationFSM
 from .planner import PlanningFailure, StructuredPlanner
 from .renderer import HybridRenderer
 from .semantic_router import CascadingSemanticRouter
+from .streaming_guard import StreamingOutputGuard, UnsafeStreamOutput
 from .verifier import AgentVerifier
 
-_CHUNK_SIZE: Final[int] = 24
+logger = logging.getLogger(__name__)
 
 
 class BusinessRepresentative:
@@ -75,8 +76,7 @@ class BusinessRepresentative:
         if state.pending_booking is not None:
             text = self._renderer.confirmation_reminder(state, user_message)
             await self._sessions.append_turn(state, "assistant", text)
-            async for chunk in self._chunk(text):
-                yield chunk
+            yield text
             return
 
         if state.active_workflow is None:
@@ -149,29 +149,53 @@ class BusinessRepresentative:
             self._policy.config.timezone,
         )
         await self._sessions.append_turn(state, "assistant", text)
-        async for chunk in self._chunk(text):
-            yield chunk
+        yield text
 
     async def _knowledge_answer(self, state: SessionState) -> AsyncIterator[str]:
-        candidate = await self._renderer.business_answer(state)
-        verification = self._verifier.verify_business_response(state, candidate)
-        if not verification.ok and self._max_repairs > 0:
-            candidate = await self._renderer.repair_business_answer(
-                state,
-                candidate,
-                verification.issues,
-            )
-            verification = self._verifier.verify_business_response(state, candidate)
-        if not verification.ok:
-            candidate = (
-                "No tengo información suficiente para responder eso con precisión."
-                if self._looks_spanish(state.turns[-1].content)
-                else "I don't have enough information to answer that accurately."
-            )
+        guard = StreamingOutputGuard()
+        emitted: list[str] = []
 
-        await self._sessions.append_turn(state, "assistant", candidate)
-        async for chunk in self._chunk(candidate):
-            yield chunk
+        try:
+            async for chunk in self._renderer.stream_business_answer(state):
+                ready = guard.feed(chunk)
+                if ready:
+                    emitted.append(ready)
+                    yield ready
+
+            tail = guard.finish()
+            if tail:
+                emitted.append(tail)
+                yield tail
+        except UnsafeStreamOutput as exc:
+            logger.warning(
+                "blocked unsafe streamed business output reason=%s stage=%s workflow=%s",
+                exc.reason,
+                state.stage.value,
+                state.active_workflow.value if state.active_workflow else "none",
+            )
+            fallback = self._renderer.safety_fallback(state)
+            if emitted:
+                fallback = f" {fallback}"
+            emitted.append(fallback)
+            yield fallback
+
+        text = "".join(emitted)
+        if not text.strip():
+            text = self._renderer.safety_fallback(state)
+            emitted.append(text)
+            yield text
+
+        await self._sessions.append_turn(state, "assistant", text)
+
+        # Lightweight post-stream monitoring only. It never delays or rewrites the stream.
+        verification = self._verifier.verify_business_response(state, text)
+        if not verification.ok:
+            logger.warning(
+                "post-stream business verification issues=%s stage=%s workflow=%s",
+                verification.issues,
+                state.stage.value,
+                state.active_workflow.value if state.active_workflow else "none",
+            )
 
     async def _handle_pending_booking(
         self,
@@ -229,17 +253,4 @@ class BusinessRepresentative:
             text = self._renderer.confirmation_reminder(state, user_message)
 
         await self._sessions.append_turn(state, "assistant", text)
-        async for chunk in self._chunk(text):
-            yield chunk
-
-    @staticmethod
-    async def _chunk(text: str, size: int = _CHUNK_SIZE) -> AsyncIterator[str]:
-        for index in range(0, len(text), size):
-            yield text[index : index + size]
-
-    @staticmethod
-    def _looks_spanish(text: str) -> bool:
-        lowered = text.lower()
-        return any(token in lowered.split() for token in ("que", "qué", "hola", "quiero", "puedo")) or any(
-            char in lowered for char in "áéíóúñ"
-        )
+        yield text
