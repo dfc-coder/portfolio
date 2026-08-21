@@ -1,0 +1,197 @@
+/* ========================================================================== 
+   DC PORTFOLIO DESIGN SYSTEM — TEMPLATES
+   Templates standardize repeated composition roles while chapters keep their
+   own content and conceptual motion.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   T02 — Chapter Bridge
+   THE RECORD / THE EVIDENCE are the same component with different copy.
+   -------------------------------------------------------------------------- */
+
+.trajectory-intro,
+.systems-intro {
+  position: absolute !important;
+  z-index: 46 !important;
+  left: var(--ds-chapter-left) !important;
+  top: var(--ds-chapter-top) !important;
+  width: var(--ds-chapter-width) !important;
+  translate: -50% -50% !important;
+  text-align: center !important;
+  pointer-events: none;
+}
+
+.trajectory-intro__kicker,
+.systems-intro__kicker {
+  margin: 0 auto 22px !important;
+}
+
+.trajectory-intro p,
+.systems-intro p {
+  max-width: 680px !important;
+  margin: 0 auto !important;
+  color: var(--ds-paper) !important;
+  text-align: center !important;
+  font-family: var(--font-serif) !important;
+  font-size: var(--ds-statement-size) !important;
+  font-style: italic !important;
+  font-weight: 400 !important;
+  line-height: 1.03 !important;
+  letter-spacing: -.03em !important;
+  text-wrap: balance;
+}
+
+.systems-intro p em {
+  color: inherit !important;
+  font-style: inherit !important;
+}
+
+/* --------------------------------------------------------------------------
+   T03/T04 — Section header instruction
+   Same place, same grammar, chapter-specific metadata only.
+   -------------------------------------------------------------------------- */
+
+.trajectory-header,
+.systems-header {
+  position: absolute !important;
+  z-index: 35 !important;
+  left: 22px !important;
+  right: 22px !important;
+  top: 22px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  color: var(--ds-muted) !important;
+  font: var(--ds-mono-sm)/1 var(--font-mono) !important;
+  letter-spacing: .13em !important;
+}
+
+.trajectory-header__label,
+.systems-header__label,
+.trajectory-header__meta,
+.systems-header__meta {
+  display: flex;
+  align-items: center;
+}
+
+.trajectory-header__meta,
+.systems-header__meta {
+  gap: 18px;
+  color: var(--ds-muted) !important;
+  opacity: .78;
+}
+
+.trajectory-header__meta span + span::before,
+.systems-header__meta span + span::before {
+  content: "·";
+  margin-right: 18px;
+  color: var(--ds-faint);
+}
+
+/* --------------------------------------------------------------------------
+   Shared collection counter signal.
+   Placement remains a template variant; typography and grammar do not.
+   -------------------------------------------------------------------------- */
+
+.trajectory-counter > small,
+.systems-counter > small {
+  color: var(--ds-muted) !important;
+  font: var(--ds-mono-xs)/1 var(--font-mono) !important;
+  letter-spacing: var(--ds-signal-track) !important;
+}
+
+.trajectory-counter__row > i,
+.systems-counter i {
+  height: 1px !important;
+  background: var(--ds-line) !important;
+}
+
+.trajectory-counter__row > span,
+.systems-counter span {
+  color: var(--ds-muted) !important;
+  font: var(--ds-mono-sm)/1 var(--font-mono) !important;
+  letter-spacing: .12em !important;
+}
+
+/* --------------------------------------------------------------------------
+   T04 — Technical dossier instruction language.
+   Keep the architecture unique; standardize its labels and evidence grammar.
+   -------------------------------------------------------------------------- */
+
+.systems-project__architecture-heading,
+.systems-project__evidence > span,
+.systems-project__implementation > span,
+.systems-project__detail::before {
+  font: var(--ds-mono-sm)/1 var(--font-mono) !important;
+  letter-spacing: .13em !important;
+  text-transform: uppercase;
+}
+
+.systems-project__evidence > i,
+.systems-project__detail {
+  border-color: var(--ds-line) !important;
+}
+
+.systems-project__detail {
+  color: var(--ds-body) !important;
+  font-size: 12px !important;
+  line-height: 1.58 !important;
+}
+
+/* --------------------------------------------------------------------------
+   Global instruction field / environmental continuity
+   -------------------------------------------------------------------------- */
+
+.ref-global-pointer-light {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: var(--ds-ambient-opacity) !important;
+  background: radial-gradient(
+    ellipse var(--ds-ambient-width) var(--ds-ambient-height)
+      at var(--ref-pointer-x, 50%) var(--ref-pointer-y, 44%),
+    rgba(238, 234, 226, calc(.052 + var(--ref-pointer-velocity, 0) * .012)) 0%,
+    rgba(128, 136, 156, calc(.050 + var(--ref-pointer-velocity, 0) * .012)) 22%,
+    rgba(90, 98, 118, .022) 46%,
+    rgba(60, 66, 80, .008) 66%,
+    transparent 88%
+  ) !important;
+  transform: translate3d(-2.4%, 1.6%, 0);
+  will-change: background;
+}
+
+.ref-stage[data-trajectory="true"] .ref-global-pointer-light {
+  opacity: calc(var(--ds-ambient-opacity) * .94) !important;
+}
+
+.ref-stage[data-systems-refined="true"] .ref-global-pointer-light {
+  opacity: calc(var(--ds-ambient-opacity) * .88) !important;
+}
+
+/* No section-local pointer spotlight may compete with the global field. */
+.trajectory-experience::after,
+.systems-experience::after {
+  content: none !important;
+  display: none !important;
+}
+
+@media (max-width: 680px) {
+  .trajectory-header,
+  .systems-header {
+    left: 14px !important;
+    right: 14px !important;
+  }
+
+  .trajectory-header__meta,
+  .systems-header__meta {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ref-global-pointer-light {
+    display: none !important;
+  }
+}
