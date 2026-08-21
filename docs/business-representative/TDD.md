@@ -1,15 +1,23 @@
 # TDD — Acceptance and regression suite
 
-The first vertical slice is driven by executable tests in `server/tests`.
+Executable tests live in `server/tests` and focus on the behavior that still matters after the KISS refactor.
 
-## Tests implemented
+## Current regression surface
 
-1. Explicit booking confirmation is narrower than ordinary agreement.
-2. Scheduling intent is detected in English and Spanish.
-3. Slot generation removes busy periods and applies the configured buffer.
-4. Calendar writes do not occur before explicit confirmation.
-5. Booking preparation rejects a slot that was not previously offered.
-6. The FastAPI endpoint emits the expected SSE contract.
+1. Clear semantic routes use the reranker without calling the Qwen routing judge.
+2. Ambiguous routes escalate to the constrained Qwen judge.
+3. Business interruptions preserve active scheduling memory.
+4. A false scheduling route can return `not_applicable` and fall back to business/general.
+5. A supplied date causes availability lookup without a conversation-stage machine.
+6. Details supplied before slot selection are preserved.
+7. A slot that was not offered is rejected.
+8. A pending booking is not written on ambiguous agreement.
+9. Explicit confirmation creates exactly one Calendar booking.
+10. Business/general responses use the real LLM stream path.
+11. The stream guard catches completed Calendar claims split across chunks.
+12. Capability descriptions such as "I can schedule after confirmation" remain streamable.
+13. The FastAPI endpoint preserves the SSE ready/token/done contract.
+14. Slot calculation continues to respect busy intervals, business hours and buffers.
 
 ## Local command
 
@@ -18,18 +26,34 @@ cd server
 PYTHONPATH=. pytest -q
 ```
 
-Expected baseline:
+Or:
+
+```bash
+make check
+```
+
+## Golden cases to grow with real traffic
 
 ```text
-6 passed
+active scheduling + "¿Tenés herramientas?" -> business interrupt
+active scheduling + "mañana" -> scheduling continuation
+slots offered + "el segundo" -> select S2
+pending booking + "Tuesday could work" -> no write
+pending booking + "sí, confirmo" -> write
+"¿qué hora es?" -> general
+"¿cuánto cobra por hora?" -> business
 ```
+
+These remain evaluation cases first. They are not a calibrated classifier dataset.
 
 ## Next tests before production traffic
 
-- Google OAuth token refresh with mocked HTTP transport.
-- Calendar HTTP 409 idempotency path.
-- llama.cpp tool-call parsing against the exact Qwen3.5-2B GGUF/chat template selected for deployment.
-- CORS production-origin test.
-- session expiration and stale pending-booking test.
-- queue latency/load test with `--parallel 1`.
-- browser E2E test for SSE disconnect/reconnect behavior.
+- scheduling extraction accuracy against the deployed Qwen3.5-0.8B quantization;
+- capability-aware response quality against the real model;
+- duplicate/idempotent Calendar-write protection;
+- Google OAuth token refresh with mocked HTTP transport;
+- Calendar conflict/retry behavior;
+- session expiration with stale pending booking;
+- queue latency/load test with llama.cpp `--parallel 1`;
+- browser E2E test for SSE disconnect/reconnect;
+- classifier shadow-mode accuracy/calibration once enough reviewed data exists.

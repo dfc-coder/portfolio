@@ -6,13 +6,13 @@ services:
       - ${LLAMA_MODELS_DIR:-./models}:/models:ro,Z
     command:
       - -m
-      - /models/${LLAMA_MODEL_FILE:-Qwen3.5-2B-UD-Q4_K_XL.gguf}
+      - /models/${LLAMA_MODEL_FILE:-Qwen3.5-0.8B-UD-Q4_K_XL.gguf}
       - --host
       - 0.0.0.0
       - --port
       - "8080"
       - --ctx-size
-      - "8192"
+      - ${LLAMA_CTX_SIZE:-4096}
       - --parallel
       - "1"
       - --cache-prompt
@@ -22,13 +22,36 @@ services:
       - --n-gpu-layers
       - ${LLAMA_N_GPU_LAYERS:-0}
     healthcheck:
-      test:
-        [
-          "CMD",
-          "curl",
-          "-fsS",
-          "http://127.0.0.1:8080/health"
-        ]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+
+  reranker:
+    image: ${LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
+    restart: unless-stopped
+    volumes:
+      - ${LLAMA_MODELS_DIR:-./models}:/models:ro,Z
+    command:
+      - -m
+      - /models/${RERANKER_MODEL_FILE:-qwen3-reranker-0.6b-q8_0.gguf}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8081"
+      - --ctx-size
+      - ${RERANKER_CTX_SIZE:-2048}
+      - --parallel
+      - "1"
+      - --embedding
+      - --rerank
+      - --pooling
+      - rank
+      - --n-gpu-layers
+      - ${RERANKER_N_GPU_LAYERS:-0}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8081/health"]
       interval: 10s
       timeout: 3s
       retries: 20
@@ -41,8 +64,11 @@ services:
       - .env
     environment:
       LLAMA_BASE_URL: http://llama:8080
+      RERANKER_BASE_URL: http://reranker:8081
     ports:
       - "8000:8000"
     depends_on:
       llama:
+        condition: service_healthy
+      reranker:
         condition: service_healthy

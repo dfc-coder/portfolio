@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import gsap from "gsap";
+import { Flip } from "gsap/Flip";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import AgentOS from "./AgentOS.vue";
 
@@ -499,6 +500,15 @@ const onKeydown = (event: KeyboardEvent) => {
   ) {
     return;
   }
+
+  if (
+    introVisible.value &&
+    ["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End", " "].includes(event.key)
+  ) {
+    event.preventDefault();
+    return;
+  }
+
   if (activeScene.value !== "gallery") return;
 
   if (event.key === "ArrowRight") {
@@ -514,6 +524,10 @@ const onKeydown = (event: KeyboardEvent) => {
     event.preventDefault();
     goToArtwork(artworks.length - 1);
   }
+};
+
+const preventIntroScroll = (event: Event) => {
+  if (introVisible.value) event.preventDefault();
 };
 
 const CURSOR_INTERACTIVE = "button, a, input, textarea, select, [data-cursor]";
@@ -607,87 +621,164 @@ const runIntro = () => {
   }
 
   document.documentElement.classList.add("is-refined-intro");
-  gsap.set(".ref-hero__meta, .ref-hero__thesis, .ref-scroll-cue, .ref-header", { opacity: 0 });
-  gsap.set(".ref-hero__title span i", { yPercent: 112 });
-  gsap.set(".ref-intro__mark", { xPercent: -50, yPercent: -50, transformOrigin: "50% 50%" });
 
   const markElement = document.querySelector<HTMLElement>(".ref-intro__mark");
-  const brandElement = document.querySelector<HTMLElement>(".ref-brand strong");
-  let markDeltaX = 0;
-  let markDeltaY = -window.innerHeight * 0.42;
-  let markScale = 0.1;
-  if (markElement && brandElement) {
-    const markRect = markElement.getBoundingClientRect();
-    const brandRect = brandElement.getBoundingClientRect();
-    markDeltaX = brandRect.left + brandRect.width / 2 - (markRect.left + markRect.width / 2);
-    markDeltaY = brandRect.top + brandRect.height / 2 - (markRect.top + markRect.height / 2);
-    markScale = Math.max(0.04, brandRect.height / Math.max(1, markRect.height));
+  const introGlyphs = Array.from(
+    document.querySelectorAll<HTMLElement>(".ref-intro__glyph"),
+  );
+  const heroInitials = Array.from(
+    document.querySelectorAll<HTMLElement>(".ref-hero__initial"),
+  );
+  const heroTails = Array.from(
+    document.querySelectorAll<HTMLElement>(".ref-hero__tail"),
+  );
+  const heroWords = Array.from(
+    document.querySelectorAll<HTMLElement>(".ref-hero__title > span > i"),
+  );
+
+  if (
+    !markElement ||
+    introGlyphs.length !== 2 ||
+    heroInitials.length !== 2 ||
+    heroTails.length !== 2 ||
+    heroWords.length !== 2
+  ) {
+    introVisible.value = false;
+    document.documentElement.classList.remove("is-refined-intro");
+    return;
   }
+
+  /* The opening initials and the Hero initials must be the same visual object.
+     Copy the final computed display metrics before measuring anything so the
+     handoff never needs to resize a glyph. */
+  const heroStyle = getComputedStyle(heroWords[0]);
+  gsap.set(markElement, {
+    fontFamily: heroStyle.fontFamily,
+    fontSize: heroStyle.fontSize,
+    fontWeight: heroStyle.fontWeight,
+    lineHeight: heroStyle.lineHeight,
+    letterSpacing: heroStyle.letterSpacing,
+  });
+
+  gsap.set(".ref-hero__meta, .ref-hero__thesis, .ref-scroll-cue, .ref-header", {
+    opacity: 0,
+  });
+  gsap.set(heroInitials, { opacity: 0, willChange: "opacity" });
+  gsap.set(heroTails, {
+    opacity: 1,
+    clipPath: "inset(0% 100% 0% 0%)",
+    willChange: "clip-path",
+  });
+  gsap.set(introGlyphs, {
+    x: 0,
+    y: 0,
+    scale: 1,
+    transformOrigin: "50% 50%",
+    willChange: "transform, opacity",
+  });
+
+  /* Flip owns the coordinate-system math, but not the size. We deliberately
+     keep only x/y from Flip.fit(): scale stays 1 for the entire handoff. */
+  const travel = introGlyphs.map((glyph, index) => {
+    const fit = Flip.fit(glyph, heroInitials[index], {
+      scale: true,
+      getVars: true,
+    }) as gsap.TweenVars;
+    return { x: fit.x ?? 0, y: fit.y ?? 0 };
+  });
 
   introTimeline = gsap
     .timeline({
       defaults: { ease: "power3.out" },
       onComplete: () => {
+        gsap.set([...heroInitials, ...heroTails], {
+          clearProps: "opacity,clipPath,willChange",
+        });
+        gsap.set(introGlyphs, { clearProps: "x,y,scale,willChange,opacity" });
         introVisible.value = false;
         document.documentElement.classList.remove("is-refined-intro");
       },
     })
-    .from(".ref-intro__mark", {
+    .from(markElement, {
       opacity: 0,
-      scale: 0.9,
-      letterSpacing: "0.05em",
-      duration: 0.82,
-      ease: "expo.out",
+      duration: 0.56,
+      ease: "power2.out",
     })
     .from(
       ".ref-intro__statement span",
-      { yPercent: 115, duration: 0.62, stagger: 0.055 },
-      "-=0.44",
+      { yPercent: 115, duration: 0.58, stagger: 0.05 },
+      "-=0.28",
     )
     .from(
       ".ref-intro__meta span",
-      { opacity: 0, y: 8, duration: 0.42, stagger: 0.05 },
-      "-=0.42",
+      { opacity: 0, y: 7, duration: 0.38, stagger: 0.045 },
+      "-=0.34",
     )
-    .addLabel("handoff", "+=0.12")
-    .to(".ref-intro__panel--top", { yPercent: -101, duration: 1.05, ease: "expo.inOut" }, "handoff")
-    .to(".ref-intro__panel--bottom", { yPercent: 101, duration: 1.05, ease: "expo.inOut" }, "handoff")
+    .addLabel("handoff", "+=0.2")
     .to(
-      ".ref-intro__statement, .ref-intro__meta",
-      { opacity: 0, y: -10, duration: 0.3, ease: "power2.in" },
+      ".ref-intro__panel--top",
+      { yPercent: -101, duration: 0.96, ease: "power4.inOut" },
       "handoff",
     )
     .to(
-      ".ref-hero__title span i",
-      { yPercent: 0, duration: 1.0, stagger: 0.12, ease: "expo.out" },
-      "handoff+=0.22",
-    )
-    .fromTo(
-      ".ref-hero__title",
-      { letterSpacing: "0.015em" },
-      { letterSpacing: "-0.045em", duration: 1.05, ease: "expo.out" },
-      "handoff+=0.22",
+      ".ref-intro__panel--bottom",
+      { yPercent: 101, duration: 0.96, ease: "power4.inOut" },
+      "handoff",
     )
     .to(
-      ".ref-intro__mark",
-      { x: markDeltaX, y: markDeltaY, scale: markScale, duration: 0.95, ease: "expo.inOut" },
-      "handoff+=0.1",
+      ".ref-intro__statement, .ref-intro__meta",
+      { opacity: 0, y: -8, duration: 0.28, ease: "power2.in" },
+      "handoff",
     )
-    .to(".ref-header", { opacity: 1, duration: 0.4 }, "handoff+=0.78")
-    .to(".ref-intro__mark", { opacity: 0, duration: 0.22, ease: "power1.in" }, "handoff+=0.9")
+    .to(
+      introGlyphs[0],
+      { x: travel[0].x, y: travel[0].y, duration: 0.92, ease: "power3.inOut" },
+      "handoff+=0.06",
+    )
+    .to(
+      introGlyphs[1],
+      { x: travel[1].x, y: travel[1].y, duration: 0.92, ease: "power3.inOut" },
+      "handoff+=0.06",
+    )
+    .to(
+      heroInitials,
+      { opacity: 1, duration: 0.12, ease: "none" },
+      "handoff+=0.86",
+    )
+    .to(
+      introGlyphs,
+      { opacity: 0, duration: 0.14, ease: "none" },
+      "handoff+=0.86",
+    )
+    .to(
+      heroTails,
+      {
+        clipPath: "inset(0% 0% 0% 0%)",
+        duration: 0.44,
+        stagger: 0.055,
+        ease: "power3.out",
+      },
+      "handoff+=0.96",
+    )
     .to(
       ".ref-hero__meta, .ref-hero__thesis, .ref-scroll-cue",
-      { opacity: 1, y: 0, duration: 0.5, stagger: 0.06 },
-      "handoff+=0.72",
+      { opacity: 1, y: 0, duration: 0.46, stagger: 0.05 },
+      "handoff+=1.12",
     )
-    .set(".ref-intro", { display: "none" });
+    .to(".ref-header", { opacity: 1, duration: 0.34 }, "handoff+=1.24")
+    .set(".ref-intro", { display: "none" }, "handoff+=1.5");
 };
 
 onMounted(async () => {
   await nextTick();
-  gsap.registerPlugin(ScrollTrigger);
+  gsap.registerPlugin(ScrollTrigger, Flip);
 
   reducedMotion.value = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* Shared-element geometry is only stable once the self-hosted display face
+     has settled. */
+  await document.fonts.ready;
+
   systemCards = Array.from(document.querySelectorAll<HTMLElement>(".ref-system-card"));
   artworkCards = Array.from(document.querySelectorAll<HTMLElement>(".ref-art-card"));
 
@@ -706,9 +797,11 @@ onMounted(async () => {
     startMotionLoop();
   }
 
+  addEventListener("wheel", preventIntroScroll, { passive: false });
+  addEventListener("touchmove", preventIntroScroll, { passive: false });
+  addEventListener("keydown", onKeydown);
   runIntro();
   addEventListener("load", () => ScrollTrigger.refresh(), { once: true });
-  addEventListener("keydown", onKeydown);
 
   cursorEnabled.value = matchMedia("(pointer: fine)").matches && !reducedMotion.value;
   if (cursorEnabled.value) {
@@ -729,6 +822,8 @@ onBeforeUnmount(() => {
   cancelAnimationFrame(motionFrame);
   cancelAnimationFrame(cursorFrame);
   removeEventListener("keydown", onKeydown);
+  removeEventListener("wheel", preventIntroScroll);
+  removeEventListener("touchmove", preventIntroScroll);
   removeEventListener("pointermove", onCursorMove);
   removeEventListener("pointerover", onCursorOver);
   removeEventListener("pointerdown", onCursorDown);
@@ -752,7 +847,10 @@ onBeforeUnmount(() => {
         <span>DIEGO CANO / PORTFOLIO 2026</span>
         <span>BUENOS AIRES · GMT−3</span>
       </div>
-      <div class="ref-intro__mark">DC</div>
+      <div class="ref-intro__mark">
+        <span class="ref-intro__glyph" data-intro-glyph="D" data-flip-id="hero-d">D</span><span
+          class="ref-intro__glyph" data-intro-glyph="C" data-flip-id="hero-c">C</span>
+      </div>
       <p class="ref-intro__statement">
         <span>SOFTWARE</span>
         <span>INTELLIGENCE</span>
@@ -785,7 +883,12 @@ onBeforeUnmount(() => {
 
         <article class="ref-scene ref-scene--hero">
           <p class="ref-hero__meta"><span>BUENOS AIRES · ARGENTINA</span><span>SELECTED PRACTICE / 2026</span></p>
-          <h1 class="ref-hero__title"><span><i>DIEGO</i></span><span><i>CANO</i></span></h1>
+          <h1 class="ref-hero__title">
+            <span><i><b class="ref-hero__initial" data-hero-initial="D" data-flip-id="hero-d">D</b><b
+                  class="ref-hero__tail">IEGO</b></i></span>
+            <span><i><b class="ref-hero__initial" data-hero-initial="C" data-flip-id="hero-c">C</b><b
+                  class="ref-hero__tail">ANO</b></i></span>
+          </h1>
           <p class="ref-hero__thesis">I design software systems, intelligent products and physical ideas with one
             principle: <em>complexity must become legible.</em></p>
           <div class="ref-scroll-cue"><span>SCROLL TO ENTER</span><i /></div>
@@ -911,3 +1014,40 @@ onBeforeUnmount(() => {
     </section>
   </div>
 </template>
+
+<style>
+/* The opening initials are the same visual objects as the first letters of
+   DIEGO / CANO. Higher specificity intentionally wins over older tuning rules
+   without duplicating the whole typography system. */
+.ref-portfolio .ref-intro__mark {
+  top: 50%;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: var(--t-display);
+  font-weight: var(--w-black);
+  line-height: var(--lead-solid);
+  letter-spacing: var(--track-tight);
+}
+
+.ref-portfolio .ref-intro__glyph,
+.ref-portfolio .ref-hero__initial,
+.ref-portfolio .ref-hero__tail {
+  display: inline-block;
+  font: inherit;
+  font-style: normal;
+  font-weight: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  vertical-align: baseline;
+}
+
+.ref-portfolio .ref-intro__glyph {
+  transform-origin: 50% 50%;
+}
+
+.ref-portfolio .ref-hero__initial,
+.ref-portfolio .ref-hero__tail {
+  will-change: opacity, clip-path;
+}
+</style>

@@ -1,203 +1,96 @@
-# SDD — Server-side Business Representative
+# SDD — Portfolio Business Representative
 
-## 1. Context
+## Goal
 
-The existing Vue `AgentOS` already separates rendering from an `AgentProvider`. The new system keeps that UI contract and replaces the regex/local provider with a remote provider. The model never executes in the browser.
+Run a useful server-side representative on Qwen3.5-0.8B with real streaming, reliable Calendar writes and a codebase small enough to reason about.
 
-## 2. Deployment topology
+The design intentionally avoids a conversational FSM, generic capability registry and generic ReAct loop until the product actually needs them.
+
+## Runtime
 
 ```text
 Vue / Netlify
      |
      | HTTPS + SSE
      v
-FastAPI Business Representative
+FastAPI
      |
-     +-- SessionStore (TTL, in-memory MVP)
-     +-- SchedulingPolicy
+     +-- BusinessRepresentative
+     |      +-- SemanticRouter ------> Qwen3-Reranker-0.6B
+     |      |                         + Qwen 0.8B ambiguity fallback
+     |      +-- Scheduler -----------> Qwen 0.8B structured extraction
+     |      |                         + CalendarPort
+     |      +-- Responder -----------> Qwen 0.8B real stream
+     |                                + StreamGuard
+     |
+     +-- SessionStore
      +-- SlotService
-     +-- GoogleCalendarGateway ----> Google Calendar
-     +-- LlamaClient
-               |
-               v
-        llama-server
-        Qwen3.5-2B Q4_K_XL
-        --parallel 1
-        --cache-prompt
-        --jinja
-        model resident in process memory
+     +-- CalendarPort -------------> Google Calendar
 ```
 
-Netlify remains static hosting. FastAPI and llama-server must run on long-lived infrastructure (VM, container host or always-on service). A scale-to-zero/serverless inference host cannot guarantee permanent model residency.
+## Agent boundary
 
-## 3. Browser boundary
+`BusinessRepresentative` only orchestrates: append the visitor turn, route, delegate, and persist the assistant turn. It contains no workflow rules and no tool execution logic.
 
-`businessAgentProvider.ts` is the only browser integration point. It sends:
+## Routing
 
-```json
-{
-  "session_id": "web-<uuid>",
-  "message": "visitor message"
-}
-```
+`SemanticRouter` evaluates business, scheduling and general. Qwen3-Reranker handles the normal zero-shot route. Qwen3.5-0.8B is used only when the reranker score/margin is ambiguous.
 
-To `POST /v1/chat/stream` and consumes SSE events:
+During an active scheduling task, business/general routes are interruptions and scheduling is continuation. Scheduling memory is preserved across interruptions.
+
+## Scheduling
+
+Scheduling state is data, not a conversation stage:
 
 ```text
-event: ready
-data: {"session_id":"..."}
-
-event: token
-data: {"text":"..."}
-
-event: done
-data: {}
+SchedulingMemory
+- requested date range
+- offered slots
+- selected slot id
+- visitor name
+- visitor email
+- subject
+- pending booking
 ```
 
-No model, tokenizer, embeddings or business secrets are shipped to the browser.
+`Scheduler` performs one structured interpretation of the latest scheduling turn, updates this memory, and directly performs the next necessary meeting operation.
 
-## 4. LLM serving
+There is no `DATES -> SLOT -> DETAILS -> CONFIRMATION` state machine.
 
-`llama-server` is configured with:
+The only external Calendar operations are read availability and create a prepared booking.
 
-- Qwen3.5-2B GGUF, Q4_K_XL
-- one slot: `--parallel 1`
-- prompt cache: `--cache-prompt`
-- idle slot cache enabled
-- cache reuse enabled
-- Jinja chat templates/tool calling enabled
-- 8K context baseline
-- thinking disabled through `chat_template_kwargs` for low latency
+## Write safety
 
-The FastAPI `LlamaClient` also uses an `asyncio.Semaphore(1)` so application concurrency matches the single inference slot instead of creating an uncontrolled queue.
+Calendar creation is authorized only when hard invariants hold: a pending booking exists, the selected slot was previously offered, visitor email is valid, the latest visitor message satisfies explicit-confirmation policy, and the Calendar API accepts the write.
 
-## 5. Prompt/cache layout
+The free-form responder cannot execute Calendar writes.
 
-The prompt is intentionally ordered for longest-common-prefix reuse:
+## False scheduling routes
+
+A routed scheduling message is interpreted again inside the narrow scheduling context. If it is actually a professional/general question, `Scheduler` returns `not_applicable` and the representative reroutes only across business/general.
+
+This protects active meeting memory from false positives such as "¿Podés usar herramientas?".
+
+## Grounded real streaming
+
+`Responder` receives `BUSINESS_CONTEXT`, `AGENT_CAPABILITIES`, current time, focus and workflow summary. It streams directly from llama.cpp.
+
+`StreamGuard` keeps a small rolling holdback and blocks only narrow operational claims such as impersonating Diego or claiming an unverified completed Calendar action.
+
+Capability descriptions remain allowed. "Puedo agendar una reunión después de que confirmes" is valid; "la reunión ya quedó agendada" is reserved for the successful deterministic booking path.
+
+## Package boundaries
 
 ```text
-[stable system instructions]
-[stable BUSINESS_CONTEXT]
-[dynamic current time/timezone]
-[bounded session turns]
-[current tool result, when present]
+app/api             HTTP + SSE
+app/agent           representative, router, scheduler, responder, stream guard
+app/domain          session/profile/routing/scheduling data
+app/scheduling      date policy + availability calculation
+app/ports           LLM, reranker, calendar, sessions
+app/infrastructure  llama.cpp, Google Calendar, config, sessions
+app/bootstrap.py    dependency composition
 ```
 
-The stable business prefix changes only when `business-profile.json` changes. Current time is placed after it so daily/time-specific values do not invalidate the full prefix.
+## Future evolution
 
-## 6. Conversation strategy
-
-This is not an unrestricted ReAct loop.
-
-For ordinary business questions:
-
-```text
-visitor -> LlamaClient streaming -> SSE -> browser
-```
-
-For scheduling-intent messages:
-
-```text
-visitor
-  -> one bounded tool-decision call
-  -> execute at most one scheduling tool
-  -> final streamed response
-```
-
-Exposed LLM tools:
-
-1. `get_availability(start_date, end_date)`
-2. `prepare_booking(slot_start, visitor_name, visitor_email, subject)`
-
-`prepare_booking` is non-destructive. It only creates pending session state.
-
-The destructive Calendar write is not an LLM tool. It is executed deterministically by FastAPI only when:
-
-1. a pending booking exists;
-2. its slot came from a prior availability result;
-3. the next visitor message is an explicit confirmation.
-
-## 7. Calendar integration
-
-`GoogleCalendarGateway` uses server-side OAuth refresh credentials from environment variables.
-
-Read path:
-
-```text
-POST https://www.googleapis.com/calendar/v3/freeBusy
-```
-
-Write path:
-
-```text
-POST https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events
-```
-
-Only free/busy intervals are passed back to the model. Event titles, attendee lists and unrelated calendar details are not exposed.
-
-Each prepared booking receives a stable booking ID. The Calendar event ID is derived from that ID. A retry that receives HTTP 409 fetches the existing event rather than creating a second meeting.
-
-## 8. Session model
-
-MVP session state is server-side and TTL bounded:
-
-```text
-SessionState
-  session_id
-  turns[-N:]
-  offered_slots
-  pending_booking?
-  last_booking_id?
-  last_activity
-```
-
-Default TTL: 30 minutes. Default retained turns: 12.
-
-A future multi-replica deployment should replace `SessionStore` with Redis without changing the agent API.
-
-## 9. Business policy
-
-Configured, not hardcoded in prompts:
-
-- timezone
-- meeting length
-- buffer
-- minimum notice
-- maximum scheduling horizon
-- business hours
-- maximum proposed slots
-
-The authoritative values live in `server/config/business-profile.json`.
-
-## 10. Security boundaries
-
-- Google OAuth credentials only exist in server environment variables.
-- Browser receives no Calendar token.
-- No direct Calendar write tool is exposed to the LLM.
-- Booking requires explicit confirmation.
-- A requested slot must exactly match a previously offered slot.
-- API input is length- and shape-validated.
-- CORS origins are configurable.
-- Calendar failure never becomes a success claim.
-- Production should add an edge rate limit / bot challenge before public launch.
-
-## 11. Failure behavior
-
-| Failure | Result |
-|---|---|
-| llama-server unavailable | SSE `error`; UI shows agent failure |
-| model still loading | `/ready` reports degraded |
-| bad tool arguments | tool returns structured error; no side effect |
-| Calendar free/busy failure | no invented slots |
-| Calendar event insert failure | user is told nothing was booked |
-| browser refresh | session survives within `sessionStorage`; backend state survives until TTL/process restart |
-
-## 12. Scale path
-
-Current target is deliberately one model slot. When observed queue latency becomes unacceptable:
-
-1. move session state to Redis;
-2. increase llama.cpp slots if memory permits, or switch the OpenAI-compatible backend to vLLM/SGLang;
-3. preserve the FastAPI and Vue contracts.
-
-No frontend rewrite is required for that evolution.
+A trained intent classifier is deferred until reviewed production examples exist. If the number of independent tools grows enough to justify semantic tool retrieval, the existing reranker can be reused then rather than maintaining speculative abstractions today.
