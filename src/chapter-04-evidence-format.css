@@ -1,5 +1,6 @@
-/* Chapter 04 uses the exact editorial bridge grammar established by THE EVIDENCE. */
-.ref-scene--chapter[data-chapter="gallery"] .ref-chapter {
+/* Chapters 04 and 05 use the editorial bridge grammar established by THE EVIDENCE. */
+.ref-scene--chapter[data-chapter="gallery"] .ref-chapter,
+.ref-scene--chapter[data-chapter="agent"] .ref-chapter {
   width: min(680px, 72vw);
   max-width: none;
   display: grid;
@@ -11,8 +12,8 @@
   text-align: center;
 }
 
-.ref-scene--chapter[data-chapter="gallery"] .ref-chapter::before {
-  content: "04";
+.ref-scene--chapter[data-chapter="gallery"] .ref-chapter::before,
+.ref-scene--chapter[data-chapter="agent"] .ref-chapter::before {
   grid-column: 1;
   grid-row: 1;
   color: var(--color-accent);
@@ -20,7 +21,16 @@
   letter-spacing: .16em;
 }
 
-.ref-scene--chapter[data-chapter="gallery"] .ref-chapter > i {
+.ref-scene--chapter[data-chapter="gallery"] .ref-chapter::before {
+  content: "04";
+}
+
+.ref-scene--chapter[data-chapter="agent"] .ref-chapter::before {
+  content: "05";
+}
+
+.ref-scene--chapter[data-chapter="gallery"] .ref-chapter > i,
+.ref-scene--chapter[data-chapter="agent"] .ref-chapter > i {
   grid-column: 2;
   grid-row: 1;
   width: 52px;
@@ -30,7 +40,8 @@
   transform: none;
 }
 
-.ref-scene--chapter[data-chapter="gallery"] .ref-chapter > span {
+.ref-scene--chapter[data-chapter="gallery"] .ref-chapter > span,
+.ref-scene--chapter[data-chapter="agent"] .ref-chapter > span {
   grid-column: 3;
   grid-row: 1;
   margin: 0;
@@ -40,15 +51,24 @@
   text-indent: 0;
 }
 
-.ref-scene--chapter[data-chapter="gallery"] .ref-chapter > span::after {
-  content: "A NOTE ON ORIGIN";
+.ref-scene--chapter[data-chapter="gallery"] .ref-chapter > span::after,
+.ref-scene--chapter[data-chapter="agent"] .ref-chapter > span::after {
   color: rgba(238, 234, 226, .64);
   font: 8.5px/1 var(--font-mono);
   letter-spacing: .16em;
   white-space: nowrap;
 }
 
-.ref-scene--chapter[data-chapter="gallery"] .ref-chapter > p {
+.ref-scene--chapter[data-chapter="gallery"] .ref-chapter > span::after {
+  content: "A NOTE ON ORIGIN";
+}
+
+.ref-scene--chapter[data-chapter="agent"] .ref-chapter > span::after {
+  content: "THE INTERFACE";
+}
+
+.ref-scene--chapter[data-chapter="gallery"] .ref-chapter > p,
+.ref-scene--chapter[data-chapter="agent"] .ref-chapter > p {
   grid-column: 1 / -1;
   grid-row: 2;
   width: min(680px, 72vw);
@@ -66,18 +86,21 @@
 }
 
 @media (max-width: 680px) {
-  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter {
+  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter,
+  .ref-scene--chapter[data-chapter="agent"] .ref-chapter {
     width: 76vw;
     grid-template-columns: auto 42px auto;
     column-gap: 8px;
     row-gap: 18px;
   }
 
-  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter > i {
+  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter > i,
+  .ref-scene--chapter[data-chapter="agent"] .ref-chapter > i {
     width: 42px;
   }
 
-  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter > p {
+  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter > p,
+  .ref-scene--chapter[data-chapter="agent"] .ref-chapter > p {
     width: 76vw;
     font-size: clamp(2rem, 8vw, 3.4rem);
   }
