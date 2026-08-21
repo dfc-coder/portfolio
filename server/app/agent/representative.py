@@ -52,8 +52,11 @@ class BusinessRepresentative:
         state = await self._sessions.get(session_id)
         await self._sessions.append_turn(state, "user", user_message)
 
-        # Explicit booking confirmation/rejection is a safety boundary, not an intent heuristic.
-        if state.pending_booking is not None:
+        # Calendar writes/cancellation remain deterministic safety boundaries.
+        if state.pending_booking is not None and (
+            self._policy.is_explicit_confirmation(user_message)
+            or self._policy.is_rejection(user_message)
+        ):
             async for chunk in self._handle_pending_booking(state, user_message):
                 yield chunk
             return
@@ -66,6 +69,13 @@ class BusinessRepresentative:
 
         if decision.domain != RouteDomain.SCHEDULING:
             async for chunk in self._knowledge_answer(state):
+                yield chunk
+            return
+
+        if state.pending_booking is not None:
+            text = self._renderer.confirmation_reminder(state, user_message)
+            await self._sessions.append_turn(state, "assistant", text)
+            async for chunk in self._chunk(text):
                 yield chunk
             return
 
