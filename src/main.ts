@@ -19,6 +19,7 @@ import "./systems-experience-v3.css";
 import "./systems-integration-fix.css";
 import "./visual-continuity-v3.css";
 import "./systems-experience-v5.css";
+import "./chapter-04-evidence-format.css";
 
 /* Design System V2 is intentionally passive. These files expose semantic
    tokens and opt-in classes only; chapter layout and motion remain owned by
