@@ -1,0 +1,253 @@
+/* ==========================================================================
+   CREATIVE HERO EXPERIENCE
+   One visual hierarchy, one entrance timeline, one interactive field.
+   The legacy intro remains in the Vue component for now but is visually
+   retired here so it cannot compete with the new opening choreography.
+   ========================================================================== */
+
+/* The previous intro duplicated the hero typography and created competing
+   layers during the hand-off. The new opening is mounted by hero-experience.ts
+   and the actual hero stays the only destination layer. */
+.ref-intro {
+  display: none !important;
+}
+
+.ref-scene--hero {
+  overflow: hidden;
+  background: #090908;
+}
+
+.ref-scene--hero::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 72% 34%, rgba(238, 234, 226, .055), transparent 30%),
+    radial-gradient(circle at 28% 76%, rgba(196, 161, 92, .035), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, .012), transparent 28%, rgba(0, 0, 0, .14));
+}
+
+.ref-hero-field {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: .86;
+}
+
+.ref-hero__meta,
+.ref-hero__title,
+.ref-hero__thesis,
+.ref-scroll-cue {
+  position: relative;
+  z-index: 6;
+}
+
+/* Editorial asymmetry: the two lines share one typographic voice but anchor to
+   opposite sides. This creates depth without relying on decorative motion. */
+.ref-hero__title {
+  left: 1.7vw;
+  right: 1.7vw;
+  top: 49%;
+  transform: translateY(-50%);
+  font-size: var(--t-display);
+  line-height: .82;
+  letter-spacing: -.03em;
+}
+
+.ref-hero__title > span {
+  overflow: hidden;
+  padding-block: .055em;
+}
+
+.ref-hero__title > span > i {
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+
+.ref-hero__title > span:first-child > i {
+  text-align: left;
+}
+
+.ref-hero__title > span:last-child > i {
+  text-align: right;
+}
+
+.ref-hero__initial,
+.ref-hero__tail {
+  display: inline-block;
+  font: inherit;
+  font-style: normal;
+  font-weight: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  vertical-align: baseline;
+}
+
+.ref-hero__meta {
+  margin-inline: 0;
+  color: rgba(238, 234, 226, .46);
+}
+
+.ref-hero__thesis {
+  width: min(560px, 46vw);
+  color: rgba(238, 234, 226, .72);
+}
+
+.ref-hero__thesis em {
+  color: rgba(238, 234, 226, .96);
+}
+
+.ref-scroll-cue {
+  color: rgba(238, 234, 226, .66);
+}
+
+/* --------------------------------------------------------------------------
+   Opening
+   The opening is intentionally quieter than the hero. It establishes rhythm,
+   then yields in one continuous mask rather than layering multiple reveals.
+   -------------------------------------------------------------------------- */
+
+.creative-opening {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
+  overflow: hidden;
+  color: #eeeae2;
+  background: #090908;
+  clip-path: inset(0 0 0 0);
+  will-change: clip-path;
+}
+
+.creative-opening::before,
+.creative-opening::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.creative-opening::before {
+  inset: 0;
+  opacity: .2;
+  background:
+    linear-gradient(90deg, transparent calc(50% - .5px), rgba(238, 234, 226, .16) 50%, transparent calc(50% + .5px)),
+    linear-gradient(transparent calc(50% - .5px), rgba(238, 234, 226, .12) 50%, transparent calc(50% + .5px));
+}
+
+.creative-opening::after {
+  inset: 22px;
+  border: 1px solid rgba(238, 234, 226, .09);
+}
+
+.creative-opening__meta {
+  position: absolute;
+  z-index: 2;
+  top: 22px;
+  left: 22px;
+  right: 22px;
+  display: flex;
+  justify-content: space-between;
+  color: rgba(238, 234, 226, .42);
+  font: 9px/1 var(--font-mono);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.creative-opening__center {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 50%;
+  width: min(520px, 72vw);
+  display: grid;
+  grid-template-columns: auto minmax(72px, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  transform: translate(-50%, -50%);
+}
+
+.creative-opening__mark {
+  font-family: var(--font-display);
+  font-size: clamp(3.4rem, 5vw, 5.8rem);
+  font-weight: var(--w-black);
+  line-height: .78;
+  letter-spacing: -.065em;
+}
+
+.creative-opening__rule {
+  height: 1px;
+  background: rgba(238, 234, 226, .58);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+.creative-opening__label {
+  max-width: 150px;
+  color: rgba(238, 234, 226, .52);
+  font: 9px/1.45 var(--font-mono);
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+
+.creative-opening__progress {
+  position: absolute;
+  z-index: 2;
+  left: 22px;
+  right: 22px;
+  bottom: 22px;
+  height: 1px;
+  overflow: hidden;
+  background: rgba(238, 234, 226, .08);
+}
+
+.creative-opening__progress > i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: rgba(238, 234, 226, .68);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+/* --------------------------------------------------------------------------
+   Interaction polish
+   -------------------------------------------------------------------------- */
+
+.ref-scene--hero[data-hero-hover="true"] .ref-hero__meta {
+  color: rgba(238, 234, 226, .58);
+}
+
+@media (max-width: 800px) {
+  .creative-opening__center {
+    width: calc(100% - 44px);
+    grid-template-columns: auto 1fr;
+  }
+
+  .creative-opening__label {
+    display: none;
+  }
+
+  .ref-hero__title {
+    left: 3vw;
+    right: 3vw;
+    top: 47%;
+  }
+
+  .ref-hero__thesis {
+    width: min(84vw, 520px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .creative-opening {
+    display: none !important;
+  }
+
+  .ref-hero-field {
+    display: none;
+  }
+}
