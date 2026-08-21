@@ -31,6 +31,13 @@ class Settings:
     repair_max_tokens: int = 96
     agent_max_steps: int = 3
     agent_max_repairs: int = 1
+    reranker_base_url: str = "http://reranker:8081"
+    reranker_model: str = "Qwen3-Reranker-0.6B-Q8_0"
+    reranker_timeout_seconds: float = 30.0
+    router_min_score: float = 0.10
+    router_min_margin: float = 0.08
+    router_judge_temperature: float = 0.05
+    router_judge_max_tokens: int = 48
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -60,6 +67,13 @@ class Settings:
             repair_max_tokens=int(os.getenv("REPAIR_MAX_TOKENS", "96")),
             agent_max_steps=int(os.getenv("AGENT_MAX_STEPS", "3")),
             agent_max_repairs=int(os.getenv("AGENT_MAX_REPAIRS", "1")),
+            reranker_base_url=os.getenv("RERANKER_BASE_URL", "http://reranker:8081").rstrip("/"),
+            reranker_model=os.getenv("RERANKER_MODEL", "Qwen3-Reranker-0.6B-Q8_0"),
+            reranker_timeout_seconds=float(os.getenv("RERANKER_TIMEOUT_SECONDS", "30")),
+            router_min_score=float(os.getenv("ROUTER_MIN_SCORE", "0.10")),
+            router_min_margin=float(os.getenv("ROUTER_MIN_MARGIN", "0.08")),
+            router_judge_temperature=float(os.getenv("ROUTER_JUDGE_TEMPERATURE", "0.05")),
+            router_judge_max_tokens=int(os.getenv("ROUTER_JUDGE_MAX_TOKENS", "48")),
         )
 
     def validate_calendar(self) -> None:
