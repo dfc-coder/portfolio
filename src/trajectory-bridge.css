@@ -1,0 +1,53 @@
+/* ==========================================================================
+   SCROLL CUE -> TRAJECTORY AXIS
+   Preserve the approved visual language: one quiet 1px line changes ownership
+   between Hero and Career without changing weight, color or character.
+   ========================================================================== */
+
+/* Once the trajectory handoff begins, stop the decorative pulse so the source
+   line has deterministic geometry while it is transferred. */
+html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i {
+  animation: none;
+}
+
+/* The original cue keeps the same vertical travel, but its final opacity is now
+   coordinated with the bridge. Text still disappears earlier via the existing
+   trajectory rules. */
+html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue {
+  opacity: var(--trajectory-cue-handoff-opacity, 1) !important;
+}
+
+.trajectory-bridge-line {
+  position: absolute;
+  z-index: 8;
+  left: 50%;
+  top: calc(100% - 62px);
+  width: 1px;
+  height: 44px;
+  opacity: 0;
+  transform: translateX(-50%);
+  pointer-events: none;
+  will-change: left, top, height, opacity;
+}
+
+.trajectory-bridge-line > i {
+  display: block;
+  width: 1px;
+  height: 100%;
+  background: rgba(238, 234, 226, .58);
+}
+
+/* The bridge arrives already at the final timeline geometry. The permanent
+   chronology therefore only crossfades ownership; it does not scale or redraw
+   itself during the handoff. */
+.trajectory-axis {
+  transform: none !important;
+  transform-origin: top center;
+  will-change: opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trajectory-bridge-line {
+    display: none;
+  }
+}
