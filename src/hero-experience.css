@@ -43,12 +43,12 @@
 .ref-hero__title,
 .ref-hero__thesis,
 .ref-scroll-cue {
-  position: relative;
   z-index: 6;
 }
 
 /* Editorial asymmetry: the two lines share one typographic voice but anchor to
-   opposite sides. This creates depth without relying on decorative motion. */
+   opposite sides. The title is never clipped during entry; it moves as one
+   complete typographic object instead of being sliced by a mask. */
 .ref-hero__title {
   left: 1.7vw;
   right: 1.7vw;
@@ -60,8 +60,8 @@
 }
 
 .ref-hero__title > span {
-  overflow: hidden;
-  padding-block: .055em;
+  overflow: visible;
+  padding-block: 0;
 }
 
 .ref-hero__title > span > i {
@@ -93,17 +93,79 @@
   color: rgba(238, 234, 226, .46);
 }
 
+/* The thesis has its own motion language: a quiet editorial rule establishes
+   the block, then the copy settles horizontally. It intentionally does not
+   repeat the vertical name entrance. */
 .ref-hero__thesis {
   width: min(560px, 46vw);
+  display: grid;
+  grid-template-columns: 1px minmax(0, 1fr);
+  align-items: stretch;
+  column-gap: 14px;
   color: rgba(238, 234, 226, .72);
+}
+
+.ref-hero__thesis-accent {
+  display: block;
+  width: 1px;
+  min-height: 100%;
+  background: rgba(238, 234, 226, .42);
+  transform: scaleY(0);
+  transform-origin: top center;
+}
+
+.ref-hero__thesis-copy {
+  display: block;
 }
 
 .ref-hero__thesis em {
   color: rgba(238, 234, 226, .96);
 }
 
+/* Vertical cue: centered below the composition, separate from the editorial
+   text block so it reads as a navigation affordance rather than metadata. */
 .ref-scroll-cue {
-  color: rgba(238, 234, 226, .66);
+  position: absolute;
+  left: 50%;
+  right: auto;
+  top: auto;
+  bottom: 18px;
+  translate: -50% 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: rgba(238, 234, 226, .58);
+  pointer-events: none;
+}
+
+.ref-scroll-cue span {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  font-size: 8px;
+  letter-spacing: .18em;
+  line-height: 1;
+}
+
+.ref-scroll-cue i {
+  width: 1px;
+  height: 44px;
+  background: currentColor;
+  transform-origin: top center;
+  animation: creative-scroll-cue 1.8s cubic-bezier(.65, 0, .35, 1) infinite;
+}
+
+@keyframes creative-scroll-cue {
+  0%, 100% {
+    transform: scaleY(.22);
+    opacity: .28;
+  }
+
+  52% {
+    transform: scaleY(1);
+    opacity: .9;
+  }
 }
 
 /* --------------------------------------------------------------------------
@@ -239,6 +301,15 @@
 
   .ref-hero__thesis {
     width: min(84vw, 520px);
+    column-gap: 10px;
+  }
+
+  .ref-scroll-cue {
+    bottom: 14px;
+  }
+
+  .ref-scroll-cue i {
+    height: 34px;
   }
 }
 
@@ -249,5 +320,10 @@
 
   .ref-hero-field {
     display: none;
+  }
+
+  .ref-scroll-cue i {
+    animation: none;
+    transform: scaleY(1);
   }
 }
