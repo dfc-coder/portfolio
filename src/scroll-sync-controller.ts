@@ -5,12 +5,27 @@ const FALLBACK_SYSTEM_COUNT = 5;
 const FALLBACK_ARTWORK_COUNT = 10;
 const SCROLL_STEP_VH = 36;
 const MAX_INSTALL_ATTEMPTS = 120;
+const SCENE_CROSSFADE_WIDTH = 0.46;
+const GALLERY_EXIT_START = 0.72;
+const GALLERY_EXIT_VIRTUAL_LEAD = 0.8;
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
+const smoother = (value: number) => {
+  const x = clamp01(value);
+  return x * x * x * (x * (x * 6 - 15) + 10);
+};
+
+const range = (value: number, start: number, end: number) =>
+  smoother((value - start) / (end - start));
+
+type SceneName = "hero" | "chapter" | "career" | "systems" | "gallery" | "agent";
+
 type ScrollModel = {
   careerStartNode: number;
+  chapterSystemsNode: number;
   systemsStartNode: number;
+  chapterGalleryNode: number;
   galleryStartNode: number;
   virtualChapterAgentNode: number;
   virtualLastNode: number;
@@ -38,7 +53,9 @@ const buildScrollModel = (): ScrollModel => {
 
   return {
     careerStartNode,
+    chapterSystemsNode,
     systemsStartNode,
+    chapterGalleryNode,
     galleryStartNode,
     virtualChapterAgentNode,
     virtualLastNode,
@@ -47,6 +64,15 @@ const buildScrollModel = (): ScrollModel => {
   };
 };
 
+/**
+ * Maps the real document position to the legacy virtual chapter model.
+ *
+ * The gallery no longer has ten physical scroll steps. While the gallery is on
+ * screen its virtual progress is intentionally held still; only the final part
+ * of the physical interval is used to reveal Chapter 05. This avoids the old
+ * 10x progress acceleration that made the gallery/agent handoff and parallax
+ * look detached from the scrollbar.
+ */
 export const mapPhysicalProgressToVirtualProgress = (
   physicalProgress: number,
   model: ScrollModel,
@@ -64,15 +90,65 @@ export const mapPhysicalProgressToVirtualProgress = (
     return clamp01(virtualNode / model.virtualLastNode);
   }
 
-  const galleryProgress =
+  const galleryLocal =
     (physicalNode - model.galleryStartNode) /
     (model.physicalChapterAgentNode - model.galleryStartNode);
+
+  if (galleryLocal <= GALLERY_EXIT_START) {
+    return clamp01(model.galleryStartNode / model.virtualLastNode);
+  }
+
+  const exitProgress = smoother(
+    (galleryLocal - GALLERY_EXIT_START) / (1 - GALLERY_EXIT_START),
+  );
+  const exitStartNode = model.virtualChapterAgentNode - GALLERY_EXIT_VIRTUAL_LEAD;
   const virtualNode =
-    model.galleryStartNode +
-    galleryProgress *
-      (model.virtualChapterAgentNode - model.galleryStartNode);
+    exitStartNode +
+    (model.virtualChapterAgentNode - exitStartNode) * exitProgress;
 
   return clamp01(virtualNode / model.virtualLastNode);
+};
+
+const sceneForNode = (node: number, model: ScrollModel): SceneName => {
+  if (node < 0.5) return "hero";
+  if (node < model.careerStartNode - 0.5) return "chapter";
+  if (node < model.chapterSystemsNode - 0.5) return "career";
+  if (node < model.systemsStartNode - 0.5) return "chapter";
+  if (node < model.chapterGalleryNode - 0.5) return "systems";
+  if (node < model.galleryStartNode - 0.5) return "chapter";
+  if (node < model.virtualChapterAgentNode - 0.5) return "gallery";
+  if (node < model.virtualLastNode - 0.5) return "chapter";
+  return "agent";
+};
+
+const crossfadeAt = (node: number, boundary: number) =>
+  range(
+    node,
+    boundary - SCENE_CROSSFADE_WIDTH / 2,
+    boundary + SCENE_CROSSFADE_WIDTH / 2,
+  );
+
+const sceneOpacities = (node: number, model: ScrollModel) => {
+  const heroToChapter = crossfadeAt(node, 0.5);
+  const chapterToCareer = crossfadeAt(node, model.careerStartNode - 0.5);
+  const careerToChapter = crossfadeAt(node, model.chapterSystemsNode - 0.5);
+  const chapterToSystems = crossfadeAt(node, model.systemsStartNode - 0.5);
+  const systemsToChapter = crossfadeAt(node, model.chapterGalleryNode - 0.5);
+  const chapterToGallery = crossfadeAt(node, model.galleryStartNode - 0.5);
+  const galleryToChapter = crossfadeAt(node, model.virtualChapterAgentNode - 0.5);
+  const chapterToAgent = crossfadeAt(node, model.virtualLastNode - 0.5);
+
+  return {
+    hero: 1 - heroToChapter,
+    chapterCareer: heroToChapter * (1 - chapterToCareer),
+    career: chapterToCareer * (1 - careerToChapter),
+    chapterSystems: careerToChapter * (1 - chapterToSystems),
+    systems: chapterToSystems * (1 - systemsToChapter),
+    chapterGallery: systemsToChapter * (1 - chapterToGallery),
+    gallery: chapterToGallery * (1 - galleryToChapter),
+    chapterAgent: galleryToChapter * (1 - chapterToAgent),
+    agent: chapterToAgent,
+  };
 };
 
 export const mountScrollSyncController = () => {
@@ -96,6 +172,10 @@ export const mountScrollSyncController = () => {
   track.dataset.scrollSyncOwner = "physical";
   track.style.setProperty("height", `${trackHeightVh}vh`, "important");
 
+  let latestPhysicalProgress = 0;
+  let latestVirtualProgress = 0;
+  let authoritativeFrame = 0;
+
   const syncProgressChrome = (physicalProgress: number) => {
     const progress = clamp01(physicalProgress);
     portfolio.style.setProperty("--physical-scroll-progress", progress.toFixed(5));
@@ -103,6 +183,34 @@ export const mountScrollSyncController = () => {
       "data-scroll-progress",
       String(Math.round(progress * 100)).padStart(2, "0"),
     );
+  };
+
+  const applyAuthoritativeVisualState = () => {
+    const progress = latestVirtualProgress;
+    const node = progress * model.virtualLastNode;
+    const opacity = sceneOpacities(node, model);
+
+    stage.dataset.scene = sceneForNode(node, model);
+    stage.style.setProperty("--progress", progress.toFixed(6));
+    stage.style.setProperty("--scroll-director-progress", progress.toFixed(6));
+    stage.style.setProperty("--hero", opacity.hero.toFixed(6));
+    stage.style.setProperty("--career", opacity.career.toFixed(6));
+    stage.style.setProperty("--systems", opacity.systems.toFixed(6));
+    stage.style.setProperty("--gallery", opacity.gallery.toFixed(6));
+    stage.style.setProperty("--agent", opacity.agent.toFixed(6));
+    stage.style.setProperty("--chapter-career", opacity.chapterCareer.toFixed(6));
+    stage.style.setProperty("--chapter-systems", opacity.chapterSystems.toFixed(6));
+    stage.style.setProperty("--chapter-gallery", opacity.chapterGallery.toFixed(6));
+    stage.style.setProperty("--chapter-agent", opacity.chapterAgent.toFixed(6));
+  };
+
+  const runAuthoritativeFrame = () => {
+    /* Vue still owns internal active-item refs. It applies its damped progress
+       first; this controller deliberately writes the exact scroll state after
+       that frame and before the chapter-specific directors read --progress.
+       All visible parallax therefore shares one, non-lagging clock. */
+    applyAuthoritativeVisualState();
+    authoritativeFrame = requestAnimationFrame(runAuthoritativeFrame);
   };
 
   const scrollToPhysicalNode = (node: number) => {
@@ -164,10 +272,9 @@ export const mountScrollSyncController = () => {
     scrollToPhysicalNode(node);
   };
 
-  /* gallery-gel used to jump ten virtual artwork nodes on wheel. The physical
-     controller compresses those nodes into one real scroll interval, so wheel
-     input must remain native. stopImmediatePropagation blocks the legacy
-     gallery handler without cancelling the browser's default scroll. */
+  /* The gallery owns artwork selection through pointer/keyboard only. Native
+     wheel movement must remain attached to the physical document. Blocking the
+     legacy gallery wheel handler prevents a second, competing scroll clock. */
   const onWheelCapture = (event: WheelEvent) => {
     if (stage.dataset.scene !== "gallery") return;
 
@@ -183,24 +290,30 @@ export const mountScrollSyncController = () => {
   let originalOnUpdate: ((self: ScrollTrigger) => void) | undefined;
 
   const forwardProgress = (self: ScrollTrigger) => {
-    const physicalProgress = clamp01(self.progress);
-    const virtualProgress = mapPhysicalProgressToVirtualProgress(
-      physicalProgress,
+    latestPhysicalProgress = clamp01(self.progress);
+    latestVirtualProgress = mapPhysicalProgressToVirtualProgress(
+      latestPhysicalProgress,
       model,
     );
 
-    syncProgressChrome(physicalProgress);
-    if (!originalOnUpdate) return;
+    syncProgressChrome(latestPhysicalProgress);
 
-    const virtualView = new Proxy(self, {
-      get(target, property) {
-        if (property === "progress") return virtualProgress;
-        const value = Reflect.get(target, property, target);
-        return typeof value === "function" ? value.bind(target) : value;
-      },
-    }) as ScrollTrigger;
+    if (originalOnUpdate) {
+      const virtualView = new Proxy(self, {
+        get(target, property) {
+          if (property === "progress") return latestVirtualProgress;
+          const value = Reflect.get(target, property, target);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      }) as ScrollTrigger;
 
-    originalOnUpdate(virtualView);
+      originalOnUpdate(virtualView);
+    }
+
+    /* ScrollTrigger may update between animation frames. Write immediately as
+       well, eliminating the one-frame phase error visible during fast wheel or
+       touchpad motion. */
+    applyAuthoritativeVisualState();
   };
 
   const install = () => {
@@ -229,6 +342,7 @@ export const mountScrollSyncController = () => {
     });
 
     forwardProgress(replacementTrigger);
+    authoritativeFrame = requestAnimationFrame(runAuthoritativeFrame);
     ScrollTrigger.refresh();
   };
 
@@ -239,6 +353,7 @@ export const mountScrollSyncController = () => {
 
   return () => {
     cancelAnimationFrame(installFrame);
+    cancelAnimationFrame(authoritativeFrame);
     replacementTrigger?.kill();
     removeEventListener("click", onNavigationClick, true);
     removeEventListener("wheel", onWheelCapture, true);
@@ -246,5 +361,17 @@ export const mountScrollSyncController = () => {
     delete track.dataset.scrollSyncOwner;
     portfolio.style.removeProperty("--physical-scroll-progress");
     progressCurrent?.removeAttribute("data-scroll-progress");
+    [
+      "--scroll-director-progress",
+      "--hero",
+      "--career",
+      "--systems",
+      "--gallery",
+      "--agent",
+      "--chapter-career",
+      "--chapter-systems",
+      "--chapter-gallery",
+      "--chapter-agent",
+    ].forEach((property) => stage.style.removeProperty(property));
   };
 };
