@@ -4,6 +4,7 @@ import { mountHeroExperience } from "./hero-experience";
 import { mountTrajectoryExperience } from "./trajectory-experience";
 import { mountSystemsExperience } from "./systems-experience-v5";
 import { mountVisualContinuity } from "./visual-continuity-v2";
+import { mountGalleryGel } from "./gallery-gel";
 import "./style.css";
 import "./cinematic-refined.css";
 import "./cinematic-tuning.css";
@@ -20,6 +21,7 @@ import "./systems-integration-fix.css";
 import "./visual-continuity-v3.css";
 import "./systems-experience-v5.css";
 import "./chapter-04-evidence-format.css";
+import "./gallery-gel.css";
 
 /* Design System V2 is intentionally passive. These files expose semantic
    tokens and opt-in classes only; chapter layout and motion remain owned by
@@ -46,6 +48,7 @@ void document.fonts.ready.then(() => {
       mountHeroExperience();
       mountTrajectoryExperience();
       mountSystemsExperience();
+      mountGalleryGel();
     });
   });
 });
