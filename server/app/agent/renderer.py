@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import Any
 
@@ -44,6 +45,13 @@ class HybridRenderer:
         self._renderer_config = renderer_config
         self._repair_config = repair_config
 
+    async def stream_business_answer(self, state: SessionState) -> AsyncIterator[str]:
+        async for chunk in self._llm.stream(
+            self._context.business_messages(state),
+            self._renderer_config,
+        ):
+            yield chunk
+
     async def business_answer(self, state: SessionState) -> str:
         return await self._llm.complete(
             self._context.business_messages(state),
@@ -60,6 +68,12 @@ class HybridRenderer:
             self._context.business_repair_messages(state, candidate, issues),
             self._repair_config,
         )
+
+    def safety_fallback(self, state: SessionState) -> str:
+        message = state.turns[-1].content if state.turns else ""
+        if self._is_spanish(message):
+            return "No puedo afirmar eso sin información verificable en el contexto disponible."
+        return "I can't make that claim without verifiable information in the available context."
 
     def render_observation(
         self,
