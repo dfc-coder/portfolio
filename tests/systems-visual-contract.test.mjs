@@ -39,21 +39,71 @@ test("BDD: Given Career is leaving, when THE EVIDENCE becomes readable, then Car
   );
 });
 
-test("BDD: Given THE EVIDENCE is exiting, when project 00 starts, then the chapter statement has yielded", () => {
+test("BDD: Given THE EVIDENCE is yielding, when project 00 becomes readable, then the chapter statement is no longer a competing protagonist", () => {
   const chapterSystemsNode = 5;
   const chapterGalleryNode = 11;
-  const contentStart = motion.SYSTEMS_TIMING.contentReveal[0];
-  const state = motion.chapterState(
-    chapterSystemsNode + contentStart,
-    chapterSystemsNode,
-    chapterGalleryNode,
+
+  for (let step = 0; step <= 100; step += 1) {
+    const systemsDelta =
+      motion.SYSTEMS_TIMING.contentReveal[0] +
+      ((motion.SYSTEMS_TIMING.contentReveal[1] - motion.SYSTEMS_TIMING.contentReveal[0]) * step) /
+        100;
+    const state = motion.chapterState(
+      chapterSystemsNode + systemsDelta,
+      chapterSystemsNode,
+      chapterGalleryNode,
+    );
+
+    if (state.contentReveal >= 0.05) {
+      assert.ok(
+        state.introVisibility < 0.01,
+        `chapter statement still competes when content is readable: intro=${state.introVisibility}, content=${state.contentReveal}`,
+      );
+    }
+  }
+});
+
+test("BDD: Given THE EVIDENCE hands off to project 00, then there is no perceptible dead interval between chapter and system", () => {
+  const chapterSystemsNode = 5;
+  const chapterGalleryNode = 11;
+  let deadSamples = 0;
+  let longestDeadRun = 0;
+
+  for (let step = 0; step <= 120; step += 1) {
+    const systemsDelta = 0.20 + step * 0.003;
+    const state = motion.chapterState(
+      chapterSystemsNode + systemsDelta,
+      chapterSystemsNode,
+      chapterGalleryNode,
+    );
+    const coverage = Math.max(state.introVisibility, state.contentReveal);
+
+    if (coverage < 0.01) {
+      deadSamples += 1;
+      longestDeadRun = Math.max(longestDeadRun, deadSamples);
+    } else {
+      deadSamples = 0;
+    }
+  }
+
+  assert.ok(
+    longestDeadRun <= 7,
+    `chapter-to-project dead interval is too wide: ${longestDeadRun} samples`,
+  );
+});
+
+test("BDD: Given project 00 is the first dossier, then it owns an extended full-focus plateau before project 01 begins", () => {
+  const startNode = 6;
+  const endOfRequiredPlateau = startNode + motion.SYSTEMS_COLLECTION.firstHoldEnd - 0.01;
+  const duringPlateau = motion.collectionPosition(endOfRequiredPlateau, startNode, 5);
+  const afterPlateau = motion.collectionPosition(
+    startNode + motion.SYSTEMS_COLLECTION.firstHoldEnd + 0.10,
+    startNode,
+    5,
   );
 
-  assert.ok(state.contentReveal <= 0.001, "content window should start from zero");
-  assert.ok(
-    state.introVisibility < 0.01,
-    `chapter statement must be gone before content owns the anchor, got ${state.introVisibility}`,
-  );
+  assert.equal(duringPlateau, 0, "project 00 must remain fully focused through its first hold window");
+  assert.ok(afterPlateau > 0, "project 01 transition should begin only after project 00 hold completes");
 });
 
 test("BDD: Given a project-to-project transition, when titles exchange ownership, then two title protagonists never coexist", () => {
@@ -131,6 +181,39 @@ test("TDD regression: active CSS files contain real newlines and no escaped-newl
     const css = await readFile(resolve(root, file), "utf8");
     assert.ok(css.split("\n").length > 40, `${file} must be a real multiline stylesheet`);
     assert.equal(css.includes("\\n"), false, `${file} contains literal \\n escapes`);
+  }
+});
+
+test("TDD regression: shared visual continuity must never mutate Systems direct-child positioning", async () => {
+  const css = await readFile(resolve(root, "src/visual-continuity-v3.css"), "utf8");
+
+  assert.doesNotMatch(
+    css,
+    /\.systems-experience\s*>\s*\*\s*\{[^}]*position\s*:\s*relative/is,
+  );
+  assert.doesNotMatch(
+    css,
+    /\.trajectory-experience\s*>\s*\*\s*\{[^}]*position\s*:\s*relative/is,
+  );
+  assert.match(css, /\.systems-experience\s*\{[^}]*isolation\s*:\s*isolate/is);
+});
+
+test("TDD regression: critical Systems composition layers are explicitly absolute", async () => {
+  const css = await readFile(resolve(root, "src/systems-experience-v5.css"), "utf8");
+
+  for (const selector of [
+    ".systems-intro",
+    ".systems-header",
+    ".systems-axis",
+    ".systems-axis-items",
+    ".systems-projects",
+    ".systems-counter",
+  ]) {
+    assert.match(
+      css,
+      new RegExp(`${selector.replaceAll(".", "\\.")}[^}]*position\\s*:\\s*absolute\\s*!important`, "is"),
+      `${selector} must remain absolutely positioned`,
+    );
   }
 });
 
