@@ -499,6 +499,15 @@ const onKeydown = (event: KeyboardEvent) => {
   ) {
     return;
   }
+
+  if (
+    introVisible.value &&
+    ["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End", " "].includes(event.key)
+  ) {
+    event.preventDefault();
+    return;
+  }
+
   if (activeScene.value !== "gallery") return;
 
   if (event.key === "ArrowRight") {
@@ -514,6 +523,10 @@ const onKeydown = (event: KeyboardEvent) => {
     event.preventDefault();
     goToArtwork(artworks.length - 1);
   }
+};
+
+const preventIntroScroll = (event: Event) => {
+  if (introVisible.value) event.preventDefault();
 };
 
 const CURSOR_INTERACTIVE = "button, a, input, textarea, select, [data-cursor]";
@@ -600,6 +613,28 @@ const startMotionLoop = () => {
   motionFrame = requestAnimationFrame(tick);
 };
 
+const firstGlyphRect = (element: HTMLElement): DOMRect => {
+  const textNode = Array.from(element.childNodes).find(
+    (node) => node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim()),
+  );
+  if (!textNode?.textContent) return element.getBoundingClientRect();
+
+  const firstIndex = textNode.textContent.search(/\S/);
+  if (firstIndex < 0) return element.getBoundingClientRect();
+
+  const glyph = document.createRange();
+  glyph.setStart(textNode, firstIndex);
+  glyph.setEnd(textNode, firstIndex + 1);
+  return glyph.getBoundingClientRect();
+};
+
+const morphTransform = (source: DOMRect, target: DOMRect) => ({
+  x: target.left + target.width / 2 - (source.left + source.width / 2),
+  y: target.top + target.height / 2 - (source.top + source.height / 2),
+  scaleX: target.width / Math.max(1, source.width),
+  scaleY: target.height / Math.max(1, source.height),
+});
+
 const runIntro = () => {
   if (reducedMotion.value) {
     introVisible.value = false;
@@ -607,32 +642,61 @@ const runIntro = () => {
   }
 
   document.documentElement.classList.add("is-refined-intro");
-  gsap.set(".ref-hero__meta, .ref-hero__thesis, .ref-scroll-cue, .ref-header", { opacity: 0 });
-  gsap.set(".ref-hero__title span i", { yPercent: 112 });
-  gsap.set(".ref-intro__mark", { xPercent: -50, yPercent: -50, transformOrigin: "50% 50%" });
 
   const markElement = document.querySelector<HTMLElement>(".ref-intro__mark");
-  const brandElement = document.querySelector<HTMLElement>(".ref-brand strong");
-  let markDeltaX = 0;
-  let markDeltaY = -window.innerHeight * 0.42;
-  let markScale = 0.1;
-  if (markElement && brandElement) {
-    const markRect = markElement.getBoundingClientRect();
-    const brandRect = brandElement.getBoundingClientRect();
-    markDeltaX = brandRect.left + brandRect.width / 2 - (markRect.left + markRect.width / 2);
-    markDeltaY = brandRect.top + brandRect.height / 2 - (markRect.top + markRect.height / 2);
-    markScale = Math.max(0.04, brandRect.height / Math.max(1, markRect.height));
+  const heroWords = Array.from(
+    document.querySelectorAll<HTMLElement>(".ref-hero__title span i"),
+  );
+
+  if (!markElement || heroWords.length < 2) {
+    introVisible.value = false;
+    document.documentElement.classList.remove("is-refined-intro");
+    return;
   }
+
+  /* The intro initials are transient clones. Keeping DIEGO/CANO as the real
+     Hero DOM means their final layout remains the single source of truth. */
+  markElement.innerHTML =
+    '<span data-intro-glyph="D">D</span><span data-intro-glyph="C">C</span>';
+  const introGlyphs = Array.from(
+    markElement.querySelectorAll<HTMLElement>("[data-intro-glyph]"),
+  );
+
+  if (introGlyphs.length < 2) return;
+
+  gsap.set(".ref-hero__meta, .ref-hero__thesis, .ref-scroll-cue, .ref-header", {
+    opacity: 0,
+  });
+  gsap.set(heroWords, {
+    opacity: 0,
+    clipPath: "inset(0% 100% 0% 0%)",
+    willChange: "clip-path, opacity",
+  });
+  gsap.set(introGlyphs, {
+    display: "inline-block",
+    transformOrigin: "50% 50%",
+    willChange: "transform, opacity",
+  });
+
+  /* Measure the actual first glyphs of DIEGO and CANO. This is intentionally
+     done against the final Hero typography rather than the small header logo. */
+  const targetRects = [firstGlyphRect(heroWords[0]), firstGlyphRect(heroWords[1])];
+  const sourceRects = introGlyphs.map((glyph) => glyph.getBoundingClientRect());
+  const transforms = [
+    morphTransform(sourceRects[0], targetRects[0]),
+    morphTransform(sourceRects[1], targetRects[1]),
+  ];
 
   introTimeline = gsap
     .timeline({
       defaults: { ease: "power3.out" },
       onComplete: () => {
+        gsap.set(heroWords, { clearProps: "opacity,clipPath,willChange" });
         introVisible.value = false;
         document.documentElement.classList.remove("is-refined-intro");
       },
     })
-    .from(".ref-intro__mark", {
+    .from(markElement, {
       opacity: 0,
       scale: 0.9,
       letterSpacing: "0.05em",
@@ -649,38 +713,55 @@ const runIntro = () => {
       { opacity: 0, y: 8, duration: 0.42, stagger: 0.05 },
       "-=0.42",
     )
-    .addLabel("handoff", "+=0.12")
-    .to(".ref-intro__panel--top", { yPercent: -101, duration: 1.05, ease: "expo.inOut" }, "handoff")
-    .to(".ref-intro__panel--bottom", { yPercent: 101, duration: 1.05, ease: "expo.inOut" }, "handoff")
+    .addLabel("handoff", "+=0.14")
     .to(
-      ".ref-intro__statement, .ref-intro__meta",
-      { opacity: 0, y: -10, duration: 0.3, ease: "power2.in" },
+      ".ref-intro__panel--top",
+      { yPercent: -101, duration: 1.28, ease: "power4.inOut" },
       "handoff",
     )
     .to(
-      ".ref-hero__title span i",
-      { yPercent: 0, duration: 1.0, stagger: 0.12, ease: "expo.out" },
-      "handoff+=0.22",
-    )
-    .fromTo(
-      ".ref-hero__title",
-      { letterSpacing: "0.015em" },
-      { letterSpacing: "-0.045em", duration: 1.05, ease: "expo.out" },
-      "handoff+=0.22",
+      ".ref-intro__panel--bottom",
+      { yPercent: 101, duration: 1.28, ease: "power4.inOut" },
+      "handoff",
     )
     .to(
-      ".ref-intro__mark",
-      { x: markDeltaX, y: markDeltaY, scale: markScale, duration: 0.95, ease: "expo.inOut" },
-      "handoff+=0.1",
+      ".ref-intro__statement, .ref-intro__meta",
+      { opacity: 0, y: -8, duration: 0.34, ease: "power2.in" },
+      "handoff",
     )
-    .to(".ref-header", { opacity: 1, duration: 0.4 }, "handoff+=0.78")
-    .to(".ref-intro__mark", { opacity: 0, duration: 0.22, ease: "power1.in" }, "handoff+=0.9")
+    .to(
+      introGlyphs[0],
+      { ...transforms[0], duration: 1.18, ease: "power4.inOut" },
+      "handoff+=0.08",
+    )
+    .to(
+      introGlyphs[1],
+      { ...transforms[1], duration: 1.18, ease: "power4.inOut" },
+      "handoff+=0.08",
+    )
+    .to(
+      heroWords,
+      {
+        opacity: 1,
+        clipPath: "inset(0% 0% 0% 0%)",
+        duration: 0.5,
+        stagger: 0.055,
+        ease: "power2.out",
+      },
+      "handoff+=1.02",
+    )
+    .to(
+      introGlyphs,
+      { opacity: 0, duration: 0.22, ease: "power1.out" },
+      "handoff+=1.18",
+    )
     .to(
       ".ref-hero__meta, .ref-hero__thesis, .ref-scroll-cue",
-      { opacity: 1, y: 0, duration: 0.5, stagger: 0.06 },
-      "handoff+=0.72",
+      { opacity: 1, y: 0, duration: 0.52, stagger: 0.055 },
+      "handoff+=1.22",
     )
-    .set(".ref-intro", { display: "none" });
+    .to(".ref-header", { opacity: 1, duration: 0.42 }, "handoff+=1.32")
+    .set(".ref-intro", { display: "none" }, "handoff+=1.58");
 };
 
 onMounted(async () => {
@@ -688,6 +769,11 @@ onMounted(async () => {
   gsap.registerPlugin(ScrollTrigger);
 
   reducedMotion.value = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* FLIP-style geometry must be measured only after the actual fonts settle;
+     otherwise the target glyph boxes can change during the handoff. */
+  await document.fonts.ready;
+
   systemCards = Array.from(document.querySelectorAll<HTMLElement>(".ref-system-card"));
   artworkCards = Array.from(document.querySelectorAll<HTMLElement>(".ref-art-card"));
 
@@ -706,9 +792,11 @@ onMounted(async () => {
     startMotionLoop();
   }
 
+  addEventListener("wheel", preventIntroScroll, { passive: false });
+  addEventListener("touchmove", preventIntroScroll, { passive: false });
+  addEventListener("keydown", onKeydown);
   runIntro();
   addEventListener("load", () => ScrollTrigger.refresh(), { once: true });
-  addEventListener("keydown", onKeydown);
 
   cursorEnabled.value = matchMedia("(pointer: fine)").matches && !reducedMotion.value;
   if (cursorEnabled.value) {
@@ -729,6 +817,8 @@ onBeforeUnmount(() => {
   cancelAnimationFrame(motionFrame);
   cancelAnimationFrame(cursorFrame);
   removeEventListener("keydown", onKeydown);
+  removeEventListener("wheel", preventIntroScroll);
+  removeEventListener("touchmove", preventIntroScroll);
   removeEventListener("pointermove", onCursorMove);
   removeEventListener("pointerover", onCursorOver);
   removeEventListener("pointerdown", onCursorDown);
