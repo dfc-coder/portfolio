@@ -16,12 +16,7 @@ Handler = Callable[[SessionState, SchedulingCommand], Awaitable[Observation]]
 
 
 class CapabilityExecutor:
-    def __init__(
-        self,
-        slots: SlotService,
-        calendar: CalendarPort,
-        policy: SchedulingPolicy,
-    ) -> None:
+    def __init__(self, slots: SlotService, calendar: CalendarPort, policy: SchedulingPolicy) -> None:
         self._slots = slots
         self._calendar = calendar
         self._policy = policy
@@ -33,15 +28,11 @@ class CapabilityExecutor:
             "calendar.search_availability": self._search_availability,
             "scheduling.prepare_booking": self._prepare_booking,
             "scheduling.ask_details": self._ask_details,
+            "scheduling.ask_slot": self._ask_slot,
             "scheduling.ask_dates": self._ask_dates,
         }
 
-    async def execute(
-        self,
-        capability: CapabilitySpec,
-        state: SessionState,
-        command: SchedulingCommand,
-    ) -> Observation:
+    async def execute(self, capability: CapabilitySpec, state: SessionState, command: SchedulingCommand) -> Observation:
         handler = self._handlers.get(capability.name)
         if handler is None:
             return Observation(type=ObservationType.TOOL_ERROR, data={"error": "unknown_capability"})
@@ -53,25 +44,18 @@ class CapabilityExecutor:
 
     async def _ask_details(self, state: SessionState, command: SchedulingCommand) -> Observation:
         del command
-        return Observation(
-            type=ObservationType.MISSING_FIELDS,
-            data={"fields": state.scheduling.missing_details()},
-        )
+        return Observation(type=ObservationType.MISSING_FIELDS, data={"fields": state.scheduling.missing_details()})
+
+    async def _ask_slot(self, state: SessionState, command: SchedulingCommand) -> Observation:
+        del command
+        return self._slots_observation(state)
 
     async def _confirmation_required(self, state: SessionState, command: SchedulingCommand) -> Observation:
         del command
         pending = state.scheduling.pending_booking
         if pending is None:
             return Observation(type=ObservationType.TOOL_ERROR, data={"error": "missing_pending_booking"})
-        return Observation(
-            type=ObservationType.AWAITING_CONFIRMATION,
-            data={
-                "start": pending.slot.start.isoformat(),
-                "end": pending.slot.end.isoformat(),
-                "subject": pending.subject,
-                "visitor_email": pending.visitor_email,
-            },
-        )
+        return Observation(type=ObservationType.AWAITING_CONFIRMATION, data={"start": pending.slot.start.isoformat(), "end": pending.slot.end.isoformat(), "subject": pending.subject, "visitor_email": pending.visitor_email})
 
     async def _search_availability(self, state: SessionState, command: SchedulingCommand) -> Observation:
         del command
@@ -82,16 +66,19 @@ class CapabilityExecutor:
             slots = await self._slots.available_slots(memory.requested_start_date, memory.requested_end_date)
         except ValueError as exc:
             return Observation(type=ObservationType.TOOL_ERROR, data={"error": str(exc)})
-
         memory.offered_slots = {f"S{index}": slot for index, slot in enumerate(slots, start=1)}
         memory.selected_slot_id = None
         memory.pending_booking = None
+        return self._slots_observation(state)
+
+    @staticmethod
+    def _slots_observation(state: SessionState) -> Observation:
         return Observation(
             type=ObservationType.AVAILABLE_SLOTS,
             data={
                 "slots": [
                     {"id": slot_id, "start": slot.start.isoformat(), "end": slot.end.isoformat()}
-                    for slot_id, slot in memory.offered_slots.items()
+                    for slot_id, slot in state.scheduling.offered_slots.items()
                 ]
             },
         )
@@ -102,11 +89,7 @@ class CapabilityExecutor:
             return Observation(type=ObservationType.INVALID_SLOT, data={"slot_id": command.slot_id})
         memory.selected_slot_id = command.slot_id
         memory.pending_booking = None
-        return Observation(
-            type=ObservationType.SUCCESS,
-            data={"selected_slot_id": command.slot_id},
-            requires_next_step=True,
-        )
+        return Observation(type=ObservationType.SUCCESS, data={"selected_slot_id": command.slot_id}, requires_next_step=True)
 
     async def _prepare_booking(self, state: SessionState, command: SchedulingCommand) -> Observation:
         del command
@@ -115,7 +98,6 @@ class CapabilityExecutor:
             return Observation(type=ObservationType.MISSING_FIELDS, data={"fields": memory.missing_details()})
         if not memory.selected_slot_id or memory.selected_slot_id not in memory.offered_slots:
             return Observation(type=ObservationType.INVALID_SLOT, data={"slot_id": memory.selected_slot_id})
-
         slot = memory.offered_slots[memory.selected_slot_id]
         pending = PendingBooking(
             booking_id=uuid.uuid4().hex,
@@ -127,15 +109,7 @@ class CapabilityExecutor:
         memory.pending_booking = pending
         return Observation(
             type=ObservationType.AWAITING_CONFIRMATION,
-            data={
-                "booking_id": pending.booking_id,
-                "slot_id": memory.selected_slot_id,
-                "start": pending.slot.start.isoformat(),
-                "end": pending.slot.end.isoformat(),
-                "visitor_name": pending.visitor_name,
-                "visitor_email": pending.visitor_email,
-                "subject": pending.subject,
-            },
+            data={"booking_id": pending.booking_id, "slot_id": memory.selected_slot_id, "start": pending.slot.start.isoformat(), "end": pending.slot.end.isoformat(), "visitor_name": pending.visitor_name, "visitor_email": pending.visitor_email, "subject": pending.subject},
         )
 
     async def _create_booking(self, state: SessionState, command: SchedulingCommand) -> Observation:
@@ -148,19 +122,10 @@ class CapabilityExecutor:
             result = await self._calendar.create_booking(pending, self._policy.config.timezone)
         except Exception:
             return Observation(type=ObservationType.TOOL_ERROR, data={"error": "calendar_write_failed"})
-
         state.last_booking_id = result.booking_id
         memory.pending_booking = None
         state.active_workflow = None
-        return Observation(
-            type=ObservationType.BOOKED,
-            data={
-                "start": pending.slot.start.isoformat(),
-                "end": pending.slot.end.isoformat(),
-                "subject": pending.subject,
-                "visitor_email": pending.visitor_email,
-            },
-        )
+        return Observation(type=ObservationType.BOOKED, data={"start": pending.slot.start.isoformat(), "end": pending.slot.end.isoformat(), "subject": pending.subject, "visitor_email": pending.visitor_email})
 
     async def _cancel(self, state: SessionState, command: SchedulingCommand) -> Observation:
         del command
