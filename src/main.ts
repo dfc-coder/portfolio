@@ -2,6 +2,7 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import { mountHeroExperience } from "./hero-experience";
 import { mountTrajectoryExperience } from "./trajectory-experience";
+import { mountSystemsExperience } from "./systems-experience";
 import "./style.css";
 import "./cinematic-refined.css";
 import "./cinematic-tuning.css";
@@ -13,6 +14,7 @@ import "./agent-os.css";
 import "./hero-experience.css";
 import "./trajectory-experience.css";
 import "./trajectory-bridge.css";
+import "./systems-experience.css";
 
 /* Keep the first paint quiet while Vue, the self-hosted display face and the
    legacy intro initialize. This prevents a one-frame Hero flash before the
@@ -30,6 +32,7 @@ void document.fonts.ready.then(() => {
       document.documentElement.classList.remove("creative-hero-pending");
       mountHeroExperience();
       mountTrajectoryExperience();
+      mountSystemsExperience();
     });
   });
 });
