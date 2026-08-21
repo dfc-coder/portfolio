@@ -5,6 +5,7 @@ import { mountTrajectoryExperience } from "./trajectory-experience";
 import { mountSystemsExperience } from "./systems-experience-v5";
 import { mountVisualContinuity } from "./visual-continuity-v2";
 import { mountGalleryGel } from "./gallery-gel";
+import { mountScrollSyncController } from "./scroll-sync-controller";
 import "./style.css";
 import "./cinematic-refined.css";
 import "./cinematic-tuning.css";
@@ -44,6 +45,7 @@ void document.fonts.ready.then(() => {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       document.documentElement.classList.remove("creative-hero-pending");
+      mountScrollSyncController();
       mountVisualContinuity();
       mountHeroExperience();
       mountTrajectoryExperience();

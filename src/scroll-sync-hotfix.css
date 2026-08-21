@@ -17,13 +17,32 @@ html.is-refined-intro::-webkit-scrollbar-track {
   background: transparent;
 }
 
-/* ScrollTrigger is the only owner of scene progress.
-   Every adjacent visible state uses the same 36vh scroll interval:
-   22 intervals × 36vh + one sticky viewport = 892vh
-   (hero + 4 chapter cards + career/systems/gallery/agent states). */
-
+/* The physical scroll model contains 14 adjacent intervals. Gallery artwork
+   selection no longer consumes scroll nodes: its ten legacy virtual nodes are
+   compressed into one physical interval by scroll-sync-controller.ts.
+   14 intervals × 36vh + one sticky viewport = 604vh. */
 .ref-track {
-  height: 892vh !important;
+  height: 604vh !important;
+}
+
+/* The Vue scene director still receives its legacy virtual progress so the
+   approved chapter transitions remain unchanged. Header progress represents
+   the real document position instead, keeping the UI and native scrollbar in
+   the same coordinate system. */
+.ref-progress b {
+  transform: scaleX(var(--physical-scroll-progress, 0)) !important;
+}
+
+.ref-progress > span:first-child {
+  position: relative;
+  color: transparent;
+}
+
+.ref-progress > span:first-child::after {
+  content: attr(data-scroll-progress);
+  position: absolute;
+  inset: 0;
+  color: #aaa49a;
 }
 
 .ref-scene--hero,
