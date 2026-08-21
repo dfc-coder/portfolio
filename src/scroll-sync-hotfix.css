@@ -1,3 +1,11 @@
+/* Keep the layout viewport width stable while the intro temporarily locks
+   document scrolling. Without a reserved scrollbar gutter, toggling
+   html.is-refined-intro removes/re-adds the classic vertical scrollbar and
+   shifts vw-based hero typography during the handoff. */
+html {
+  scrollbar-gutter: stable;
+}
+
 /* ScrollTrigger is the only owner of scene progress.
    Every adjacent visible state uses the same 36vh scroll interval:
    22 intervals × 36vh + one sticky viewport = 892vh
