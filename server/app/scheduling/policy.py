@@ -44,11 +44,6 @@ _REJECTION_PATTERNS = (
     r"\b(?:no|cancelá|cancela|no agendes|otro horario|otra hora)\b",
 )
 
-_SCHEDULING_PATTERNS = (
-    r"\b(?:meeting|meet|calendar|availability|available|schedule|booking|book|call|talk)\b",
-    r"\b(?:reuni[oó]n|agenda|agendar|disponibilidad|disponible|horario|hora|llamada|hablar)\b",
-)
-
 
 @dataclass(frozen=True)
 class SchedulingPolicy:
@@ -66,9 +61,6 @@ class SchedulingPolicy:
     def is_rejection(self, text: str) -> bool:
         normalized = text.strip().lower()
         return any(re.search(pattern, normalized, re.IGNORECASE) for pattern in _REJECTION_PATTERNS)
-
-    def maybe_scheduling_intent(self, text: str) -> bool:
-        return any(re.search(pattern, text, re.IGNORECASE) for pattern in _SCHEDULING_PATTERNS)
 
     def validate_date_window(self, start: datetime, end: datetime, now: datetime) -> None:
         local_now = now.astimezone(self.timezone)
