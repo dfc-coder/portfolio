@@ -9,6 +9,7 @@ from app.api import create_router
 from app.bootstrap import build_agent
 from app.infrastructure.config.settings import Settings
 from app.ports.llm import LlmPort
+from app.ports.reranker import RerankerPort
 
 
 def create_app(
@@ -17,10 +18,11 @@ def create_app(
 ) -> FastAPI:
     resolved = settings or Settings.from_env()
     llm: LlmPort | None = None
+    reranker: RerankerPort | None = None
     if agent is None:
-        agent, llm = build_agent(resolved)
+        agent, llm, reranker = build_agent(resolved)
 
-    app = FastAPI(title="Portfolio Business Representative", version="0.2.0")
+    app = FastAPI(title="Portfolio Business Representative", version="0.3.0")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(resolved.allowed_origins),
@@ -36,9 +38,15 @@ def create_app(
 
     @app.get("/ready")
     async def ready() -> dict[str, str]:
-        if llm is not None and not await llm.health():
-            return {"status": "degraded", "llama": "unavailable"}
-        return {"status": "ok", "llama": "ready"}
+        llama_ready = llm is None or await llm.health()
+        reranker_ready = reranker is None or await reranker.health()
+        if not llama_ready or not reranker_ready:
+            return {
+                "status": "degraded",
+                "llama": "ready" if llama_ready else "unavailable",
+                "reranker": "ready" if reranker_ready else "unavailable",
+            }
+        return {"status": "ok", "llama": "ready", "reranker": "ready"}
 
     return app
 
