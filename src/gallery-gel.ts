@@ -64,6 +64,15 @@ const galleryItems = [
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
+const WHEEL_GESTURE_GAP_MS = 260;
+const WHEEL_EXIT_LOCK_MS = 720;
+
+type CardMetric = {
+  centerX: number;
+  centerY: number;
+  depth: number;
+};
+
 export const mountGalleryGel = () => {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return () => undefined;
 
@@ -120,9 +129,11 @@ export const mountGalleryGel = () => {
   let selectedIndex = 0;
   let isOpen = false;
   let wheelLockedUntil = 0;
+  let lastWheelAt = 0;
   let pointerFrame = 0;
   let pointerX = innerWidth * 0.5;
   let pointerY = innerHeight * 0.5;
+  let cardMetrics: CardMetric[] = [];
 
   const experienceCount = document.querySelectorAll(".trajectory-entry").length || 3;
   const systemsCount = document.querySelectorAll(".systems-axis-item").length || 5;
@@ -227,6 +238,10 @@ export const mountGalleryGel = () => {
   };
 
   const onWheel = (event: WheelEvent) => {
+    const now = performance.now();
+    const gestureGap = lastWheelAt === 0 ? Number.POSITIVE_INFINITY : now - lastWheelAt;
+    lastWheelAt = now;
+
     if (!galleryIsVisible() && !isOpen) return;
 
     if (isOpen) {
@@ -234,39 +249,64 @@ export const mountGalleryGel = () => {
       return;
     }
 
-    if (Math.abs(event.deltaY) < 8 || performance.now() < wheelLockedUntil) return;
+    if (Math.abs(event.deltaY) < 8) return;
 
     event.preventDefault();
     event.stopImmediatePropagation();
-    wheelLockedUntil = performance.now() + 720;
 
+    /* Trackpads keep emitting inertial wheel events after the scroll that enters
+       the gallery. Treat those as the same gesture so entry never immediately
+       cascades into the next chapter. Only a fresh wheel gesture may exit. */
+    if (performance.now() < wheelLockedUntil || gestureGap < WHEEL_GESTURE_GAP_MS) return;
+
+    wheelLockedUntil = now + WHEEL_EXIT_LOCK_MS;
     if (event.deltaY > 0) scrollToNode(chapterAgentNode);
     else scrollToNode(chapterGalleryNode);
+  };
+
+  const measureCards = () => {
+    const stageRect = galleryStage.getBoundingClientRect();
+    cardMetrics = cards.map((card, index) => ({
+      centerX: stageRect.left + card.offsetLeft + card.offsetWidth * 0.5,
+      centerY: stageRect.top + card.offsetTop + card.offsetHeight * 0.5,
+      depth: 0.72 + (index % 5) * 0.11,
+    }));
+  };
+
+  const renderPointerField = () => {
+    pointerFrame = 0;
+    if (!galleryIsVisible() || isOpen) return;
+    if (cardMetrics.length !== cards.length) measureCards();
+
+    cards.forEach((card, index) => {
+      const metric = cardMetrics[index];
+      if (!metric) return;
+
+      const dx = pointerX - metric.centerX;
+      const dy = pointerY - metric.centerY;
+      const distance = Math.hypot(dx, dy);
+      const influence = clamp(1 - distance / 620, 0, 1);
+      card.style.setProperty("--gel-x", `${(dx * 0.018 * metric.depth * influence).toFixed(2)}px`);
+      card.style.setProperty("--gel-y", `${(dy * 0.014 * metric.depth * influence).toFixed(2)}px`);
+      card.style.setProperty("--gel-rx", `${(-dy * 0.006 * influence).toFixed(2)}deg`);
+      card.style.setProperty("--gel-ry", `${(dx * 0.006 * influence).toFixed(2)}deg`);
+    });
+  };
+
+  const schedulePointerField = () => {
+    if (pointerFrame !== 0) return;
+    pointerFrame = requestAnimationFrame(renderPointerField);
   };
 
   const onPointerMove = (event: PointerEvent) => {
     pointerX = event.clientX;
     pointerY = event.clientY;
+    if (galleryIsVisible() && !isOpen) schedulePointerField();
   };
 
-  const updatePointerField = () => {
-    if (galleryIsVisible() && !isOpen) {
-      cards.forEach((card, index) => {
-        const rect = card.getBoundingClientRect();
-        const cx = rect.left + rect.width * 0.5;
-        const cy = rect.top + rect.height * 0.5;
-        const dx = pointerX - cx;
-        const dy = pointerY - cy;
-        const distance = Math.hypot(dx, dy);
-        const influence = clamp(1 - distance / 620, 0, 1);
-        const depth = 0.72 + (index % 5) * 0.11;
-        card.style.setProperty("--gel-x", `${(dx * 0.018 * depth * influence).toFixed(2)}px`);
-        card.style.setProperty("--gel-y", `${(dy * 0.014 * depth * influence).toFixed(2)}px`);
-        card.style.setProperty("--gel-rx", `${(-dy * 0.006 * influence).toFixed(2)}deg`);
-        card.style.setProperty("--gel-ry", `${(dx * 0.006 * influence).toFixed(2)}deg`);
-      });
-    }
-    pointerFrame = requestAnimationFrame(updatePointerField);
+  const onResize = () => {
+    cardMetrics = [];
+    if (galleryIsVisible() && !isOpen) schedulePointerField();
   };
 
   const onFocusPointerDown = (event: PointerEvent) => {
@@ -279,15 +319,16 @@ export const mountGalleryGel = () => {
   addEventListener("keydown", onKeydown, true);
   addEventListener("wheel", onWheel, { capture: true, passive: false });
   addEventListener("pointermove", onPointerMove, { passive: true });
-  pointerFrame = requestAnimationFrame(updatePointerField);
+  addEventListener("resize", onResize, { passive: true });
 
   return () => {
-    cancelAnimationFrame(pointerFrame);
+    if (pointerFrame !== 0) cancelAnimationFrame(pointerFrame);
     gallery.removeEventListener("click", onGalleryClick, true);
     focus.removeEventListener("pointerdown", onFocusPointerDown);
     removeEventListener("keydown", onKeydown, true);
     removeEventListener("wheel", onWheel, true);
     removeEventListener("pointermove", onPointerMove);
+    removeEventListener("resize", onResize);
     focus.remove();
     gallery.classList.remove("ref-gallery-gel-ready", "is-gallery-focus-open");
     cards.forEach((card) => {
