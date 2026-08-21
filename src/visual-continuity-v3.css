@@ -94,30 +94,82 @@ body,
 }
 
 .trajectory-header,
-.systems-header,
-.trajectory-entry__eyebrow,
-.systems-project__eyebrow {
+.systems-header {
   color: rgba(238, 234, 226, .66) !important;
   font-size: 8.5px !important;
 }
 
-.trajectory-header__meta,
-.systems-header__meta {
-  color: rgba(238, 234, 226, .52) !important;
-}
-
 .trajectory-entry__context small,
-.systems-project__field,
 .systems-project__architecture-heading,
-.systems-project__evidence span,
-.systems-project__implementation > span,
-.systems-graph-field__index,
-.systems-graph-field__mode {
+.systems-project__implementation > span {
   color: rgba(238, 234, 226, .58) !important;
 }
 
 .trajectory-entry__statement p {
   color: rgba(238, 234, 226, calc(.42 + var(--entry-focus) * .44)) !important;
+}
+
+/* --------------------------------------------------------------------------
+   INFORMATION DIET
+
+   One persistent section instruction + one rail label + one protagonist.
+   Per-item micro-kickers, duplicate counters and duplicate IDs are intentionally
+   suppressed: they repeat information already carried by the rail/title.
+   -------------------------------------------------------------------------- */
+
+/* Persistent section instruction remains; duplicated right-side metadata does not. */
+.trajectory-header__meta,
+.systems-header__meta {
+  display: none !important;
+}
+
+/* The rail owns time/system identity. Do not repeat it immediately above titles. */
+.trajectory-entry__eyebrow,
+.systems-project__eyebrow,
+.systems-project__field {
+  display: none !important;
+}
+
+/* One rail label per node: Trajectory = year, Systems = system code. */
+.trajectory-year > b,
+.systems-axis-item > span {
+  display: none !important;
+}
+
+/* Systems architecture already has a persistent heading; remove duplicate IDs. */
+.systems-graph-field__index,
+.systems-graph-field__mode,
+.systems-project__architecture-heading > b {
+  display: none !important;
+}
+
+/* Section rail already expresses 01/05. A second floating counter is noise. */
+.trajectory-counter,
+.systems-counter {
+  display: none !important;
+}
+
+/* Evidence keeps a stable semantic label instead of changing EVIDENCE / 00..04. */
+.systems-project__evidence > span {
+  font-size: 0 !important;
+  letter-spacing: 0 !important;
+}
+
+.systems-project__evidence > span::after {
+  content: "EVIDENCE";
+  color: rgba(238, 234, 226, .58);
+  font: 8px/1 var(--font-mono);
+  letter-spacing: .13em;
+}
+
+/* Inactive rail entries recede. Only the active item is an instruction. */
+.systems-axis-item {
+  opacity: calc(var(--systems-content, 0) * (.12 + var(--axis-focus, 0) * .88)) !important;
+}
+
+.systems-axis-item > b {
+  color: rgba(238, 234, 226, calc(.18 + var(--axis-focus, 0) * .76)) !important;
+  padding-left: calc(15px + var(--axis-focus, 0) * 31px) !important;
 }
 
 /* Trajectory and Systems share one rail language: one physical rule, one
@@ -148,14 +200,6 @@ body,
 .systems-graph-field {
   border-top-color: rgba(238, 234, 226, .13) !important;
   border-bottom-color: rgba(238, 234, 226, .13) !important;
-}
-
-.systems-counter {
-  color: rgba(238, 234, 226, .56) !important;
-}
-
-.systems-counter b {
-  color: rgba(238, 234, 226, .90) !important;
 }
 
 @media (max-width: 760px) {
