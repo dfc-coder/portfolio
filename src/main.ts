@@ -3,7 +3,7 @@ import App from "./App.vue";
 import { mountHeroExperience } from "./hero-experience";
 import { mountTrajectoryExperience } from "./trajectory-experience";
 import { mountSystemsExperience } from "./systems-experience";
-import { mountVisualContinuity } from "./visual-continuity";
+import { mountVisualContinuity } from "./visual-continuity-v2";
 import "./style.css";
 import "./cinematic-refined.css";
 import "./cinematic-tuning.css";
@@ -18,6 +18,7 @@ import "./trajectory-bridge.css";
 import "./systems-experience-v3.css";
 import "./systems-integration-fix.css";
 import "./visual-continuity.css";
+import "./visual-continuity-v2.css";
 
 /* Keep the first paint quiet while Vue, the self-hosted display face and the
    legacy intro initialize. This prevents a one-frame Hero flash before the
