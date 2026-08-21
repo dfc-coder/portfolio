@@ -1,10 +1,10 @@
-# SDD — Bounded Reflective ReAct Business Representative
+# SDD — Belief-Driven Bounded Capability Agent
 
 ## 1. Goal
 
-Run a useful portfolio business representative on Qwen3.5-0.8B without asking the small model to own workflow state, side effects or unrestricted reasoning.
+Run a useful portfolio business representative on Qwen3.5-0.8B without asking the small model to own workflow state, side effects, or an unrestricted ReAct loop.
 
-The model is a bounded linguistic component. Python owns business state and correctness boundaries.
+Natural-language interpretation is probabilistic. Applicability, side-effect authorization, tool schemas, and bounded execution are explicit application concerns.
 
 ## 2. Runtime topology
 
@@ -16,135 +16,200 @@ Vue / Netlify
 FastAPI
      |
      +-- BusinessRepresentative
-     |     +-- ConversationFSM
-     |     +-- StructuredPlanner ----> llama.cpp / Qwen3.5-0.8B
-     |     +-- AgentVerifier
-     |     +-- ActionExecutor
-     |     +-- HybridRenderer -------> llama.cpp / Qwen3.5-0.8B
+     |      |
+     |      +-- SemanticRouter -------> Qwen3-Reranker-0.6B
+     |      |        \----------------> Qwen3.5-0.8B judge fallback
+     |      |
+     |      +-- business/general
+     |      |      +-- grounded Qwen real stream
+     |      |      +-- StreamingOutputGuard
+     |      |
+     |      +-- scheduling
+     |             +-- SchedulingInterpreter
+     |             +-- BeliefUpdater
+     |             +-- CapabilityRegistry
+     |             +-- CapabilitySelector -> reranker / judge
+     |             +-- BoundedCapabilityLoop
+     |             +-- CapabilitySafetyGate
+     |             +-- CapabilityExecutor
      |
      +-- SessionStore
      +-- SlotService
      +-- CalendarPort -------------> Google Calendar
 ```
 
-## 3. Agent contract
+The browser never downloads model weights.
 
-The orchestrator runs at most `AGENT_MAX_STEPS` actions per visitor turn and at most `AGENT_MAX_REPAIRS` repair calls.
+## 3. Semantic interpretation
+
+The semantic layer answers what the visitor means, not which concrete tool must execute.
+
+Routing currently produces `domain + relation` with a zero-shot reranker cascade. Scheduling then produces a structured `SchedulingCommand` containing a dialogue act and extracted arguments:
 
 ```text
-state
-  -> plan (constrained JSON)
-  -> deterministic verification
+request
+inform
+select
+confirm
+cancel
+not_applicable
+```
+
+The interpreter never emits tool names. A scheduling false positive can therefore return `not_applicable`, causing a second semantic route over only business/general while preserving the active scheduling belief.
+
+The future supervised path is a multi-head classifier for domain/relation/act/OOS. The reranker remains the uncertainty and capability-selection layer; Qwen remains the final ambiguity fallback.
+
+## 4. Belief state instead of conversation stages
+
+Scheduling is represented by facts, not a conversational FSM:
+
+```text
+requested_start_date
+requested_end_date
+offered_slots
+selected_slot_id
+visitor_name
+visitor_email
+subject
+pending_booking
+```
+
+`SchedulingMemory.facts()` derives facts such as:
+
+```text
+date_range
+offered_slots
+selected_slot
+details_complete
+pending_booking
+```
+
+There are no `SCHEDULING_DATES`, `SCHEDULING_SLOT`, or `SCHEDULING_DETAILS` states. Adding a capability does not require adding combinations of conversation states.
+
+`current_focus` remains independent from `active_workflow`, so a business question may interrupt scheduling without destroying dates, slots, or visitor details.
+
+## 5. Declarative capabilities
+
+A capability declares semantic compatibility and applicability:
+
+```text
+name
+description
+domain
+accepted dialogue acts
+requires_all facts
+requires_any facts
+forbidden facts
+kind: respond | internal | tool
+side effect: none | read | write
+requires_confirmation
+```
+
+Examples:
+
+```text
+calendar.search_availability
+  act: request | inform
+  requires: date_range
+  side_effect: read
+
+scheduling.select_slot
+  act: select
+  requires: offered_slots + slot_reference
+  side_effect: none
+
+calendar.create_booking
+  act: confirm
+  requires: pending_booking + explicit_confirmation
+  side_effect: write
+```
+
+The registry removes impossible actions before semantic selection. One eligible capability executes directly. Several eligible capabilities are ranked by the reranker; Qwen is used only if ranking is ambiguous.
+
+## 6. Bounded capability loop
+
+The action loop is intentionally small:
+
+```text
+belief facts
+  -> eligible capabilities
+  -> select capability
+  -> validate safety invariants
   -> execute
   -> observation
-  -> state transition
-  -> next step only when explicitly required
+  -> continue only when observation requires another step
 ```
 
-There is no unrestricted chain-of-thought loop and no model-controlled destructive tool.
+The loop is bounded by `AGENT_MAX_STEPS` and `AGENT_MAX_REPAIRS` (defaults: 3 and 1).
 
-## 4. Conversation FSM
+There is no unrestricted Thought/Action/Observation chain and no always-on reflection. Repair is failure-triggered and can only reconsider an applicability/validation failure within the configured bound.
 
-```text
-BUSINESS
-SCHEDULING_DATES
-SCHEDULING_SLOT
-SCHEDULING_DETAILS
-SCHEDULING_CONFIRMATION
-COMPLETE
-```
+## 7. Safety boundary
 
-The state determines which actions are legal. Scheduling intent regex is used only to enter the workflow from `BUSINESS`; it is not re-run as the authority for every follow-up.
+Deterministic logic is reserved for invariants that must not depend on semantic confidence:
 
-Structured session state stores:
+- a selected slot must have been offered in this session;
+- a write must pass its confirmation policy;
+- a pending booking must contain a valid email;
+- a Calendar write must reference the selected offered slot;
+- execution is bounded;
+- successful booking text is emitted only after the Calendar API succeeds.
 
-- requested date range;
-- offered slots keyed as `S1`, `S2`, ...;
-- selected slot id;
-- visitor name;
-- visitor email;
-- meeting subject;
-- pending booking;
-- last successful booking id.
+These are safety constraints, not intent-routing rules.
 
-## 5. Planner
+`calendar.create_booking` is not exposed merely because the visitor says something semantically similar to confirmation. It becomes eligible only when the pending-booking facts exist and the deterministic explicit-confirmation policy accepts the latest message.
 
-The planner receives only:
+## 8. Capability execution
 
-- current time and timezone;
-- current FSM stage;
-- allowed actions;
-- structured scheduling state;
-- at most four recent turns;
-- latest observation;
-- current visitor message.
+`CapabilityExecutor` is a handler registry. It does not decide which action should happen.
 
-It returns the Pydantic `Plan` schema. llama.cpp JSON-schema response format is requested first; a JSON-object fallback is used only if the server does not support that response format. Pydantic validation and `AgentVerifier` remain authoritative.
-
-## 6. Executor
-
-`ActionExecutor` contains no planning logic. It executes one validated action:
+Current handlers include:
 
 - ask for dates;
-- get availability;
-- select a previously offered slot;
-- collect meeting details;
+- show/remind offered slots;
+- search availability;
+- select an offered slot;
+- ask for missing visitor details;
 - prepare a non-destructive pending booking;
-- cancel workflow state.
+- remind that confirmation is required;
+- create the booking through `CalendarPort`;
+- cancel and clear scheduling belief.
 
-Google Calendar writes are not executor actions.
+External tools remain behind ports. Internal state transformations and external calls share the capability abstraction but have explicit `kind` and `side_effect` metadata.
 
-## 7. Triggered reflection
+## 9. Safe real streaming
 
-Reflection is failure-triggered, not always-on.
+Business/general responses use llama.cpp `stream=true` end-to-end.
 
 ```text
-plan
-  -> verify
-       -> pass: execute
-       -> fail: one repair call
-                   -> verify again
-                        -> pass: execute
-                        -> fail: safe deterministic fallback
+Qwen token stream
+      -> rolling safety holdback
+      -> FastAPI SSE
+      -> browser ReadableStream
 ```
 
-Business rendering uses a second verifier for critical invariants such as owner impersonation or claiming a booking without Calendar success.
+No completed response is replayed with sleeps or a typewriter animation. The rolling guard blocks restricted operational claims before they cross the SSE boundary.
 
-## 8. Rendering
+Scheduling/tool responses are deterministic and emitted atomically. Calendar side effects are unreachable from the informational renderer.
 
-Scheduling responses are deterministic templates so slot times, missing fields, confirmation state and Calendar outcomes cannot be rewritten incorrectly by the model.
+## 10. Context and inference
 
-Qwen is used for ordinary business Q&A because language quality matters there. Owner-specific claims remain bounded to `business-profile.json`.
+The semantic router sees only compact conversation state: current focus, active workflow, scheduling facts, offered slot IDs, the last assistant message, and the latest visitor message.
 
-## 9. Side-effect safety
+The scheduling interpreter sees compact scheduling belief plus current time/timezone. It extracts meaning and arguments but does not plan tools.
 
-A Calendar write can occur only when:
-
-1. availability previously produced the slot;
-2. the slot was selected into session state;
-3. required visitor details were collected;
-4. a pending booking exists;
-5. the visitor explicitly confirms;
-6. Google Calendar accepts the write.
-
-Failure never becomes a success claim. A transient Calendar write failure leaves the pending booking available for an explicit retry.
-
-## 10. Context and latency
-
-Default raw history retention is reduced from 12 to 8 turns. The planner consumes at most four recent turns plus structured state. llama.cpp prompt caching remains enabled and the model stays resident behind one inference slot.
-
-Planner, renderer and repair have independent sampling profiles. Thinking is disabled.
+Grounded business rendering receives recent turns plus `BUSINESS_CONTEXT`. Thinking remains disabled. llama.cpp prompt caching remains enabled.
 
 ## 11. Package boundaries
 
 ```text
-app/api             transport only
-app/domain          dependency-free business types
-app/agent           application orchestration
-app/scheduling      deterministic scheduling rules
+app/api             transport and SSE
+app/domain          belief, semantics, capabilities, observations
+app/agent           interpretation, routing, belief update, capability selection/loop, safety, rendering
+app/scheduling      date policy and availability calculation
 app/ports           external capability protocols
-app/infrastructure  concrete adapters
+app/infrastructure  concrete llama.cpp, reranker, Calendar and session adapters
 app/bootstrap.py    dependency composition
 ```
 
-Compatibility modules at the old top-level import paths contain exports only and no business logic.
+The former conversation FSM, action planner, and monolithic action executor are intentionally removed.
