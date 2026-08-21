@@ -60,6 +60,7 @@ class Responder:
             logger.warning("blocked unsafe streamed output reason=%s", exc.reason)
             fallback = self._fallback(state)
             yield f" {fallback}" if emitted else fallback
+            emitted = True
 
         if not emitted:
             yield self._fallback(state)
