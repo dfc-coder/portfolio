@@ -2,14 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from app.agent.belief import BeliefUpdater
-from app.agent.context import ContextBuilder
-from app.agent.renderer import HybridRenderer
 from app.agent.representative import BusinessRepresentative
-from app.agent.verifier import AgentVerifier
+from app.agent.responder import Responder
+from app.agent.scheduler import SchedulerReply
 from app.domain.conversation import ActiveWorkflow
 from app.domain.routing import RouteDomain, RouteRelation, RoutingDecision
-from app.domain.semantics import DialogueAct, SchedulingCommand
 from app.infrastructure.sessions.memory import MemorySessionStore
 from app.ports.llm import GenerationConfig
 from app.profile import BusinessProfile
@@ -26,16 +23,10 @@ class FalsePositiveRouter:
         return RoutingDecision(domain=RouteDomain.BUSINESS, relation=RouteRelation.INTERRUPT, route_key="business_fallback", confidence=0.9, source="test")
 
 
-class NotApplicableInterpreter:
-    async def interpret(self, state, user_message, relation):  # type: ignore[no-untyped-def]
+class NotApplicableScheduler:
+    async def handle(self, state, user_message, relation):  # type: ignore[no-untyped-def]
         del state, user_message, relation
-        return SchedulingCommand(act=DialogueAct.NOT_APPLICABLE)
-
-
-class NeverLoop:
-    async def run(self, state, command, user_message):  # type: ignore[no-untyped-def]
-        del state, command, user_message
-        raise AssertionError("capability loop must not run for not_applicable")
+        return SchedulerReply(not_applicable=True)
 
 
 class StreamingLlm:
@@ -45,7 +36,7 @@ class StreamingLlm:
 
     async def stream(self, messages, config):  # type: ignore[no-untyped-def]
         del messages, config
-        yield "Sí. Diego trabaja con herramientas de integración y AI."
+        yield "Sí. Puedo usar las herramientas habilitadas para consultar disponibilidad y preparar reuniones."
 
     async def health(self) -> bool:
         return True
@@ -59,21 +50,18 @@ async def test_false_scheduling_route_falls_back_to_business_and_preserves_workf
     state.active_workflow = ActiveWorkflow.SCHEDULING
     state.scheduling.visitor_email = "ana@example.com"
     llm = StreamingLlm()
-    renderer = HybridRenderer(
+    responder = Responder(
         llm,
-        ContextBuilder(profile, policy),
+        profile,
+        policy,
         GenerationConfig(temperature=0.65, max_tokens=180),
-        GenerationConfig(temperature=0.1, max_tokens=96),
+        ("Check calendar availability.", "Create a meeting after explicit confirmation."),
     )
     agent = BusinessRepresentative(
         sessions,
-        policy,
         FalsePositiveRouter(),  # type: ignore[arg-type]
-        NotApplicableInterpreter(),  # type: ignore[arg-type]
-        BeliefUpdater(),
-        NeverLoop(),  # type: ignore[arg-type]
-        AgentVerifier(),
-        renderer,
+        NotApplicableScheduler(),  # type: ignore[arg-type]
+        responder,
     )
 
     answer = "".join([chunk async for chunk in agent.respond("session-tools", "¿Tenés herramientas?")])
