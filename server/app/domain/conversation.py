@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from enum import StrEnum
 
+from .routing import RouteDomain
 from .scheduling import OfferedSlot, PendingBooking
 
 
@@ -16,6 +17,10 @@ class ConversationStage(StrEnum):
     COMPLETE = "complete"
 
 
+class ActiveWorkflow(StrEnum):
+    SCHEDULING = "scheduling"
+
+
 @dataclass(frozen=True)
 class ChatTurn:
     role: str
@@ -26,6 +31,8 @@ class ChatTurn:
 class SessionState:
     session_id: str
     stage: ConversationStage = ConversationStage.BUSINESS
+    current_focus: RouteDomain = RouteDomain.BUSINESS
+    active_workflow: ActiveWorkflow | None = None
     turns: list[ChatTurn] = field(default_factory=list)
     requested_start_date: date | None = None
     requested_end_date: date | None = None
@@ -40,6 +47,8 @@ class SessionState:
 
     def reset_scheduling(self) -> None:
         self.stage = ConversationStage.BUSINESS
+        self.current_focus = RouteDomain.BUSINESS
+        self.active_workflow = None
         self.requested_start_date = None
         self.requested_end_date = None
         self.offered_slots.clear()
