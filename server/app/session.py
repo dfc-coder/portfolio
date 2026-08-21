@@ -1,15 +1,16 @@
-from app.domain.conversation import ChatTurn, ConversationStage, SessionState
+from app.domain.conversation import ActiveWorkflow, ChatTurn, SchedulingMemory, SessionState
 from app.domain.scheduling import OfferedSlot, PendingBooking
 from app.infrastructure.sessions.memory import MemorySessionStore
 
 SessionStore = MemorySessionStore
 
 __all__ = [
+    "ActiveWorkflow",
     "ChatTurn",
-    "ConversationStage",
     "MemorySessionStore",
     "OfferedSlot",
     "PendingBooking",
+    "SchedulingMemory",
     "SessionState",
     "SessionStore",
 ]
