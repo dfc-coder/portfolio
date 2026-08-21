@@ -1,3 +1,22 @@
+/* Keep the normal document scrollbar geometry during the intro. The base
+   stylesheet locks overflow, which changes the layout viewport width exactly
+   when the intro hands off to the vw-based hero title. We keep vertical
+   overflow measurable here and block wheel/touch input in the component
+   instead, so the intro and the Hero share one coordinate system. */
+html.is-refined-intro,
+html.is-refined-intro body {
+  overflow-y: auto !important;
+}
+
+html.is-refined-intro {
+  scrollbar-color: transparent transparent;
+}
+
+html.is-refined-intro::-webkit-scrollbar-thumb,
+html.is-refined-intro::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 /* ScrollTrigger is the only owner of scene progress.
    Every adjacent visible state uses the same 36vh scroll interval:
    22 intervals × 36vh + one sticky viewport = 892vh
