@@ -36,6 +36,14 @@ body,
   will-change: background;
 }
 
+/* The shared light owns only the ambient layer. It must never change the
+   positioning context of chapter children: Trajectory and Systems use absolute
+   composition as part of their spatial contract. */
+.trajectory-experience,
+.systems-experience {
+  isolation: isolate;
+}
+
 .trajectory-experience::after,
 .systems-experience::after {
   content: "";
@@ -49,12 +57,6 @@ body,
     rgba(104, 116, 148, .050) 30%,
     transparent 70%
   );
-}
-
-.trajectory-experience > *,
-.systems-experience > * {
-  position: relative;
-  z-index: 1;
 }
 
 .trajectory-intro,
