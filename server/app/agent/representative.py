@@ -3,8 +3,9 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Final
 
-from app.domain.conversation import ConversationStage, SessionState
+from app.domain.conversation import ActiveWorkflow, ConversationStage, SessionState
 from app.domain.planning import Observation, ObservationType
+from app.domain.routing import RouteDomain
 from app.ports.calendar import CalendarPort
 from app.ports.sessions import SessionStorePort
 from app.scheduling.policy import SchedulingPolicy
@@ -13,6 +14,7 @@ from .executor import ActionExecutor
 from .fsm import ConversationFSM
 from .planner import PlanningFailure, StructuredPlanner
 from .renderer import HybridRenderer
+from .semantic_router import CascadingSemanticRouter
 from .verifier import AgentVerifier
 
 _CHUNK_SIZE: Final[int] = 24
@@ -24,6 +26,7 @@ class BusinessRepresentative:
         sessions: SessionStorePort,
         policy: SchedulingPolicy,
         calendar: CalendarPort,
+        router: CascadingSemanticRouter,
         planner: StructuredPlanner,
         executor: ActionExecutor,
         fsm: ConversationFSM,
@@ -36,6 +39,7 @@ class BusinessRepresentative:
         self._sessions = sessions
         self._policy = policy
         self._calendar = calendar
+        self._router = router
         self._planner = planner
         self._executor = executor
         self._fsm = fsm
@@ -48,21 +52,26 @@ class BusinessRepresentative:
         state = await self._sessions.get(session_id)
         await self._sessions.append_turn(state, "user", user_message)
 
+        # Explicit booking confirmation/rejection is a safety boundary, not an intent heuristic.
         if state.pending_booking is not None:
             async for chunk in self._handle_pending_booking(state, user_message):
                 yield chunk
             return
 
-        if state.stage == ConversationStage.COMPLETE:
+        if state.stage == ConversationStage.COMPLETE and state.active_workflow is None:
             state.stage = ConversationStage.BUSINESS
 
-        if (
-            state.stage == ConversationStage.BUSINESS
-            and not self._policy.maybe_scheduling_intent(user_message)
-        ):
-            async for chunk in self._business_answer(state):
+        decision = await self._router.route(state, user_message)
+        state.current_focus = decision.domain
+
+        if decision.domain != RouteDomain.SCHEDULING:
+            async for chunk in self._knowledge_answer(state):
                 yield chunk
             return
+
+        if state.active_workflow is None:
+            state.active_workflow = ActiveWorkflow.SCHEDULING
+        state.current_focus = RouteDomain.SCHEDULING
 
         observation: Observation | None = None
         repairs = 0
@@ -133,7 +142,7 @@ class BusinessRepresentative:
         async for chunk in self._chunk(text):
             yield chunk
 
-    async def _business_answer(self, state: SessionState) -> AsyncIterator[str]:
+    async def _knowledge_answer(self, state: SessionState) -> AsyncIterator[str]:
         candidate = await self._renderer.business_answer(state)
         verification = self._verifier.verify_business_response(state, candidate)
         if not verification.ok and self._max_repairs > 0:
@@ -189,6 +198,8 @@ class BusinessRepresentative:
             else:
                 state.last_booking_id = result.booking_id
                 state.pending_booking = None
+                state.active_workflow = None
+                state.current_focus = RouteDomain.SCHEDULING
                 state.stage = ConversationStage.COMPLETE
                 observation = Observation(
                     type=ObservationType.BOOKED,
