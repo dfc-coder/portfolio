@@ -202,22 +202,27 @@ export const mountTrajectoryExperience = () => {
     const node = clamp01(progress) * lastNode;
 
     const heroExit = range(node, 0.10, 0.86);
-    const cueExit = range(node, 0.24, 1.08);
-    const bridgeAcquire = range(node, 0.54, 0.74);
-    const bridgeTravel = range(node, 0.72, 1.34);
-    const bridgeRelease = range(node, 1.28, 1.50);
+    const cueExit = range(node, 0.24, 1.06);
+    const bridgeAcquire = range(node, 0.54, 0.72);
+    const bridgeTravel = range(node, 0.70, 1.30);
+    const bridgeRelease = range(node, 1.24, 1.50);
     const cueHandoff = range(node, 0.60, 0.78);
 
     const trajectoryIn = range(node, 0.26, 0.56);
     const trajectoryOut = range(node, chapterSystemsNode - 0.48, chapterSystemsNode + 0.16);
     const trajectoryVisibility = trajectoryIn * (1 - trajectoryOut);
 
-    const introIn = range(node, 0.58, 0.80);
-    const introOut = range(node, 1.18, 1.48);
+    /* Natural scroll grammar: the intro rises into place from below, holds,
+       then continues upward out of the viewport. There is no direction change
+       at the midpoint. */
+    const introIn = range(node, 0.56, 0.82);
+    const introOut = range(node, 1.16, 1.48);
     const introVisibility = introIn * (1 - introOut);
 
-    const axisReveal = range(node, 1.30, 1.50);
-    const contentReveal = range(node, 1.32, 1.72);
+    /* The chronology itself grows downward. This gives the bridge an opposing
+       motion to the typography: content rises, time descends. */
+    const axisReveal = range(node, 1.18, 1.52);
+    const contentReveal = range(node, 1.34, 1.74);
     const heroShell = 1 - range(node, chapterSystemsNode - 0.62, chapterSystemsNode + 0.12);
     const experiencePosition = collectionPosition(node, careerStartNode, experiences.length);
     const timelineProgress = experiences.length > 1 ? experiencePosition / (experiences.length - 1) : 0;
@@ -231,6 +236,8 @@ export const mountTrajectoryExperience = () => {
     );
     stage.style.setProperty("--trajectory-visibility", trajectoryVisibility.toFixed(5));
     stage.style.setProperty("--trajectory-intro", introVisibility.toFixed(5));
+    stage.style.setProperty("--trajectory-intro-in", introIn.toFixed(5));
+    stage.style.setProperty("--trajectory-intro-out", introOut.toFixed(5));
     stage.style.setProperty("--trajectory-axis-reveal", axisReveal.toFixed(5));
     stage.style.setProperty("--trajectory-content", contentReveal.toFixed(5));
     stage.style.setProperty("--trajectory-hero-shell", heroShell.toFixed(5));
@@ -238,23 +245,30 @@ export const mountTrajectoryExperience = () => {
 
     root.style.opacity = trajectoryVisibility.toFixed(5);
     intro.style.opacity = introVisibility.toFixed(5);
-    intro.style.transform = `translate3d(0, ${((1 - introIn) * 10 - introOut * 14).toFixed(2)}px, 0)`;
+    intro.style.transform = `translate3d(0, ${((1 - introIn) * 34 - introOut * 42).toFixed(2)}px, 0)`;
 
     header.style.opacity = (contentReveal * trajectoryVisibility).toFixed(5);
-    header.style.transform = `translate3d(0, ${(6 * (1 - contentReveal)).toFixed(2)}px, 0)`;
+    header.style.transform = `translate3d(0, ${(10 * (1 - contentReveal)).toFixed(2)}px, 0)`;
 
-    /* Capture the exact on-screen cue geometry immediately before travel.
-       During the transition its animation is paused by CSS, so the source is
-       deterministic and reverse scrolling can re-acquire it without a snap. */
     if (bridgeTravel <= 0.001 || !bridgeOrigin) {
       bridgeOrigin = cueGeometry();
     }
 
     const destination = axisGeometry();
     const source = bridgeOrigin;
+
+    /* Do not fly the cue upward to the top of the timeline. That was the motion
+       conflict visible in the recording. The bridge follows the scroll down:
+       it drifts left while its leading edge moves downward and lengthens. The
+       permanent axis then grows downward from its own top, making the handoff
+       read as one continuous vertical gesture rather than a diagonal teleport. */
     const bridgeLeft = lerp(source.left, destination.left, bridgeTravel);
-    const bridgeTop = lerp(source.top, destination.top, bridgeTravel);
-    const bridgeHeight = lerp(source.height, destination.height, bridgeTravel);
+    const bridgeTop = source.top + bridgeTravel * window.innerHeight * 0.18;
+    const bridgeHeight = lerp(
+      source.height,
+      Math.min(destination.height * 0.72, window.innerHeight * 0.34),
+      bridgeTravel,
+    );
     const bridgeOpacity = trajectoryVisibility * bridgeAcquire * (1 - bridgeRelease);
 
     bridgeLine.style.left = `${bridgeLeft.toFixed(2)}px`;
@@ -305,6 +319,8 @@ export const mountTrajectoryExperience = () => {
       "--trajectory-cue-handoff-opacity",
       "--trajectory-visibility",
       "--trajectory-intro",
+      "--trajectory-intro-in",
+      "--trajectory-intro-out",
       "--trajectory-axis-reveal",
       "--trajectory-content",
       "--trajectory-hero-shell",
