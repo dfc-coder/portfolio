@@ -6,7 +6,7 @@ import test from "node:test";
 const root = process.cwd();
 const read = (path) => readFile(resolve(root, path), "utf8");
 
-const forbiddenOwnership = /\b(position|inset|top|right|bottom|left|z-index|transform|translate|opacity|animation|transition|filter)\s*:/i;
+const forbiddenOwnership = /^\s*(position|inset|top|right|bottom|left|z-index|transform|translate|opacity|animation|transition|filter)\s*:/im;
 
 /* --------------------------------------------------------------------------
    DESIGN SYSTEM V2 — golden-baseline guardrails.
