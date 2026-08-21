@@ -12,6 +12,17 @@
   display: none !important;
 }
 
+/* First-paint guard. The creative director removes this class immediately
+   before it mounts its opening, so users see a stable black canvas rather than
+   a one-frame fully rendered Hero while fonts and legacy Vue hooks settle. */
+html.creative-hero-pending .ref-scene--hero .ref-hero__meta,
+html.creative-hero-pending .ref-scene--hero .ref-hero__title,
+html.creative-hero-pending .ref-scene--hero .ref-hero__thesis,
+html.creative-hero-pending .ref-scene--hero .ref-scroll-cue,
+html.creative-hero-pending .ref-header {
+  opacity: 0 !important;
+}
+
 .ref-scene--hero {
   overflow: hidden;
   background: #090908;
