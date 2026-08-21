@@ -35,13 +35,20 @@
   color: rgba(238, 234, 226, .54) !important;
 }
 
+/* Systems and Trajectory use exactly the same rail box. Do not use inset here:
+   the shorthand would overwrite top and separate the nodes from the rule. */
+.systems-axis,
 .systems-axis-items {
-  z-index: 28 !important;
   left: 15.5% !important;
   top: 30% !important;
+  right: auto !important;
+  bottom: auto !important;
   width: 1px !important;
   height: 43vh !important;
-  inset: auto auto auto 15.5% !important;
+}
+
+.systems-axis-items {
+  z-index: 28 !important;
 }
 
 .systems-axis-item {
@@ -58,7 +65,7 @@
   top: 50% !important;
   left: 0 !important;
   transform: translate(-50%, -50%) scale(calc(.96 + var(--axis-focus) * .16)) !important;
-  border-color: rgba(238, 234, 226, calc(.34 + var(--axis-focus) * .60)) !important;
+  border-color: rgba(238, 234, 226, calc(.40 + var(--axis-focus) * .54)) !important;
   box-shadow:
     inset 0 0 0 calc(var(--axis-focus) * 2px) rgba(197, 103, 72, .95),
     0 0 0 calc(var(--axis-focus) * 6px) rgba(197, 103, 72, .08),
@@ -68,17 +75,18 @@
 .systems-axis-item > span {
   margin-left: 18px !important;
   min-width: 20px !important;
+  color: rgba(197, 103, 72, calc(.40 + var(--axis-focus) * .60)) !important;
 }
 
 .systems-axis-item > b {
   min-width: 112px;
-  color: rgba(238, 234, 226, calc(.44 + var(--axis-focus) * .52)) !important;
+  color: rgba(238, 234, 226, calc(.54 + var(--axis-focus) * .42)) !important;
   padding-left: calc(15px + var(--axis-focus) * 31px) !important;
 }
 
 .systems-axis-item > b::before {
   width: calc(10px + var(--axis-focus) * 31px) !important;
-  background: rgba(238, 234, 226, calc(.20 + var(--axis-focus) * .46)) !important;
+  background: rgba(238, 234, 226, calc(.26 + var(--axis-focus) * .40)) !important;
 }
 
 .systems-project {
@@ -231,9 +239,9 @@ html.systems-refined-ready
     right: 4vw !important;
   }
 
+  .systems-axis,
   .systems-axis-items {
     left: 11.5% !important;
-    inset: auto auto auto 11.5% !important;
   }
 
   .systems-project__detail {
