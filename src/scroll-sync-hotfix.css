@@ -67,6 +67,27 @@ html.is-refined-intro::-webkit-scrollbar-track {
   filter: blur(calc((1 - var(--career)) * 4px)) !important;
 }
 
+/* Chapter 05 is an exclusive state boundary. THE INTERFACE must never be
+   composited over the archive: while gallery owns the physical wheel interval
+   the bridge is fully hidden; as soon as the authoritative scene flips to the
+   bridge, the archive is fully removed. This keeps one visible state per wheel
+   position and eliminates the fatal archive + chapter overlay. */
+.ref-stage[data-scene="gallery"] .ref-scene--chapter[data-chapter="agent"] {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+.ref-stage[data-scene="chapter"] .ref-scene--gallery {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+.ref-stage[data-scene="agent"] .ref-scene--gallery,
+.ref-stage[data-scene="agent"] .ref-scene--chapter[data-chapter="agent"] {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
 /* Keep inactive scenes outside the interaction tree during cross-fades. */
 .ref-scene {
   pointer-events: none !important;
