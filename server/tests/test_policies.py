@@ -15,9 +15,9 @@ def test_explicit_confirmation_is_narrow(profile: BusinessProfile) -> None:
     assert not policy.is_explicit_confirmation("Sí, pero cambiemos el horario")
 
 
-def test_schedule_intent_detects_english_and_spanish(profile: BusinessProfile) -> None:
+def test_rejection_only_cancels_explicit_scheduling_language(profile: BusinessProfile) -> None:
     policy = SchedulingPolicy(profile.scheduling)
 
-    assert policy.maybe_scheduling_intent("Can we schedule a call next week?")
-    assert policy.maybe_scheduling_intent("¿Tenés disponibilidad el martes?")
-    assert not policy.maybe_scheduling_intent("Tell me about the SQL project")
+    assert policy.is_rejection("cancel")
+    assert policy.is_rejection("no agendes")
+    assert not policy.is_rejection("¿En qué tecnologías trabaja Diego?")
