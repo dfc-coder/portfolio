@@ -3,7 +3,7 @@ import App from "./App.vue";
 import { mountHeroExperience } from "./hero-experience";
 import { mountTrajectoryExperience } from "./trajectory-experience";
 import { mountSystemsExperience } from "./systems-experience-v5";
-import { mountDesignSystemRuntime } from "./design-system/runtime";
+import { mountVisualContinuity } from "./visual-continuity-v2";
 import "./style.css";
 import "./cinematic-refined.css";
 import "./cinematic-tuning.css";
@@ -19,6 +19,10 @@ import "./systems-experience-v3.css";
 import "./systems-integration-fix.css";
 import "./visual-continuity-v3.css";
 import "./systems-experience-v5.css";
+
+/* Design System V2 is intentionally passive. These files expose semantic
+   tokens and opt-in classes only; chapter layout and motion remain owned by
+   the already-approved directors until each primitive is migrated separately. */
 import "./design-system/tokens.css";
 import "./design-system/primitives.css";
 import "./design-system/templates.css";
@@ -30,17 +34,17 @@ document.documentElement.classList.add("creative-hero-pending");
 
 createApp(App).mount("#app");
 
-/* The legacy Vue intro waits for nextTick + font readiness before it creates its
-   timeline. Mount the chapter directors first; the design-system runtime mounts
-   last so repeated primitives own the final shared motion/output layer. */
+/* Preserve the golden visual baseline: the existing directors remain the only
+   runtime owners. Shared design-system behavior is migrated one primitive at a
+   time only after visual parity is demonstrated. */
 void document.fonts.ready.then(() => {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       document.documentElement.classList.remove("creative-hero-pending");
+      mountVisualContinuity();
       mountHeroExperience();
       mountTrajectoryExperience();
       mountSystemsExperience();
-      mountDesignSystemRuntime();
     });
   });
 });
