@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { AsciiField, type FieldState, type Occluder } from "./agent/asciiField";
+import { AsciiField, type FieldState, type Occluder } from "./asciiField";
 
 const props = withDefaults(
   defineProps<{
