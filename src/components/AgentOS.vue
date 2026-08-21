@@ -21,12 +21,8 @@ const canvasRef = ref<InstanceType<typeof AsciiFluidCanvas> | null>(null);
 
 /* ---------------------------------------------------------------- field --- */
 
-/* Two-column layout: the field owns the left column, the chat owns the right.
-   They never overlap, so there is no z-order to fight and no occluders to
-   compute — the field is beside the text, as its own presence, not behind it.
-   The field reacts through two channels:
-     · pulse()  a discrete impulse when a message is committed
-     · speak()  a continuous swell per streamed token (morphological speech) */
+const tokenBeat = ref(0);
+let tokenSequence = 0;
 
 const stickToBottom = () => {
   const host = laneEl.value;
@@ -37,12 +33,22 @@ const stickToBottom = () => {
 const runtime = useAgentRuntime(props.provider, {
   onMessage: (message) => {
     void nextTick(stickToBottom);
-    // A visitor message lands as a ripple; the agent's own turns are voiced
-    // through speak() instead, so the impulse here is the user's.
-    if (message.role === "user") canvasRef.value?.pulse(0.5, 0.5, 1);
+    if (message.role === "user") canvasRef.value?.pulse(0.5, 0.5, 0.9);
   },
   onToken: () => {
-    canvasRef.value?.speak(1);
+    tokenSequence += 1;
+    tokenBeat.value = tokenSequence;
+
+    /* Every backend chunk drives two independent channels: a continuous swell
+       in the ASCII field and a small spatial impulse. The golden-angle walk
+       keeps successive impulses distributed around the core instead of making
+       the UI blink at one fixed point. */
+    const angle = tokenSequence * 2.399963229728653;
+    const radius = 0.11 + (tokenSequence % 6) * 0.018;
+    const x = 0.5 + Math.cos(angle) * radius;
+    const y = 0.5 + Math.sin(angle) * radius * 0.72;
+    canvasRef.value?.speak(1.35);
+    canvasRef.value?.pulse(x, y, 0.2);
     void nextTick(stickToBottom);
   },
 });
@@ -58,7 +64,6 @@ seed([
   },
 ]);
 
-/** "01 Label" lines become an indexed row; everything else is a paragraph. */
 type Line = { kind: "text"; value: string } | { kind: "item"; index: string; value: string };
 
 const linesOf = (text: string): Line[] =>
@@ -74,21 +79,25 @@ const linesOf = (text: string): Line[] =>
 const active = ref(true);
 let sceneObserver: MutationObserver | null = null;
 
-/** Field weight rises while the agent works, so its column breathes with the
-    conversation without ever competing with the text for legibility. */
 const fieldWeight = computed(() => {
   if (state.value === "thinking") return 1;
-  if (state.value === "speaking") return 0.9;
-  if (state.value === "listening") return 0.7;
-  return 0.55;
+  if (state.value === "speaking") return 0.94;
+  if (state.value === "listening") return 0.72;
+  return 0.58;
 });
 
 const statusLabel = computed(() => {
-  if (state.value === "thinking") return "THINKING";
-  if (state.value === "speaking") return "RESPONDING";
-  if (state.value === "listening") return "LISTENING";
-  return "ONLINE";
+  if (state.value === "thinking") return "PROCESSING";
+  if (state.value === "speaking") return "STREAMING";
+  if (state.value === "listening") return "INPUT ACTIVE";
+  return "STANDBY";
 });
+
+const streamLabel = computed(() =>
+  tokenBeat.value === 0
+    ? "STREAM 0000"
+    : `STREAM ${String(tokenBeat.value % 10000).padStart(4, "0")}`,
+);
 
 const submit = () => {
   void send();
@@ -124,23 +133,39 @@ onBeforeUnmount(() => {
   >
     <div class="ref-marker"><span>05</span><i />THE INTERFACE</div>
 
-    <!-- Left column: the agent's morphological presence -->
     <aside class="agent-presence" aria-hidden="true">
-      <AsciiFluidCanvas
-        ref="canvasRef"
-        class="agent-presence__field"
-        :state="state"
-        :paused="!active"
-      />
+      <div class="agent-core">
+        <AsciiFluidCanvas
+          ref="canvasRef"
+          class="agent-presence__field"
+          :state="state"
+          :paused="!active"
+        />
+        <div class="agent-core__grid" />
+        <div class="agent-core__rings">
+          <i /><i /><i />
+        </div>
+        <div class="agent-core__reticle"><i /><i /></div>
+        <i v-if="tokenBeat > 0" :key="tokenBeat" class="agent-core__token-ring" />
+        <div class="agent-core__readout">
+          <span>REASONING FIELD</span>
+          <b>{{ statusLabel }}</b>
+          <small>{{ streamLabel }}</small>
+        </div>
+      </div>
+
       <div class="agent-presence__label">
         <span class="agent-presence__dot" />
-        <span>AGENT</span>
+        <span>AGENT CORE</span>
         <b>{{ statusLabel }}</b>
       </div>
     </aside>
 
-    <!-- Right column: the conversation. Text floats, depth comes from shadow. -->
     <div class="agent-chat">
+      <div class="agent-chat__rail" aria-hidden="true">
+        <span>LIVE DIALOGUE</span><i /><b>{{ streamLabel }}</b>
+      </div>
+
       <div ref="laneEl" class="agent-lane" role="log" aria-live="polite">
         <article
           v-for="message in messages"
@@ -165,7 +190,7 @@ onBeforeUnmount(() => {
         </article>
 
         <div v-if="busy" class="agent-msg agent-msg--agent agent-msg--pending">
-          <div class="agent-msg__meta"><span>AGENT</span><i /><time>thinking</time></div>
+          <div class="agent-msg__meta"><span>AGENT</span><i /><time>processing</time></div>
           <div class="agent-dots"><i /><i /><i /></div>
         </div>
       </div>
