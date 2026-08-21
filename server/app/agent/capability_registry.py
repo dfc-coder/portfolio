@@ -70,6 +70,15 @@ _SCHEDULING_CAPABILITIES: tuple[CapabilitySpec, ...] = (
         forbids=frozenset({"details_complete", "pending_booking"}),
     ),
     CapabilitySpec(
+        name="scheduling.ask_slot",
+        description="Remind the visitor to choose one of the already offered slots while preserving any details they supplied.",
+        domain=RouteDomain.SCHEDULING,
+        acts=frozenset({DialogueAct.REQUEST, DialogueAct.INFORM}),
+        kind=CapabilityKind.RESPOND,
+        requires_all=frozenset({"offered_slots"}),
+        forbids=frozenset({"selected_slot", "pending_booking", "date_input"}),
+    ),
+    CapabilitySpec(
         name="scheduling.ask_dates",
         description="Ask the visitor for a meeting date or date range because scheduling has started but no usable date range is known.",
         domain=RouteDomain.SCHEDULING,
