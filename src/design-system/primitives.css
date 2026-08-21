@@ -1,280 +1,70 @@
 /* ========================================================================== 
-   DC PORTFOLIO DESIGN SYSTEM — PRIMITIVES
-   Repeated signals are standardized here. Local chapter CSS owns composition,
-   not the semantic appearance of shared instructions.
+   DC PORTFOLIO DESIGN SYSTEM V2 — PRIMITIVE SCAFFOLD
+
+   GOLDEN BASELINE RULE:
+   This file must not target chapter implementation selectors. It defines only
+   opt-in semantic classes for future migrations. Until a chapter explicitly
+   adopts one of these classes, its current layout and motion remain untouched.
    ========================================================================== */
 
-html,
-body,
-#app,
-.ref-stage {
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  font-synthesis: none;
-}
-
-/* --------------------------------------------------------------------------
-   P01 — Editorial Signal
-   index | ruled connector | semantic label
-   -------------------------------------------------------------------------- */
-
-.trajectory-intro__kicker,
-.systems-intro__kicker,
-.trajectory-header__label,
-.systems-header__label,
-.trajectory-entry__eyebrow,
-.systems-project__eyebrow {
-  display: grid !important;
-  grid-template-columns: auto var(--ds-signal-rule) auto !important;
-  align-items: center !important;
-  gap: var(--ds-signal-gap) !important;
+.ds-signal {
+  display: grid;
+  grid-template-columns: auto var(--ds-signal-rule) auto;
+  align-items: center;
+  gap: var(--ds-signal-gap);
   width: max-content;
-  color: var(--ds-muted) !important;
-  font: var(--ds-mono-sm)/1 var(--font-mono) !important;
-  letter-spacing: var(--ds-signal-track) !important;
+  color: var(--ds-muted);
+  font: var(--ds-mono-sm)/1 var(--font-mono);
+  letter-spacing: var(--ds-signal-track);
 }
 
-.trajectory-intro__kicker > span,
-.systems-intro__kicker > span,
-.trajectory-header__label > span,
-.systems-header__label > span,
-.trajectory-entry__eyebrow > span,
-.systems-project__eyebrow > span {
-  color: var(--ds-accent) !important;
+.ds-signal__index {
+  color: var(--ds-accent);
 }
 
-.trajectory-intro__kicker > i,
-.systems-intro__kicker > i,
-.trajectory-header__label > i,
-.systems-header__label > i,
-.trajectory-entry__eyebrow > i,
-.systems-project__eyebrow > i {
-  width: var(--ds-signal-rule) !important;
-  height: var(--ds-signal-rule-height) !important;
-  background: var(--ds-line-strong) !important;
-  opacity: 1 !important;
-  transform-origin: left center !important;
+.ds-signal__rule {
+  width: var(--ds-signal-rule);
+  height: var(--ds-signal-rule-height);
+  background: var(--ds-line-strong);
 }
 
-.trajectory-intro__kicker > b,
-.systems-intro__kicker > b,
-.trajectory-header__label > b,
-.systems-header__label > b,
-.trajectory-entry__eyebrow > b,
-.systems-project__eyebrow > b {
-  color: var(--ds-muted) !important;
-  font-weight: 400 !important;
+.ds-signal__label {
+  color: var(--ds-muted);
+  font-weight: 400;
   white-space: nowrap;
 }
 
-/* Contextual signals are allowed to animate the rule length, but they retain
-   the same physical component. */
-.trajectory-entry__eyebrow > i {
-  transform: scaleX(calc(.24 + var(--entry-focus, 0) * .76)) !important;
+.ds-register-node {
+  width: var(--ds-register-node);
+  height: var(--ds-register-node);
+  border: 1px solid var(--ds-line-strong);
+  border-radius: 50%;
+  background: var(--ds-bg);
 }
 
-.systems-project__eyebrow > i {
-  transform: scaleX(calc(.24 + var(--title-presence, 0) * .76)) !important;
-}
-
-/* --------------------------------------------------------------------------
-   P03/P04 — Vertical Register + Register Item
-   The register is one physical component across chronology and system index.
-   -------------------------------------------------------------------------- */
-
-.trajectory-axis,
-.systems-axis {
-  left: var(--ds-register-left) !important;
-  top: var(--ds-register-top) !important;
-  width: var(--ds-register-width) !important;
-  height: var(--ds-register-height) !important;
-  background: var(--ds-line) !important;
-  transform-origin: top center !important;
-  box-shadow: none !important;
-}
-
-.trajectory-axis > i,
-.systems-axis__progress {
-  display: block;
-  width: var(--ds-register-width) !important;
-  min-height: 1px;
-  background: linear-gradient(to bottom, rgba(238, 234, 226, .58), rgba(197, 103, 72, .62)) !important;
-  filter: none !important;
-}
-
-/* One semantic active marker only: the node. The axis never draws a second dot. */
-.trajectory-axis::after,
-.systems-axis::after {
-  content: none !important;
-  display: none !important;
-}
-
-/* Trajectory register becomes a populated register rather than a single
-   floating year. Motion still determines focus; geometry is stable. */
-.trajectory-years {
-  position: absolute !important;
-  z-index: 11;
-  left: var(--ds-register-left) !important;
-  top: var(--ds-register-top) !important;
-  width: 1px !important;
-  height: var(--ds-register-height) !important;
-}
-
-.trajectory-year {
-  position: absolute !important;
-  left: 0 !important;
-  width: var(--ds-register-label-width) !important;
-  height: 20px !important;
-  opacity: calc(var(--trajectory-content, 0) * (.34 + var(--year-focus, 0) * .66)) !important;
-  color: var(--ds-muted) !important;
-  font: var(--ds-mono-sm)/1 var(--font-mono) !important;
-  letter-spacing: .10em !important;
-  transform: translate3d(0, -50%, 0) !important;
-}
-
-.trajectory-year:nth-child(1) { top: 0 !important; }
-.trajectory-year:nth-child(2) { top: 50% !important; }
-.trajectory-year:nth-child(3) { top: 100% !important; }
-
-.systems-axis-items {
-  position: absolute !important;
-  z-index: 28 !important;
-  left: var(--ds-register-left) !important;
-  top: var(--ds-register-top) !important;
-  width: 1px !important;
-  height: var(--ds-register-height) !important;
-  right: auto !important;
-  bottom: auto !important;
-}
-
-.systems-axis-item {
-  left: 0 !important;
-  width: var(--ds-register-label-width) !important;
-  height: 20px !important;
-  opacity: calc(var(--systems-content, 0) * (.34 + var(--axis-focus, 0) * .66)) !important;
-  color: var(--ds-muted) !important;
-  font: var(--ds-mono-sm)/1 var(--font-mono) !important;
-  letter-spacing: .10em !important;
-  transform: translate3d(0, -50%, 0) !important;
-}
-
-.trajectory-year > i,
-.systems-axis-item > i {
-  position: absolute !important;
-  left: 0 !important;
-  top: 50% !important;
-  width: var(--ds-register-node) !important;
-  height: var(--ds-register-node) !important;
-  border: 1px solid rgba(238, 234, 226, .42) !important;
-  border-radius: 50% !important;
-  background: var(--ds-bg) !important;
-  transform: translate(-50%, -50%) !important;
-}
-
-.trajectory-year > i {
+.ds-register-node[data-state="active"] {
+  border-color: var(--ds-accent);
   box-shadow:
-    inset 0 0 0 calc(var(--year-focus, 0) * 2px) var(--ds-accent),
-    0 0 0 calc(var(--year-focus, 0) * 6px) var(--ds-accent-soft),
-    0 0 calc(var(--year-focus, 0) * 20px) var(--ds-accent-halo) !important;
+    inset 0 0 0 2px var(--ds-accent),
+    0 0 0 6px var(--ds-accent-soft),
+    0 0 20px var(--ds-accent-halo);
 }
 
-.systems-axis-item > i {
-  box-shadow:
-    inset 0 0 0 calc(var(--axis-focus, 0) * 2px) var(--ds-accent),
-    0 0 0 calc(var(--axis-focus, 0) * 6px) var(--ds-accent-soft),
-    0 0 calc(var(--axis-focus, 0) * 20px) var(--ds-accent-halo) !important;
+.ds-meta-label {
+  color: var(--ds-muted);
+  font: var(--ds-mono-sm)/1 var(--font-mono);
+  letter-spacing: var(--ds-mono-track);
+  text-transform: uppercase;
 }
 
-/* Remove legacy nested marker decorations: active state is one dot + halo. */
-.trajectory-year > i::before,
-.trajectory-year > i::after {
-  content: none !important;
-  display: none !important;
+.ds-body {
+  color: var(--ds-body);
 }
 
-/* Trajectory: NODE | INDEX | RULE | LABEL */
-.trajectory-year > b {
-  position: absolute !important;
-  left: 18px !important;
-  right: auto !important;
-  top: 50% !important;
-  min-width: 20px;
-  transform: translateY(-50%) !important;
-  color: rgba(197, 103, 72, calc(.34 + var(--year-focus, 0) * .66)) !important;
-  font: var(--ds-mono-sm)/1 var(--font-mono) !important;
-  letter-spacing: .08em !important;
+.ds-secondary {
+  color: var(--ds-secondary);
 }
 
-.trajectory-year::after {
-  left: 46px !important;
-  top: 50% !important;
-  width: calc(var(--ds-register-connector) + var(--year-focus, 0) * 31px) !important;
-  height: 1px !important;
-  background: rgba(238, 234, 226, calc(.20 + var(--year-focus, 0) * .46)) !important;
-  transform: translateY(-50%) !important;
-}
-
-.trajectory-year > span {
-  position: absolute !important;
-  left: 96px !important;
-  right: auto !important;
-  top: 50% !important;
-  transform: translateY(-50%) !important;
-  color: rgba(238, 234, 226, calc(.44 + var(--year-focus, 0) * .52)) !important;
-  white-space: nowrap;
-}
-
-/* Systems: NODE | INDEX | RULE | LABEL */
-.systems-axis-item > span {
-  margin-left: 18px !important;
-  min-width: 20px !important;
-  color: rgba(197, 103, 72, calc(.34 + var(--axis-focus, 0) * .66)) !important;
-}
-
-.systems-axis-item > b {
-  position: relative;
-  min-width: 112px;
-  padding-left: calc(15px + var(--axis-focus, 0) * 31px) !important;
-  color: rgba(238, 234, 226, calc(.44 + var(--axis-focus, 0) * .52)) !important;
-  font-weight: 400 !important;
-}
-
-.systems-axis-item > b::before {
-  width: calc(var(--ds-register-connector) + var(--axis-focus, 0) * 31px) !important;
-  height: 1px !important;
-  background: rgba(238, 234, 226, calc(.20 + var(--axis-focus, 0) * .46)) !important;
-}
-
-/* --------------------------------------------------------------------------
-   P06/P08/P09/P10 — semantic readability roles
-   -------------------------------------------------------------------------- */
-
-.trajectory-entry h2,
-.systems-project h2 {
-  color: var(--ds-paper) !important;
-}
-
-.trajectory-entry__statement p,
-.systems-project__premise,
-.systems-project__detail,
-.systems-project__evidence strong {
-  color: var(--ds-body) !important;
-}
-
-.trajectory-entry__context small,
-.trajectory-entry__focus > span,
-.systems-project__field,
-.systems-project__architecture-heading,
-.systems-project__evidence > span,
-.systems-project__implementation > span,
-.systems-project__detail::before,
-.systems-graph-field__index,
-.systems-graph-field__mode {
-  color: var(--ds-muted) !important;
-}
-
-.systems-project__implementation b,
-.trajectory-entry__focus ul {
-  color: var(--ds-secondary) !important;
+.ds-muted {
+  color: var(--ds-muted);
 }
