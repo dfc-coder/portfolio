@@ -6,13 +6,9 @@ from app.domain.conversation import SessionState
 from app.domain.planning import AgentAction, Plan, VerificationResult
 
 from .fsm import ConversationFSM
+from .streaming_guard import find_stream_violation
 
 _EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
-_OWNER_IMPERSONATION_RE = re.compile(r"\b(?:i am|i'm|soy)\s+diego\b", re.IGNORECASE)
-_FALSE_BOOKING_RE = re.compile(
-    r"\b(?:booked|scheduled|on the calendar|agendad[oa]|reservad[oa])\b",
-    re.IGNORECASE,
-)
 
 
 class AgentVerifier:
@@ -66,13 +62,17 @@ class AgentVerifier:
         state: SessionState,
         response: str,
     ) -> VerificationResult:
+        del state
         issues: list[str] = []
         if not response.strip():
             issues.append("The response is empty.")
-        if _OWNER_IMPERSONATION_RE.search(response):
+
+        violation = find_stream_violation(response)
+        if violation == "owner_impersonation":
             issues.append("The representative must not impersonate the portfolio owner.")
-        if state.pending_booking is None and _FALSE_BOOKING_RE.search(response):
-            issues.append("The response must not claim a meeting is booked without calendar success.")
+        elif violation == "unverified_calendar_status":
+            issues.append("The response must not claim calendar side effects from informational generation.")
+
         if len(response.split()) > 180:
             issues.append("The response is too long for the default concise business mode.")
         return VerificationResult(ok=not issues, issues=issues)
