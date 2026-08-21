@@ -11,6 +11,11 @@ import "./micro-interactions.css";
 import "./agent-os.css";
 import "./hero-experience.css";
 
+/* Keep the first paint quiet while Vue, the self-hosted display face and the
+   legacy intro initialize. This prevents a one-frame Hero flash before the
+   creative director has established its starting state. */
+document.documentElement.classList.add("creative-hero-pending");
+
 createApp(App).mount("#app");
 
 /* The legacy Vue intro waits for nextTick + font readiness before it creates its
