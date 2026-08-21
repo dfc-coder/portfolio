@@ -14,9 +14,9 @@ export const SYSTEMS_TIMING = {
   introIn: [0.02, 0.20] as const,
   introOut: [0.28, 0.44] as const,
   axisReveal: [0.18, 0.42] as const,
-  headerReveal: [0.30, 0.54] as const,
-  contentReveal: [0.44, 0.74] as const,
-  initialGraphBuild: [0.50, 0.86] as const,
+  headerReveal: [0.28, 0.52] as const,
+  contentReveal: [0.40, 0.72] as const,
+  initialGraphBuild: [0.46, 0.82] as const,
   tailOut: [-0.38, -0.02] as const,
   galleryHandoff: [0.02, 0.30] as const,
 } as const;
