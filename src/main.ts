@@ -15,6 +15,7 @@ import "./hero-experience.css";
 import "./trajectory-experience.css";
 import "./trajectory-bridge.css";
 import "./systems-experience.css";
+import "./systems-integration-fix.css";
 
 /* Keep the first paint quiet while Vue, the self-hosted display face and the
    legacy intro initialize. This prevents a one-frame Hero flash before the
