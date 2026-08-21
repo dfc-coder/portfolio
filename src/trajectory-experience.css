@@ -1,8 +1,8 @@
 /* ==========================================================================
    HERO -> TRAJECTORY
    The opening and resting Hero stay untouched. Once scrolling begins, the Hero
-   exits by depth while its vertical cue becomes the chronology axis.
-   Career is one continuous scene: no Vue out-in crossfade, no blank frames.
+   exits by depth. The central cue keeps its vertical motion and disappears;
+   Career introduces its own editorial chronology independently.
    ========================================================================== */
 
 .ref-scene--chapter[data-chapter="career"] {
@@ -25,10 +25,8 @@
   opacity: 0 !important;
 }
 
-/* Keep only the Hero material field alive underneath Trajectory. The Hero DOM
-   itself now reaches zero opacity before Career content arrives; the previous
-   pass left 10–30% of DIEGO/CANO, metadata and thesis visible for the entire
-   section, which is what produced the stacked/dirty frames in the recording. */
+/* Keep the ambient material from the Hero, but evacuate all Hero typography
+   before Career becomes the protagonist. */
 html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scene--hero {
   opacity: var(--trajectory-hero-shell, 1) !important;
   transform: none !important;
@@ -36,31 +34,34 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scene--hero 
 }
 
 html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-hero__title {
-  translate: 0 calc(var(--trajectory-hero-exit, 0) * -18vh);
+  translate: 0 calc(var(--trajectory-hero-exit, 0) * -16vh);
   opacity: calc(1 - var(--trajectory-hero-exit, 0));
 }
 
 html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-hero__thesis {
-  translate: 0 calc(var(--trajectory-hero-exit, 0) * -10vh);
+  translate: 0 calc(var(--trajectory-hero-exit, 0) * -8vh);
   opacity: calc(1 - var(--trajectory-hero-exit, 0)) !important;
 }
 
 html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-hero__meta {
-  translate: 0 calc(var(--trajectory-hero-exit, 0) * -5vh);
+  translate: 0 calc(var(--trajectory-hero-exit, 0) * -3.5vh);
   opacity: calc(1 - var(--trajectory-hero-exit, 0)) !important;
 }
 
-/* The label leaves before the line. The line itself hands off cleanly to the
-   new axis; neither remains as a ghost once the morph is complete. */
+/* Preserve the movement that worked in the recording: the Hero cue retracts
+   vertically and fades. It no longer travels diagonally across the viewport or
+   pretends to become the chronology line. */
 html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue {
-  translate:
-    calc(-50% - var(--trajectory-axis-morph, 0) * 36.5vw)
-    calc(var(--trajectory-axis-morph, 0) * -17vh);
-  opacity: calc(1 - var(--trajectory-axis-morph, 0)) !important;
+  translate: -50% calc(var(--trajectory-cue-exit, 0) * -10vh);
+  opacity: calc(1 - var(--trajectory-cue-exit, 0)) !important;
 }
 
 html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue span {
-  opacity: calc(1 - var(--trajectory-axis-morph, 0) * 2.2);
+  opacity: calc(1 - var(--trajectory-cue-exit, 0) * 1.9);
+}
+
+html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i {
+  transform: scaleY(calc(1 - var(--trajectory-cue-exit, 0) * .55));
 }
 
 /* --------------------------------------------------------------------------
@@ -69,8 +70,8 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue s
 
 .trajectory-experience {
   --trajectory-paper: rgba(238, 234, 226, .94);
-  --trajectory-muted: rgba(238, 234, 226, .48);
-  --trajectory-dim: rgba(238, 234, 226, .20);
+  --trajectory-muted: rgba(238, 234, 226, .46);
+  --trajectory-dim: rgba(238, 234, 226, .18);
   position: absolute;
   z-index: 14;
   inset: 0;
@@ -85,36 +86,53 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue s
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(238, 234, 226, .018), transparent 24%, transparent 78%, rgba(238, 234, 226, .012)),
-    radial-gradient(circle at 18% 51%, rgba(197, 103, 72, .022), transparent 34%);
+    linear-gradient(90deg, rgba(238, 234, 226, .014), transparent 25%, transparent 79%, rgba(238, 234, 226, .009)),
+    radial-gradient(circle at 18% 49%, rgba(197, 103, 72, .018), transparent 32%);
 }
 
-/* This is now a quiet beat between Hero and Career, never another page and
-   never simultaneous with the active role typography. */
+/* Chapter 02 is a composed beat: a small ruled kicker creates hierarchy before
+   the serif sentence. It holds long enough to read, then yields upward. */
 .trajectory-intro {
   position: absolute;
   z-index: 8;
   left: 50%;
   top: 47%;
-  width: min(660px, 72vw);
+  width: min(650px, 70vw);
   translate: -50% -50%;
-  text-align: center;
+  text-align: left;
   will-change: transform, opacity;
 }
 
-.trajectory-intro > span {
-  display: block;
-  margin-bottom: 16px;
+.trajectory-intro__kicker {
+  width: max-content;
+  margin: 0 auto 22px;
+  display: grid;
+  grid-template-columns: auto 52px auto;
+  align-items: center;
+  gap: 10px;
   color: var(--trajectory-muted);
   font: 8px/1 var(--font-mono);
-  letter-spacing: .28em;
-  text-indent: .28em;
+  letter-spacing: .16em;
+}
+
+.trajectory-intro__kicker span {
+  color: var(--color-accent);
+}
+
+.trajectory-intro__kicker i {
+  height: 1px;
+  background: rgba(238, 234, 226, .34);
+}
+
+.trajectory-intro__kicker b {
+  font-weight: 400;
 }
 
 .trajectory-intro p {
   margin: 0;
+  text-align: center;
   font-family: var(--font-serif);
-  font-size: clamp(2.15rem, 3.6vw, 4rem);
+  font-size: clamp(2.15rem, 3.45vw, 3.8rem);
   font-style: italic;
   font-weight: 400;
   line-height: 1.04;
@@ -122,62 +140,91 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue s
   text-wrap: balance;
 }
 
+/* Persistent information hierarchy: chapter identity on the left, temporal
+   scope and role count on the right. */
 .trajectory-header {
   position: absolute;
   z-index: 12;
   left: 22px;
+  right: 22px;
   top: 22px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
   color: var(--trajectory-muted);
   font: 8px/1 var(--font-mono);
   letter-spacing: .13em;
   will-change: transform, opacity;
 }
 
-.trajectory-header span {
+.trajectory-header__label,
+.trajectory-header__meta {
+  display: flex;
+  align-items: center;
+}
+
+.trajectory-header__label {
+  gap: 10px;
+}
+
+.trajectory-header__label span {
   color: var(--color-accent);
 }
 
-.trajectory-header i {
+.trajectory-header__label i {
   width: 42px;
   height: 1px;
   background: currentColor;
-  opacity: .48;
+  opacity: .46;
 }
 
-.trajectory-header b {
+.trajectory-header__label b {
   font-weight: 400;
 }
 
+.trajectory-header__meta {
+  gap: 18px;
+  color: rgba(238, 234, 226, .31);
+}
+
+.trajectory-header__meta span + span::before {
+  content: "·";
+  margin-right: 18px;
+  color: rgba(238, 234, 226, .18);
+}
+
+/* The timeline is intentionally close to the earlier portfolio language: a
+   simple stationary rule, not a dramatic transformed line. It draws in quietly
+   once the chapter beat has established the section. */
 .trajectory-axis {
   position: absolute;
   z-index: 7;
+  left: 15.5%;
+  top: 30%;
   width: 1px;
-  transform: translateX(-50%);
-  will-change: left, top, height, opacity;
+  height: 43vh;
+  opacity: 0;
+  background: rgba(238, 234, 226, .11);
+  transform: scaleY(var(--trajectory-axis-reveal, 0));
+  transform-origin: top center;
+  will-change: transform, opacity;
 }
 
 .trajectory-axis > i {
   display: block;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    to bottom,
-    rgba(238, 234, 226, .05),
-    rgba(238, 234, 226, .52) 24%,
-    rgba(238, 234, 226, .30) 78%,
-    rgba(238, 234, 226, .04)
-  );
+  width: 1px;
+  height: calc(var(--trajectory-timeline-progress, 0) * 100%);
+  min-height: 1px;
+  background: linear-gradient(to bottom, rgba(238, 234, 226, .62), rgba(197, 103, 72, .54));
+  transition: height .08s linear;
 }
 
-/* Stable focal band. Years travel less than role copy, producing depth without
-   becoming a second competing animation. */
+/* Years move around a stable focal band. The active node gains a tiny halo and
+   a connector; these are microinteractions, not a second animation system. */
 .trajectory-years {
   position: absolute;
   z-index: 11;
-  left: 13.5%;
+  left: 15.5%;
   top: 47%;
   width: 1px;
   height: 1px;
@@ -188,37 +235,57 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue s
   position: absolute;
   left: 0;
   top: 0;
-  width: 100px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: rgba(238, 234, 226, calc(.24 + var(--year-focus) * .62));
-  font: 9px/1 var(--font-mono);
+  width: 112px;
+  color: rgba(238, 234, 226, calc(.18 + var(--year-focus) * .68));
+  font: 8px/1 var(--font-mono);
   letter-spacing: .13em;
   will-change: transform, opacity;
 }
 
 .trajectory-year span {
   position: absolute;
-  right: 18px;
+  right: 22px;
+  top: 0;
+  transform: translateY(-50%);
+}
+
+.trajectory-year b {
+  position: absolute;
+  left: 18px;
+  top: 0;
+  transform: translateY(-50%);
+  color: rgba(238, 234, 226, calc(.08 + var(--year-focus) * .28));
+  font-weight: 400;
+  font-size: 7px;
 }
 
 .trajectory-year i {
   position: absolute;
-  left: -4px;
-  width: calc(7px + var(--year-focus) * 3px);
-  height: calc(7px + var(--year-focus) * 3px);
-  border: 1px solid rgba(238, 234, 226, calc(.20 + var(--year-focus) * .66));
+  left: 0;
+  top: 0;
+  width: calc(6px + var(--year-focus) * 3px);
+  height: calc(6px + var(--year-focus) * 3px);
+  border: 1px solid rgba(238, 234, 226, calc(.18 + var(--year-focus) * .62));
   border-radius: 50%;
-  background: rgba(9, 9, 8, .96);
+  background: #090908;
   transform: translate(-50%, -50%);
 }
 
+.trajectory-year i::before,
 .trajectory-year i::after {
   content: "";
   position: absolute;
-  inset: 2px;
   border-radius: 50%;
+}
+
+.trajectory-year i::before {
+  inset: -7px;
+  border: 1px solid rgba(197, 103, 72, calc(var(--year-focus) * .22));
+  transform: scale(calc(.72 + var(--year-focus) * .28));
+}
+
+.trajectory-year i::after {
+  inset: 2px;
   background: var(--color-accent);
   opacity: var(--year-focus);
 }
@@ -226,11 +293,11 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue s
 .trajectory-year::after {
   content: "";
   position: absolute;
-  left: 8px;
+  left: 9px;
   top: 0;
-  width: calc(30px + var(--year-focus) * 54px);
+  width: calc(18px + var(--year-focus) * 54px);
   height: 1px;
-  background: rgba(238, 234, 226, calc(.06 + var(--year-focus) * .28));
+  background: rgba(238, 234, 226, calc(.04 + var(--year-focus) * .30));
   transform-origin: left center;
 }
 
@@ -248,7 +315,8 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue s
   --entry-focus: 0;
   --entry-x: 0vw;
   --role-y: 0vh;
-  --meta-y: 0vh;
+  --eyebrow-y: 0vh;
+  --context-y: 0vh;
   --summary-y: 0vh;
   --tags-y: 0vh;
   position: absolute;
@@ -260,32 +328,50 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue s
   will-change: opacity;
 }
 
-.trajectory-entry__meta,
+.trajectory-entry__eyebrow,
 .trajectory-entry h2,
-.trajectory-entry p,
-.trajectory-entry ul {
+.trajectory-entry__context,
+.trajectory-entry__statement,
+.trajectory-entry__focus {
   will-change: translate, opacity;
 }
 
-.trajectory-entry__meta {
-  display: block;
-  margin-bottom: 15px;
-  translate: 0 var(--meta-y);
-  color: rgba(238, 234, 226, calc(.20 + var(--entry-focus) * .42));
-  font: 8px/1.25 var(--font-mono);
-  letter-spacing: .11em;
-  text-transform: uppercase;
+/* Eyebrow is the first hierarchy level and has its own tiny ruled motion. */
+.trajectory-entry__eyebrow {
+  translate: 0 var(--eyebrow-y);
+  margin-bottom: 16px;
+  display: grid;
+  width: max-content;
+  grid-template-columns: auto minmax(28px, 58px) auto;
+  align-items: center;
+  gap: 9px;
+  color: rgba(238, 234, 226, calc(.16 + var(--entry-focus) * .42));
+  font: 8px/1 var(--font-mono);
+  letter-spacing: .12em;
 }
 
-/* The old 8.4vw title was simply too large for INDEPENDENT and forced the
-   word against/outside the viewport. This size keeps mass without clipping. */
+.trajectory-entry__eyebrow span {
+  color: rgba(197, 103, 72, calc(.28 + var(--entry-focus) * .70));
+}
+
+.trajectory-entry__eyebrow i {
+  height: 1px;
+  background: rgba(238, 234, 226, calc(.08 + var(--entry-focus) * .36));
+  transform: scaleX(calc(.18 + var(--entry-focus) * .82));
+  transform-origin: left center;
+}
+
+.trajectory-entry__eyebrow b {
+  font-weight: 400;
+}
+
 .trajectory-entry h2 {
   max-width: min(62vw, 820px);
   margin: 0;
   translate: 0 var(--role-y);
-  color: rgba(238, 234, 226, calc(.12 + var(--entry-focus) * .88));
+  color: rgba(238, 234, 226, calc(.10 + var(--entry-focus) * .90));
   font-family: var(--font-display);
-  font-size: clamp(3.35rem, 6.2vw, 7.2rem);
+  font-size: clamp(3.35rem, 6.05vw, 7rem);
   font-weight: var(--w-black);
   line-height: .86;
   letter-spacing: -.042em;
@@ -293,51 +379,146 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue s
   text-wrap: balance;
 }
 
-.trajectory-entry p {
-  width: min(560px, 47vw);
-  margin: 25px 0 0;
-  translate: 0 var(--summary-y);
-  color: rgba(238, 234, 226, calc(.12 + var(--entry-focus) * .56));
-  font-size: clamp(.94rem, 1.08vw, 1.12rem);
-  line-height: 1.48;
-  letter-spacing: -.016em;
+/* Organization/context sit on one restrained metadata row. Their underline
+   length and contrast follow focus, creating motion without moving the whole UI. */
+.trajectory-entry__context {
+  translate: 0 var(--context-y);
+  margin-top: 24px;
+  width: min(560px, 48vw);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 30px;
 }
 
-.trajectory-entry ul {
-  margin: 18px 0 0;
-  padding: 0;
+.trajectory-entry__context > div {
+  position: relative;
+  padding-bottom: 9px;
+  border-bottom: 1px solid rgba(238, 234, 226, calc(.05 + var(--entry-focus) * .13));
+}
+
+.trajectory-entry__context > div::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 42%;
+  height: 1px;
+  background: rgba(238, 234, 226, .42);
+  transform: scaleX(var(--entry-focus));
+  transform-origin: left center;
+}
+
+.trajectory-entry__context small,
+.trajectory-entry__context strong {
+  display: block;
+}
+
+.trajectory-entry__context small {
+  margin-bottom: 6px;
+  color: rgba(238, 234, 226, calc(.13 + var(--entry-focus) * .23));
+  font: 7px/1 var(--font-mono);
+  letter-spacing: .14em;
+}
+
+.trajectory-entry__context strong {
+  color: rgba(238, 234, 226, calc(.20 + var(--entry-focus) * .48));
+  font-size: clamp(.82rem, .95vw, 1rem);
+  font-weight: 450;
+  letter-spacing: -.01em;
+}
+
+/* The statement gets a different entrance language from the title: a vertical
+   editorial rule establishes the block, then the copy follows behind it. */
+.trajectory-entry__statement {
+  translate: 0 var(--summary-y);
+  margin-top: 22px;
+  width: min(590px, 50vw);
+  display: grid;
+  grid-template-columns: 1px minmax(0, 1fr);
+  gap: 13px;
+}
+
+.trajectory-entry__statement > i {
+  width: 1px;
+  min-height: 100%;
+  background: rgba(238, 234, 226, calc(.10 + var(--entry-focus) * .32));
+  transform: scaleY(var(--entry-focus));
+  transform-origin: top center;
+}
+
+.trajectory-entry__statement p {
+  margin: 0;
+  color: rgba(238, 234, 226, calc(.10 + var(--entry-focus) * .56));
+  font-size: clamp(.92rem, 1.04vw, 1.08rem);
+  line-height: 1.47;
+  letter-spacing: -.014em;
+}
+
+.trajectory-entry__focus {
   translate: 0 var(--tags-y);
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  align-items: start;
+  gap: 12px;
+}
+
+.trajectory-entry__focus > span {
+  padding-top: 2px;
+  color: rgba(238, 234, 226, calc(.11 + var(--entry-focus) * .25));
+  font: 7px/1 var(--font-mono);
+  letter-spacing: .15em;
+}
+
+.trajectory-entry__focus ul {
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 14px;
+  gap: 7px 13px;
   list-style: none;
-  color: rgba(238, 234, 226, calc(.14 + var(--entry-focus) * .42));
+  color: rgba(238, 234, 226, calc(.12 + var(--entry-focus) * .42));
   font: 8px/1 var(--font-mono);
-  letter-spacing: .09em;
+  letter-spacing: .08em;
   text-transform: uppercase;
 }
 
-.trajectory-entry li::before {
-  content: "—";
-  margin-right: 7px;
-  color: rgba(197, 103, 72, calc(.22 + var(--entry-focus) * .70));
+.trajectory-entry__focus li {
+  translate: calc((1 - var(--entry-focus)) * (6px + var(--tag-index) * 2px)) 0;
 }
 
-/* The counter is supporting information. It appears only once the Career copy
-   owns the scene and is intentionally smaller/lower than the role typography. */
+.trajectory-entry__focus li::before {
+  content: "—";
+  margin-right: 6px;
+  color: rgba(197, 103, 72, calc(.18 + var(--entry-focus) * .66));
+}
+
+/* Supporting odometer. It responds continuously to fractional experience
+   position but never competes with the role title. */
 .trajectory-counter {
   position: absolute;
   z-index: 9;
   right: 4vw;
-  bottom: 7vh;
+  bottom: 6vh;
+  opacity: calc(var(--trajectory-content, 0) * .62);
+  color: rgba(238, 234, 226, .16);
+}
+
+.trajectory-counter > small {
+  display: block;
+  margin: 0 0 7px 2px;
+  color: rgba(238, 234, 226, .25);
+  font: 7px/1 var(--font-mono);
+  letter-spacing: .16em;
+}
+
+.trajectory-counter__row {
   display: grid;
   grid-template-columns: auto 24px auto;
   align-items: center;
   gap: 9px;
-  opacity: calc(var(--trajectory-content, 0) * .68);
-  color: rgba(238, 234, 226, .17);
   font-family: var(--font-display);
-  font-size: clamp(2.8rem, 4.4vw, 5rem);
+  font-size: clamp(2.7rem, 4.1vw, 4.7rem);
   font-weight: var(--w-black);
   line-height: 1;
   letter-spacing: -.05em;
@@ -360,32 +541,38 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue s
   line-height: 1;
 }
 
-.trajectory-counter > i {
+.trajectory-counter__row > i {
   width: 100%;
   height: 1px;
-  background: rgba(238, 234, 226, .18);
+  background: rgba(238, 234, 226, .16);
 }
 
-.trajectory-counter > span {
+.trajectory-counter__row > span {
   align-self: center;
+  color: rgba(238, 234, 226, .28);
   font: 8px/1 var(--font-mono);
   letter-spacing: .12em;
-  color: rgba(238, 234, 226, .30);
 }
 
 @media (max-width: 900px) {
+  .trajectory-axis,
   .trajectory-years {
-    left: 10.5%;
+    left: 11.5%;
   }
 
   .trajectory-entry {
-    left: 23%;
+    left: 24%;
     right: 4vw;
   }
 
   .trajectory-entry h2 {
-    max-width: 70vw;
-    font-size: clamp(3.2rem, 8.6vw, 6.5rem);
+    max-width: 69vw;
+    font-size: clamp(3.1rem, 8vw, 6.2rem);
+  }
+
+  .trajectory-entry__context,
+  .trajectory-entry__statement {
+    width: min(62vw, 560px);
   }
 
   .trajectory-counter {
@@ -404,13 +591,20 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue s
 
   .trajectory-header {
     left: 14px;
+    right: 14px;
   }
 
+  .trajectory-header__meta {
+    display: none;
+  }
+
+  .trajectory-axis,
   .trajectory-years {
     left: 13%;
   }
 
-  .trajectory-year span {
+  .trajectory-year span,
+  .trajectory-year b {
     display: none;
   }
 
@@ -422,23 +616,39 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue s
 
   .trajectory-entry h2 {
     max-width: 76vw;
-    font-size: 11vw;
+    font-size: 10.5vw;
   }
 
-  .trajectory-entry p {
+  .trajectory-entry__context {
     width: 72vw;
-    margin-top: 20px;
-    font-size: .88rem;
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 
-  .trajectory-entry ul {
-    gap: 7px 10px;
+  .trajectory-entry__statement {
+    width: 72vw;
+    margin-top: 16px;
+  }
+
+  .trajectory-entry__statement p {
+    font-size: .86rem;
+  }
+
+  .trajectory-entry__focus {
+    grid-template-columns: 42px 1fr;
+  }
+
+  .trajectory-entry__focus ul {
+    gap: 7px 9px;
   }
 
   .trajectory-counter {
     right: 12px;
-    bottom: 5vh;
-    font-size: 11vw;
+    bottom: 4vh;
+  }
+
+  .trajectory-counter__row {
+    font-size: 10vw;
   }
 }
 
