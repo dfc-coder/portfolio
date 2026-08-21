@@ -7,6 +7,7 @@ on:
     paths:
       - "server/**"
       - "src/**"
+      - "tests/**"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"
@@ -16,6 +17,7 @@ on:
     paths:
       - "server/**"
       - "src/**"
+      - "tests/**"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"
@@ -56,5 +58,7 @@ jobs:
           cache: npm
       - name: Install frontend
         run: npm ci
+      - name: Run visual contract tests
+        run: npm run test:visual
       - name: Typecheck and build frontend
         run: npm run build
