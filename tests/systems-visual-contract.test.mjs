@@ -20,6 +20,13 @@ const loadTsModule = async (relativePath) => {
   return import(`data:text/javascript;base64,${encoded}`);
 };
 
+const cssBlock = (css, selector) => {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = css.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`, "is"));
+  assert.ok(match, `missing CSS block for ${selector}`);
+  return match[1];
+};
+
 const motion = await loadTsModule("src/systems-motion-contract.ts");
 const projectData = await loadTsModule("src/systems-projects.ts");
 
@@ -37,6 +44,31 @@ test("BDD: Given Career is leaving, when THE EVIDENCE becomes readable, then Car
     careerResidual < 0.01,
     `Career must be effectively gone before the intro owns the beat, got ${careerResidual}`,
   );
+});
+
+test("BDD: Given THE EVIDENCE owns the chapter beat, then rail and persistent Systems header stay out of the composition", () => {
+  const chapterSystemsNode = 5;
+  const chapterGalleryNode = 11;
+
+  for (let step = 0; step <= 100; step += 1) {
+    const systemsDelta = 0.02 + step * 0.0042;
+    const state = motion.chapterState(
+      chapterSystemsNode + systemsDelta,
+      chapterSystemsNode,
+      chapterGalleryNode,
+    );
+
+    if (state.introVisibility >= 0.35) {
+      assert.ok(
+        state.axisReveal < 0.01,
+        `rail leaked into intro beat at ${systemsDelta}: ${state.axisReveal}`,
+      );
+      assert.ok(
+        state.headerReveal < 0.01,
+        `header leaked into intro beat at ${systemsDelta}: ${state.headerReveal}`,
+      );
+    }
+  }
 });
 
 test("BDD: Given THE EVIDENCE is yielding, when project 00 becomes readable, then the chapter statement is no longer a competing protagonist", () => {
@@ -63,20 +95,25 @@ test("BDD: Given THE EVIDENCE is yielding, when project 00 becomes readable, the
   }
 });
 
-test("BDD: Given THE EVIDENCE hands off to project 00, then there is no perceptible dead interval between chapter and system", () => {
+test("BDD: Given THE EVIDENCE hands off to project 00, structural layers bridge the beat without a dead interval", () => {
   const chapterSystemsNode = 5;
   const chapterGalleryNode = 11;
   let deadSamples = 0;
   let longestDeadRun = 0;
 
-  for (let step = 0; step <= 120; step += 1) {
+  for (let step = 0; step <= 150; step += 1) {
     const systemsDelta = 0.20 + step * 0.003;
     const state = motion.chapterState(
       chapterSystemsNode + systemsDelta,
       chapterSystemsNode,
       chapterGalleryNode,
     );
-    const coverage = Math.max(state.introVisibility, state.contentReveal);
+    const coverage = Math.max(
+      state.introVisibility,
+      state.axisReveal,
+      state.headerReveal,
+      state.contentReveal,
+    );
 
     if (coverage < 0.01) {
       deadSamples += 1;
@@ -87,8 +124,8 @@ test("BDD: Given THE EVIDENCE hands off to project 00, then there is no percepti
   }
 
   assert.ok(
-    longestDeadRun <= 7,
-    `chapter-to-project dead interval is too wide: ${longestDeadRun} samples`,
+    longestDeadRun <= 2,
+    `chapter-to-project structural dead interval is too wide: ${longestDeadRun} samples`,
   );
 });
 
@@ -173,6 +210,20 @@ test("SDD: the five systems have five distinct architecture signatures", () => {
   assert.equal(new Set(signatures).size, projectData.systemsProjects.length);
 });
 
+test("SDD: Trajectory and Systems rails share the same physical left/top/height contract", async () => {
+  const trajectoryCss = await readFile(resolve(root, "src/trajectory-experience.css"), "utf8");
+  const systemsCss = await readFile(resolve(root, "src/systems-experience-v5.css"), "utf8");
+
+  const trajectoryAxis = cssBlock(trajectoryCss, ".trajectory-axis");
+  const systemsAxis = cssBlock(systemsCss, ".systems-axis,\n.systems-axis-items");
+
+  for (const block of [trajectoryAxis, systemsAxis]) {
+    assert.match(block, /left\s*:\s*15\.5%/i);
+    assert.match(block, /top\s*:\s*30%/i);
+    assert.match(block, /height\s*:\s*43vh/i);
+  }
+});
+
 test("TDD regression: active CSS files contain real newlines and no escaped-newline corruption", async () => {
   for (const file of [
     "src/systems-experience-v5.css",
@@ -196,6 +247,33 @@ test("TDD regression: shared visual continuity must never mutate Systems direct-
     /\.trajectory-experience\s*>\s*\*\s*\{[^}]*position\s*:\s*relative/is,
   );
   assert.match(css, /\.systems-experience\s*\{[^}]*isolation\s*:\s*isolate/is);
+});
+
+test("TDD regression: Systems rail nodes cannot override their top origin with inset shorthand", async () => {
+  const css = await readFile(resolve(root, "src/systems-experience-v5.css"), "utf8");
+  const railBlock = cssBlock(css, ".systems-axis,\n.systems-axis-items");
+  const itemsBlock = cssBlock(css, ".systems-axis-items");
+
+  assert.match(railBlock, /top\s*:\s*30%\s*!important/i);
+  assert.match(railBlock, /right\s*:\s*auto\s*!important/i);
+  assert.match(railBlock, /bottom\s*:\s*auto\s*!important/i);
+  assert.doesNotMatch(railBlock, /\binset\s*:/i);
+  assert.doesNotMatch(itemsBlock, /\binset\s*:/i);
+});
+
+test("TDD regression: rail state has one semantic active marker, never a second axis pseudo-marker", async () => {
+  const css = await readFile(resolve(root, "src/visual-continuity-v3.css"), "utf8");
+
+  assert.doesNotMatch(css, /\.trajectory-axis::after/i);
+  assert.doesNotMatch(css, /\.systems-axis::after/i);
+});
+
+test("TDD regression: pointer lighting uses one broad ambient field rather than stacked chapter spotlights", async () => {
+  const css = await readFile(resolve(root, "src/visual-continuity-v3.css"), "utf8");
+
+  assert.match(css, /ellipse\s+54rem\s+38rem/i);
+  assert.doesNotMatch(css, /\.trajectory-experience::after/i);
+  assert.doesNotMatch(css, /\.systems-experience::after/i);
 });
 
 test("TDD regression: critical Systems composition layers are explicitly absolute", async () => {
