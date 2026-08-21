@@ -1,7 +1,17 @@
-{"stage":"business","input":"¿Trabajás con integraciones?","expected_path":"business_answer"}
-{"stage":"business","input":"Quiero una reunión el martes","expected_action":"get_availability"}
-{"stage":"scheduling_slot","input":"El segundo","expected_action":"select_slot","expected_slot_id":"S2"}
-{"stage":"scheduling_slot","input":"S2. Soy Ana, ana@example.com, para hablar de arquitectura","expected_action":"select_slot","expected_slot_id":"S2"}
-{"stage":"scheduling_details","input":"Soy Ana, ana@example.com, para hablar de arquitectura","expected_action":"prepare_booking"}
-{"stage":"scheduling_confirmation","input":"Sí, confirmo","expected_fast_path":"calendar_write"}
-{"stage":"scheduling_confirmation","input":"Tuesday could work","expected_fast_path":"confirmation_reminder"}
+{"kind":"workflow","stage":"business","input":"¿Trabajás con integraciones?","expected_path":"business_answer"}
+{"kind":"workflow","stage":"business","input":"Quiero una reunión el martes","expected_action":"get_availability"}
+{"kind":"workflow","stage":"scheduling_slot","input":"El segundo","expected_action":"select_slot","expected_slot_id":"S2"}
+{"kind":"workflow","stage":"scheduling_slot","input":"S2. Soy Ana, ana@example.com, para hablar de arquitectura","expected_action":"select_slot","expected_slot_id":"S2"}
+{"kind":"workflow","stage":"scheduling_details","input":"Soy Ana, ana@example.com, para hablar de arquitectura","expected_action":"prepare_booking"}
+{"kind":"workflow","stage":"scheduling_confirmation","input":"Sí, confirmo","expected_fast_path":"calendar_write"}
+{"kind":"workflow","stage":"scheduling_confirmation","input":"Tuesday could work","expected_fast_path":"confirmation_reminder"}
+{"kind":"routing","state":{"active_workflow":null},"message":"¿Qué hora es?","domain":"general","relation":"new"}
+{"kind":"routing","state":{"active_workflow":null},"message":"¿Cuánto cobra Diego por hora?","domain":"business","relation":"new"}
+{"kind":"routing","state":{"active_workflow":null},"message":"¿A qué hora podemos reunirnos?","domain":"scheduling","relation":"new"}
+{"kind":"routing","state":{"active_workflow":null},"message":"Quiero hablar sobre el proyecto SQL","domain":"business","relation":"new"}
+{"kind":"routing","state":{"active_workflow":null},"message":"Quiero hablar con Diego la semana que viene","domain":"scheduling","relation":"new"}
+{"kind":"routing","state":{"active_workflow":"scheduling","stage":"scheduling_slot"},"message":"El segundo","domain":"scheduling","relation":"continue"}
+{"kind":"routing","state":{"active_workflow":"scheduling","stage":"scheduling_slot"},"message":"Antes, ¿Diego trabaja con AWS?","domain":"business","relation":"interrupt"}
+{"kind":"routing","state":{"active_workflow":"scheduling","stage":"scheduling_dates"},"message":"¿Qué hora es?","domain":"general","relation":"interrupt"}
+{"kind":"routing","state":{"active_workflow":"scheduling","stage":"scheduling_details"},"message":"Mi email es ana@example.com","domain":"scheduling","relation":"continue"}
+{"kind":"routing","state":{"active_workflow":"scheduling","stage":"scheduling_confirmation"},"message":"Antes de confirmar, ¿qué experiencia tiene con APIs?","domain":"business","relation":"interrupt"}
