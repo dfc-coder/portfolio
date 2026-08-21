@@ -1,0 +1,212 @@
+/* Visual Continuity V3: shared chapter grammar, pointer light and text clarity. */
+
+:root {
+  --ref-paper-strong: rgba(238, 234, 226, .985);
+  --ref-body-strong: rgba(238, 234, 226, .86);
+  --ref-support-strong: rgba(238, 234, 226, .70);
+  --ref-micro-strong: rgba(238, 234, 226, .56);
+}
+
+html,
+body,
+#app,
+.ref-stage {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-synthesis: none;
+}
+
+.ref-global-pointer-light {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 1;
+  background: radial-gradient(
+    circle 38rem at var(--ref-pointer-x, 50%) var(--ref-pointer-y, 44%),
+    rgba(238, 234, 226, calc(.088 + var(--ref-pointer-velocity, 0) * .024)) 0%,
+    rgba(135, 147, 178, calc(.126 + var(--ref-pointer-velocity, 0) * .030)) 11%,
+    rgba(92, 106, 139, calc(.070 + var(--ref-pointer-velocity, 0) * .018)) 28%,
+    rgba(66, 76, 99, .026) 48%,
+    transparent 74%
+  );
+  transform: translateZ(0);
+  will-change: background;
+}
+
+.trajectory-experience::after,
+.systems-experience::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    circle 34rem at var(--ref-pointer-x, 50%) var(--ref-pointer-y, 44%),
+    rgba(150, 160, 188, .096),
+    rgba(104, 116, 148, .050) 30%,
+    transparent 70%
+  );
+}
+
+.trajectory-experience > *,
+.systems-experience > * {
+  position: relative;
+  z-index: 1;
+}
+
+.trajectory-intro,
+.systems-intro {
+  left: 50% !important;
+  top: 47% !important;
+  width: min(680px, 72vw) !important;
+  translate: -50% -50% !important;
+  text-align: center !important;
+}
+
+.trajectory-intro__kicker,
+.systems-intro__kicker {
+  width: max-content !important;
+  margin: 0 auto 22px !important;
+  display: grid !important;
+  grid-template-columns: auto 52px auto !important;
+  align-items: center !important;
+  gap: 10px !important;
+  color: rgba(238, 234, 226, .64) !important;
+  font: 8.5px/1 var(--font-mono) !important;
+  letter-spacing: .16em !important;
+}
+
+.trajectory-intro__kicker i,
+.systems-intro__kicker i {
+  height: 1px !important;
+  background: rgba(238, 234, 226, .44) !important;
+}
+
+.trajectory-intro p,
+.systems-intro p {
+  max-width: 680px !important;
+  margin: 0 auto !important;
+  text-align: center !important;
+  color: var(--ref-paper-strong) !important;
+  font-family: var(--font-serif) !important;
+  font-size: clamp(2.35rem, 3.55vw, 4.15rem) !important;
+  font-style: italic !important;
+  font-weight: 400 !important;
+  line-height: 1.03 !important;
+  letter-spacing: -.03em !important;
+  text-wrap: balance;
+}
+
+.systems-intro p em {
+  color: rgba(238, 234, 226, .90) !important;
+  font-style: inherit !important;
+}
+
+.trajectory-header,
+.systems-header,
+.trajectory-entry__eyebrow,
+.systems-project__eyebrow {
+  color: rgba(238, 234, 226, .66) !important;
+  font-size: 8.5px !important;
+}
+
+.trajectory-header__meta,
+.systems-header__meta {
+  color: rgba(238, 234, 226, .52) !important;
+}
+
+.trajectory-entry__context small,
+.systems-project__field,
+.systems-project__architecture-heading,
+.systems-project__evidence span,
+.systems-project__implementation > span,
+.systems-graph-field__index,
+.systems-graph-field__mode {
+  color: rgba(238, 234, 226, .58) !important;
+}
+
+.trajectory-entry__statement p {
+  color: rgba(238, 234, 226, calc(.42 + var(--entry-focus) * .44)) !important;
+}
+
+.trajectory-axis,
+.systems-axis {
+  background: rgba(238, 234, 226, .18) !important;
+  box-shadow: 0 0 18px rgba(238, 234, 226, .024);
+}
+
+.trajectory-axis::after,
+.systems-axis::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(197, 103, 72, .98);
+  box-shadow:
+    0 0 0 5px rgba(197, 103, 72, .09),
+    0 0 20px rgba(197, 103, 72, .26);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.trajectory-axis::after {
+  top: calc(var(--trajectory-timeline-progress, 0) * 100%);
+  opacity: var(--trajectory-content, 0);
+}
+
+.systems-axis::after {
+  top: calc(var(--systems-progress, 0) * 100%);
+  opacity: var(--systems-content, 0);
+}
+
+.trajectory-axis > i,
+.systems-axis__progress {
+  filter: drop-shadow(0 0 7px rgba(197, 103, 72, .20));
+}
+
+.systems-project h2 {
+  color: var(--ref-paper-strong) !important;
+}
+
+.systems-project__premise {
+  color: var(--ref-body-strong) !important;
+}
+
+.systems-project__architecture-heading {
+  font-size: 8.5px !important;
+}
+
+.systems-graph-field {
+  border-top-color: rgba(238, 234, 226, .13) !important;
+  border-bottom-color: rgba(238, 234, 226, .13) !important;
+}
+
+.systems-counter {
+  color: rgba(238, 234, 226, .56) !important;
+}
+
+.systems-counter b {
+  color: rgba(238, 234, 226, .90) !important;
+}
+
+@media (max-width: 760px) {
+  .trajectory-intro,
+  .systems-intro {
+    width: 76vw !important;
+  }
+
+  .ref-global-pointer-light {
+    opacity: .78;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ref-global-pointer-light {
+    display: none;
+  }
+}
