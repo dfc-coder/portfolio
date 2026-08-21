@@ -1,30 +1,9 @@
 from __future__ import annotations
 
-from datetime import date
 from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
-
-
-class AgentAction(StrEnum):
-    ANSWER = "answer"
-    ASK_FOR_DATES = "ask_for_dates"
-    GET_AVAILABILITY = "get_availability"
-    SELECT_SLOT = "select_slot"
-    ASK_FOR_DETAILS = "ask_for_details"
-    PREPARE_BOOKING = "prepare_booking"
-    CANCEL_BOOKING = "cancel_booking"
-
-
-class Plan(BaseModel):
-    action: AgentAction
-    start_date: date | None = None
-    end_date: date | None = None
-    slot_id: str | None = None
-    visitor_name: str | None = None
-    visitor_email: str | None = None
-    subject: str | None = None
 
 
 class ObservationType(StrEnum):
