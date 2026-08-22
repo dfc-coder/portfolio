@@ -14,9 +14,9 @@ const cursorStateFor = (element: Element | null): CursorState => {
 };
 
 /**
- * Owns the cross-chapter pointer field and custom cursor. Expensive visual
- * work runs only while the pointer is moving; the ambient light itself moves
- * through compositor transforms instead of repainting a gradient every frame.
+ * Owns the cross-chapter pointer field and custom cursor. The pointer field is
+ * a localized compositor layer: position, direction and stretch are updated
+ * through transforms, so the gradient itself is never repainted per frame.
  */
 export const mountVisualContinuity = () => {
   const stage = document.querySelector<HTMLElement>(".ref-stage");
@@ -56,8 +56,11 @@ export const mountVisualContinuity = () => {
   let lightY = pointerY;
   let ringX = pointerX;
   let ringY = pointerY;
-  let velocity = 0;
-  let targetVelocity = 0;
+  let velocityX = 0;
+  let velocityY = 0;
+  let targetVelocityX = 0;
+  let targetVelocityY = 0;
+  let lightAngle = 0;
   let lastPointerX = pointerX;
   let lastPointerY = pointerY;
   let cursorSeen = false;
@@ -65,8 +68,18 @@ export const mountVisualContinuity = () => {
   let lastFrameTime = performance.now();
 
   const positionLight = () => {
-    light.style.transform = `translate3d(${lightX}px, ${lightY}px, 0) translate(-50%, -50%)`;
-    light.style.opacity = String(0.94 + Math.min(0.06, velocity * 0.06));
+    const speed = Math.min(1, Math.hypot(velocityX, velocityY));
+    if (speed > 0.012) lightAngle = Math.atan2(velocityY, velocityX);
+
+    const stretch = 1 + speed * 0.28;
+    const crossScale = 1 - speed * 0.08;
+    const pulse = 1 + speed * 0.035;
+
+    light.style.transform =
+      `translate3d(${lightX}px, ${lightY}px, 0) ` +
+      `translate(-50%, -50%) rotate(${lightAngle}rad) ` +
+      `scale(${(stretch * pulse).toFixed(4)}, ${(crossScale * pulse).toFixed(4)})`;
+    light.style.opacity = String(0.92 + speed * 0.08);
   };
 
   const setCursorState = (state: CursorState) => {
@@ -80,10 +93,14 @@ export const mountVisualContinuity = () => {
     const dt = Math.min(0.05, Math.max(0.001, (time - lastFrameTime) / 1000));
     lastFrameTime = time;
 
-    lightX = damp(lightX, pointerX, 10, dt);
-    lightY = damp(lightY, pointerY, 10, dt);
-    velocity = damp(velocity, targetVelocity, 11, dt);
-    targetVelocity *= Math.exp(-9 * dt);
+    lightX = damp(lightX, pointerX, 8.5, dt);
+    lightY = damp(lightY, pointerY, 8.5, dt);
+    velocityX = damp(velocityX, targetVelocityX, 12, dt);
+    velocityY = damp(velocityY, targetVelocityY, 12, dt);
+
+    const decay = Math.exp(-8.5 * dt);
+    targetVelocityX *= decay;
+    targetVelocityY *= decay;
     positionLight();
 
     if (ring && cursorSeen) {
@@ -95,8 +112,10 @@ export const mountVisualContinuity = () => {
     const lightSettled =
       Math.abs(lightX - pointerX) < 0.15 &&
       Math.abs(lightY - pointerY) < 0.15 &&
-      velocity < 0.003 &&
-      targetVelocity < 0.003;
+      Math.abs(velocityX) < 0.003 &&
+      Math.abs(velocityY) < 0.003 &&
+      Math.abs(targetVelocityX) < 0.003 &&
+      Math.abs(targetVelocityY) < 0.003;
     const ringSettled =
       !ring ||
       !cursorSeen ||
@@ -119,7 +138,14 @@ export const mountVisualContinuity = () => {
 
     const dx = pointerX - lastPointerX;
     const dy = pointerY - lastPointerY;
-    targetVelocity = Math.min(1, Math.hypot(dx, dy) / 44);
+    const distance = Math.hypot(dx, dy);
+    const magnitude = Math.min(1, distance / 40);
+
+    if (distance > 0.001) {
+      targetVelocityX = (dx / distance) * magnitude;
+      targetVelocityY = (dy / distance) * magnitude;
+    }
+
     lastPointerX = pointerX;
     lastPointerY = pointerY;
 
@@ -159,7 +185,8 @@ export const mountVisualContinuity = () => {
     cursorSeen = false;
     cursor.classList.remove("is-on");
     ring.classList.remove("is-on");
-    targetVelocity = 0;
+    targetVelocityX = 0;
+    targetVelocityY = 0;
     requestRender();
   };
 

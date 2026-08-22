@@ -178,15 +178,23 @@ test("TDD: Systems desktop columns do not geometrically overlap", async () => {
   assert.match(systems, /\.systems-static-chrome__architecture\s*\{[^}]*left:\s*57%/is);
 });
 
-test("TDD: continuity cannot own Systems or Trajectory geometry", async () => {
+test("TDD: continuity pointer field stays localized and compositor driven", async () => {
   const css = await read("src/experiences/continuity.css");
+  const runtime = await read("src/experiences/continuity.ts");
+
   assert.doesNotMatch(css, /\.(systems|trajectory)-/);
   assert.match(css, /\.ref-global-pointer-light/);
-  assert.match(css, /width:\s*min\(82rem,\s*118vw\)/i);
-  assert.match(css, /height:\s*min\(58rem,\s*94vh\)/i);
-  assert.match(css, /ellipse\s+at\s+center/i);
+  assert.match(css, /width:\s*clamp\(24rem,\s*36vw,\s*34rem\)/i);
+  assert.match(css, /height:\s*clamp\(24rem,\s*36vw,\s*34rem\)/i);
+  assert.match(css, /border-radius:\s*50%/i);
+  assert.match(css, /overflow:\s*hidden/i);
+  assert.match(css, /circle\s+at\s+center/i);
   assert.match(css, /transform:\s*translate3d\(/i);
   assert.match(css, /contain:\s*layout\s+paint\s+style/i);
+  assert.match(runtime, /targetVelocityX/);
+  assert.match(runtime, /targetVelocityY/);
+  assert.match(runtime, /Math\.atan2\(velocityY, velocityX\)/);
+  assert.match(runtime, /scale\(\$\{/);
 });
 
 test("TDD: cross-chapter handoff lives outside Systems", async () => {

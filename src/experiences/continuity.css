@@ -4,20 +4,24 @@
   z-index: 5;
   left: 0;
   top: 0;
-  width: min(82rem, 118vw);
-  height: min(58rem, 94vh);
+  width: clamp(24rem, 36vw, 34rem);
+  height: clamp(24rem, 36vw, 34rem);
+  overflow: hidden;
+  border-radius: 50%;
   pointer-events: none;
-  opacity: .94;
+  opacity: .92;
   mix-blend-mode: screen;
   background: radial-gradient(
-    ellipse at center,
-    rgba(238, 234, 226, .078) 0%,
-    rgba(151, 154, 164, .064) 22%,
-    rgba(104, 110, 126, .040) 46%,
-    rgba(72, 77, 91, .016) 68%,
-    transparent 92%
+    circle at center,
+    rgba(238, 234, 226, .090) 0%,
+    rgba(176, 178, 184, .066) 18%,
+    rgba(124, 129, 141, .038) 38%,
+    rgba(86, 91, 104, .018) 58%,
+    rgba(72, 77, 91, .008) 68%,
+    transparent 79%
   );
-  transform: translate3d(47vw, 47vh, 0) translate(-50%, -50%);
+  transform: translate3d(50vw, 44vh, 0) translate(-50%, -50%);
+  transform-origin: center;
   will-change: transform, opacity;
   contain: layout paint style;
 }
