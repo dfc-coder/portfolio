@@ -6,9 +6,10 @@ const smoother = (value: number) => {
   return x * x * x * (x * (x * 6 - 15) + 10);
 };
 
-const NAVIGATION_COVER_MS = 1120;
-const NAVIGATION_HOLD_MS = 100;
-const NAVIGATION_REVEAL_MS = 1180;
+const NAVIGATION_COVER_MS = 900;
+const NAVIGATION_HOLD_MS = 20;
+const NAVIGATION_REVEAL_MS = 980;
+const MAX_TRANSITION_PIXELS = 1_250_000;
 
 type NavigationCommit = () => void;
 type NavigationTransition = (commit: NavigationCommit, direction: number) => void;
@@ -27,7 +28,8 @@ const fragmentShader = `
 precision mediump float;
 
 uniform vec2 uResolution;
-uniform float uCoverage;
+uniform float uProgress;
+uniform float uPhase;
 uniform float uDirection;
 uniform float uTime;
 
@@ -47,17 +49,13 @@ float noise(vec2 p) {
   );
 }
 
-float fbm(vec2 p) {
+float fbm3(vec2 p) {
   float value = 0.0;
-  float amplitude = 0.5;
-  mat2 rotation = mat2(0.80, -0.60, 0.60, 0.80);
-
-  for (int octave = 0; octave < 5; octave++) {
-    value += amplitude * noise(p);
-    p = rotation * p * 2.04 + vec2(11.8, 7.3);
-    amplitude *= 0.5;
-  }
-
+  value += noise(p) * 0.56;
+  p = mat2(0.80, -0.60, 0.60, 0.80) * p * 2.03 + vec2(9.7, 5.1);
+  value += noise(p) * 0.28;
+  p = mat2(0.80, -0.60, 0.60, 0.80) * p * 2.01 + vec2(4.3, 11.9);
+  value += noise(p) * 0.16;
   return value;
 }
 
@@ -65,65 +63,61 @@ void main() {
   vec2 uv = gl_FragCoord.xy / uResolution.xy;
   float aspect = uResolution.x / max(uResolution.y, 1.0);
 
-  // AnimMasters-style material nucleus: one expanding organic mass rather
-  // than a directional wipe. Direction only offsets the seed imperceptibly.
-  vec2 origin = vec2(0.5 + uDirection * 0.018, 0.5);
+  vec2 origin = vec2(0.5 + uDirection * 0.012, 0.5);
   vec2 p = (uv - origin) * vec2(aspect, 1.0);
   float radial = length(p);
   float angle = atan(p.y, p.x);
+  float time = uTime * 0.045;
 
-  float slowTime = uTime * 0.055;
-  float coarse = fbm(p * 2.75 + vec2(slowTime, -slowTime * 0.72));
-  float medium = fbm(p * 6.80 - vec2(slowTime * 1.34, slowTime * 0.91));
-  float fine = fbm(p * 15.5 + vec2(-slowTime * 1.9, slowTime * 1.3));
+  float coarse = fbm3(p * 3.15 + vec2(time, -time * 0.72));
+  float detail = fbm3(p * 8.4 - vec2(time * 1.23, time * 0.81));
 
-  float lobes =
-    sin(angle * 7.0 + coarse * 5.8) * 0.035 +
-    sin(angle * 13.0 - medium * 7.2) * 0.022 +
-    sin(angle * 29.0 + fine * 5.0) * 0.010;
+  float tornLobes =
+    sin(angle * 8.0 + coarse * 6.2) * 0.038 +
+    sin(angle * 17.0 - detail * 7.0) * 0.018;
 
   float displacement =
-    (coarse - 0.5) * 0.245 +
-    (medium - 0.5) * 0.092 +
-    (fine - 0.5) * 0.026 +
-    lobes;
+    (coarse - 0.5) * 0.255 +
+    (detail - 0.5) * 0.078 +
+    tornLobes;
 
-  float maximumRadius = length(vec2(aspect * 0.58, 0.62)) + 0.42;
-  float materialRadius = mix(-0.16, maximumRadius, uCoverage);
-  float signedDistance = radial - materialRadius - displacement;
+  float maximumRadius = length(vec2(aspect * 0.58, 0.62)) + 0.36;
+  float burnRadius = mix(-0.17, maximumRadius, uProgress);
+  float sd = radial - burnRadius - displacement;
+  float edgeWidth = mix(0.052, 0.030, uProgress);
+  float inside = 1.0 - smoothstep(-edgeWidth, edgeWidth, sd);
 
-  // A solid paper core with a broad torn cobalt rim recreates the reference:
-  // thick material, irregular chunks and detached fragments instead of fire.
-  float core = 1.0 - smoothstep(-0.018, 0.026, signedDistance);
-  float rim = 1.0 - smoothstep(0.025, 0.135, abs(signedDistance));
-  float innerPaper = 1.0 - smoothstep(-0.105, -0.026, signedDistance);
+  // OUT grows a charred sheet over the current view. IN performs the inverse
+  // mask: a transparent burned opening grows through the sheet and reveals
+  // the destination continuously from the centre outward.
+  float material = uPhase < 0.5 ? inside : 1.0 - inside;
 
-  float fragmentNoise = noise(
-    p * 43.0 +
-    vec2(uTime * 0.18, -uTime * 0.13) +
-    medium * 5.0
+  float edgeDistance = abs(sd);
+  float charBand = 1.0 - smoothstep(0.022, 0.105, edgeDistance);
+  float emberBand = 1.0 - smoothstep(0.0, 0.021, edgeDistance);
+  float hotLine = 1.0 - smoothstep(0.0, 0.007, edgeDistance);
+
+  float fleckNoise = noise(
+    p * 34.0 + vec2(uTime * 0.13, -uTime * 0.09) + coarse * 4.0
   );
-  float fragmentZone =
-    smoothstep(0.018, 0.12, signedDistance) *
-    (1.0 - smoothstep(0.12, 0.22, signedDistance));
-  float fragments =
-    fragmentZone *
-    smoothstep(0.56, 0.88, fragmentNoise + (coarse - 0.5) * 0.18);
+  float fleckZone =
+    (1.0 - smoothstep(0.035, 0.155, edgeDistance)) *
+    smoothstep(0.60, 0.88, fleckNoise);
 
-  vec3 paper = vec3(0.956, 0.949, 0.932);
-  vec3 cobalt = vec3(0.055, 0.075, 0.92);
-  vec3 deepCobalt = vec3(0.025, 0.035, 0.42);
+  vec3 soot = vec3(0.014, 0.013, 0.012);
+  vec3 charBrown = vec3(0.105, 0.048, 0.018);
+  vec3 ember = vec3(0.79, 0.225, 0.045);
+  vec3 hotPaper = vec3(0.92, 0.61, 0.30);
 
-  float tornMix = clamp(rim * 1.08 + fragments * 0.72, 0.0, 1.0);
-  vec3 edgeColor = mix(deepCobalt, cobalt, 0.62 + medium * 0.38);
-  vec3 color = mix(edgeColor, paper, innerPaper);
-  color = mix(color, cobalt, fragments * 0.68);
+  vec3 color = soot;
+  color = mix(color, charBrown, charBand * 0.88);
+  color = mix(color, ember, emberBand * (0.70 + detail * 0.24));
+  color = mix(color, hotPaper, hotLine * 0.42);
+  color = mix(color, ember, fleckZone * 0.44);
 
-  float pixelGrain = noise(gl_FragCoord.xy * 0.16 + uTime * 2.7) - 0.5;
-  color += pixelGrain * 0.010;
-
-  float alpha = max(core, rim * 0.96);
-  alpha = max(alpha, fragments * 0.84);
+  float alpha = material;
+  alpha = max(alpha, charBand * 0.88);
+  alpha = max(alpha, fleckZone * 0.62);
   alpha = clamp(alpha, 0.0, 1.0);
 
   gl_FragColor = vec4(color, alpha);
@@ -163,6 +157,7 @@ export const mountSectionTransition = (portfolio: HTMLElement) => {
     depth: false,
     stencil: false,
     premultipliedAlpha: true,
+    powerPreference: "high-performance",
   });
 
   if (!gl) {
@@ -198,7 +193,8 @@ export const mountSectionTransition = (portfolio: HTMLElement) => {
 
   const positionLocation = gl.getAttribLocation(program, "aPosition");
   const resolutionLocation = gl.getUniformLocation(program, "uResolution");
-  const coverageLocation = gl.getUniformLocation(program, "uCoverage");
+  const progressLocation = gl.getUniformLocation(program, "uProgress");
+  const phaseLocation = gl.getUniformLocation(program, "uPhase");
   const directionLocation = gl.getUniformLocation(program, "uDirection");
   const timeLocation = gl.getUniformLocation(program, "uTime");
   const buffer = gl.createBuffer();
@@ -227,9 +223,15 @@ export const mountSectionTransition = (portfolio: HTMLElement) => {
   let active = false;
 
   const resize = () => {
-    const dpr = Math.min(devicePixelRatio || 1, 1.5);
-    const width = Math.max(1, Math.round(innerWidth * dpr));
-    const height = Math.max(1, Math.round(innerHeight * dpr));
+    const cssWidth = Math.max(1, innerWidth);
+    const cssHeight = Math.max(1, innerHeight);
+    const dpr = Math.min(devicePixelRatio || 1, 1);
+    const pixelBudgetScale = Math.sqrt(
+      MAX_TRANSITION_PIXELS / (cssWidth * cssHeight),
+    );
+    const scale = Math.min(dpr, pixelBudgetScale, 1);
+    const width = Math.max(1, Math.round(cssWidth * scale));
+    const height = Math.max(1, Math.round(cssHeight * scale));
 
     if (canvas.width !== width || canvas.height !== height) {
       canvas.width = width;
@@ -239,13 +241,18 @@ export const mountSectionTransition = (portfolio: HTMLElement) => {
     gl.viewport(0, 0, width, height);
   };
 
-  const draw = (coverage: number, direction: number, time: number) => {
-    resize();
+  const draw = (
+    progress: number,
+    phase: 0 | 1,
+    direction: number,
+    time: number,
+  ) => {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram(program);
     gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
-    gl.uniform1f(coverageLocation, clamp(coverage, 0, 1));
+    gl.uniform1f(progressLocation, clamp(progress, 0, 1));
+    gl.uniform1f(phaseLocation, phase);
     gl.uniform1f(directionLocation, direction);
     gl.uniform1f(timeLocation, time * 0.001);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
@@ -255,6 +262,7 @@ export const mountSectionTransition = (portfolio: HTMLElement) => {
     if (active) return;
 
     active = true;
+    resize();
     canvas.classList.add("is-active");
     document.documentElement.classList.add("is-section-transitioning");
 
@@ -264,32 +272,26 @@ export const mountSectionTransition = (portfolio: HTMLElement) => {
 
     const render = (now: number) => {
       const elapsed = now - startedAt;
-      let coverage = 0;
 
       if (elapsed < NAVIGATION_COVER_MS) {
-        // OUT: the material grows from the nucleus until it absorbs the
-        // complete current section, closely matching the reference loader.
-        coverage = smoother(elapsed / NAVIGATION_COVER_MS);
+        const progress = smoother(elapsed / NAVIGATION_COVER_MS);
+        draw(progress, 0, normalizedDirection, now);
       } else {
         if (!committed) {
           committed = true;
-          draw(1, normalizedDirection, now);
+          draw(1, 0, normalizedDirection, now);
           commit();
         }
 
         if (elapsed < NAVIGATION_COVER_MS + NAVIGATION_HOLD_MS) {
-          coverage = 1;
+          draw(0, 1, normalizedDirection, now);
         } else {
-          // IN: the same material boundary contracts from the viewport edges
-          // back into the nucleus. The destination therefore appears outside
-          // first and closes inward, instead of playing a second OUT reveal.
           const revealElapsed =
             elapsed - NAVIGATION_COVER_MS - NAVIGATION_HOLD_MS;
-          coverage = 1 - smoother(revealElapsed / NAVIGATION_REVEAL_MS);
+          const progress = smoother(revealElapsed / NAVIGATION_REVEAL_MS);
+          draw(progress, 1, normalizedDirection, now);
         }
       }
-
-      draw(coverage, normalizedDirection, now);
 
       if (
         elapsed <
@@ -300,6 +302,7 @@ export const mountSectionTransition = (portfolio: HTMLElement) => {
       }
 
       active = false;
+      frame = 0;
       canvas.classList.remove("is-active");
       document.documentElement.classList.remove("is-section-transitioning");
       gl.clearColor(0, 0, 0, 0);
@@ -310,12 +313,15 @@ export const mountSectionTransition = (portfolio: HTMLElement) => {
   };
 
   navigationTransition = run;
+  addEventListener("resize", resize, { passive: true });
+  resize();
 
   return {
     destroy: () => {
-      cancelAnimationFrame(frame);
+      if (frame) cancelAnimationFrame(frame);
       active = false;
       navigationTransition = null;
+      removeEventListener("resize", resize);
       document.documentElement.classList.remove("is-section-transitioning");
       gl.deleteBuffer(buffer);
       gl.deleteProgram(program);
