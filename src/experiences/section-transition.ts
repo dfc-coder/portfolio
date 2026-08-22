@@ -29,7 +29,6 @@ precision mediump float;
 
 uniform vec2 uResolution;
 uniform float uProgress;
-uniform float uPhase;
 uniform float uDirection;
 uniform float uTime;
 
@@ -85,12 +84,7 @@ void main() {
   float burnRadius = mix(-0.17, maximumRadius, uProgress);
   float sd = radial - burnRadius - displacement;
   float edgeWidth = mix(0.052, 0.030, uProgress);
-  float inside = 1.0 - smoothstep(-edgeWidth, edgeWidth, sd);
-
-  // OUT grows a charred sheet over the current view. IN performs the inverse
-  // mask: a transparent burned opening grows through the sheet and reveals
-  // the destination continuously from the centre outward.
-  float material = uPhase < 0.5 ? inside : 1.0 - inside;
+  float material = 1.0 - smoothstep(-edgeWidth, edgeWidth, sd);
 
   float edgeDistance = abs(sd);
   float charBand = 1.0 - smoothstep(0.022, 0.105, edgeDistance);
@@ -194,7 +188,6 @@ export const mountSectionTransition = (portfolio: HTMLElement) => {
   const positionLocation = gl.getAttribLocation(program, "aPosition");
   const resolutionLocation = gl.getUniformLocation(program, "uResolution");
   const progressLocation = gl.getUniformLocation(program, "uProgress");
-  const phaseLocation = gl.getUniformLocation(program, "uPhase");
   const directionLocation = gl.getUniformLocation(program, "uDirection");
   const timeLocation = gl.getUniformLocation(program, "uTime");
   const buffer = gl.createBuffer();
@@ -241,18 +234,12 @@ export const mountSectionTransition = (portfolio: HTMLElement) => {
     gl.viewport(0, 0, width, height);
   };
 
-  const draw = (
-    progress: number,
-    phase: 0 | 1,
-    direction: number,
-    time: number,
-  ) => {
+  const draw = (progress: number, direction: number, time: number) => {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram(program);
     gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
     gl.uniform1f(progressLocation, clamp(progress, 0, 1));
-    gl.uniform1f(phaseLocation, phase);
     gl.uniform1f(directionLocation, direction);
     gl.uniform1f(timeLocation, time * 0.001);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
@@ -274,22 +261,27 @@ export const mountSectionTransition = (portfolio: HTMLElement) => {
       const elapsed = now - startedAt;
 
       if (elapsed < NAVIGATION_COVER_MS) {
-        const progress = smoother(elapsed / NAVIGATION_COVER_MS);
-        draw(progress, 0, normalizedDirection, now);
+        // OUT: burn material expands from the nucleus until the source view is
+        // fully absorbed.
+        draw(smoother(elapsed / NAVIGATION_COVER_MS), normalizedDirection, now);
       } else {
         if (!committed) {
           committed = true;
-          draw(1, 0, normalizedDirection, now);
+          draw(1, normalizedDirection, now);
           commit();
         }
 
         if (elapsed < NAVIGATION_COVER_MS + NAVIGATION_HOLD_MS) {
-          draw(0, 1, normalizedDirection, now);
+          draw(1, normalizedDirection, now);
         } else {
+          // IN: the same material boundary now contracts toward the nucleus.
+          // The destination is exposed from the viewport perimeter inward,
+          // making the second half the spatial inverse of OUT rather than a
+          // second centre-out reveal.
           const revealElapsed =
             elapsed - NAVIGATION_COVER_MS - NAVIGATION_HOLD_MS;
-          const progress = smoother(revealElapsed / NAVIGATION_REVEAL_MS);
-          draw(progress, 1, normalizedDirection, now);
+          const reveal = smoother(revealElapsed / NAVIGATION_REVEAL_MS);
+          draw(1 - reveal, normalizedDirection, now);
         }
       }
 
