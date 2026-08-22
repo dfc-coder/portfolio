@@ -29,6 +29,9 @@ const collectionPosition = (nodePosition: number, startNode: number, count: numb
   );
 };
 
+const entryPresence = (distance: number) =>
+  smoother(clamp01((0.5 - distance) / 0.2));
+
 export const mountTrajectoryExperience = () => {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return () => undefined;
 
@@ -109,19 +112,20 @@ export const mountTrajectoryExperience = () => {
     entries.forEach((element, index) => {
       const offset = index - experiencePosition;
       const distance = Math.abs(offset);
-      const focus = Math.exp(-(offset * offset) * 3.55);
-      const directionScale = offset < 0 ? 0.76 : 1;
+      const presence = entryPresence(distance);
+      const focus = presence;
+      const directionScale = offset < 0 ? 0.82 : 1;
 
-      element.style.visibility = distance < 1.92 ? "visible" : "hidden";
-      element.style.opacity = (contentReveal * Math.max(0.012, focus)).toFixed(5);
+      element.style.visibility = presence > 0.001 ? "visible" : "hidden";
+      element.style.opacity = (contentReveal * presence).toFixed(5);
       element.style.setProperty("--entry-focus", focus.toFixed(5));
       element.style.setProperty("--entry-offset", offset.toFixed(5));
-      element.style.setProperty("--role-y", `${(offset * 23 * directionScale).toFixed(3)}vh`);
-      element.style.setProperty("--eyebrow-y", `${(offset * 14.5 * directionScale).toFixed(3)}vh`);
-      element.style.setProperty("--context-y", `${(offset * 11.5 * directionScale).toFixed(3)}vh`);
-      element.style.setProperty("--summary-y", `${(offset * 9.2 * directionScale).toFixed(3)}vh`);
-      element.style.setProperty("--tags-y", `${(offset * 7.4 * directionScale).toFixed(3)}vh`);
-      element.style.setProperty("--entry-x", `${(offset < 0 ? offset * 0.42 : offset * -0.62).toFixed(3)}vw`);
+      element.style.setProperty("--role-y", `${(offset * 5.2 * directionScale).toFixed(3)}vh`);
+      element.style.setProperty("--eyebrow-y", `${(offset * 3.4 * directionScale).toFixed(3)}vh`);
+      element.style.setProperty("--context-y", `${(offset * 2.2 * directionScale).toFixed(3)}vh`);
+      element.style.setProperty("--summary-y", `${(offset * 1.8 * directionScale).toFixed(3)}vh`);
+      element.style.setProperty("--tags-y", `${(offset * 1.4 * directionScale).toFixed(3)}vh`);
+      element.style.setProperty("--entry-x", `${(offset < 0 ? offset * 0.18 : offset * -0.24).toFixed(3)}vw`);
     });
 
     counterTrack.style.transform = `translate3d(0, ${(-experiencePosition).toFixed(5)}em, 0)`;
