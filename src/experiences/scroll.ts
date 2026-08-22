@@ -1,8 +1,6 @@
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { galleryItems } from "./gallery";
-import { systemsProjects } from "./systems-projects";
-import { experiences } from "./trajectory";
+import { narrativeModel, type NarrativeModel } from "./narrative-model";
 
 const SCROLL_STEP_VH = 36;
 const SCENE_CROSSFADE_WIDTH = 0.46;
@@ -21,45 +19,9 @@ const range = (value: number, start: number, end: number) =>
 
 type SceneName = "hero" | "chapter" | "career" | "systems" | "gallery" | "agent";
 
-type ScrollModel = {
-  careerStartNode: number;
-  chapterSystemsNode: number;
-  systemsStartNode: number;
-  chapterGalleryNode: number;
-  galleryStartNode: number;
-  virtualChapterAgentNode: number;
-  virtualLastNode: number;
-  physicalChapterAgentNode: number;
-  physicalLastNode: number;
-};
-
-const buildScrollModel = (): ScrollModel => {
-  const careerStartNode = 2;
-  const chapterSystemsNode = careerStartNode + experiences.length;
-  const systemsStartNode = chapterSystemsNode + 1;
-  const chapterGalleryNode = systemsStartNode + systemsProjects.length;
-  const galleryStartNode = chapterGalleryNode + 1;
-  const virtualChapterAgentNode = galleryStartNode + galleryItems.length;
-  const virtualLastNode = virtualChapterAgentNode + 1;
-  const physicalChapterAgentNode = galleryStartNode + 1;
-  const physicalLastNode = physicalChapterAgentNode + 1;
-
-  return {
-    careerStartNode,
-    chapterSystemsNode,
-    systemsStartNode,
-    chapterGalleryNode,
-    galleryStartNode,
-    virtualChapterAgentNode,
-    virtualLastNode,
-    physicalChapterAgentNode,
-    physicalLastNode,
-  };
-};
-
 export const mapPhysicalProgressToVirtualProgress = (
   physicalProgress: number,
-  model: ScrollModel,
+  model: NarrativeModel = narrativeModel,
 ) => {
   const physicalNode = clamp01(physicalProgress) * model.physicalLastNode;
 
@@ -93,7 +55,7 @@ export const mapPhysicalProgressToVirtualProgress = (
   return clamp01(virtualNode / model.virtualLastNode);
 };
 
-const sceneForNode = (node: number, model: ScrollModel): SceneName => {
+const sceneForNode = (node: number, model: NarrativeModel): SceneName => {
   if (node < 0.5) return "hero";
   if (node < model.careerStartNode - 0.5) return "chapter";
   if (node < model.chapterSystemsNode - 0.5) return "career";
@@ -112,7 +74,7 @@ const crossfadeAt = (node: number, boundary: number) =>
     boundary + SCENE_CROSSFADE_WIDTH / 2,
   );
 
-const sceneOpacities = (node: number, model: ScrollModel) => {
+const sceneOpacities = (node: number, model: NarrativeModel) => {
   const heroToChapter = crossfadeAt(node, 0.5);
   const chapterToCareer = crossfadeAt(node, model.careerStartNode - 0.5);
   const careerToChapter = crossfadeAt(node, model.chapterSystemsNode - 0.5);
@@ -152,7 +114,7 @@ export const mountScrollSyncController = () => {
 
   gsap.registerPlugin(ScrollTrigger);
 
-  const model = buildScrollModel();
+  const model = narrativeModel;
   const trackHeightVh = 100 + model.physicalLastNode * SCROLL_STEP_VH;
 
   track.dataset.scrollSyncOwner = "physical";

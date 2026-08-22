@@ -4,149 +4,8 @@ import {
   collectionPosition,
   motionForOffset,
 } from "./systems-motion-contract";
-import {
-  systemsProjects as projects,
-  type GraphEdge,
-  type SystemProject,
-} from "./systems-projects";
-
-const edgePath = (project: SystemProject, edge: GraphEdge) => {
-  if (edge.path) return edge.path;
-
-  const from = project.graph.nodes.find((node) => node.id === edge.from);
-  const to = project.graph.nodes.find((node) => node.id === edge.to);
-  if (!from || !to) return "";
-
-  if (Math.abs(from.y - to.y) < 2) return `M ${from.x} ${from.y} H ${to.x}`;
-
-  const midX = (from.x + to.x) / 2;
-  return `M ${from.x} ${from.y} H ${midX} V ${to.y} H ${to.x}`;
-};
-
-const graphMarkup = (project: SystemProject) => `
-  <div class="systems-graph-field">
-    <span class="systems-graph-field__index">ARCH / ${project.id}</span>
-    <span class="systems-graph-field__mode">${project.code}</span>
-    <div class="systems-graph-field__crosshair" aria-hidden="true"></div>
-    <svg class="systems-graph" viewBox="0 0 100 64" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-      <g class="systems-graph__edges">
-        ${project.graph.edges
-          .map(
-            (edge) => `
-              <path class="systems-graph__edge systems-graph__edge--base"
-                d="${edgePath(project, edge)}" pathLength="1" />
-              <path class="systems-graph__edge systems-graph__edge--active"
-                d="${edgePath(project, edge)}" pathLength="1"
-                style="--edge-step:${edge.step}" />
-            `,
-          )
-          .join("")}
-      </g>
-      <g class="systems-graph__nodes">
-        ${project.graph.nodes
-          .map(
-            (node, nodeIndex) => `
-              <g class="systems-graph__node${node.accent ? " is-accent" : ""}"
-                transform="translate(${node.x} ${node.y})"
-                style="--node-step:${node.step}">
-                <circle r="1.05"></circle>
-                <circle class="systems-graph__node-halo" r="3.25"></circle>
-                <text x="2.4" y=".8">${String(nodeIndex + 1).padStart(2, "0")}</text>
-                <text class="systems-graph__node-label" x="2.4" y="4.2">${node.label}</text>
-              </g>
-            `,
-          )
-          .join("")}
-      </g>
-    </svg>
-    ${project.graph.edges
-      .filter((edge) => edge.label)
-      .map((edge) => {
-        const from = project.graph.nodes.find((node) => node.id === edge.from);
-        const to = project.graph.nodes.find((node) => node.id === edge.to);
-        if (!from || !to || !edge.label) return "";
-        const x = (from.x + to.x) / 2;
-        const y = (from.y + to.y) / 2;
-        return `<span class="systems-graph__edge-label"
-          style="left:${x}%;top:${y}%;--edge-step:${edge.step}">${edge.label}</span>`;
-      })
-      .join("")}
-  </div>
-`;
-
-const projectMarkup = (project: SystemProject, index: number) => `
-  <article class="systems-project" data-index="${index}">
-    <div class="systems-project__identity">
-      <div class="systems-project__eyebrow">
-        <span>${project.id}</span><i></i><b>${project.code}</b>
-      </div>
-      <span class="systems-project__field">${project.field}</span>
-      <h2>${project.title}</h2>
-      <p class="systems-project__premise">${project.premise}</p>
-    </div>
-
-    <div class="systems-project__architecture">
-      <div class="systems-project__architecture-heading">
-        <span>SYSTEM ARCHITECTURE</span><i></i><b>${project.id} / ${String(projects.length).padStart(2, "0")}</b>
-      </div>
-      ${graphMarkup(project)}
-    </div>
-
-    <p class="systems-project__detail">${project.detail}</p>
-
-    <div class="systems-project__evidence">
-      <span>EVIDENCE / ${project.id}</span>
-      <i></i>
-      <strong>${project.outcome}</strong>
-    </div>
-
-    <div class="systems-project__implementation">
-      <span>IMPLEMENTATION</span>
-      <div>${project.stack
-        .map(
-          (item, stackIndex) =>
-            `<b style="--stack-index:${stackIndex}">${item}</b>`,
-        )
-        .join("")}</div>
-    </div>
-  </article>
-`;
-
-const markup = () => `
-  <div class="systems-experience" aria-label="Selected technical systems">
-    <div class="systems-intro" aria-hidden="true">
-      <div class="systems-intro__kicker"><span>03</span><i></i><b>THE EVIDENCE</b></div>
-      <p>The work becomes evidence —<br><em>systems designed, built and shipped.</em></p>
-    </div>
-
-    <div class="systems-header" aria-hidden="true">
-      <div class="systems-header__label"><span>03</span><i></i><b>SELECTED TECHNICAL SYSTEMS</b></div>
-      <div class="systems-header__meta"><span>${String(projects.length).padStart(2, "0")} SYSTEMS</span><span>BUILT / SHIPPED</span></div>
-    </div>
-
-    <div class="systems-axis" aria-hidden="true"><i class="systems-axis__progress"></i></div>
-
-    <div class="systems-axis-items" aria-hidden="true">
-      ${projects
-        .map(
-          (project, index) => `
-            <div class="systems-axis-item" data-index="${index}"
-              style="--axis-slot:${projects.length > 1 ? index / (projects.length - 1) : 0}">
-              <span>${project.id}</span><i></i><b>${project.code}</b>
-            </div>
-          `,
-        )
-        .join("")}
-    </div>
-
-    <div class="systems-projects">${projects.map(projectMarkup).join("")}</div>
-
-    <div class="systems-counter" aria-hidden="true">
-      <small>SYSTEM</small>
-      <div><b class="systems-counter__current">01</b><i></i><span>${String(projects.length).padStart(2, "0")}</span></div>
-    </div>
-  </div>
-`;
+import { narrativeModel } from "./narrative-model";
+import { systemsProjects as projects } from "./systems-projects";
 
 export const mountSystemsExperience = () => {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return () => undefined;
@@ -154,10 +13,6 @@ export const mountSystemsExperience = () => {
   const stage = document.querySelector<HTMLElement>(".ref-stage");
   const systemsScene = document.querySelector<HTMLElement>(".ref-scene--systems");
   if (!stage || !systemsScene) return () => undefined;
-  if (systemsScene.querySelector(".systems-experience")) return () => undefined;
-
-  systemsScene.insertAdjacentHTML("beforeend", markup());
-  document.documentElement.classList.add("systems-refined-ready");
 
   const root = systemsScene.querySelector<HTMLElement>(".systems-experience");
   const intro = systemsScene.querySelector<HTMLElement>(".systems-intro");
@@ -169,28 +24,20 @@ export const mountSystemsExperience = () => {
   const entries = Array.from(
     systemsScene.querySelectorAll<HTMLElement>(".systems-project"),
   );
-  const counter = systemsScene.querySelector<HTMLElement>(".systems-counter");
-  const counterCurrent = systemsScene.querySelector<HTMLElement>(
-    ".systems-counter__current",
-  );
 
-  if (!root || !intro || !header || !axis || !counter || !counterCurrent) {
-    root?.remove();
-    document.documentElement.classList.remove("systems-refined-ready");
+  if (!root || !intro || !header || !axis || entries.length !== projects.length) {
     return () => undefined;
   }
 
-  const experienceCount = document.querySelectorAll(".trajectory-entry").length || 3;
-  const projectCount = projects.length;
-  const artworkCount = document.querySelectorAll(".ref-art-card").length || 10;
+  document.documentElement.classList.add("systems-refined-ready");
 
-  const careerStartNode = 2;
-  const chapterSystemsNode = careerStartNode + experienceCount;
-  const systemsStartNode = chapterSystemsNode + 1;
-  const chapterGalleryNode = systemsStartNode + projectCount;
-  const galleryStartNode = chapterGalleryNode + 1;
-  const chapterAgentNode = galleryStartNode + artworkCount;
-  const lastNode = chapterAgentNode + 1;
+  const {
+    chapterSystemsNode,
+    systemsStartNode,
+    chapterGalleryNode,
+    virtualLastNode: lastNode,
+  } = narrativeModel;
+  const projectCount = projects.length;
 
   let frame = 0;
   let pointerX = 0;
@@ -251,11 +98,6 @@ export const mountSystemsExperience = () => {
       (1 - state.headerReveal)
     ).toFixed(2)}px, 0)`;
     axis.style.opacity = state.axisReveal.toFixed(5);
-    counter.style.opacity = (
-      state.contentReveal *
-      (1 - state.tailOut) *
-      0.78
-    ).toFixed(5);
 
     pointerX += (pointerTargetX - pointerX) * 0.075;
     pointerY += (pointerTargetY - pointerY) * 0.075;
@@ -310,11 +152,6 @@ export const mountSystemsExperience = () => {
       element.style.setProperty("--graph-x", `${motion.graphX.toFixed(3)}vw`);
     });
 
-    counterCurrent.textContent = String(Math.round(projectPosition) + 1).padStart(
-      2,
-      "0",
-    );
-
     frame = requestAnimationFrame(render);
   };
 
@@ -335,6 +172,5 @@ export const mountSystemsExperience = () => {
       "--systems-gallery-handoff",
     ].forEach((property) => stage.style.removeProperty(property));
     document.documentElement.classList.remove("systems-refined-ready");
-    root.remove();
   };
 };

@@ -89,14 +89,58 @@ test("architecture: continuity owns only cross-chapter pointer interaction", asy
   assert.doesNotMatch(component, /pointermove|cursorFrame|requestAnimationFrame|ref-cursor/);
 });
 
-test("architecture: PortfolioExperience is structure, not an animation director", async () => {
+test("architecture: PortfolioExperience composes declarative scenes", async () => {
   const component = await read("src/components/PortfolioExperience.vue");
 
   assert.doesNotMatch(component, /ScrollTrigger|Flip|requestAnimationFrame|addEventListener/);
-  assert.doesNotMatch(component, /ref-career-nav|ref-career-copy|ref-system-stack|ref-system-nav|ref-system-copy/);
-  assert.doesNotMatch(component, /ref-filmstrip|ref-art-caption|ref-art-index/);
-  assert.match(component, /<article class="ref-scene ref-scene--career"\s*\/>/);
-  assert.match(component, /<article class="ref-scene ref-scene--systems"\s*\/>/);
+  assert.match(component, /<TrajectoryScene\s*\/>/);
+  assert.match(component, /<SystemsScene\s*\/>/);
+  assert.match(component, /<ChapterSignal\s+:index="chapter\.index"\s+:label="chapter\.label"\s*\/>/);
+});
+
+test("architecture: repeated narrative structure is componentized once", async () => {
+  const trajectoryScene = await read("src/components/narrative/TrajectoryScene.vue");
+  const systemsScene = await read("src/components/narrative/SystemsScene.vue");
+  const signal = await read("src/components/narrative/ChapterSignal.vue");
+  const header = await read("src/components/narrative/NarrativeHeader.vue");
+
+  assert.match(signal, /class="narrative-signal"/);
+  assert.match(header, /ChapterSignal/);
+  for (const scene of [trajectoryScene, systemsScene]) {
+    assert.match(scene, /ChapterSignal/);
+    assert.match(scene, /NarrativeHeader/);
+    assert.match(scene, /narrative-rail/);
+  }
+});
+
+test("architecture: scene controllers animate existing Vue DOM instead of rendering HTML", async () => {
+  for (const file of ["src/experiences/trajectory.ts", "src/experiences/systems.ts"]) {
+    const runtime = await read(file);
+    assert.doesNotMatch(runtime, /insertAdjacentHTML|innerHTML|const markup|Markup\s*=/);
+    assert.match(runtime, /requestAnimationFrame\(render\)/);
+  }
+});
+
+test("architecture: narrative topology has one source of truth", async () => {
+  const model = await read("src/experiences/narrative-model.ts");
+  const scroll = await read("src/experiences/scroll.ts");
+  const trajectory = await read("src/experiences/trajectory.ts");
+  const systems = await read("src/experiences/systems.ts");
+
+  assert.match(model, /export const narrativeModel = buildNarrativeModel\(\)/);
+  for (const runtime of [scroll, trajectory, systems]) {
+    assert.match(runtime, /narrativeModel/);
+  }
+  assert.doesNotMatch(trajectory, /const careerStartNode = 2|chapterAgentNode =/);
+  assert.doesNotMatch(systems, /const careerStartNode = 2|chapterAgentNode =/);
+  assert.doesNotMatch(scroll, /const buildScrollModel|type ScrollModel/);
+});
+
+test("architecture: Systems has no hidden counter runtime", async () => {
+  const scene = await read("src/components/narrative/SystemsScene.vue");
+  const runtime = await read("src/experiences/systems.ts");
+  assert.doesNotMatch(scene, /systems-counter/);
+  assert.doesNotMatch(runtime, /counterCurrent|systems-counter/);
 });
 
 test("architecture: physical scroll has one runtime owner", async () => {
@@ -125,8 +169,7 @@ test("architecture: chapter handoffs have one shared owner", async () => {
   const bridges = await read("src/styles/chapter-bridges.css");
   assert.match(bridges, /trajectory-axis-reveal/);
   assert.match(bridges, /systems-gallery-handoff/);
-  assert.match(bridges, /A NOTE ON ORIGIN/);
-  assert.match(bridges, /THE INTERFACE/);
+  assert.match(bridges, /narrative-signal/);
 });
 
 test("architecture: browser Agent has no fake corpus or fallback provider", async () => {

@@ -127,14 +127,14 @@ test("SDD: all five Systems expose distinct architecture signatures", () => {
 });
 
 test("SDD: Trajectory and Systems rails share one physical register", async () => {
-  const trajectory = await read("src/experiences/trajectory.css");
-  const systems = await read("src/experiences/systems.css");
+  const bridges = await read("src/styles/chapter-bridges.css");
+  const trajectoryScene = await read("src/components/narrative/TrajectoryScene.vue");
+  const systemsScene = await read("src/components/narrative/SystemsScene.vue");
 
-  for (const css of [trajectory, systems]) {
-    assert.match(css, /left:\s*15\.5%/i);
-    assert.match(css, /top:\s*30%/i);
-    assert.match(css, /height:\s*43vh/i);
-  }
+  assert.match(bridges, /\.narrative-rail\s*\{[^}]*left:\s*15\.5%[^}]*top:\s*30%[^}]*height:\s*43vh/is);
+  assert.match(trajectoryScene, /trajectory-axis narrative-rail/);
+  assert.match(systemsScene, /systems-axis narrative-rail/);
+  assert.match(systemsScene, /systems-axis-items narrative-rail/);
 });
 
 test("TDD: Systems has one CSS owner and keeps critical motion variables", async () => {

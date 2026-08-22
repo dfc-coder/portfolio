@@ -21,29 +21,64 @@
   text-align: center;
 }
 
-.ref-chapter > i {
-  display: block;
-  width: 66px;
-  height: 1px;
-  margin: 0 auto 18px;
-  background: var(--color-accent);
-  transform: scaleX(var(--ch));
-}
-
-.ref-chapter > span {
-  display: block;
-  margin-bottom: 18px;
-  color: #a39d92;
-  font-size: 9px;
-  letter-spacing: .32em;
-  text-indent: .32em;
-}
-
 .ref-chapter > p {
   margin: 0;
   color: var(--color-paper);
   font-style: italic;
   text-wrap: balance;
+}
+
+/* Shared number / rule / label primitive. The component owns structure; each
+   context remains responsible for placement and motion. */
+.trajectory-intro .narrative-signal,
+.systems-intro .narrative-signal,
+.ref-chapter > .narrative-signal {
+  width: max-content;
+  display: grid;
+  grid-template-columns: auto 52px auto;
+  align-items: center;
+  gap: 10px;
+  color: rgba(238, 234, 226, .64);
+  font: 8.5px/1 var(--font-mono);
+  letter-spacing: .16em;
+}
+
+.trajectory-intro .narrative-signal,
+.systems-intro .narrative-signal {
+  margin: 0 auto 22px;
+}
+
+.trajectory-intro .narrative-signal > span,
+.systems-intro .narrative-signal > span,
+.ref-chapter > .narrative-signal > span {
+  color: var(--color-accent);
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.trajectory-intro .narrative-signal > i,
+.systems-intro .narrative-signal > i,
+.ref-chapter > .narrative-signal > i {
+  width: 52px;
+  height: 1px;
+  background: rgba(238, 234, 226, .44);
+}
+
+.trajectory-intro .narrative-signal > b,
+.systems-intro .narrative-signal > b,
+.ref-chapter > .narrative-signal > b {
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+/* Shared physical register. Feature CSS owns rail appearance and responsive
+   overrides; this class marks the common geometry contract. */
+.narrative-rail {
+  position: absolute;
+  left: 15.5%;
+  top: 30%;
+  width: 1px;
+  height: 43vh;
 }
 
 /* Record and Evidence use the same editorial introduction grammar. */
@@ -55,25 +90,6 @@
   translate: -50% -50%;
   text-align: center;
   isolation: isolate;
-}
-
-.trajectory-intro__kicker,
-.systems-intro__kicker {
-  width: max-content;
-  margin: 0 auto 22px;
-  display: grid;
-  grid-template-columns: auto 52px auto;
-  align-items: center;
-  gap: 10px;
-  color: rgba(238, 234, 226, .64);
-  font: 8.5px/1 var(--font-mono);
-  letter-spacing: .16em;
-}
-
-.trajectory-intro__kicker i,
-.systems-intro__kicker i {
-  height: 1px;
-  background: rgba(238, 234, 226, .44);
 }
 
 .trajectory-intro p,
@@ -119,17 +135,13 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
   transform-origin: top center !important;
 }
 
-.trajectory-bridge-line {
-  display: none !important;
-}
-
 .trajectory-axis {
   transform: scaleY(var(--trajectory-axis-reveal, 0)) !important;
   transform-origin: top center !important;
   will-change: transform, opacity;
 }
 
-.trajectory-intro__kicker {
+.trajectory-intro .narrative-signal {
   translate: 0 calc(
     (1 - var(--trajectory-intro-in, 0)) * 8px -
     var(--trajectory-intro-out, 0) * 12px
@@ -178,69 +190,19 @@ html.systems-refined-ready
   z-index: 4;
 }
 
-/* Chapters 04 and 05 use the same evidence-bridge layout. */
+/* Chapters 04 and 05 share the same ChapterSignal component and bridge layout. */
 .ref-scene--chapter[data-chapter="gallery"] .ref-chapter,
 .ref-scene--chapter[data-chapter="agent"] .ref-chapter {
   width: min(680px, 72vw);
   max-width: none;
   display: grid;
-  grid-template-columns: auto 52px auto;
-  justify-content: center;
-  align-items: center;
-  column-gap: 10px;
+  justify-items: center;
   row-gap: 22px;
   text-align: center;
 }
 
-.ref-scene--chapter[data-chapter="gallery"] .ref-chapter::before,
-.ref-scene--chapter[data-chapter="agent"] .ref-chapter::before {
-  grid-column: 1;
-  grid-row: 1;
-  color: var(--color-accent);
-  font: 8.5px/1 var(--font-mono);
-  letter-spacing: .16em;
-}
-
-.ref-scene--chapter[data-chapter="gallery"] .ref-chapter::before { content: "04"; }
-.ref-scene--chapter[data-chapter="agent"] .ref-chapter::before { content: "05"; }
-
-.ref-scene--chapter[data-chapter="gallery"] .ref-chapter > i,
-.ref-scene--chapter[data-chapter="agent"] .ref-chapter > i {
-  grid-column: 2;
-  grid-row: 1;
-  width: 52px;
-  height: 1px;
-  margin: 0;
-  background: rgba(238, 234, 226, .44);
-  transform: none;
-}
-
-.ref-scene--chapter[data-chapter="gallery"] .ref-chapter > span,
-.ref-scene--chapter[data-chapter="agent"] .ref-chapter > span {
-  grid-column: 3;
-  grid-row: 1;
-  margin: 0;
-  color: rgba(238, 234, 226, .64);
-  font-size: 0;
-  letter-spacing: 0;
-  text-indent: 0;
-}
-
-.ref-scene--chapter[data-chapter="gallery"] .ref-chapter > span::after,
-.ref-scene--chapter[data-chapter="agent"] .ref-chapter > span::after {
-  color: rgba(238, 234, 226, .64);
-  font: 8.5px/1 var(--font-mono);
-  letter-spacing: .16em;
-  white-space: nowrap;
-}
-
-.ref-scene--chapter[data-chapter="gallery"] .ref-chapter > span::after { content: "A NOTE ON ORIGIN"; }
-.ref-scene--chapter[data-chapter="agent"] .ref-chapter > span::after { content: "THE INTERFACE"; }
-
 .ref-scene--chapter[data-chapter="gallery"] .ref-chapter > p,
 .ref-scene--chapter[data-chapter="agent"] .ref-chapter > p {
-  grid-column: 1 / -1;
-  grid-row: 2;
   width: min(680px, 72vw);
   max-width: 680px;
   margin: 0 auto;
@@ -260,13 +222,17 @@ html.systems-refined-ready
   .ref-scene--chapter[data-chapter="gallery"] .ref-chapter,
   .ref-scene--chapter[data-chapter="agent"] .ref-chapter {
     width: 76vw;
-    grid-template-columns: auto 42px auto;
-    column-gap: 8px;
     row-gap: 18px;
   }
 
-  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter > i,
-  .ref-scene--chapter[data-chapter="agent"] .ref-chapter > i {
+  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter > .narrative-signal,
+  .ref-scene--chapter[data-chapter="agent"] .ref-chapter > .narrative-signal {
+    grid-template-columns: auto 42px auto;
+    gap: 8px;
+  }
+
+  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter > .narrative-signal > i,
+  .ref-scene--chapter[data-chapter="agent"] .ref-chapter > .narrative-signal > i {
     width: 42px;
   }
 

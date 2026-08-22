@@ -1,37 +1,5 @@
-export type Experience = {
-  period: string;
-  role: string;
-  company: string;
-  summary: string;
-  focus: string[];
-};
-
-export const experiences: Experience[] = [
-  {
-    period: "2025 — NOW",
-    role: "AI Engineer",
-    company: "aiRoss · Madrid / Remote",
-    summary:
-      "Private document-intelligence systems, structured extraction and production workflows where security, evidence and human review remain visible.",
-    focus: ["Local LLMs", "Document AI", "Python", "Product architecture"],
-  },
-  {
-    period: "2024 — 2025",
-    role: "Independent AI Engineer",
-    company: "Applied AI · Remote",
-    summary:
-      "Agentic systems, retrieval pipelines and natural-language interfaces designed around operational constraints instead of isolated model demonstrations.",
-    focus: ["RAG", "Agents", "NL→SQL", "Evaluation"],
-  },
-  {
-    period: "2023 — 2025",
-    role: "Software Engineer",
-    company: "FK Tech · Argentina",
-    summary:
-      "Full-stack products and integrations with an emphasis on maintainable architecture, secure APIs and delivery across the complete software lifecycle.",
-    focus: ["TypeScript", "Backend", "Integrations", "Cloud"],
-  },
-];
+import { narrativeModel } from "./narrative-model";
+import { experiences } from "./trajectory-data";
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
@@ -55,147 +23,27 @@ const collectionPosition = (nodePosition: number, startNode: number, count: numb
   return index + smoother((local - 0.2) / 0.6);
 };
 
-const splitCompany = (company: string) => {
-  const [organization, ...rest] = company.split(" · ");
-  return { organization, location: rest.join(" · ") || "Remote" };
-};
-
-const markup = () => `
-  <div class="trajectory-experience" aria-label="Professional trajectory">
-    <div class="trajectory-intro" aria-hidden="true">
-      <div class="trajectory-intro__kicker"><span>02</span><i></i><b>THE RECORD</b></div>
-      <p>First, the proof —<br>where the practice was built.</p>
-    </div>
-
-    <div class="trajectory-header" aria-hidden="true">
-      <div class="trajectory-header__label"><span>02</span><i></i><b>PROFESSIONAL TRAJECTORY</b></div>
-      <div class="trajectory-header__meta"><span>2023 — NOW</span><span>${String(experiences.length).padStart(2, "0")} ROLES</span></div>
-    </div>
-
-    <div class="trajectory-bridge-line" aria-hidden="true"><i></i></div>
-    <div class="trajectory-axis" aria-hidden="true"><i></i></div>
-
-    <div class="trajectory-years" aria-hidden="true">
-      ${experiences
-        .map(
-          (experience, index) => `
-            <div class="trajectory-year" data-index="${index}">
-              <span>${experience.period.slice(0, 4)}</span><i></i><b>${String(index + 1).padStart(2, "0")}</b>
-            </div>`,
-        )
-        .join("")}
-    </div>
-
-    <div class="trajectory-entries">
-      ${experiences
-        .map((experience, index) => {
-          const company = splitCompany(experience.company);
-          return `
-            <article class="trajectory-entry" data-index="${index}">
-              <div class="trajectory-entry__eyebrow">
-                <span>${String(index + 1).padStart(2, "0")}</span><i></i><b>${experience.period}</b>
-              </div>
-              <h2>${experience.role}</h2>
-              <div class="trajectory-entry__context">
-                <div><small>ORGANIZATION</small><strong>${company.organization}</strong></div>
-                <div><small>CONTEXT</small><strong>${company.location}</strong></div>
-              </div>
-              <div class="trajectory-entry__statement"><i></i><p>${experience.summary}</p></div>
-              <div class="trajectory-entry__focus">
-                <span>FOCUS</span>
-                <ul>${experience.focus
-                  .map((item, tagIndex) => `<li style="--tag-index:${tagIndex}">${item}</li>`)
-                  .join("")}</ul>
-              </div>
-            </article>`;
-        })
-        .join("")}
-    </div>
-
-    <div class="trajectory-counter" aria-hidden="true">
-      <small>ROLE</small>
-      <div class="trajectory-counter__row">
-        <div class="trajectory-counter__viewport">
-          <div class="trajectory-counter__track">
-            ${experiences.map((_, index) => `<span>${String(index + 1).padStart(2, "0")}</span>`).join("")}
-          </div>
-        </div>
-        <i></i><span>${String(experiences.length).padStart(2, "0")}</span>
-      </div>
-    </div>
-  </div>
-`;
-
-type LineGeometry = {
-  left: number;
-  top: number;
-  height: number;
-};
-
-const lerp = (from: number, to: number, progress: number) =>
-  from + (to - from) * progress;
-
 export const mountTrajectoryExperience = () => {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return () => undefined;
+
   const stage = document.querySelector<HTMLElement>(".ref-stage");
   const career = document.querySelector<HTMLElement>(".ref-scene--career");
   if (!stage || !career) return () => undefined;
 
-  if (career.querySelector(".trajectory-experience")) return () => undefined;
-  career.insertAdjacentHTML("beforeend", markup());
-
   const root = career.querySelector<HTMLElement>(".trajectory-experience");
   const intro = career.querySelector<HTMLElement>(".trajectory-intro");
   const header = career.querySelector<HTMLElement>(".trajectory-header");
-  const bridgeLine = career.querySelector<HTMLElement>(".trajectory-bridge-line");
   const axis = career.querySelector<HTMLElement>(".trajectory-axis");
-  const heroCueLine = document.querySelector<HTMLElement>(".ref-scroll-cue i");
   const yearNodes = Array.from(career.querySelectorAll<HTMLElement>(".trajectory-year"));
   const entries = Array.from(career.querySelectorAll<HTMLElement>(".trajectory-entry"));
   const counterTrack = career.querySelector<HTMLElement>(".trajectory-counter__track");
 
-  if (!root || !intro || !header || !bridgeLine || !axis || !counterTrack) {
-    root?.remove();
+  if (!root || !intro || !header || !axis || !counterTrack) {
     return () => undefined;
   }
 
-  const projectCount = 5;
-  const artworkCount = document.querySelectorAll(".ref-art-card").length || 10;
-  const careerStartNode = 2;
-  const chapterSystemsNode = careerStartNode + experiences.length;
-  const systemsStartNode = chapterSystemsNode + 1;
-  const chapterGalleryNode = systemsStartNode + projectCount;
-  const galleryStartNode = chapterGalleryNode + 1;
-  const chapterAgentNode = galleryStartNode + artworkCount;
-  const lastNode = chapterAgentNode + 1;
-
+  const { careerStartNode, chapterSystemsNode, virtualLastNode: lastNode } = narrativeModel;
   let frame = 0;
-  let bridgeOrigin: LineGeometry | null = null;
-
-  const cueGeometry = (): LineGeometry => {
-    if (heroCueLine) {
-      const rect = heroCueLine.getBoundingClientRect();
-      return {
-        left: rect.left + rect.width / 2,
-        top: rect.top,
-        height: Math.max(1, rect.height),
-      };
-    }
-
-    return {
-      left: window.innerWidth / 2,
-      top: window.innerHeight - 62,
-      height: 44,
-    };
-  };
-
-  const axisGeometry = (): LineGeometry => {
-    const rect = axis.getBoundingClientRect();
-    return {
-      left: rect.left + rect.width / 2,
-      top: rect.top,
-      height: Math.max(1, rect.height),
-    };
-  };
 
   const render = () => {
     const progress = Number.parseFloat(stage.style.getPropertyValue("--progress")) || 0;
@@ -203,9 +51,6 @@ export const mountTrajectoryExperience = () => {
 
     const heroExit = range(node, 0.10, 0.86);
     const cueExit = range(node, 0.24, 1.06);
-    const bridgeAcquire = range(node, 0.54, 0.72);
-    const bridgeTravel = range(node, 0.70, 1.30);
-    const bridgeRelease = range(node, 1.24, 1.50);
     const cueHandoff = range(node, 0.60, 0.78);
 
     const trajectoryIn = range(node, 0.26, 0.56);
@@ -244,26 +89,6 @@ export const mountTrajectoryExperience = () => {
 
     header.style.opacity = (contentReveal * trajectoryVisibility).toFixed(5);
     header.style.transform = `translate3d(0, ${(10 * (1 - contentReveal)).toFixed(2)}px, 0)`;
-
-    if (bridgeTravel <= 0.001 || !bridgeOrigin) {
-      bridgeOrigin = cueGeometry();
-    }
-
-    const destination = axisGeometry();
-    const source = bridgeOrigin;
-    const bridgeLeft = lerp(source.left, destination.left, bridgeTravel);
-    const bridgeTop = source.top + bridgeTravel * window.innerHeight * 0.18;
-    const bridgeHeight = lerp(
-      source.height,
-      Math.min(destination.height * 0.72, window.innerHeight * 0.34),
-      bridgeTravel,
-    );
-    const bridgeOpacity = trajectoryVisibility * bridgeAcquire * (1 - bridgeRelease);
-
-    bridgeLine.style.left = `${bridgeLeft.toFixed(2)}px`;
-    bridgeLine.style.top = `${bridgeTop.toFixed(2)}px`;
-    bridgeLine.style.height = `${bridgeHeight.toFixed(2)}px`;
-    bridgeLine.style.opacity = bridgeOpacity.toFixed(5);
     axis.style.opacity = (axisReveal * trajectoryVisibility).toFixed(5);
 
     yearNodes.forEach((element, index) => {
@@ -315,6 +140,5 @@ export const mountTrajectoryExperience = () => {
       "--trajectory-hero-shell",
       "--trajectory-timeline-progress",
     ].forEach((property) => stage.style.removeProperty(property));
-    root.remove();
   };
 };

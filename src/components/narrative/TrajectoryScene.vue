@@ -1,0 +1,91 @@
+<script setup lang="ts">
+import ChapterSignal from "./ChapterSignal.vue";
+import NarrativeHeader from "./NarrativeHeader.vue";
+import { experiences } from "../../experiences/trajectory-data";
+
+const splitCompany = (company: string) => {
+  const [organization, ...rest] = company.split(" · ");
+  return { organization, location: rest.join(" · ") || "Remote" };
+};
+
+const roleCount = String(experiences.length).padStart(2, "0");
+</script>
+
+<template>
+  <div class="trajectory-experience" aria-label="Professional trajectory">
+    <div class="trajectory-intro" aria-hidden="true">
+      <ChapterSignal class="trajectory-intro__kicker" index="02" label="THE RECORD" />
+      <p>First, the proof —<br />where the practice was built.</p>
+    </div>
+
+    <NarrativeHeader
+      class="trajectory-header"
+      variant="trajectory"
+      index="02"
+      label="PROFESSIONAL TRAJECTORY"
+      :meta="['2023 — NOW', `${roleCount} ROLES`]"
+    />
+
+    <div class="trajectory-axis narrative-rail" aria-hidden="true"><i /></div>
+
+    <div class="trajectory-years" aria-hidden="true">
+      <div
+        v-for="(experience, index) in experiences"
+        :key="experience.period"
+        class="trajectory-year"
+        :data-index="index"
+      >
+        <span>{{ experience.period.slice(0, 4) }}</span><i /><b>{{ String(index + 1).padStart(2, "0") }}</b>
+      </div>
+    </div>
+
+    <div class="trajectory-entries">
+      <article
+        v-for="(experience, index) in experiences"
+        :key="`${experience.period}-${experience.role}`"
+        class="trajectory-entry"
+        :data-index="index"
+      >
+        <div class="trajectory-entry__eyebrow">
+          <span>{{ String(index + 1).padStart(2, "0") }}</span><i /><b>{{ experience.period }}</b>
+        </div>
+        <h2>{{ experience.role }}</h2>
+        <div class="trajectory-entry__context">
+          <div>
+            <small>ORGANIZATION</small>
+            <strong>{{ splitCompany(experience.company).organization }}</strong>
+          </div>
+          <div>
+            <small>CONTEXT</small>
+            <strong>{{ splitCompany(experience.company).location }}</strong>
+          </div>
+        </div>
+        <div class="trajectory-entry__statement"><i /><p>{{ experience.summary }}</p></div>
+        <div class="trajectory-entry__focus">
+          <span>FOCUS</span>
+          <ul>
+            <li
+              v-for="(item, tagIndex) in experience.focus"
+              :key="item"
+              :style="{ '--tag-index': tagIndex }"
+            >
+              {{ item }}
+            </li>
+          </ul>
+        </div>
+      </article>
+    </div>
+
+    <div class="trajectory-counter" aria-hidden="true">
+      <small>ROLE</small>
+      <div class="trajectory-counter__row">
+        <div class="trajectory-counter__viewport">
+          <div class="trajectory-counter__track">
+            <span v-for="(_, index) in experiences" :key="index">{{ String(index + 1).padStart(2, "0") }}</span>
+          </div>
+        </div>
+        <i /><span>{{ roleCount }}</span>
+      </div>
+    </div>
+  </div>
+</template>

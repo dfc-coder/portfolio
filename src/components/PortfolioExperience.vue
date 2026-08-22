@@ -1,29 +1,36 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import AgentOS from "./agent/AgentOS.vue";
+import ChapterSignal from "./narrative/ChapterSignal.vue";
+import SystemsScene from "./narrative/SystemsScene.vue";
+import TrajectoryScene from "./narrative/TrajectoryScene.vue";
 import { galleryItems as artworks } from "../experiences/gallery";
 import { systemsProjects as projects } from "../experiences/systems-projects";
-import { experiences } from "../experiences/trajectory";
+import { experiences } from "../experiences/trajectory-data";
 
 const chapters = [
   {
     key: "career",
-    kicker: "CHAPTER 02 · THE RECORD",
+    index: "02",
+    label: "THE RECORD",
     line: "First, the proof — where the practice was built.",
   },
   {
     key: "systems",
-    kicker: "CHAPTER 03 · THE EVIDENCE",
+    index: "03",
+    label: "THE EVIDENCE",
     line: "Roles condense into systems that shipped.",
   },
   {
     key: "gallery",
-    kicker: "CHAPTER 04 · A NOTE ON ORIGIN",
+    index: "04",
+    label: "A NOTE ON ORIGIN",
     line: "My first language was design — here the argument turns visual.",
   },
   {
     key: "agent",
-    kicker: "CHAPTER 05 · THE INTERFACE",
+    index: "05",
+    label: "THE INTERFACE",
     line: "Enough archive. Ask the work a question.",
   },
 ] as const;
@@ -83,8 +90,8 @@ const menuOpen = ref(false);
           <div class="ref-scroll-cue"><span>SCROLL TO ENTER</span><i /></div>
         </article>
 
-        <article class="ref-scene ref-scene--career" />
-        <article class="ref-scene ref-scene--systems" />
+        <article class="ref-scene ref-scene--career"><TrajectoryScene /></article>
+        <article class="ref-scene ref-scene--systems"><SystemsScene /></article>
 
         <article class="ref-scene ref-scene--gallery">
           <div class="ref-marker"><span>04</span><i />VISUAL / MATERIAL ARCHIVE</div>
@@ -110,11 +117,10 @@ const menuOpen = ref(false);
           :key="chapter.key"
           class="ref-scene ref-scene--chapter"
           :data-chapter="chapter.key"
-          :aria-label="chapter.kicker"
+          :aria-label="`CHAPTER ${chapter.index} · ${chapter.label}`"
         >
           <div class="ref-chapter">
-            <i />
-            <span>{{ chapter.kicker }}</span>
+            <ChapterSignal :index="chapter.index" :label="chapter.label" />
             <p>{{ chapter.line }}</p>
           </div>
         </article>
