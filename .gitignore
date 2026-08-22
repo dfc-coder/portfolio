@@ -9,4 +9,3 @@ server/models/
 *.gguf
 __pycache__/
 .pytest_cache/
-pnpm-lock.yaml
