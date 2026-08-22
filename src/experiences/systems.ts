@@ -7,6 +7,9 @@ import {
 import { narrativeModel } from "./narrative-model";
 import { systemsProjects as projects } from "./systems-projects";
 
+const damp = (current: number, target: number, response: number, dt: number) =>
+  current + (target - current) * (1 - Math.exp(-response * dt));
+
 export const mountSystemsExperience = () => {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return () => undefined;
 
@@ -44,6 +47,7 @@ export const mountSystemsExperience = () => {
   let pointerY = 0;
   let pointerTargetX = 0;
   let pointerTargetY = 0;
+  let lastFrameTime = performance.now();
 
   const onPointerMove = (event: PointerEvent) => {
     if (stage.dataset.systemsRefined !== "true") return;
@@ -51,7 +55,10 @@ export const mountSystemsExperience = () => {
     pointerTargetY = event.clientY / innerHeight - 0.5;
   };
 
-  const render = () => {
+  const render = (time: number) => {
+    const dt = Math.min(0.05, Math.max(0.001, (time - lastFrameTime) / 1000));
+    lastFrameTime = time;
+
     const progress =
       Number.parseFloat(stage.style.getPropertyValue("--progress")) || 0;
     const node = clamp01(progress) * lastNode;
@@ -99,8 +106,8 @@ export const mountSystemsExperience = () => {
     ).toFixed(2)}px, 0)`;
     axis.style.opacity = state.axisReveal.toFixed(5);
 
-    pointerX += (pointerTargetX - pointerX) * 0.075;
-    pointerY += (pointerTargetY - pointerY) * 0.075;
+    pointerX = damp(pointerX, pointerTargetX, 10.5, dt);
+    pointerY = damp(pointerY, pointerTargetY, 10.5, dt);
     root.style.setProperty("--systems-pointer-x", pointerX.toFixed(4));
     root.style.setProperty("--systems-pointer-y", pointerY.toFixed(4));
 
