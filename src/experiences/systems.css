@@ -621,3 +621,10 @@ html.systems-refined-ready .ref-scene--systems {
     width: 40vw;
   }
 }
+
+@media (min-width: 761px) {
+  .systems-static-chrome__detail,
+  .systems-project__detail {
+    top: 72%;
+  }
+}
