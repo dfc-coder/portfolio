@@ -1,4 +1,16 @@
 /* Physical scroll geometry and scene exclusivity. scroll.ts is the only runtime owner. */
+html {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
 .ref-track {
   min-height: 100vh;
 }
