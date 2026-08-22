@@ -3,13 +3,14 @@ name: Business Representative CI
 on:
   push:
     branches:
-      - agent/chapter-05-jarvis-ui
+      - agent/chapter-03-systems-refinement
     paths:
       - "server/**"
       - "src/**"
       - "tests/**"
       - "package.json"
-      - "package-lock.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
       - "tsconfig.json"
       - "vite.config.ts"
       - ".github/workflows/business-representative.yml"
@@ -19,7 +20,8 @@ on:
       - "src/**"
       - "tests/**"
       - "package.json"
-      - "package-lock.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
       - "tsconfig.json"
       - "vite.config.ts"
       - ".github/workflows/business-representative.yml"
@@ -52,13 +54,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+          run_install: false
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: npm
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
       - name: Install frontend
-        run: npm ci
+        run: pnpm install --frozen-lockfile
       - name: Run visual contract tests
-        run: npm run test:visual
+        run: pnpm test:visual
       - name: Typecheck and build frontend
-        run: npm run build
+        run: pnpm build
