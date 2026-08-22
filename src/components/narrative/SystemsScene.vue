@@ -73,6 +73,15 @@ const systemCount = String(projects.length).padStart(2, "0");
       </div>
     </div>
 
+    <div class="systems-static-chrome" aria-hidden="true">
+      <div class="systems-static-chrome__architecture">
+        <span>SYSTEM ARCHITECTURE</span><i />
+      </div>
+      <div class="systems-static-chrome__detail"><span>SYSTEM NOTE</span></div>
+      <div class="systems-static-chrome__evidence"><span>EVIDENCE</span><i /></div>
+      <div class="systems-static-chrome__implementation"><span>IMPLEMENTATION</span></div>
+    </div>
+
     <div class="systems-projects">
       <article
         v-for="(project, index) in projects"
@@ -86,9 +95,7 @@ const systemCount = String(projects.length).padStart(2, "0");
         </div>
 
         <section class="systems-project__architecture">
-          <h4 class="systems-project__architecture-heading">
-            <span>SYSTEM ARCHITECTURE</span><i aria-hidden="true" />
-          </h4>
+          <h4 class="sr-only">System architecture</h4>
 
           <div class="systems-graph-field">
             <div class="systems-graph-field__crosshair" aria-hidden="true" />
@@ -146,18 +153,17 @@ const systemCount = String(projects.length).padStart(2, "0");
         </section>
 
         <section class="systems-project__detail">
-          <h4>SYSTEM NOTE</h4>
+          <h4 class="sr-only">System note</h4>
           <p>{{ project.detail }}</p>
         </section>
 
         <section class="systems-project__evidence">
-          <h4>EVIDENCE</h4>
-          <i aria-hidden="true" />
+          <h4 class="sr-only">Evidence</h4>
           <p>{{ project.outcome }}</p>
         </section>
 
         <section class="systems-project__implementation">
-          <h4>IMPLEMENTATION</h4>
+          <h4 class="sr-only">Implementation</h4>
           <ul>
             <li
               v-for="(item, stackIndex) in project.stack"
