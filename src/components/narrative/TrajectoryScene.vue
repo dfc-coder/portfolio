@@ -47,22 +47,22 @@ const roleCount = String(experiences.length).padStart(2, "0");
         :data-index="index"
       >
         <div class="trajectory-entry__eyebrow">
-          <span>{{ String(index + 1).padStart(2, "0") }}</span><i /><b>{{ experience.period }}</b>
+          <span>{{ String(index + 1).padStart(2, "0") }}</span><i /><time>{{ experience.period }}</time>
         </div>
-        <h2>{{ experience.role }}</h2>
-        <div class="trajectory-entry__context">
+        <h3>{{ experience.role }}</h3>
+        <dl class="trajectory-entry__context">
           <div>
-            <small>ORGANIZATION</small>
-            <strong>{{ splitCompany(experience.company).organization }}</strong>
+            <dt>ORGANIZATION</dt>
+            <dd>{{ splitCompany(experience.company).organization }}</dd>
           </div>
           <div>
-            <small>CONTEXT</small>
-            <strong>{{ splitCompany(experience.company).location }}</strong>
+            <dt>CONTEXT</dt>
+            <dd>{{ splitCompany(experience.company).location }}</dd>
           </div>
-        </div>
+        </dl>
         <div class="trajectory-entry__statement"><i /><p>{{ experience.summary }}</p></div>
-        <div class="trajectory-entry__focus">
-          <span>FOCUS</span>
+        <section class="trajectory-entry__focus" aria-label="Role focus">
+          <h4>FOCUS</h4>
           <ul>
             <li
               v-for="(item, tagIndex) in experience.focus"
@@ -72,12 +72,12 @@ const roleCount = String(experiences.length).padStart(2, "0");
               {{ item }}
             </li>
           </ul>
-        </div>
+        </section>
       </article>
     </div>
 
     <div class="trajectory-counter" aria-hidden="true">
-      <small>ROLE</small>
+      <span>ROLE</span>
       <div class="trajectory-counter__row">
         <div class="trajectory-counter__viewport">
           <div class="trajectory-counter__track">
