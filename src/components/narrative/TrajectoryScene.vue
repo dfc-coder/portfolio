@@ -39,6 +39,14 @@ const roleCount = String(experiences.length).padStart(2, "0");
       </div>
     </div>
 
+    <div class="trajectory-static-chrome" aria-hidden="true">
+      <div class="trajectory-static-chrome__context">
+        <span>ORGANIZATION</span>
+        <span>CONTEXT</span>
+      </div>
+      <span class="trajectory-static-chrome__focus">FOCUS</span>
+    </div>
+
     <div class="trajectory-entries">
       <article
         v-for="(experience, index) in experiences"
