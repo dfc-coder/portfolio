@@ -2,21 +2,24 @@
 .ref-global-pointer-light {
   position: absolute;
   z-index: 5;
-  inset: 0;
-  overflow: hidden;
+  left: 0;
+  top: 0;
+  width: min(82rem, 118vw);
+  height: min(58rem, 94vh);
   pointer-events: none;
-  opacity: 1;
+  opacity: .94;
   mix-blend-mode: screen;
   background: radial-gradient(
-    ellipse 64rem 46rem at var(--ref-pointer-x, 47%) var(--ref-pointer-y, 47%),
-    rgba(238, 234, 226, calc(.074 + var(--ref-pointer-velocity, 0) * .016)) 0%,
-    rgba(151, 154, 164, calc(.062 + var(--ref-pointer-velocity, 0) * .014)) 22%,
-    rgba(104, 110, 126, calc(.038 + var(--ref-pointer-velocity, 0) * .010)) 46%,
+    ellipse at center,
+    rgba(238, 234, 226, .078) 0%,
+    rgba(151, 154, 164, .064) 22%,
+    rgba(104, 110, 126, .040) 46%,
     rgba(72, 77, 91, .016) 68%,
     transparent 92%
   );
-  transform: translateZ(0);
-  will-change: background;
+  transform: translate3d(47vw, 47vh, 0) translate(-50%, -50%);
+  will-change: transform, opacity;
+  contain: layout paint style;
 }
 
 .ref-navigation-transition {
@@ -30,6 +33,7 @@
   visibility: hidden;
   pointer-events: none;
   touch-action: none;
+  image-rendering: auto;
 }
 
 .ref-navigation-transition.is-active {
@@ -40,13 +44,12 @@
 
 html.is-section-transitioning {
   overscroll-behavior: none;
-  scrollbar-color: transparent transparent;
 }
 
-html.is-section-transitioning::-webkit-scrollbar-thumb,
-html.is-section-transitioning::-webkit-scrollbar-track,
-html.is-section-transitioning::-webkit-scrollbar-corner {
-  background: transparent;
+html.is-section-transitioning .ref-global-pointer-light,
+html.is-section-transitioning .ref-cursor,
+html.is-section-transitioning .ref-cursor-ring {
+  opacity: 0 !important;
 }
 
 .ref-portfolio.has-cursor,
@@ -116,6 +119,7 @@ html.is-section-transitioning::-webkit-scrollbar-corner {
   margin: -15px 0 0 -15px;
   border: 1px solid rgba(238, 234, 226, .55);
   mix-blend-mode: difference;
+  will-change: transform;
   transition:
     opacity .25s linear,
     width .3s cubic-bezier(.2, .8, .2, 1),
