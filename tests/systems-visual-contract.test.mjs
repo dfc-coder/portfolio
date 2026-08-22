@@ -95,12 +95,12 @@ test("BDD: two System titles never become simultaneous protagonists", () => {
   }
 });
 
-test("BDD: architecture bridges project title ownership", () => {
+test("BDD: two architecture graphs never become simultaneous protagonists", () => {
   for (let step = 0; step <= 100; step += 1) {
     const progress = step / 100;
     const outgoing = motion.motionForOffset(-progress).graph;
     const incoming = motion.motionForOffset(1 - progress).graph;
-    assert.ok(Math.max(outgoing, incoming) >= 0.95);
+    assert.ok(!(outgoing > 0.05 && incoming > 0.05));
   }
 });
 
@@ -139,6 +139,22 @@ test("SDD: Trajectory and Systems rails share one physical register", async () =
   assert.match(systemsScene, /systems-axis-items narrative-rail/);
 });
 
+test("TDD: Systems template chrome is persistent and project content stays semantic", async () => {
+  const scene = await read("src/components/narrative/SystemsScene.vue");
+  const systems = await read("src/experiences/systems.css");
+
+  assert.equal((scene.match(/class="systems-static-chrome"/g) ?? []).length, 1);
+  for (const label of ["SYSTEM ARCHITECTURE", "SYSTEM NOTE", "EVIDENCE", "IMPLEMENTATION"]) {
+    assert.equal((scene.match(new RegExp(label, "g")) ?? []).length, 1);
+  }
+  assert.match(scene, /<h4 class="sr-only">System architecture<\/h4>/);
+  assert.match(scene, /<h4 class="sr-only">System note<\/h4>/);
+  assert.match(scene, /<h4 class="sr-only">Evidence<\/h4>/);
+  assert.match(scene, /<h4 class="sr-only">Implementation<\/h4>/);
+  assert.match(systems, /\.systems-static-chrome\s*\{/);
+  assert.match(systems, /--systems-tail-out/);
+});
+
 test("TDD: Systems has one CSS owner and keeps critical motion variables", async () => {
   const systems = await read("src/experiences/systems.css");
   assert.match(systems, /--title-presence/);
@@ -146,10 +162,16 @@ test("TDD: Systems has one CSS owner and keeps critical motion variables", async
   assert.match(systems, /--support-presence/);
   assert.match(systems, /--graph-build/);
   assert.match(systems, /position:\s*absolute/);
-  assert.match(systems, /\.systems-project__detail h4/);
   assert.match(systems, /font-size:\s*13px/);
   assert.match(systems, /font-size:\s*var\(--t-system\)/);
   assert.doesNotMatch(systems, /content:\s*"SYSTEM NOTE"/);
+});
+
+test("TDD: Systems desktop columns do not geometrically overlap", async () => {
+  const systems = await read("src/experiences/systems.css");
+  assert.match(systems, /\.systems-project__identity\s*\{[^}]*left:\s*25%[^}]*width:\s*min\(600px,\s*29vw\)/is);
+  assert.match(systems, /\.systems-project__architecture\s*\{[^}]*left:\s*57%/is);
+  assert.match(systems, /\.systems-static-chrome__architecture\s*\{[^}]*left:\s*57%/is);
 });
 
 test("TDD: continuity cannot own Systems or Trajectory geometry", async () => {
