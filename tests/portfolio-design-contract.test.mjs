@@ -113,6 +113,7 @@ test("semantics: visual narrative exposes one h1 and a stable chapter outline", 
   const trajectory = await read("src/components/narrative/TrajectoryScene.vue");
   const systems = await read("src/components/narrative/SystemsScene.vue");
   const agent = await read("src/components/agent/AgentOS.vue");
+  const fallback = portfolio.slice(portfolio.indexOf('<section id="ref-fallback"'));
 
   assert.equal((portfolio.match(/<h1\b/g) ?? []).length, 1);
   assert.match(portfolio, /<h1 class="ref-hero__title"/);
@@ -121,7 +122,7 @@ test("semantics: visual narrative exposes one h1 and a stable chapter outline", 
   assert.match(systems, /<h3>\{\{ project\.title \}\}<\/h3>/);
   assert.match(portfolio, /<h2 class="ref-marker">[\s\S]*VISUAL \/ MATERIAL ARCHIVE/);
   assert.match(agent, /<h2 class="ref-marker">[\s\S]*THE INTERFACE/);
-  assert.doesNotMatch(portfolio, /ref-fallback[\s\S]*<h1/);
+  assert.doesNotMatch(fallback, /<h1\b/);
 });
 
 test("semantics: metadata and technical subsections use native structures", async () => {
