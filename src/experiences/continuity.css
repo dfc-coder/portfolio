@@ -5,14 +5,15 @@
   inset: 0;
   overflow: hidden;
   pointer-events: none;
-  opacity: .94;
+  opacity: 1;
+  mix-blend-mode: screen;
   background: radial-gradient(
-    ellipse 54rem 38rem at var(--ref-pointer-x, 47%) var(--ref-pointer-y, 47%),
-    rgba(238, 234, 226, calc(.050 + var(--ref-pointer-velocity, 0) * .014)) 0%,
-    rgba(151, 154, 164, calc(.054 + var(--ref-pointer-velocity, 0) * .016)) 20%,
-    rgba(104, 110, 126, calc(.032 + var(--ref-pointer-velocity, 0) * .010)) 44%,
-    rgba(72, 77, 91, .014) 66%,
-    transparent 90%
+    ellipse 64rem 46rem at var(--ref-pointer-x, 47%) var(--ref-pointer-y, 47%),
+    rgba(238, 234, 226, calc(.074 + var(--ref-pointer-velocity, 0) * .016)) 0%,
+    rgba(151, 154, 164, calc(.062 + var(--ref-pointer-velocity, 0) * .014)) 22%,
+    rgba(104, 110, 126, calc(.038 + var(--ref-pointer-velocity, 0) * .010)) 46%,
+    rgba(72, 77, 91, .016) 68%,
+    transparent 92%
   );
   transform: translateZ(0);
   will-change: background;
@@ -53,26 +54,24 @@
   width: 6px;
   height: 6px;
   border-radius: inherit;
-  background: currentcolor;
-  color: var(--color-paper);
+  background: #fff;
+  color: #fff;
+  mix-blend-mode: difference;
   transform: translate(-50%, -50%);
   transition:
     width .28s cubic-bezier(.2, .8, .2, 1),
     height .28s cubic-bezier(.2, .8, .2, 1),
-    border-radius .28s cubic-bezier(.2, .8, .2, 1),
-    color .3s linear;
+    border-radius .28s cubic-bezier(.2, .8, .2, 1);
 }
 
 .ref-cursor[data-state="hover"]::after {
   width: 10px;
   height: 10px;
-  color: var(--color-accent);
 }
 
 .ref-cursor[data-state="press"]::after {
   width: 5px;
   height: 5px;
-  color: var(--color-accent);
 }
 
 .ref-cursor[data-state="text"]::after {
@@ -100,15 +99,15 @@
   width: 46px;
   height: 46px;
   margin: -23px 0 0 -23px;
-  border-color: var(--color-accent);
-  background: rgba(197, 103, 72, .08);
+  border-color: rgba(255, 255, 255, .88);
+  background: rgba(255, 255, 255, .04);
 }
 
 .ref-cursor-ring[data-state="press"] {
   width: 26px;
   height: 26px;
   margin: -13px 0 0 -13px;
-  border-color: var(--color-accent);
+  border-color: rgba(255, 255, 255, .88);
 }
 
 .ref-cursor-ring[data-state="text"] {
