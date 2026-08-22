@@ -135,9 +135,11 @@ test("semantics: metadata and technical subsections use native structures", asyn
   assert.match(trajectory, /<h4>FOCUS<\/h4>/);
   assert.doesNotMatch(trajectory, /<small>|<strong>/);
 
-  assert.match(systems, /<h4>SYSTEM NOTE<\/h4>/);
-  assert.match(systems, /<h4>EVIDENCE<\/h4>/);
-  assert.match(systems, /<h4>IMPLEMENTATION<\/h4>/);
+  assert.match(systems, /<h4 class="sr-only">System architecture<\/h4>/);
+  assert.match(systems, /<h4 class="sr-only">System note<\/h4>/);
+  assert.match(systems, /<h4 class="sr-only">Evidence<\/h4>/);
+  assert.match(systems, /<h4 class="sr-only">Implementation<\/h4>/);
+  assert.match(systems, /class="systems-static-chrome"/);
   assert.match(systems, /<ul>/);
   assert.doesNotMatch(systems, /systems-project__eyebrow|systems-project__field/);
 });
@@ -257,7 +259,8 @@ test("architecture: Systems motion is owned by systems.css", async () => {
 
   assert.match(systems, /--graph-build/);
   assert.match(systems, /--title-presence/);
-  assert.match(systems, /\.systems-project__detail h4/);
+  assert.match(systems, /\.systems-static-chrome\s*\{/);
+  assert.match(systems, /\.systems-static-chrome__detail\s*\{/);
   assert.doesNotMatch(systems, /content:\s*"SYSTEM NOTE"/);
   assert.doesNotMatch(systems, /ref-scene--chapter\[data-chapter="agent"\]/);
   assert.match(bridges, /data-chapter="agent"/);
