@@ -40,6 +40,13 @@
 
 html.is-section-transitioning {
   overscroll-behavior: none;
+  scrollbar-color: transparent transparent;
+}
+
+html.is-section-transitioning::-webkit-scrollbar-thumb,
+html.is-section-transitioning::-webkit-scrollbar-track,
+html.is-section-transitioning::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .ref-portfolio.has-cursor,
