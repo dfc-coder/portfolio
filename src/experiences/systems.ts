@@ -86,6 +86,7 @@ export const mountSystemsExperience = () => {
     stage.style.setProperty("--systems-intro-out", state.introOut.toFixed(5));
     stage.style.setProperty("--systems-content", state.contentReveal.toFixed(5));
     stage.style.setProperty("--systems-progress", projectProgress.toFixed(5));
+    stage.style.setProperty("--systems-tail-out", state.tailOut.toFixed(5));
     stage.style.setProperty(
       "--systems-gallery-handoff",
       state.galleryHandoff.toFixed(5),
@@ -176,6 +177,7 @@ export const mountSystemsExperience = () => {
       "--systems-intro-out",
       "--systems-content",
       "--systems-progress",
+      "--systems-tail-out",
       "--systems-gallery-handoff",
     ].forEach((property) => stage.style.removeProperty(property));
     document.documentElement.classList.remove("systems-refined-ready");
