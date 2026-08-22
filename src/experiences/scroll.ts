@@ -2,12 +2,17 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { narrativeModel, type NarrativeModel } from "./narrative-model";
 
-const SCROLL_STEP_VH = 36;
-const SCENE_CROSSFADE_WIDTH = 0.46;
+const SCROLL_STEP_VH = 56;
+const SCENE_CROSSFADE_WIDTH = 0.34;
 const GALLERY_EXIT_START = 0.72;
 const GALLERY_EXIT_VIRTUAL_LEAD = 0.8;
+const WHEEL_GAIN = 1.08;
+const SCROLL_RESPONSE = 15;
+const MAX_FRAME_DT = 0.05;
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
 
 const smoother = (value: number) => {
   const x = clamp01(value);
@@ -16,6 +21,9 @@ const smoother = (value: number) => {
 
 const range = (value: number, start: number, end: number) =>
   smoother((value - start) / (end - start));
+
+const damp = (current: number, target: number, response: number, dt: number) =>
+  current + (target - current) * (1 - Math.exp(-response * dt));
 
 type SceneName = "hero" | "chapter" | "career" | "systems" | "gallery" | "agent";
 
@@ -97,6 +105,21 @@ const sceneOpacities = (node: number, model: NarrativeModel) => {
   };
 };
 
+const wheelDeltaPixels = (event: WheelEvent) => {
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) return event.deltaY * 16;
+  if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) return event.deltaY * innerHeight;
+  return event.deltaY;
+};
+
+const nestedScrollerCanConsume = (target: EventTarget | null, delta: number) => {
+  const element = target instanceof Element ? target : null;
+  const scroller = element?.closest<HTMLElement>(".agent-lane");
+  if (!scroller) return false;
+
+  if (delta < 0) return scroller.scrollTop > 0;
+  return scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 1;
+};
+
 export const mountScrollSyncController = () => {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
     return () => undefined;
@@ -146,12 +169,52 @@ export const mountScrollSyncController = () => {
     stage.style.setProperty("--chapter-agent", opacity.chapterAgent.toFixed(6));
   };
 
+  let smoothFrame = 0;
+  let currentScrollY = scrollY;
+  let targetScrollY = scrollY;
+  let lastFrameTime = performance.now();
+
+  const maxScrollY = () =>
+    Math.max(0, document.documentElement.scrollHeight - innerHeight);
+
+  const stopSmoothScroll = () => {
+    if (smoothFrame) cancelAnimationFrame(smoothFrame);
+    smoothFrame = 0;
+    currentScrollY = scrollY;
+    targetScrollY = scrollY;
+  };
+
+  const runSmoothScroll = (time: number) => {
+    const dt = Math.min(MAX_FRAME_DT, Math.max(0.001, (time - lastFrameTime) / 1000));
+    lastFrameTime = time;
+    currentScrollY = damp(currentScrollY, targetScrollY, SCROLL_RESPONSE, dt);
+
+    if (Math.abs(targetScrollY - currentScrollY) < 0.25) {
+      currentScrollY = targetScrollY;
+      scrollTo(0, currentScrollY);
+      smoothFrame = 0;
+      return;
+    }
+
+    scrollTo(0, currentScrollY);
+    smoothFrame = requestAnimationFrame(runSmoothScroll);
+  };
+
+  const smoothTo = (top: number) => {
+    targetScrollY = clamp(top, 0, maxScrollY());
+    if (!smoothFrame) {
+      currentScrollY = scrollY;
+      lastFrameTime = performance.now();
+      smoothFrame = requestAnimationFrame(runSmoothScroll);
+    }
+  };
+
   const scrollToPhysicalNode = (node: number) => {
     const rect = track.getBoundingClientRect();
     const start = scrollY + rect.top;
     const distance = Math.max(1, track.offsetHeight - innerHeight);
     const progress = clamp01(node / model.physicalLastNode);
-    scrollTo({ top: start + distance * progress, behavior: "smooth" });
+    smoothTo(start + distance * progress);
   };
 
   const indexButtons = Array.from(
@@ -190,10 +253,36 @@ export const mountScrollSyncController = () => {
     scrollToPhysicalNode(node);
   };
 
-  const onWheelCapture = (event: WheelEvent) => {
-    if (stage.dataset.scene !== "gallery") return;
-    if (!document.querySelector(".ref-gallery-focus.is-open")) return;
+  const onWheel = (event: WheelEvent) => {
+    if (event.ctrlKey || event.metaKey) return;
+
+    if (stage.dataset.scene === "gallery" && document.querySelector(".ref-gallery-focus.is-open")) {
+      event.preventDefault();
+      return;
+    }
+
+    const delta = wheelDeltaPixels(event);
+    if (!delta || nestedScrollerCanConsume(event.target, delta)) return;
+
     event.preventDefault();
+    const origin = smoothFrame ? targetScrollY : scrollY;
+    smoothTo(origin + delta * WHEEL_GAIN);
+  };
+
+  const onNativeScroll = () => {
+    if (smoothFrame) return;
+    currentScrollY = scrollY;
+    targetScrollY = scrollY;
+  };
+
+  const onNativeNavigation = (event: KeyboardEvent) => {
+    if (
+      ["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(
+        event.key,
+      )
+    ) {
+      stopSmoothScroll();
+    }
   };
 
   const trigger = ScrollTrigger.create({
@@ -206,14 +295,22 @@ export const mountScrollSyncController = () => {
   });
 
   addEventListener("click", onNavigationClick, true);
-  addEventListener("wheel", onWheelCapture, { capture: true, passive: false });
+  addEventListener("wheel", onWheel, { capture: true, passive: false });
+  addEventListener("scroll", onNativeScroll, { passive: true });
+  addEventListener("keydown", onNativeNavigation);
+  addEventListener("pointerdown", stopSmoothScroll, { passive: true });
+
   applyState(trigger.progress);
   ScrollTrigger.refresh();
 
   return () => {
     trigger.kill();
+    stopSmoothScroll();
     removeEventListener("click", onNavigationClick, true);
-    removeEventListener("wheel", onWheelCapture, true);
+    removeEventListener("wheel", onWheel, true);
+    removeEventListener("scroll", onNativeScroll);
+    removeEventListener("keydown", onNativeNavigation);
+    removeEventListener("pointerdown", stopSmoothScroll);
     track.style.removeProperty("height");
     delete track.dataset.scrollSyncOwner;
     portfolio.style.removeProperty("--physical-scroll-progress");
