@@ -63,8 +63,8 @@ export const motionForOffset = (offset: number): MotionState => {
     const t = clamp01(-offset);
     return {
       title: 1 - range(t, 0.18, 0.46),
-      graph: 1 - range(t, 0.62, 0.94),
-      support: 1 - range(t, 0.28, 0.56),
+      graph: 1 - range(t, 0.30, 0.48),
+      support: 1 - range(t, 0.28, 0.52),
       titleY: -30 * range(t, 0.06, 0.68),
       supportY: -10 * range(t, 0.12, 0.72),
       graphX: -1.1 * range(t, 0.18, 0.90),
@@ -75,7 +75,7 @@ export const motionForOffset = (offset: number): MotionState => {
   const t = clamp01(1 - offset);
   return {
     title: range(t, 0.54, 0.82),
-    graph: range(t, 0.20, 0.50),
+    graph: range(t, 0.52, 0.70),
     support: range(t, 0.62, 0.90),
     titleY: 30 * (1 - range(t, 0.34, 0.82)),
     supportY: 10 * (1 - range(t, 0.48, 0.90)),
