@@ -1,6 +1,9 @@
 import { narrativeModel } from "./narrative-model";
 import { experiences } from "./trajectory-data";
 
+const COLLECTION_HOLD_END = 0.26;
+const COLLECTION_TRAVEL_END = 0.74;
+
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
 const smoother = (value: number) => {
@@ -18,9 +21,12 @@ const collectionPosition = (nodePosition: number, startNode: number, count: numb
 
   const index = Math.floor(raw);
   const local = raw - index;
-  if (local <= 0.2) return index;
-  if (local >= 0.8) return index + 1;
-  return index + smoother((local - 0.2) / 0.6);
+  if (local <= COLLECTION_HOLD_END) return index;
+  if (local >= COLLECTION_TRAVEL_END) return index + 1;
+  return index + smoother(
+    (local - COLLECTION_HOLD_END) /
+      (COLLECTION_TRAVEL_END - COLLECTION_HOLD_END),
+  );
 };
 
 export const mountTrajectoryExperience = () => {
