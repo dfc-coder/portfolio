@@ -1,4 +1,4 @@
-/* Cross-chapter interaction only: ambient light + custom cursor. */
+/* Cross-chapter interaction only: ambient light + custom cursor + menu transition. */
 .ref-global-pointer-light {
   position: absolute;
   z-index: 5;
@@ -17,6 +17,29 @@
   );
   transform: translateZ(0);
   will-change: background;
+}
+
+.ref-navigation-transition {
+  position: fixed;
+  z-index: 2400;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  touch-action: none;
+}
+
+.ref-navigation-transition.is-active {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+html.is-section-transitioning {
+  overscroll-behavior: none;
 }
 
 .ref-portfolio.has-cursor,
@@ -120,6 +143,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .ref-global-pointer-light,
+  .ref-navigation-transition,
   .ref-cursor,
   .ref-cursor-ring {
     display: none;
