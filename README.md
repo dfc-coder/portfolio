@@ -4,10 +4,10 @@ Vue 3 + Vite portfolio with a server-side business representative in Chapter 05.
 
 ## Frontend
 
+The frontend uses pnpm as its only package manager.
+
 ```bash
 pnpm install --frozen-lockfile
-pnpm test:visual
-pnpm build
 pnpm dev
 ```
 
