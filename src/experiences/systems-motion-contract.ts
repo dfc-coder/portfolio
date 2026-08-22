@@ -21,10 +21,12 @@ export const SYSTEMS_TIMING = {
   galleryHandoff: [0.02, 0.30] as const,
 } as const;
 
+/* Every project receives the same hold/travel interval. The first project no
+   longer gets a longer implicit viewport than the rest of the collection. */
 export const SYSTEMS_COLLECTION = {
-  firstHoldEnd: 0.42,
-  holdEnd: 0.30,
-  travelEnd: 0.84,
+  firstHoldEnd: 0.26,
+  holdEnd: 0.26,
+  travelEnd: 0.74,
 } as const;
 
 export const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
@@ -48,7 +50,7 @@ export const collectionPosition = (
 
   const index = Math.floor(raw);
   const local = raw - index;
-  const holdEnd = index === 0 ? SYSTEMS_COLLECTION.firstHoldEnd : SYSTEMS_COLLECTION.holdEnd;
+  const holdEnd = SYSTEMS_COLLECTION.holdEnd;
   const travelEnd = SYSTEMS_COLLECTION.travelEnd;
 
   if (local <= holdEnd) return index;
