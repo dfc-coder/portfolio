@@ -1,5 +1,6 @@
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { transitionSectionNavigation } from "./continuity";
 import { narrativeModel, type NarrativeModel } from "./narrative-model";
 
 const SCROLL_STEP_VH = 56;
@@ -209,12 +210,23 @@ export const mountScrollSyncController = () => {
     }
   };
 
-  const scrollToPhysicalNode = (node: number) => {
+  const physicalNodeTop = (node: number) => {
     const rect = track.getBoundingClientRect();
     const start = scrollY + rect.top;
     const distance = Math.max(1, track.offsetHeight - innerHeight);
     const progress = clamp01(node / model.physicalLastNode);
-    smoothTo(start + distance * progress);
+    return {
+      progress,
+      top: start + distance * progress,
+    };
+  };
+
+  const jumpToPhysicalNode = (node: number) => {
+    stopSmoothScroll();
+    const target = physicalNodeTop(node);
+    scrollTo({ top: target.top, behavior: "auto" });
+    applyState(target.progress);
+    ScrollTrigger.update();
   };
 
   const indexButtons = Array.from(
@@ -240,23 +252,36 @@ export const mountScrollSyncController = () => {
   });
 
   const onNavigationClick = (event: MouseEvent) => {
-    const button = (event.target as Element | null)?.closest<HTMLButtonElement>("button") ?? null;
+    const button =
+      (event.target as Element | null)?.closest<HTMLButtonElement>("button") ?? null;
     if (!button) return;
 
     const node = navigationNodes.get(button);
     if (node === undefined) return;
 
     event.preventDefault();
+    const currentNode = trigger.progress * model.physicalLastNode;
+    const direction = node >= currentNode ? 1 : -1;
+
     if (indexToggle?.getAttribute("aria-expanded") === "true") {
       indexToggle.click();
     }
-    scrollToPhysicalNode(node);
+
+    transitionSectionNavigation(() => jumpToPhysicalNode(node), direction);
   };
 
   const onWheel = (event: WheelEvent) => {
     if (event.ctrlKey || event.metaKey) return;
 
-    if (stage.dataset.scene === "gallery" && document.querySelector(".ref-gallery-focus.is-open")) {
+    if (document.documentElement.classList.contains("is-section-transitioning")) {
+      event.preventDefault();
+      return;
+    }
+
+    if (
+      stage.dataset.scene === "gallery" &&
+      document.querySelector(".ref-gallery-focus.is-open")
+    ) {
       event.preventDefault();
       return;
     }
