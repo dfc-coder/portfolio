@@ -146,9 +146,10 @@ test("TDD: Systems has one CSS owner and keeps critical motion variables", async
   assert.match(systems, /--support-presence/);
   assert.match(systems, /--graph-build/);
   assert.match(systems, /position:\s*absolute/);
-  assert.match(systems, /content:\s*"SYSTEM NOTE"/);
-  assert.match(systems, /font-size:\s*12px/);
-  assert.match(systems, /color:\s*rgba\(238, 234, 226, \.76\)/);
+  assert.match(systems, /\.systems-project__detail h4/);
+  assert.match(systems, /font-size:\s*13px/);
+  assert.match(systems, /font-size:\s*var\(--t-system\)/);
+  assert.doesNotMatch(systems, /content:\s*"SYSTEM NOTE"/);
 });
 
 test("TDD: continuity cannot own Systems or Trajectory geometry", async () => {

@@ -6,9 +6,9 @@ defineProps<{
 </script>
 
 <template>
-  <div class="narrative-signal">
-    <span>{{ index }}</span>
+  <span class="narrative-signal">
+    <span class="narrative-signal__index">{{ index }}</span>
     <i aria-hidden="true" />
-    <b>{{ label }}</b>
-  </div>
+    <span class="narrative-signal__label">{{ label }}</span>
+  </span>
 </template>

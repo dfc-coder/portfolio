@@ -25,8 +25,6 @@
   opacity: 0 !important;
 }
 
-/* Keep the ambient material from the Hero, but evacuate all Hero typography
-   before Career becomes the protagonist. */
 html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scene--hero {
   opacity: var(--trajectory-hero-shell, 1) !important;
   transform: none !important;
@@ -48,9 +46,6 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-hero__meta {
   opacity: calc(1 - var(--trajectory-hero-exit, 0)) !important;
 }
 
-/* Preserve the movement that worked in the recording: the Hero cue retracts
-   vertically and fades. It no longer travels diagonally across the viewport or
-   pretends to become the chronology line. */
 html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue {
   translate: -50% calc(var(--trajectory-cue-exit, 0) * -10vh);
   opacity: calc(1 - var(--trajectory-cue-exit, 0)) !important;
@@ -70,8 +65,8 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
 
 .trajectory-experience {
   --trajectory-paper: rgba(238, 234, 226, .94);
-  --trajectory-muted: rgba(238, 234, 226, .46);
-  --trajectory-dim: rgba(238, 234, 226, .18);
+  --trajectory-muted: rgba(238, 234, 226, .68);
+  --trajectory-dim: rgba(238, 234, 226, .24);
   position: absolute;
   z-index: 14;
   inset: 0;
@@ -90,70 +85,23 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
     radial-gradient(circle at 18% 49%, rgba(197, 103, 72, .018), transparent 32%);
 }
 
-/* Chapter 02 is a composed beat: a small ruled kicker creates hierarchy before
-   the serif sentence. It holds long enough to read, then yields upward. */
 .trajectory-intro {
   position: absolute;
   z-index: 8;
-  left: 50%;
-  top: 47%;
-  width: min(650px, 70vw);
-  translate: -50% -50%;
-  text-align: left;
   will-change: transform, opacity;
 }
 
-.trajectory-intro__kicker {
-  width: max-content;
-  margin: 0 auto 22px;
-  display: grid;
-  grid-template-columns: auto 52px auto;
-  align-items: center;
-  gap: 10px;
-  color: var(--trajectory-muted);
-  font: 8px/1 var(--font-mono);
-  letter-spacing: .16em;
-}
-
-.trajectory-intro__kicker span {
-  color: var(--color-accent);
-}
-
-.trajectory-intro__kicker i {
-  height: 1px;
-  background: rgba(238, 234, 226, .34);
-}
-
-.trajectory-intro__kicker b {
-  font-weight: 400;
-}
-
-.trajectory-intro p {
-  margin: 0;
-  text-align: center;
-  font-family: var(--font-serif);
-  font-size: clamp(2.15rem, 3.45vw, 3.8rem);
-  font-style: italic;
-  font-weight: 400;
-  line-height: 1.04;
-  letter-spacing: -.03em;
-  text-wrap: balance;
-}
-
-/* Persistent information hierarchy: chapter identity on the left, temporal
-   scope and role count on the right. */
+/* Persistent chapter identity. The h2 remains visually restrained while
+   establishing the semantic section level above individual roles. */
 .trajectory-header {
   position: absolute;
   z-index: 12;
-  left: 22px;
-  right: 22px;
-  top: 22px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   color: var(--trajectory-muted);
-  font: 8px/1 var(--font-mono);
-  letter-spacing: .13em;
+  font: 500 var(--t-label)/1 var(--font-info);
+  letter-spacing: var(--track-label);
   will-change: transform, opacity;
 }
 
@@ -167,7 +115,7 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
   gap: 10px;
 }
 
-.trajectory-header__label span {
+.trajectory-header__label .narrative-signal__index {
   color: var(--color-accent);
 }
 
@@ -178,24 +126,23 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
   opacity: .46;
 }
 
-.trajectory-header__label b {
-  font-weight: 400;
+.trajectory-header__label .narrative-signal__label {
+  color: inherit;
+  font-weight: 500;
 }
 
 .trajectory-header__meta {
   gap: 18px;
-  color: rgba(238, 234, 226, .31);
+  color: rgba(238, 234, 226, .52);
+  font-size: var(--t-meta);
 }
 
 .trajectory-header__meta span + span::before {
   content: "·";
   margin-right: 18px;
-  color: rgba(238, 234, 226, .18);
+  color: rgba(238, 234, 226, .28);
 }
 
-/* The timeline is intentionally close to the earlier portfolio language: a
-   simple stationary rule, not a dramatic transformed line. It draws in quietly
-   once the chapter beat has established the section. */
 .trajectory-axis {
   position: absolute;
   z-index: 7;
@@ -219,8 +166,6 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
   transition: height .08s linear;
 }
 
-/* Years move around a stable focal band. The active node gains a tiny halo and
-   a connector; these are microinteractions, not a second animation system. */
 .trajectory-years {
   position: absolute;
   z-index: 11;
@@ -236,9 +181,9 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
   left: 0;
   top: 0;
   width: 112px;
-  color: rgba(238, 234, 226, calc(.18 + var(--year-focus) * .68));
-  font: 8px/1 var(--font-mono);
-  letter-spacing: .13em;
+  color: rgba(238, 234, 226, calc(.22 + var(--year-focus) * .68));
+  font: 500 var(--t-telemetry)/1 var(--font-info);
+  letter-spacing: .11em;
   will-change: transform, opacity;
 }
 
@@ -254,9 +199,9 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
   left: 18px;
   top: 0;
   transform: translateY(-50%);
-  color: rgba(238, 234, 226, calc(.08 + var(--year-focus) * .28));
-  font-weight: 400;
-  font-size: 7px;
+  color: rgba(238, 234, 226, calc(.14 + var(--year-focus) * .30));
+  font-weight: 500;
+  font-size: var(--t-telemetry);
 }
 
 .trajectory-year i {
@@ -329,14 +274,13 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
 }
 
 .trajectory-entry__eyebrow,
-.trajectory-entry h2,
+.trajectory-entry h3,
 .trajectory-entry__context,
 .trajectory-entry__statement,
 .trajectory-entry__focus {
   will-change: translate, opacity;
 }
 
-/* Eyebrow is the first hierarchy level and has its own tiny ruled motion. */
 .trajectory-entry__eyebrow {
   translate: 0 var(--eyebrow-y);
   margin-bottom: 16px;
@@ -345,45 +289,45 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
   grid-template-columns: auto minmax(28px, 58px) auto;
   align-items: center;
   gap: 9px;
-  color: rgba(238, 234, 226, calc(.16 + var(--entry-focus) * .42));
-  font: 8px/1 var(--font-mono);
-  letter-spacing: .12em;
+  color: rgba(238, 234, 226, calc(.24 + var(--entry-focus) * .48));
+  font: 500 var(--t-meta)/1 var(--font-info);
+  letter-spacing: .10em;
 }
 
 .trajectory-entry__eyebrow span {
-  color: rgba(197, 103, 72, calc(.28 + var(--entry-focus) * .70));
+  color: rgba(197, 103, 72, calc(.38 + var(--entry-focus) * .62));
 }
 
 .trajectory-entry__eyebrow i {
   height: 1px;
-  background: rgba(238, 234, 226, calc(.08 + var(--entry-focus) * .36));
+  background: rgba(238, 234, 226, calc(.10 + var(--entry-focus) * .38));
   transform: scaleX(calc(.18 + var(--entry-focus) * .82));
   transform-origin: left center;
 }
 
-.trajectory-entry__eyebrow b {
-  font-weight: 400;
+.trajectory-entry__eyebrow time {
+  font: inherit;
 }
 
-.trajectory-entry h2 {
+/* Roles remain protagonists, but no longer overpower the shipped systems that
+   follow in Chapter 03. */
+.trajectory-entry h3 {
   max-width: min(62vw, 820px);
   margin: 0;
   translate: 0 var(--role-y);
   color: rgba(238, 234, 226, calc(.10 + var(--entry-focus) * .90));
-  font-family: var(--font-display);
-  font-size: clamp(3.35rem, 6.05vw, 7rem);
-  font-weight: var(--w-black);
-  line-height: .86;
-  letter-spacing: -.042em;
+  font-family: var(--font-title);
+  font-size: var(--t-role);
+  font-weight: var(--w-bold);
+  line-height: .89;
+  letter-spacing: -.038em;
   text-transform: uppercase;
   text-wrap: balance;
 }
 
-/* Organization/context sit on one restrained metadata row. Their underline
-   length and contrast follow focus, creating motion without moving the whole UI. */
 .trajectory-entry__context {
   translate: 0 var(--context-y);
-  margin-top: 24px;
+  margin: 24px 0 0;
   width: min(560px, 48vw);
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -408,27 +352,26 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
   transform-origin: left center;
 }
 
-.trajectory-entry__context small,
-.trajectory-entry__context strong {
+.trajectory-entry__context dt,
+.trajectory-entry__context dd {
   display: block;
+  margin: 0;
 }
 
-.trajectory-entry__context small {
+.trajectory-entry__context dt {
   margin-bottom: 6px;
-  color: rgba(238, 234, 226, calc(.13 + var(--entry-focus) * .23));
-  font: 7px/1 var(--font-mono);
-  letter-spacing: .14em;
+  color: rgba(238, 234, 226, calc(.30 + var(--entry-focus) * .35));
+  font: 500 var(--t-label)/1 var(--font-info);
+  letter-spacing: var(--track-label);
 }
 
-.trajectory-entry__context strong {
-  color: rgba(238, 234, 226, calc(.20 + var(--entry-focus) * .48));
-  font-size: clamp(.82rem, .95vw, 1rem);
-  font-weight: 450;
+.trajectory-entry__context dd {
+  color: rgba(238, 234, 226, calc(.32 + var(--entry-focus) * .54));
+  font-size: clamp(.86rem, .98vw, 1.04rem);
+  font-weight: 500;
   letter-spacing: -.01em;
 }
 
-/* The statement gets a different entrance language from the title: a vertical
-   editorial rule establishes the block, then the copy follows behind it. */
 .trajectory-entry__statement {
   translate: 0 var(--summary-y);
   margin-top: 22px;
@@ -448,8 +391,8 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
 
 .trajectory-entry__statement p {
   margin: 0;
-  color: rgba(238, 234, 226, calc(.10 + var(--entry-focus) * .56));
-  font-size: clamp(.92rem, 1.04vw, 1.08rem);
+  color: rgba(238, 234, 226, calc(.16 + var(--entry-focus) * .62));
+  font-size: clamp(.96rem, 1.08vw, 1.12rem);
   line-height: 1.47;
   letter-spacing: -.014em;
 }
@@ -458,16 +401,17 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
   translate: 0 var(--tags-y);
   margin-top: 18px;
   display: grid;
-  grid-template-columns: 52px 1fr;
+  grid-template-columns: 58px 1fr;
   align-items: start;
   gap: 12px;
 }
 
-.trajectory-entry__focus > span {
+.trajectory-entry__focus > h4 {
+  margin: 0;
   padding-top: 2px;
-  color: rgba(238, 234, 226, calc(.11 + var(--entry-focus) * .25));
-  font: 7px/1 var(--font-mono);
-  letter-spacing: .15em;
+  color: rgba(238, 234, 226, calc(.28 + var(--entry-focus) * .34));
+  font: 500 var(--t-label)/1 var(--font-info);
+  letter-spacing: var(--track-label);
 }
 
 .trajectory-entry__focus ul {
@@ -477,9 +421,9 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
   flex-wrap: wrap;
   gap: 7px 13px;
   list-style: none;
-  color: rgba(238, 234, 226, calc(.12 + var(--entry-focus) * .42));
-  font: 8px/1 var(--font-mono);
-  letter-spacing: .08em;
+  color: rgba(238, 234, 226, calc(.22 + var(--entry-focus) * .50));
+  font: 500 var(--t-meta)/1 var(--font-info);
+  letter-spacing: .07em;
   text-transform: uppercase;
 }
 
@@ -490,11 +434,9 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
 .trajectory-entry__focus li::before {
   content: "—";
   margin-right: 6px;
-  color: rgba(197, 103, 72, calc(.18 + var(--entry-focus) * .66));
+  color: rgba(197, 103, 72, calc(.28 + var(--entry-focus) * .66));
 }
 
-/* Supporting odometer. It responds continuously to fractional experience
-   position but never competes with the role title. */
 .trajectory-counter {
   position: absolute;
   z-index: 9;
@@ -504,12 +446,12 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
   color: rgba(238, 234, 226, .16);
 }
 
-.trajectory-counter > small {
+.trajectory-counter > span {
   display: block;
   margin: 0 0 7px 2px;
-  color: rgba(238, 234, 226, .25);
-  font: 7px/1 var(--font-mono);
-  letter-spacing: .16em;
+  color: rgba(238, 234, 226, .34);
+  font: 500 var(--t-telemetry)/1 var(--font-info);
+  letter-spacing: var(--track-micro);
 }
 
 .trajectory-counter__row {
@@ -517,7 +459,7 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
   grid-template-columns: auto 24px auto;
   align-items: center;
   gap: 9px;
-  font-family: var(--font-display);
+  font-family: var(--font-title);
   font-size: clamp(2.7rem, 4.1vw, 4.7rem);
   font-weight: var(--w-black);
   line-height: 1;
@@ -549,9 +491,9 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
 
 .trajectory-counter__row > span {
   align-self: center;
-  color: rgba(238, 234, 226, .28);
-  font: 8px/1 var(--font-mono);
-  letter-spacing: .12em;
+  color: rgba(238, 234, 226, .36);
+  font: 500 var(--t-telemetry)/1 var(--font-info);
+  letter-spacing: .10em;
 }
 
 @media (max-width: 900px) {
@@ -565,9 +507,9 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
     right: 4vw;
   }
 
-  .trajectory-entry h2 {
+  .trajectory-entry h3 {
     max-width: 69vw;
-    font-size: clamp(3.1rem, 8vw, 6.2rem);
+    font-size: clamp(3rem, 7.2vw, 5.6rem);
   }
 
   .trajectory-entry__context,
@@ -583,15 +525,6 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
 @media (max-width: 680px) {
   .trajectory-intro {
     width: 86vw;
-  }
-
-  .trajectory-intro p {
-    font-size: 9vw;
-  }
-
-  .trajectory-header {
-    left: 14px;
-    right: 14px;
   }
 
   .trajectory-header__meta {
@@ -614,9 +547,9 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
     top: 45%;
   }
 
-  .trajectory-entry h2 {
+  .trajectory-entry h3 {
     max-width: 76vw;
-    font-size: 10.5vw;
+    font-size: 9.6vw;
   }
 
   .trajectory-entry__context {
@@ -631,11 +564,11 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
   }
 
   .trajectory-entry__statement p {
-    font-size: .86rem;
+    font-size: .9rem;
   }
 
   .trajectory-entry__focus {
-    grid-template-columns: 42px 1fr;
+    grid-template-columns: 48px 1fr;
   }
 
   .trajectory-entry__focus ul {

@@ -31,6 +31,14 @@ const edgeLabelStyle = (project: SystemProject, edge: GraphEdge) => {
   };
 };
 
+const architectureDescription = (project: SystemProject) => {
+  const nodes = project.graph.nodes.map((node) => node.label).join(", ");
+  const edges = project.graph.edges
+    .map((edge) => edge.label || `${edge.from} to ${edge.to}`)
+    .join("; ");
+  return `Components: ${nodes}. Connections: ${edges}.`;
+};
+
 const systemCount = String(projects.length).padStart(2, "0");
 </script>
 
@@ -61,7 +69,7 @@ const systemCount = String(projects.length).padStart(2, "0");
         :data-index="index"
         :style="{ '--axis-slot': projects.length > 1 ? index / (projects.length - 1) : 0 }"
       >
-        <span>{{ project.id }}</span><i /><b>{{ project.code }}</b>
+        <i /><b>{{ project.code }}</b>
       </div>
     </div>
 
@@ -73,30 +81,27 @@ const systemCount = String(projects.length).padStart(2, "0");
         :data-index="index"
       >
         <div class="systems-project__identity">
-          <div class="systems-project__eyebrow">
-            <span>{{ project.id }}</span><i /><b>{{ project.code }}</b>
-          </div>
-          <span class="systems-project__field">{{ project.field }}</span>
-          <h2>{{ project.title }}</h2>
+          <h3>{{ project.title }}</h3>
           <p class="systems-project__premise">{{ project.premise }}</p>
         </div>
 
-        <div class="systems-project__architecture">
-          <div class="systems-project__architecture-heading">
-            <span>SYSTEM ARCHITECTURE</span><i /><b>{{ project.id }} / {{ systemCount }}</b>
-          </div>
+        <section class="systems-project__architecture">
+          <h4 class="systems-project__architecture-heading">
+            <span>SYSTEM ARCHITECTURE</span><i aria-hidden="true" />
+          </h4>
 
           <div class="systems-graph-field">
-            <span class="systems-graph-field__index">ARCH / {{ project.id }}</span>
-            <span class="systems-graph-field__mode">{{ project.code }}</span>
             <div class="systems-graph-field__crosshair" aria-hidden="true" />
             <svg
               class="systems-graph"
               viewBox="0 0 100 64"
               preserveAspectRatio="xMidYMid meet"
-              aria-hidden="true"
+              role="img"
+              :aria-labelledby="`system-graph-title-${project.id} system-graph-desc-${project.id}`"
             >
-              <g class="systems-graph__edges">
+              <title :id="`system-graph-title-${project.id}`">{{ project.title }} architecture</title>
+              <desc :id="`system-graph-desc-${project.id}`">{{ architectureDescription(project) }}</desc>
+              <g class="systems-graph__edges" aria-hidden="true">
                 <template v-for="edge in project.graph.edges" :key="`${edge.from}-${edge.to}`">
                   <path
                     class="systems-graph__edge systems-graph__edge--base"
@@ -111,7 +116,7 @@ const systemCount = String(projects.length).padStart(2, "0");
                   />
                 </template>
               </g>
-              <g class="systems-graph__nodes">
+              <g class="systems-graph__nodes" aria-hidden="true">
                 <g
                   v-for="(node, nodeIndex) in project.graph.nodes"
                   :key="node.id"
@@ -133,32 +138,36 @@ const systemCount = String(projects.length).padStart(2, "0");
               :key="`label-${edge.from}-${edge.to}`"
               class="systems-graph__edge-label"
               :style="edgeLabelStyle(project, edge)"
+              aria-hidden="true"
             >
               {{ edge.label }}
             </span>
           </div>
-        </div>
+        </section>
 
-        <p class="systems-project__detail">{{ project.detail }}</p>
+        <section class="systems-project__detail">
+          <h4>SYSTEM NOTE</h4>
+          <p>{{ project.detail }}</p>
+        </section>
 
-        <div class="systems-project__evidence">
-          <span>EVIDENCE / {{ project.id }}</span>
-          <i />
-          <strong>{{ project.outcome }}</strong>
-        </div>
+        <section class="systems-project__evidence">
+          <h4>EVIDENCE</h4>
+          <i aria-hidden="true" />
+          <p>{{ project.outcome }}</p>
+        </section>
 
-        <div class="systems-project__implementation">
-          <span>IMPLEMENTATION</span>
-          <div>
-            <b
+        <section class="systems-project__implementation">
+          <h4>IMPLEMENTATION</h4>
+          <ul>
+            <li
               v-for="(item, stackIndex) in project.stack"
               :key="item"
               :style="{ '--stack-index': stackIndex }"
             >
               {{ item }}
-            </b>
-          </div>
-        </div>
+            </li>
+          </ul>
+        </section>
       </article>
     </div>
   </div>

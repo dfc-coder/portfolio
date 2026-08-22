@@ -3,14 +3,7 @@
 @import "@fontsource/syne/latin-800.css";
 @import "@fontsource/instrument-sans/latin-400.css";
 @import "@fontsource/instrument-sans/latin-500.css";
-@import "@fontsource/instrument-sans/latin-600.css";
-@import "@fontsource/instrument-sans/latin-700.css";
-@import "@fontsource/instrument-sans/latin-400-italic.css";
-@import "@fontsource/instrument-serif/latin-400.css";
 @import "@fontsource/instrument-serif/latin-400-italic.css";
-@import "@fontsource/dm-mono/latin-300.css";
-@import "@fontsource/dm-mono/latin-400.css";
-@import "@fontsource/dm-mono/latin-500.css";
 
 :root {
   --color-ink: #090908;
@@ -22,33 +15,32 @@
   --line-light: rgba(238, 234, 226, .2);
   --line-dark: rgba(9, 9, 8, .2);
 
-  --font-mono: "DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --font-sans: "Instrument Sans", system-ui, sans-serif;
-  --font-serif: "Instrument Serif", Georgia, serif;
-  --font-display: "Syne", "Instrument Sans", system-ui, sans-serif;
+  /* Three-family system: titles, information/body, editorial highlights. */
+  --font-title: "Syne", "Instrument Sans", system-ui, sans-serif;
+  --font-info: "Instrument Sans", system-ui, sans-serif;
+  --font-highlight: "Instrument Serif", Georgia, serif;
 
   --w-regular: 400;
   --w-medium: 500;
-  --w-semi: 600;
   --w-bold: 700;
   --w-black: 800;
 
-  --t-micro: 9px;
-  --t-label: 10px;
-  --t-caption: clamp(.82rem, .45vw + .68rem, .98rem);
-  --t-body: clamp(1.05rem, .62vw + .88rem, 1.32rem);
+  /* 8px is reserved for ornamental telemetry. Information starts at 10px. */
+  --t-telemetry: 8px;
+  --t-meta: 10px;
+  --t-label: 11px;
   --t-lead: clamp(1.35rem, 1.5vw + .95rem, 2.15rem);
-  --t-h3: clamp(1.6rem, 2vw + .9rem, 2.8rem);
-  --t-h2: clamp(2.6rem, 5.2vw, 5rem);
-  --t-h2-wide: clamp(3rem, 6.4vw, 6.2rem);
+  --t-beat: clamp(2.35rem, 3.55vw, 4.15rem);
+  --t-role: clamp(2.9rem, 4.85vw, 5.7rem);
+  --t-system: clamp(3.55rem, 5.35vw, 6.4rem);
   --t-display: clamp(4.2rem, 16.5vw, 19rem);
 
   --track-display: -.045em;
   --track-tight: -.03em;
   --track-snug: -.015em;
   --track-normal: 0;
-  --track-label: .14em;
-  --track-micro: .18em;
+  --track-label: .12em;
+  --track-micro: .16em;
 
   --lead-solid: .82;
   --lead-tight: 1.06;
@@ -65,7 +57,7 @@
 }
 
 body {
-  font-family: var(--font-sans);
+  font-family: var(--font-info);
   font-weight: var(--w-regular);
   letter-spacing: var(--track-snug);
   -webkit-font-smoothing: antialiased;
@@ -76,7 +68,7 @@ body {
 .ref-brand,
 .ref-brand strong,
 .ref-hero__title {
-  font-family: var(--font-display);
+  font-family: var(--font-title);
 }
 
 .ref-hero__title {
@@ -99,16 +91,15 @@ body {
 }
 
 .ref-hero__thesis em,
+.ref-chapter p,
 .ref-chapter p em {
-  font-family: var(--font-serif);
+  font-family: var(--font-highlight);
   font-weight: var(--w-regular);
   font-style: italic;
 }
 
 .ref-chapter p {
-  font-family: var(--font-serif);
-  font-size: var(--t-h3);
-  font-weight: var(--w-regular);
+  font-size: var(--t-beat);
   line-height: var(--lead-snug);
 }
 
@@ -117,6 +108,6 @@ body {
 .ref-scroll-cue,
 .ref-hero__meta,
 .ref-progress {
-  font-family: var(--font-mono);
+  font-family: var(--font-info);
   letter-spacing: var(--track-label);
 }

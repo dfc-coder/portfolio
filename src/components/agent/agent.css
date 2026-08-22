@@ -12,7 +12,7 @@
   --os-gold: #cdb675;
   --os-line: rgba(236, 230, 213, 0.12);
   --os-line-strong: rgba(236, 230, 213, 0.24);
-  --os-dim: rgba(236, 230, 213, 0.42);
+  --os-dim: rgba(236, 230, 213, 0.48);
 }
 
 .ref-scene--agent {
@@ -28,7 +28,7 @@
   background: rgba(6, 7, 8, 0.72);
 }
 
-.ref-scene--agent .ref-marker span {
+.ref-scene--agent .ref-marker > span:first-child {
   color: var(--os-gold);
 }
 
@@ -45,7 +45,7 @@
   height: 100%;
   padding: 76px clamp(24px, 4.6vw, 68px) 20px;
   color: var(--os-paper);
-  font-family: var(--font-sans);
+  font-family: var(--font-info);
   isolation: isolate;
 }
 
@@ -208,23 +208,23 @@
   gap: 4px;
   padding-right: 12px;
   border-right: 1px solid rgba(205, 182, 117, 0.36);
-  font-family: var(--font-mono);
+  font-family: var(--font-info);
   text-align: right;
 }
 
 .agent-core__readout span,
 .agent-core__readout small {
   color: var(--os-dim);
-  font-size: 7px;
+  font-size: var(--t-telemetry);
   line-height: 1;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.12em;
 }
 
 .agent-core__readout b {
   color: var(--os-gold);
-  font-size: 8px;
-  font-weight: 400;
-  letter-spacing: 0.13em;
+  font-size: var(--t-meta);
+  font-weight: 500;
+  letter-spacing: 0.1em;
 }
 
 .agent-presence__label {
@@ -236,12 +236,12 @@
   align-items: center;
   gap: 9px;
   color: var(--os-dim);
-  font: 400 8px/1 var(--font-mono);
-  letter-spacing: 0.15em;
+  font: 500 var(--t-meta)/1 var(--font-info);
+  letter-spacing: 0.1em;
 }
 
 .agent-presence__label b {
-  font-weight: 400;
+  font-weight: 500;
   color: var(--os-gold);
 }
 
@@ -283,9 +283,9 @@
   align-items: center;
   gap: 12px;
   min-height: 18px;
-  color: var(--os-dim);
-  font: 400 7.5px/1 var(--font-mono);
-  letter-spacing: 0.15em;
+  color: rgba(236, 230, 213, 0.62);
+  font: 500 var(--t-label)/1 var(--font-info);
+  letter-spacing: 0.1em;
 }
 
 .agent-chat__rail i {
@@ -294,8 +294,9 @@
 }
 
 .agent-chat__rail b {
-  color: rgba(205, 182, 117, 0.66);
-  font-weight: 400;
+  color: rgba(205, 182, 117, 0.76);
+  font-size: var(--t-meta);
+  font-weight: 500;
 }
 
 .agent-lane {
@@ -346,9 +347,9 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
-  color: var(--os-dim);
-  font: 400 7.5px/1 var(--font-mono);
-  letter-spacing: 0.12em;
+  color: rgba(236, 230, 213, 0.58);
+  font: 500 var(--t-meta)/1 var(--font-info);
+  letter-spacing: 0.09em;
 }
 
 .agent-msg--user .agent-msg__meta {
@@ -371,13 +372,13 @@
 }
 
 .agent-msg__body {
-  font-family: var(--font-sans);
+  font-family: var(--font-info);
 }
 
 .agent-msg__body p {
   margin: 0 0 6px;
-  color: rgba(238, 234, 226, 0.91);
-  font-family: var(--font-sans);
+  color: rgba(238, 234, 226, 0.93);
+  font-family: var(--font-info);
   font-size: clamp(13px, 0.9vw, 15px);
   font-weight: 400;
   line-height: 1.6;
@@ -404,8 +405,8 @@
 
 .agent-msg__item b {
   color: var(--os-gold);
-  font: 400 8px/1 var(--font-mono);
-  letter-spacing: 0.1em;
+  font: 500 var(--t-meta)/1 var(--font-info);
+  letter-spacing: 0.08em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -484,8 +485,8 @@
 
 .agent-ask > span {
   color: var(--os-gold);
-  font: 400 9px/1 var(--font-mono);
-  letter-spacing: 0.12em;
+  font: 500 var(--t-label)/1 var(--font-info);
+  letter-spacing: 0.1em;
 }
 
 .agent-ask input {
@@ -498,7 +499,7 @@
   background: transparent;
   color: var(--os-paper);
   caret-color: var(--os-gold);
-  font: 400 13px/1.45 var(--font-sans);
+  font: 400 13px/1.45 var(--font-info);
   letter-spacing: -0.005em;
   box-shadow: none !important;
   appearance: none;
@@ -512,7 +513,7 @@
 }
 
 .agent-ask input::placeholder {
-  color: rgba(236, 230, 213, 0.28);
+  color: rgba(236, 230, 213, 0.32);
 }
 
 .agent-ask button {
@@ -526,7 +527,7 @@
   outline: 0;
   background: transparent;
   color: var(--os-gold);
-  font: 400 19px/1 var(--font-sans);
+  font: 400 19px/1 var(--font-info);
   transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
@@ -547,8 +548,8 @@
 .agent-os__error {
   margin: 0;
   color: #d08a6a;
-  font: 400 9px/1.4 var(--font-mono);
-  letter-spacing: 0.1em;
+  font: 500 var(--t-meta)/1.4 var(--font-info);
+  letter-spacing: 0.08em;
 }
 
 /* --------------------------------------------------------------- foot --- */
@@ -558,8 +559,8 @@
   grid-row: 2 / 3;
   text-align: right;
   color: var(--os-dim);
-  font: 400 7px/1 var(--font-mono);
-  letter-spacing: 0.13em;
+  font: 500 var(--t-telemetry)/1 var(--font-info);
+  letter-spacing: 0.1em;
 }
 
 .sr-only {
@@ -699,7 +700,7 @@
   }
 
   .agent-ask > span {
-    font-size: 8px;
+    font-size: var(--t-meta);
   }
 
   .agent-ask input {
