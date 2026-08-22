@@ -103,7 +103,7 @@ const menuOpen = ref(false);
               type="button"
               :aria-label="`Open ${artwork.title}`"
             >
-              <img :src="artwork.src" :alt="artwork.title" />
+              <img :src="artwork.src" :alt="artwork.title" draggable="false" />
             </button>
           </div>
         </article>
