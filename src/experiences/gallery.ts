@@ -104,8 +104,8 @@ export const mountGalleryGel = () => {
     <figure class="ref-gallery-focus__figure">
       <div class="ref-gallery-focus__image-wrap"><img class="ref-gallery-focus__image" alt="" /></div>
       <figcaption class="ref-gallery-focus__caption">
-        <div class="ref-gallery-focus__signal"><span></span><i></i><b>VISUAL ARCHIVE</b></div>
-        <h2></h2>
+        <div class="ref-gallery-focus__signal"><span></span><i></i><span class="ref-gallery-focus__signal-label">VISUAL ARCHIVE</span></div>
+        <h3></h3>
         <p class="ref-gallery-focus__type"></p>
         <p class="ref-gallery-focus__meta"></p>
       </figcaption>
@@ -114,7 +114,7 @@ export const mountGalleryGel = () => {
   gallery.append(focus);
 
   const focusImage = focus.querySelector<HTMLImageElement>(".ref-gallery-focus__image");
-  const focusTitle = focus.querySelector<HTMLElement>(".ref-gallery-focus__caption h2");
+  const focusTitle = focus.querySelector<HTMLElement>(".ref-gallery-focus__caption h3");
   const focusType = focus.querySelector<HTMLElement>(".ref-gallery-focus__type");
   const focusMeta = focus.querySelector<HTMLElement>(".ref-gallery-focus__meta");
   const focusIndex = focus.querySelector<HTMLElement>(".ref-gallery-focus__signal span");
