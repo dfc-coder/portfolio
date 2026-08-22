@@ -142,11 +142,15 @@ test("SDD: Trajectory and Systems rails share one physical register", async () =
 test("TDD: Systems template chrome is persistent and project content stays semantic", async () => {
   const scene = await read("src/components/narrative/SystemsScene.vue");
   const systems = await read("src/experiences/systems.css");
+  const chromeStart = scene.indexOf('<div class="systems-static-chrome"');
+  const chromeEnd = scene.indexOf('<div class="systems-projects">', chromeStart);
+  const chrome = scene.slice(chromeStart, chromeEnd);
 
-  assert.equal((scene.match(/class="systems-static-chrome"/g) ?? []).length, 1);
-  for (const label of ["SYSTEM ARCHITECTURE", "SYSTEM NOTE", "EVIDENCE", "IMPLEMENTATION"]) {
-    assert.equal((scene.match(new RegExp(label, "g")) ?? []).length, 1);
-  }
+  assert.ok(chromeStart >= 0 && chromeEnd > chromeStart);
+  assert.match(chrome, /systems-static-chrome__architecture[\s\S]*SYSTEM ARCHITECTURE/);
+  assert.match(chrome, /systems-static-chrome__detail[\s\S]*SYSTEM NOTE/);
+  assert.match(chrome, /systems-static-chrome__evidence[\s\S]*EVIDENCE/);
+  assert.match(chrome, /systems-static-chrome__implementation[\s\S]*IMPLEMENTATION/);
   assert.match(scene, /<h4 class="sr-only">System architecture<\/h4>/);
   assert.match(scene, /<h4 class="sr-only">System note<\/h4>/);
   assert.match(scene, /<h4 class="sr-only">Evidence<\/h4>/);
