@@ -155,7 +155,11 @@ test("TDD: continuity cannot own Systems or Trajectory geometry", async () => {
   const css = await read("src/experiences/continuity.css");
   assert.doesNotMatch(css, /\.(systems|trajectory)-/);
   assert.match(css, /\.ref-global-pointer-light/);
-  assert.match(css, /ellipse\s+64rem\s+46rem/i);
+  assert.match(css, /width:\s*min\(82rem,\s*118vw\)/i);
+  assert.match(css, /height:\s*min\(58rem,\s*94vh\)/i);
+  assert.match(css, /ellipse\s+at\s+center/i);
+  assert.match(css, /transform:\s*translate3d\(/i);
+  assert.match(css, /contain:\s*layout\s+paint\s+style/i);
 });
 
 test("TDD: cross-chapter handoff lives outside Systems", async () => {
