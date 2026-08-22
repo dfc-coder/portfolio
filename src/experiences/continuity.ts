@@ -1,6 +1,9 @@
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
+const damp = (current: number, target: number, response: number, dt: number) =>
+  current + (target - current) * (1 - Math.exp(-response * dt));
+
 const CURSOR_INTERACTIVE = "button, a, input, textarea, select, [data-cursor]";
 type CursorState = "idle" | "hover" | "press" | "text";
 
@@ -12,7 +15,7 @@ const cursorStateFor = (element: Element | null): CursorState => {
 /**
  * Owns the visual effects that intentionally survive chapter boundaries:
  * one ambient pointer field and, on fine pointers, one custom cursor.
- * Both share a single animation frame loop and a single pointer listener.
+ * Both share a single time-based animation loop and a single pointer listener.
  */
 export const mountVisualContinuity = () => {
   const stage = document.querySelector<HTMLElement>(".ref-stage");
@@ -58,6 +61,7 @@ export const mountVisualContinuity = () => {
   let ringY = pointerY;
   let cursorSeen = false;
   let cursorState: CursorState = "idle";
+  let lastFrameTime = performance.now();
 
   const setCursorState = (state: CursorState) => {
     cursorState = state;
@@ -68,12 +72,12 @@ export const mountVisualContinuity = () => {
   const onPointerMove = (event: PointerEvent) => {
     pointerX = event.clientX;
     pointerY = event.clientY;
-    targetX = clamp((pointerX / innerWidth) * 100 - 2.4, -4, 104);
-    targetY = clamp((pointerY / innerHeight) * 100 + 2.8, -4, 104);
+    targetX = clamp((pointerX / innerWidth) * 100 - 1.4, -4, 104);
+    targetY = clamp((pointerY / innerHeight) * 100 + 1.6, -4, 104);
 
     const dx = pointerX - lastX;
     const dy = pointerY - lastY;
-    targetVelocity = clamp(Math.hypot(dx, dy) / 46, 0, 1);
+    targetVelocity = clamp(Math.hypot(dx, dy) / 44, 0, 1);
     lastX = pointerX;
     lastY = pointerY;
 
@@ -113,22 +117,22 @@ export const mountVisualContinuity = () => {
     targetVelocity = 0;
   };
 
-  const render = () => {
-    currentX += (targetX - currentX) * .052;
-    currentY += (targetY - currentY) * .044;
-    currentVelocity += (targetVelocity - currentVelocity) * .07;
-    targetVelocity *= .88;
+  const render = (time: number) => {
+    const dt = Math.min(0.05, Math.max(0.001, (time - lastFrameTime) / 1000));
+    lastFrameTime = time;
 
-    const x = `${currentX.toFixed(3)}%`;
-    const y = `${currentY.toFixed(3)}%`;
-    const velocity = currentVelocity.toFixed(4);
-    stage.style.setProperty("--ref-pointer-x", x);
-    stage.style.setProperty("--ref-pointer-y", y);
-    stage.style.setProperty("--ref-pointer-velocity", velocity);
+    currentX = damp(currentX, targetX, 8.5, dt);
+    currentY = damp(currentY, targetY, 8.5, dt);
+    currentVelocity = damp(currentVelocity, targetVelocity, 10, dt);
+    targetVelocity *= Math.exp(-8 * dt);
+
+    stage.style.setProperty("--ref-pointer-x", `${currentX.toFixed(3)}%`);
+    stage.style.setProperty("--ref-pointer-y", `${currentY.toFixed(3)}%`);
+    stage.style.setProperty("--ref-pointer-velocity", currentVelocity.toFixed(4));
 
     if (ring) {
-      ringX += (pointerX - ringX) * .16;
-      ringY += (pointerY - ringY) * .16;
+      ringX = damp(ringX, pointerX, 18, dt);
+      ringY = damp(ringY, pointerY, 18, dt);
       ring.style.transform = `translate3d(${ringX}px, ${ringY}px, 0)`;
     }
 
