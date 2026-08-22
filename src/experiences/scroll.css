@@ -41,18 +41,25 @@
   filter: blur(calc((1 - var(--career)) * 4px)) !important;
 }
 
+/* Gallery exists and can receive input only while the scroll director owns it. */
+.ref-stage:not([data-scene="gallery"]) .ref-scene--gallery {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.ref-stage:not([data-scene="gallery"]) .ref-scene--gallery .ref-art-card,
+.ref-stage:not([data-scene="gallery"]) .ref-scene--gallery .ref-gallery-focus {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 /* Gallery -> THE INTERFACE -> Agent is an exclusive state boundary. */
 .ref-stage[data-scene="gallery"] .ref-scene--chapter[data-chapter="agent"] {
   opacity: 0 !important;
   visibility: hidden !important;
 }
 
-.ref-stage[data-scene="chapter"] .ref-scene--gallery {
-  opacity: 0 !important;
-  visibility: hidden !important;
-}
-
-.ref-stage[data-scene="agent"] .ref-scene--gallery,
 .ref-stage[data-scene="agent"] .ref-scene--chapter[data-chapter="agent"] {
   opacity: 0 !important;
   visibility: hidden !important;
