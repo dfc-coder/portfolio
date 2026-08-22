@@ -496,6 +496,70 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
   letter-spacing: .10em;
 }
 
+/* Repeated template chrome stays fixed while role-specific values translate. */
+.trajectory-static-chrome {
+  position: absolute;
+  z-index: 11;
+  inset: 0;
+  opacity: var(--trajectory-content, 0);
+  pointer-events: none;
+  color: rgba(238, 234, 226, .64);
+  font: 500 var(--t-label)/1 var(--font-info);
+  letter-spacing: var(--track-label);
+}
+
+.trajectory-static-chrome__context {
+  position: absolute;
+  left: 29%;
+  top: 57.5%;
+  width: min(560px, 48vw);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 30px;
+}
+
+.trajectory-static-chrome__context span {
+  position: relative;
+  display: block;
+  padding-bottom: 30px;
+}
+
+.trajectory-static-chrome__context span::after,
+.trajectory-static-chrome__context span::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 1px;
+}
+
+.trajectory-static-chrome__context span::after {
+  right: 0;
+  background: rgba(238, 234, 226, .18);
+}
+
+.trajectory-static-chrome__context span::before {
+  z-index: 1;
+  width: 42%;
+  background: rgba(238, 234, 226, .42);
+}
+
+.trajectory-static-chrome__focus {
+  position: absolute;
+  left: 29%;
+  top: 75.5%;
+}
+
+.trajectory-entry__context > div {
+  border-bottom-color: transparent;
+}
+
+.trajectory-entry__context > div::after,
+.trajectory-entry__context dt,
+.trajectory-entry__focus > h4 {
+  opacity: 0;
+}
+
 @media (max-width: 900px) {
   .trajectory-axis,
   .trajectory-years {
@@ -505,6 +569,15 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
   .trajectory-entry {
     left: 24%;
     right: 4vw;
+  }
+
+  .trajectory-static-chrome__context {
+    left: 24%;
+    width: min(62vw, 560px);
+  }
+
+  .trajectory-static-chrome__focus {
+    left: 24%;
   }
 
   .trajectory-entry h3 {
@@ -541,6 +614,10 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
     display: none;
   }
 
+  .trajectory-static-chrome {
+    display: none;
+  }
+
   .trajectory-entry {
     left: 20%;
     right: 4vw;
@@ -556,6 +633,16 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
     width: 72vw;
     grid-template-columns: 1fr;
     gap: 10px;
+  }
+
+  .trajectory-entry__context > div {
+    border-bottom-color: rgba(238, 234, 226, calc(.05 + var(--entry-focus) * .13));
+  }
+
+  .trajectory-entry__context > div::after,
+  .trajectory-entry__context dt,
+  .trajectory-entry__focus > h4 {
+    opacity: 1;
   }
 
   .trajectory-entry__statement {
