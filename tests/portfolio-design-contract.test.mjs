@@ -154,6 +154,19 @@ test("architecture: physical scroll has one runtime owner", async () => {
   assert.match(scroll, /mapPhysicalProgressToVirtualProgress/);
 });
 
+test("architecture: Gallery is isolated outside its active scene", async () => {
+  const component = await read("src/components/PortfolioExperience.vue");
+  const scrollCss = await read("src/experiences/scroll.css");
+  const gallery = await read("src/experiences/gallery.ts");
+
+  assert.match(component, /<img[^>]+draggable="false"/);
+  assert.match(scrollCss, /\.ref-stage:not\(\[data-scene="gallery"\]\) \.ref-scene--gallery/);
+  assert.match(scrollCss, /\.ref-art-card,[\s\S]*pointer-events:\s*none !important/);
+  assert.match(gallery, /const openFocus = \(index: number\) => \{\s*if \(!galleryIsVisible\(\)\) return;/);
+  assert.match(gallery, /const onPointerMove = \(event: PointerEvent\) => \{\s*if \(!galleryIsVisible\(\) \|\| isOpen\) return;/);
+  assert.doesNotMatch(gallery, /\n\s*setSelected\(0\);\n\s*gallery\.addEventListener/);
+});
+
 test("architecture: Systems motion is owned by systems.css", async () => {
   const systems = await read("src/experiences/systems.css");
   const bridges = await read("src/styles/chapter-bridges.css");
