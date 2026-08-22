@@ -3,8 +3,6 @@
 @import "@fontsource/syne/latin-800.css";
 @import "@fontsource/instrument-sans/latin-400.css";
 @import "@fontsource/instrument-sans/latin-500.css";
-@import "@fontsource/instrument-sans/latin-600.css";
-@import "@fontsource/instrument-sans/latin-700.css";
 @import "@fontsource/instrument-serif/latin-400-italic.css";
 
 :root {
@@ -24,23 +22,17 @@
 
   --w-regular: 400;
   --w-medium: 500;
-  --w-semi: 600;
   --w-bold: 700;
   --w-black: 800;
 
+  /* 8px is reserved for ornamental telemetry. Information starts at 10px. */
   --t-telemetry: 8px;
-  --t-meta: 9px;
-  --t-label: 10px;
-  --t-label-strong: 11px;
-  --t-caption: clamp(.82rem, .45vw + .68rem, .98rem);
-  --t-body: clamp(1.05rem, .62vw + .88rem, 1.32rem);
+  --t-meta: 10px;
+  --t-label: 11px;
   --t-lead: clamp(1.35rem, 1.5vw + .95rem, 2.15rem);
   --t-beat: clamp(2.35rem, 3.55vw, 4.15rem);
   --t-role: clamp(2.9rem, 4.85vw, 5.7rem);
   --t-system: clamp(3.55rem, 5.35vw, 6.4rem);
-  --t-h3: clamp(1.6rem, 2vw + .9rem, 2.8rem);
-  --t-h2: clamp(2.6rem, 5.2vw, 5rem);
-  --t-h2-wide: clamp(3rem, 6.4vw, 6.2rem);
   --t-display: clamp(4.2rem, 16.5vw, 19rem);
 
   --track-display: -.045em;
@@ -107,7 +99,7 @@ body {
 }
 
 .ref-chapter p {
-  font-size: var(--t-h3);
+  font-size: var(--t-beat);
   line-height: var(--lead-snug);
 }
 
