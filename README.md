@@ -4,12 +4,14 @@ Vue 3 + Vite portfolio with a server-side business representative in Chapter 05.
 
 ## Frontend
 
+The frontend uses pnpm as its only package manager.
+
 ```bash
-npm install
-npm run dev
+pnpm install --frozen-lockfile
+pnpm dev
 ```
 
-Netlify builds the static frontend with `npm run build` and publishes `dist`.
+Netlify builds the static frontend with `pnpm build` and publishes `dist`.
 
 Set `VITE_AGENT_API_URL` to the public FastAPI URL. Chapter 05 fails closed when the backend URL is missing; it does not simulate the business representative in the browser.
 
