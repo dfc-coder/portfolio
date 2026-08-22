@@ -1,6 +1,6 @@
 /* Physical scroll geometry and scene exclusivity. scroll.ts is the only runtime owner. */
 .ref-track {
-  height: 604vh !important;
+  min-height: 100vh;
 }
 
 .ref-progress b {
@@ -31,14 +31,14 @@
 
 .ref-scene--hero {
   opacity: var(--hero) !important;
-  transform: scale(calc(.975 + var(--hero) * .025)) !important;
-  filter: blur(calc((1 - var(--hero)) * 4px)) !important;
+  transform: scale(calc(.986 + var(--hero) * .014)) !important;
+  filter: blur(calc((1 - var(--hero)) * 2px)) !important;
 }
 
 .ref-scene--career {
   opacity: var(--career) !important;
-  transform: translate3d(calc((1 - var(--career)) * 3vw), 0, 0) !important;
-  filter: blur(calc((1 - var(--career)) * 4px)) !important;
+  transform: translate3d(calc((1 - var(--career)) * 1.2vw), 0, 0) !important;
+  filter: blur(calc((1 - var(--career)) * 2px)) !important;
 }
 
 /* Gallery exists and can receive input only while the scroll director owns it. */
