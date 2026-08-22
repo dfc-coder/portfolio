@@ -4,10 +4,13 @@ const clamp = (value: number, min: number, max: number) =>
 const damp = (current: number, target: number, response: number, dt: number) =>
   current + (target - current) * (1 - Math.exp(-response * dt));
 
+const easeInOutSine = (value: number) =>
+  -(Math.cos(Math.PI * clamp(value, 0, 1)) - 1) / 2;
+
 const CURSOR_INTERACTIVE = "button, a, input, textarea, select, [data-cursor]";
-const NAVIGATION_COVER_MS = 320;
-const NAVIGATION_HOLD_MS = 56;
-const NAVIGATION_REVEAL_MS = 360;
+const NAVIGATION_COVER_MS = 780;
+const NAVIGATION_HOLD_MS = 110;
+const NAVIGATION_REVEAL_MS = 840;
 
 type CursorState = "idle" | "hover" | "press" | "text";
 type NavigationCommit = () => void;
@@ -22,6 +25,7 @@ const cursorStateFor = (element: Element | null): CursorState => {
 
 const vertexShader = `
 attribute vec2 aPosition;
+
 void main() {
   gl_Position = vec4(aPosition, 0.0, 1.0);
 }
@@ -29,6 +33,7 @@ void main() {
 
 const fragmentShader = `
 precision mediump float;
+
 uniform vec2 uResolution;
 uniform float uProgress;
 uniform float uDirection;
@@ -42,6 +47,7 @@ float noise(vec2 p) {
   vec2 i = floor(p);
   vec2 f = fract(p);
   vec2 u = f * f * (3.0 - 2.0 * f);
+
   return mix(
     mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
     mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
@@ -49,25 +55,87 @@ float noise(vec2 p) {
   );
 }
 
+float fbm(vec2 p) {
+  float value = 0.0;
+  float amplitude = 0.5;
+  mat2 rotation = mat2(0.80, -0.60, 0.60, 0.80);
+
+  for (int octave = 0; octave < 5; octave++) {
+    value += amplitude * noise(p);
+    p = rotation * p * 2.03 + vec2(13.7, 9.2);
+    amplitude *= 0.5;
+  }
+
+  return value;
+}
+
 void main() {
   vec2 uv = gl_FragCoord.xy / uResolution.xy;
-  if (uDirection < 0.0) uv.x = 1.0 - uv.x;
+  float aspect = uResolution.x / max(uResolution.y, 1.0);
 
-  float phase = uProgress <= 0.5 ? uProgress * 2.0 : (1.0 - uProgress) * 2.0;
-  float eased = phase * phase * (3.0 - 2.0 * phase);
-  float grain = noise(uv * vec2(11.0, 7.0) + vec2(uTime * 0.045, -uTime * 0.03));
-  float field = uv.x * 0.72 + uv.y * 0.28 + (grain - 0.5) * 0.17;
-  float threshold = mix(-0.22, 1.22, eased);
-  float cover = smoothstep(field - 0.07, field + 0.07, threshold);
-  float edge = 1.0 - smoothstep(0.0, 0.055, abs(field - threshold));
+  // The transition grows from one irregular nucleus instead of sweeping
+  // across the viewport. Direction only biases the nucleus very slightly.
+  vec2 origin = vec2(0.5 + uDirection * 0.025, 0.5);
+  vec2 p = (uv - origin) * vec2(aspect, 1.0);
+  float radius = length(p);
+  float angle = atan(p.y, p.x);
 
-  vec3 ink = vec3(0.035, 0.035, 0.031);
+  float coarse = fbm(p * 3.25 + vec2(uTime * 0.030, -uTime * 0.025));
+  float medium = fbm(p * 7.80 - vec2(uTime * 0.038, uTime * 0.021));
+  float filament =
+    sin(angle * 11.0 + coarse * 7.0 + uTime * 0.18) * 0.024 +
+    sin(angle * 23.0 - medium * 8.0) * 0.012;
+
+  float field =
+    radius +
+    (coarse - 0.5) * 0.22 +
+    (medium - 0.5) * 0.065 +
+    filament;
+
+  bool covering = uProgress <= 0.5;
+  float localProgress = covering
+    ? uProgress * 2.0
+    : (uProgress - 0.5) * 2.0;
+  float growth = localProgress * localProgress * (3.0 - 2.0 * localProgress);
+
+  // Dynamic maximum guarantees complete coverage on wide viewports while
+  // keeping the first visible nucleus compact.
+  float maximumRadius = length(vec2(aspect * 0.58, 0.62)) + 0.26;
+  float threshold = mix(-0.17, maximumRadius, growth);
+  float edgeWidth = mix(0.052, 0.028, growth);
+  float inside = 1.0 - smoothstep(
+    threshold - edgeWidth,
+    threshold + edgeWidth,
+    field
+  );
+
+  // Cover: organic matter grows from the centre.
+  // Reveal: a transparent hole grows from the same centre, rebuilding the
+  // destination without ever exposing the physical scroll jump.
+  float alpha = covering ? inside : 1.0 - inside;
+  float edge = 1.0 - smoothstep(0.0, 0.074, abs(field - threshold));
+
+  float debrisNoise = noise(
+    p * 38.0 +
+    vec2(uTime * 0.11, -uTime * 0.08) +
+    coarse * 4.0
+  );
+  float debris = edge * smoothstep(0.57, 0.94, debrisNoise);
+
+  vec3 ink = vec3(0.027, 0.028, 0.026);
   vec3 paper = vec3(0.933, 0.914, 0.886);
   vec3 accent = vec3(0.773, 0.404, 0.282);
-  vec3 color = mix(ink, paper, edge * 0.075);
-  color = mix(color, accent, edge * (0.10 + grain * 0.10));
+  vec3 edgeTone = mix(paper, accent, 0.54 + coarse * 0.22);
+  vec3 color = mix(
+    ink,
+    edgeTone,
+    clamp(edge * 0.72 + debris * 0.24, 0.0, 1.0)
+  );
 
-  float alpha = clamp(max(cover, edge * 0.11), 0.0, 1.0);
+  float surfaceGrain = noise(gl_FragCoord.xy * 0.14 + uTime * 3.0) - 0.5;
+  color += surfaceGrain * 0.012;
+  alpha = clamp(max(alpha, edge * (0.10 + debris * 0.34)), 0.0, 1.0);
+
   gl_FragColor = vec4(color, alpha);
 }
 `;
@@ -79,12 +147,15 @@ const compileShader = (
 ) => {
   const shader = gl.createShader(type);
   if (!shader) return null;
+
   gl.shaderSource(shader, source);
   gl.compileShader(shader);
+
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
     gl.deleteShader(shader);
     return null;
   }
+
   return shader;
 };
 
@@ -110,6 +181,7 @@ const createNavigationTransition = (portfolio: HTMLElement) => {
   const vertex = compileShader(gl, gl.VERTEX_SHADER, vertexShader);
   const fragment = compileShader(gl, gl.FRAGMENT_SHADER, fragmentShader);
   const program = vertex && fragment ? gl.createProgram() : null;
+
   if (!vertex || !fragment || !program) {
     vertex && gl.deleteShader(vertex);
     fragment && gl.deleteShader(fragment);
@@ -162,10 +234,12 @@ const createNavigationTransition = (portfolio: HTMLElement) => {
     const dpr = Math.min(devicePixelRatio || 1, 1.5);
     const width = Math.max(1, Math.round(innerWidth * dpr));
     const height = Math.max(1, Math.round(innerHeight * dpr));
+
     if (canvas.width !== width || canvas.height !== height) {
       canvas.width = width;
       canvas.height = height;
     }
+
     gl.viewport(0, 0, width, height);
   };
 
@@ -183,6 +257,7 @@ const createNavigationTransition = (portfolio: HTMLElement) => {
 
   const run: NavigationTransition = (commit, direction) => {
     if (active) return;
+
     active = true;
     canvas.classList.add("is-active");
     document.documentElement.classList.add("is-section-transitioning");
@@ -196,9 +271,12 @@ const createNavigationTransition = (portfolio: HTMLElement) => {
       let progress = 0;
 
       if (elapsed < NAVIGATION_COVER_MS) {
-        progress = 0.5 * (elapsed / NAVIGATION_COVER_MS);
+        const cover = easeInOutSine(elapsed / NAVIGATION_COVER_MS);
+        progress = 0.5 * cover;
       } else {
         if (!committed) {
+          // The destination is committed only while the erosion mask is fully
+          // opaque. The user never sees the physical scroll position change.
           committed = true;
           draw(0.5, normalizedDirection, now);
           commit();
@@ -207,12 +285,9 @@ const createNavigationTransition = (portfolio: HTMLElement) => {
         if (elapsed < NAVIGATION_COVER_MS + NAVIGATION_HOLD_MS) {
           progress = 0.5;
         } else {
-          const reveal = clamp(
-            (elapsed - NAVIGATION_COVER_MS - NAVIGATION_HOLD_MS) /
-              NAVIGATION_REVEAL_MS,
-            0,
-            1,
-          );
+          const revealElapsed =
+            elapsed - NAVIGATION_COVER_MS - NAVIGATION_HOLD_MS;
+          const reveal = easeInOutSine(revealElapsed / NAVIGATION_REVEAL_MS);
           progress = 0.5 + reveal * 0.5;
         }
       }
@@ -260,6 +335,7 @@ export const transitionSectionNavigation = (
     commit();
     return;
   }
+
   navigationTransition(commit, direction);
 };
 
@@ -336,6 +412,7 @@ export const mountVisualContinuity = () => {
     lastY = pointerY;
 
     if (!cursor || !ring) return;
+
     cursor.style.transform = `translate3d(${pointerX}px, ${pointerY}px, 0)`;
     if (!cursorSeen) {
       cursorSeen = true;
@@ -348,6 +425,7 @@ export const mountVisualContinuity = () => {
 
   const onPointerOver = (event: PointerEvent) => {
     if (!cursor) return;
+
     const interactive =
       (event.target as Element | null)?.closest(CURSOR_INTERACTIVE) ?? null;
     setCursorState(cursorStateFor(interactive));
@@ -365,6 +443,7 @@ export const mountVisualContinuity = () => {
 
   const onPointerOut = (event: PointerEvent) => {
     if (event.relatedTarget || !cursor || !ring) return;
+
     cursorSeen = false;
     cursor.classList.remove("is-on");
     ring.classList.remove("is-on");
@@ -394,12 +473,14 @@ export const mountVisualContinuity = () => {
   };
 
   addEventListener("pointermove", onPointerMove, { passive: true });
+
   if (cursorEnabled) {
     addEventListener("pointerover", onPointerOver, { passive: true });
     addEventListener("pointerdown", onPointerDown, { passive: true });
     addEventListener("pointerup", onPointerUp, { passive: true });
     document.documentElement.addEventListener("pointerout", onPointerOut);
   }
+
   frame = requestAnimationFrame(render);
 
   return () => {
