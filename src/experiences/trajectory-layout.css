@@ -1,0 +1,111 @@
+/* Chapter 02 hotfix: fixed template chrome + exclusive role content zones. */
+
+@media (min-width: 681px) {
+  .trajectory-static-chrome {
+    z-index: 12;
+    opacity: calc(var(--trajectory-content, 0) * .82);
+  }
+
+  .trajectory-static-chrome__context {
+    left: 29%;
+    top: 58%;
+    width: min(560px, 48vw);
+    gap: 30px;
+  }
+
+  .trajectory-static-chrome__context span {
+    padding-bottom: 10px;
+  }
+
+  .trajectory-static-chrome__focus {
+    left: 29%;
+    top: 80.5%;
+  }
+
+  .trajectory-entry {
+    left: 29%;
+    right: 7vw;
+    top: 0;
+    bottom: 0;
+    width: auto;
+    translate: var(--entry-x) 0;
+  }
+
+  .trajectory-entry__eyebrow,
+  .trajectory-entry h3,
+  .trajectory-entry__context,
+  .trajectory-entry__statement,
+  .trajectory-entry__focus {
+    position: absolute;
+    left: 0;
+    margin: 0;
+  }
+
+  .trajectory-entry__eyebrow {
+    top: 30.5%;
+  }
+
+  .trajectory-entry h3 {
+    top: 34.5%;
+    max-width: min(60vw, 820px);
+  }
+
+  .trajectory-entry__context {
+    top: 61.5%;
+    width: min(560px, 48vw);
+  }
+
+  .trajectory-entry__context > div {
+    padding: 0;
+    border: 0;
+  }
+
+  .trajectory-entry__context > div::after,
+  .trajectory-entry__context dt {
+    display: none;
+  }
+
+  .trajectory-entry__statement {
+    top: 68.5%;
+    width: min(590px, 50vw);
+  }
+
+  .trajectory-entry__focus {
+    top: 80.5%;
+    width: min(620px, 52vw);
+    grid-template-columns: 58px minmax(0, 1fr);
+  }
+
+  .trajectory-entry__focus > h4 {
+    visibility: hidden;
+  }
+
+  .trajectory-entry__focus ul {
+    align-self: start;
+  }
+}
+
+@media (min-width: 681px) and (max-width: 900px) {
+  .trajectory-static-chrome__context,
+  .trajectory-static-chrome__focus,
+  .trajectory-entry {
+    left: 24%;
+  }
+
+  .trajectory-static-chrome__context,
+  .trajectory-entry__context {
+    width: min(62vw, 560px);
+  }
+
+  .trajectory-entry__statement {
+    width: min(62vw, 560px);
+  }
+
+  .trajectory-entry__focus {
+    width: 68vw;
+  }
+
+  .trajectory-entry h3 {
+    max-width: 69vw;
+  }
+}
