@@ -118,7 +118,7 @@ onBeforeUnmount(() => {
     :style="{ '--field-weight': fieldWeight }"
     aria-label="Agent — ask about Diego's work"
   >
-    <div class="ref-marker"><span>05</span><i />THE INTERFACE</div>
+    <h2 class="ref-marker"><span>05</span><i aria-hidden="true" /><span>THE INTERFACE</span></h2>
 
     <aside class="agent-presence" aria-hidden="true">
       <div class="agent-core">
