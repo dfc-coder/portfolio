@@ -14,6 +14,7 @@ import "./experiences/scroll.css";
 import "./components/agent/agent.css";
 import "./experiences/hero.css";
 import "./experiences/trajectory.css";
+import "./experiences/trajectory-layout.css";
 import "./experiences/systems.css";
 import "./experiences/continuity.css";
 import "./styles/chapter-bridges.css";
