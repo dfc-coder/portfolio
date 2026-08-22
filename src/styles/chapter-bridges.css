@@ -39,9 +39,9 @@
   grid-template-columns: auto 52px auto;
   align-items: center;
   gap: 10px;
-  color: rgba(238, 234, 226, .64);
-  font: 8.5px/1 var(--font-mono);
-  letter-spacing: .16em;
+  color: rgba(238, 234, 226, .70);
+  font: 500 var(--t-label)/1 var(--font-info);
+  letter-spacing: var(--track-label);
 }
 
 .trajectory-intro .narrative-signal,
@@ -49,9 +49,9 @@
   margin: 0 0 22px;
 }
 
-.trajectory-intro .narrative-signal > span,
-.systems-intro .narrative-signal > span,
-.ref-chapter > .narrative-signal > span {
+.trajectory-intro .narrative-signal__index,
+.systems-intro .narrative-signal__index,
+.ref-chapter > .narrative-signal > .narrative-signal__index {
   color: var(--color-accent);
   font: inherit;
   letter-spacing: inherit;
@@ -65,10 +65,11 @@
   background: rgba(238, 234, 226, .44);
 }
 
-.trajectory-intro .narrative-signal > b,
-.systems-intro .narrative-signal > b,
-.ref-chapter > .narrative-signal > b {
-  font-weight: 400;
+.trajectory-intro .narrative-signal__label,
+.systems-intro .narrative-signal__label,
+.ref-chapter > .narrative-signal > .narrative-signal__label {
+  color: inherit;
+  font: inherit;
   white-space: nowrap;
 }
 
@@ -94,6 +95,13 @@
   top: 22px !important;
 }
 
+.narrative-header__heading {
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
 /* Record and Evidence use one editorial introduction grammar, deliberately
    offset from the viewport center to create more negative space. */
 .trajectory-intro,
@@ -112,8 +120,8 @@
   margin: 0;
   text-align: left;
   color: rgba(238, 234, 226, .985);
-  font-family: var(--font-serif);
-  font-size: clamp(2.35rem, 3.55vw, 4.15rem);
+  font-family: var(--font-highlight);
+  font-size: var(--t-beat);
   font-style: italic;
   font-weight: 400;
   line-height: 1.03;
@@ -219,7 +227,7 @@ html.systems-refined-ready
   max-width: 760px;
   margin: 0;
   color: rgba(238, 234, 226, .985);
-  font-size: clamp(2.35rem, 3.55vw, 4.15rem);
+  font-size: var(--t-beat);
   line-height: 1.03;
   letter-spacing: -.03em;
   text-align: left;
