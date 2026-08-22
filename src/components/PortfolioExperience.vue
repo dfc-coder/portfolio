@@ -94,7 +94,7 @@ const menuOpen = ref(false);
         <article class="ref-scene ref-scene--systems"><SystemsScene /></article>
 
         <article class="ref-scene ref-scene--gallery">
-          <div class="ref-marker"><span>04</span><i />VISUAL / MATERIAL ARCHIVE</div>
+          <h2 class="ref-marker"><span>04</span><i aria-hidden="true" /><span>VISUAL / MATERIAL ARCHIVE</span></h2>
           <div class="ref-gallery-stage" aria-label="Visual works">
             <button
               v-for="artwork in artworks"
@@ -117,7 +117,7 @@ const menuOpen = ref(false);
           :key="chapter.key"
           class="ref-scene ref-scene--chapter"
           :data-chapter="chapter.key"
-          :aria-label="`CHAPTER ${chapter.index} · ${chapter.label}`"
+          aria-hidden="true"
         >
           <div class="ref-chapter">
             <ChapterSignal :index="chapter.index" :label="chapter.label" />
@@ -130,7 +130,7 @@ const menuOpen = ref(false);
     <section id="ref-fallback" class="ref-fallback">
       <header>
         <span>DIEGO CANO / ACCESSIBLE INDEX</span>
-        <h1>Software, AI and material practice.</h1>
+        <p class="ref-fallback__title">Software, AI and material practice.</p>
       </header>
 
       <div>
