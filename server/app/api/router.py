@@ -1,16 +1,25 @@
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import AsyncIterator
 from typing import Protocol
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
-from .schemas import ChatRequest
-from .sse import encode_sse
+
+class ChatRequest(BaseModel):
+    session_id: str = Field(min_length=8, max_length=96)
+    message: str = Field(min_length=1, max_length=2000)
+
 
 _SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{8,96}$")
+
+
+def encode_sse(event: str, payload: dict[str, object]) -> str:
+    return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
 class StreamingAgent(Protocol):

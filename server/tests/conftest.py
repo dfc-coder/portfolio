@@ -4,7 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from app.profile import BusinessProfile, load_business_profile
+from app.domain.profile import BusinessProfile
+from app.infrastructure.config.profile_loader import load_business_profile
 
 
 @pytest.fixture

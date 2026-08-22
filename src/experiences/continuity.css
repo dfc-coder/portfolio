@@ -1,24 +1,4 @@
-/* Visual Continuity V3: shared chapter grammar, pointer light and text clarity. */
-
-:root {
-  --ref-paper-strong: rgba(238, 234, 226, .985);
-  --ref-body-strong: rgba(238, 234, 226, .86);
-  --ref-support-strong: rgba(238, 234, 226, .70);
-  --ref-micro-strong: rgba(238, 234, 226, .56);
-}
-
-html,
-body,
-#app,
-.ref-stage {
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  font-synthesis: none;
-}
-
-/* One ambient field owns pointer lighting across chapters. It is deliberately
-   broad and asymmetric so the user never reads a circular CSS spotlight. */
+/* Cross-chapter interaction only: ambient light + custom cursor. */
 .ref-global-pointer-light {
   position: absolute;
   z-index: 5;
@@ -38,183 +18,111 @@ body,
   will-change: background;
 }
 
-/* Shared lighting may establish an isolation boundary, but it must not inject
-   positioning or a second local radial field into chapter compositions. */
-.trajectory-experience,
-.systems-experience {
-  isolation: isolate;
+.ref-portfolio.has-cursor,
+.ref-portfolio.has-cursor * {
+  cursor: none !important;
 }
 
-.trajectory-intro,
-.systems-intro {
-  left: 50% !important;
-  top: 47% !important;
-  width: min(680px, 72vw) !important;
-  translate: -50% -50% !important;
-  text-align: center !important;
+.ref-cursor,
+.ref-cursor-ring {
+  position: fixed;
+  z-index: 2000;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  opacity: 0;
+  border-radius: 50%;
 }
 
-.trajectory-intro__kicker,
-.systems-intro__kicker {
-  width: max-content !important;
-  margin: 0 auto 22px !important;
-  display: grid !important;
-  grid-template-columns: auto 52px auto !important;
-  align-items: center !important;
-  gap: 10px !important;
-  color: rgba(238, 234, 226, .64) !important;
-  font: 8.5px/1 var(--font-mono) !important;
-  letter-spacing: .16em !important;
+.ref-cursor.is-on,
+.ref-cursor-ring.is-on {
+  opacity: 1;
 }
 
-.trajectory-intro__kicker i,
-.systems-intro__kicker i {
-  height: 1px !important;
-  background: rgba(238, 234, 226, .44) !important;
+.ref-cursor {
+  width: 0;
+  height: 0;
+  transition: opacity .25s linear;
 }
 
-.trajectory-intro p,
-.systems-intro p {
-  max-width: 680px !important;
-  margin: 0 auto !important;
-  text-align: center !important;
-  color: var(--ref-paper-strong) !important;
-  font-family: var(--font-serif) !important;
-  font-size: clamp(2.35rem, 3.55vw, 4.15rem) !important;
-  font-style: italic !important;
-  font-weight: 400 !important;
-  line-height: 1.03 !important;
-  letter-spacing: -.03em !important;
-  text-wrap: balance;
+.ref-cursor::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: inherit;
+  background: currentcolor;
+  color: var(--color-paper);
+  transform: translate(-50%, -50%);
+  transition:
+    width .28s cubic-bezier(.2, .8, .2, 1),
+    height .28s cubic-bezier(.2, .8, .2, 1),
+    border-radius .28s cubic-bezier(.2, .8, .2, 1),
+    color .3s linear;
 }
 
-.systems-intro p em {
-  color: rgba(238, 234, 226, .90) !important;
-  font-style: inherit !important;
+.ref-cursor[data-state="hover"]::after {
+  width: 10px;
+  height: 10px;
+  color: var(--color-accent);
 }
 
-.trajectory-header,
-.systems-header {
-  color: rgba(238, 234, 226, .66) !important;
-  font-size: 8.5px !important;
+.ref-cursor[data-state="press"]::after {
+  width: 5px;
+  height: 5px;
+  color: var(--color-accent);
 }
 
-.trajectory-entry__context small,
-.systems-project__architecture-heading,
-.systems-project__implementation > span {
-  color: rgba(238, 234, 226, .58) !important;
+.ref-cursor[data-state="text"]::after {
+  width: 2px;
+  height: 16px;
+  border-radius: 1px;
 }
 
-.trajectory-entry__statement p {
-  color: rgba(238, 234, 226, calc(.42 + var(--entry-focus) * .44)) !important;
+.ref-cursor-ring {
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
+  border: 1px solid rgba(238, 234, 226, .55);
+  mix-blend-mode: difference;
+  transition:
+    opacity .25s linear,
+    width .3s cubic-bezier(.2, .8, .2, 1),
+    height .3s cubic-bezier(.2, .8, .2, 1),
+    margin .3s cubic-bezier(.2, .8, .2, 1),
+    border-color .3s linear,
+    background-color .3s linear;
 }
 
-/* --------------------------------------------------------------------------
-   INFORMATION DIET
-
-   One persistent section instruction + one rail label + one protagonist.
-   Per-item micro-kickers, duplicate counters and duplicate IDs are intentionally
-   suppressed: they repeat information already carried by the rail/title.
-   -------------------------------------------------------------------------- */
-
-/* Persistent section instruction remains; duplicated right-side metadata does not. */
-.trajectory-header__meta,
-.systems-header__meta {
-  display: none !important;
+.ref-cursor-ring[data-state="hover"] {
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  border-color: var(--color-accent);
+  background: rgba(197, 103, 72, .08);
 }
 
-/* The rail owns time/system identity. Do not repeat it immediately above titles. */
-.trajectory-entry__eyebrow,
-.systems-project__eyebrow,
-.systems-project__field {
-  display: none !important;
+.ref-cursor-ring[data-state="press"] {
+  width: 26px;
+  height: 26px;
+  margin: -13px 0 0 -13px;
+  border-color: var(--color-accent);
 }
 
-/* One rail label per node: Trajectory = year, Systems = system code. */
-.trajectory-year > b,
-.systems-axis-item > span {
-  display: none !important;
-}
-
-/* Systems architecture already has a persistent heading; remove duplicate IDs. */
-.systems-graph-field__index,
-.systems-graph-field__mode,
-.systems-project__architecture-heading > b {
-  display: none !important;
-}
-
-/* Section rail already expresses 01/05. A second floating counter is noise. */
-.trajectory-counter,
-.systems-counter {
-  display: none !important;
-}
-
-/* Evidence keeps a stable semantic label instead of changing EVIDENCE / 00..04. */
-.systems-project__evidence > span {
-  font-size: 0 !important;
-  letter-spacing: 0 !important;
-}
-
-.systems-project__evidence > span::after {
-  content: "EVIDENCE";
-  color: rgba(238, 234, 226, .58);
-  font: 8px/1 var(--font-mono);
-  letter-spacing: .13em;
-}
-
-/* Inactive rail entries recede. Only the active item is an instruction. */
-.systems-axis-item {
-  opacity: calc(var(--systems-content, 0) * (.12 + var(--axis-focus, 0) * .88)) !important;
-}
-
-.systems-axis-item > b {
-  color: rgba(238, 234, 226, calc(.18 + var(--axis-focus, 0) * .76)) !important;
-  padding-left: calc(15px + var(--axis-focus, 0) * 31px) !important;
-}
-
-/* Trajectory and Systems share one rail language: one physical rule, one
-   progress fill, and the semantic node itself as the only active marker. */
-.trajectory-axis,
-.systems-axis {
-  background: rgba(238, 234, 226, .18) !important;
-  box-shadow: 0 0 18px rgba(238, 234, 226, .024);
-}
-
-.trajectory-axis > i,
-.systems-axis__progress {
-  filter: drop-shadow(0 0 7px rgba(197, 103, 72, .20));
-}
-
-.systems-project h2 {
-  color: var(--ref-paper-strong) !important;
-}
-
-.systems-project__premise {
-  color: var(--ref-body-strong) !important;
-}
-
-.systems-project__architecture-heading {
-  font-size: 8.5px !important;
-}
-
-.systems-graph-field {
-  border-top-color: rgba(238, 234, 226, .13) !important;
-  border-bottom-color: rgba(238, 234, 226, .13) !important;
-}
-
-@media (max-width: 760px) {
-  .trajectory-intro,
-  .systems-intro {
-    width: 76vw !important;
-  }
-
-  .ref-global-pointer-light {
-    opacity: .76;
-  }
+.ref-cursor-ring[data-state="text"] {
+  width: 22px;
+  height: 26px;
+  margin: -13px 0 0 -11px;
+  border-radius: 4px;
+  border-color: rgba(238, 234, 226, .4);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ref-global-pointer-light {
+  .ref-global-pointer-light,
+  .ref-cursor,
+  .ref-cursor-ring {
     display: none;
   }
 }

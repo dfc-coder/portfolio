@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from app.policies import SchedulingPolicy
-from app.profile import BusinessProfile
+from app.domain.profile import BusinessProfile
+from app.scheduling.policy import SchedulingPolicy
 
 
 def test_explicit_confirmation_is_narrow(profile: BusinessProfile) -> None:

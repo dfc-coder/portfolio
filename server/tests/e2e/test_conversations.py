@@ -9,12 +9,12 @@ from app.agent.representative import BusinessRepresentative
 from app.agent.responder import Responder
 from app.agent.scheduler import Scheduler, SchedulingIntent, SchedulingTurn
 from app.domain.conversation import ActiveWorkflow
+from app.domain.profile import BusinessProfile
 from app.domain.routing import RouteDomain, RouteRelation, RoutingDecision
 from app.domain.scheduling import OfferedSlot
 from app.infrastructure.calendar.memory import InMemoryCalendarGateway
 from app.infrastructure.sessions.memory import MemorySessionStore
 from app.ports.llm import GenerationConfig
-from app.profile import BusinessProfile
 from app.scheduling.policy import SchedulingPolicy
 
 

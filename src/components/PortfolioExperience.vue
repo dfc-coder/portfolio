@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { ref } from "vue";
 import AgentOS from "./agent/AgentOS.vue";
 import { galleryItems as artworks } from "../experiences/gallery";
 import { systemsProjects as projects } from "../experiences/systems-projects";
@@ -29,116 +29,10 @@ const chapters = [
 ] as const;
 
 const menuOpen = ref(false);
-const cursorDot = ref<HTMLElement | null>(null);
-const cursorRing = ref<HTMLElement | null>(null);
-const cursorState = ref<"idle" | "hover" | "press" | "text">("idle");
-const cursorEnabled = ref(false);
-
-let cursorFrame = 0;
-let pointerX = 0;
-let pointerY = 0;
-let ringX = 0;
-let ringY = 0;
-let cursorSeen = false;
-
-const CURSOR_INTERACTIVE = "button, a, input, textarea, select, [data-cursor]";
-
-const cursorStateFor = (element: Element | null): "idle" | "hover" | "text" => {
-  if (!element) return "idle";
-  return element.matches("input, textarea") ? "text" : "hover";
-};
-
-const onCursorMove = (event: PointerEvent) => {
-  pointerX = event.clientX;
-  pointerY = event.clientY;
-
-  if (!cursorSeen) {
-    cursorSeen = true;
-    ringX = pointerX;
-    ringY = pointerY;
-    cursorDot.value?.classList.add("is-on");
-    cursorRing.value?.classList.add("is-on");
-  }
-
-  if (cursorDot.value) {
-    cursorDot.value.style.transform = `translate3d(${pointerX}px, ${pointerY}px, 0)`;
-  }
-};
-
-const onCursorOver = (event: PointerEvent) => {
-  const interactive = (event.target as Element | null)?.closest(CURSOR_INTERACTIVE) ?? null;
-  cursorState.value = cursorStateFor(interactive);
-};
-
-const onCursorDown = () => {
-  if (cursorState.value !== "text") cursorState.value = "press";
-};
-
-const onCursorUp = (event: PointerEvent) => {
-  const interactive = (event.target as Element | null)?.closest(CURSOR_INTERACTIVE) ?? null;
-  cursorState.value = cursorStateFor(interactive);
-};
-
-const onCursorLeaveWindow = (event: PointerEvent) => {
-  if (event.relatedTarget) return;
-  cursorSeen = false;
-  cursorDot.value?.classList.remove("is-on");
-  cursorRing.value?.classList.remove("is-on");
-};
-
-const startCursorLoop = () => {
-  const tick = () => {
-    ringX += (pointerX - ringX) * 0.16;
-    ringY += (pointerY - ringY) * 0.16;
-    if (cursorRing.value) {
-      cursorRing.value.style.transform = `translate3d(${ringX}px, ${ringY}px, 0)`;
-    }
-    cursorFrame = requestAnimationFrame(tick);
-  };
-
-  cursorFrame = requestAnimationFrame(tick);
-};
-
-onMounted(async () => {
-  cursorEnabled.value = matchMedia("(pointer: fine) and (prefers-reduced-motion: no-preference)").matches;
-  if (!cursorEnabled.value) return;
-
-  await nextTick();
-  addEventListener("pointermove", onCursorMove, { passive: true });
-  addEventListener("pointerover", onCursorOver, { passive: true });
-  addEventListener("pointerdown", onCursorDown, { passive: true });
-  addEventListener("pointerup", onCursorUp, { passive: true });
-  document.documentElement.addEventListener("pointerout", onCursorLeaveWindow);
-  startCursorLoop();
-});
-
-onBeforeUnmount(() => {
-  cancelAnimationFrame(cursorFrame);
-  removeEventListener("pointermove", onCursorMove);
-  removeEventListener("pointerover", onCursorOver);
-  removeEventListener("pointerdown", onCursorDown);
-  removeEventListener("pointerup", onCursorUp);
-  document.documentElement.removeEventListener("pointerout", onCursorLeaveWindow);
-});
 </script>
 
 <template>
-  <div :class="['ref-portfolio', { 'has-cursor': cursorEnabled }]">
-    <div
-      v-if="cursorEnabled"
-      ref="cursorDot"
-      class="ref-cursor"
-      :data-state="cursorState"
-      aria-hidden="true"
-    />
-    <div
-      v-if="cursorEnabled"
-      ref="cursorRing"
-      class="ref-cursor-ring"
-      :data-state="cursorState"
-      aria-hidden="true"
-    />
-
+  <div class="ref-portfolio">
     <a class="ref-skip" href="#ref-fallback">Skip motion experience</a>
 
     <header class="ref-header">
@@ -270,18 +164,3 @@ onBeforeUnmount(() => {
     </section>
   </div>
 </template>
-
-<style>
-.ref-portfolio .ref-hero__initial,
-.ref-portfolio .ref-hero__tail {
-  display: inline-block;
-  font: inherit;
-  font-style: normal;
-  font-weight: inherit;
-  line-height: inherit;
-  letter-spacing: inherit;
-  color: inherit;
-  vertical-align: baseline;
-  will-change: opacity, clip-path;
-}
-</style>

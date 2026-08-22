@@ -5,136 +5,155 @@ import test from "node:test";
 
 const root = process.cwd();
 const read = (path) => readFile(resolve(root, path), "utf8");
+const absent = (path) => assert.rejects(access(resolve(root, path)));
 
-const forbiddenOwnership = /^\s*(position|inset|top|right|bottom|left|z-index|transform|translate|opacity|animation|transition|filter)\s*:/im;
+const removedFrontendLayers = [
+  "src/styles/cinematic.css",
+  "src/styles/cinematic-motion.css",
+  "src/styles/typography.css",
+  "src/experiences/trajectory-bridge.css",
+  "src/experiences/systems-motion.css",
+  "src/design-system/tokens.css",
+  "src/design-system/primitives.css",
+  "src/design-system/templates.css",
+  "pnpm-lock.yaml",
+];
 
-test("SDD: the token layer defines the shared semantic vocabulary", async () => {
-  const css = await read("src/design-system/tokens.css");
-  for (const token of [
-    "--ds-paper",
-    "--ds-body",
-    "--ds-muted",
-    "--ds-accent",
-    "--ds-signal-rule",
-    "--ds-register-node",
-    "--ds-statement-size",
-  ]) {
-    assert.match(css, new RegExp(token.replaceAll("-", "\\-")));
-  }
+const removedBackendFacades = [
+  "server/app/calendar_gateway.py",
+  "server/app/llama_client.py",
+  "server/app/policies.py",
+  "server/app/profile.py",
+  "server/app/session.py",
+  "server/app/settings.py",
+  "server/app/slot_service.py",
+  "server/app/api/schemas.py",
+  "server/app/api/sse.py",
+];
+
+test("architecture: obsolete frontend layers are removed instead of overridden", async () => {
+  await Promise.all(removedFrontendLayers.map(absent));
+  await access(resolve(root, "src/styles/theme.css"));
+  await access(resolve(root, "src/styles/shell.css"));
 });
 
-test("TDD regression: shared design-system CSS never targets chapter implementation selectors", async () => {
-  for (const file of [
-    "src/design-system/primitives.css",
-    "src/design-system/templates.css",
-  ]) {
-    const css = await read(file);
-    assert.doesNotMatch(css, /\.(trajectory|systems|ref)-/i, `${file} must stay opt-in`);
-    assert.match(css, /\.ds-/i, `${file} must expose semantic ds-* classes`);
-  }
-});
-
-test("TDD regression: shared primitives cannot own layout, visibility or motion", async () => {
-  for (const file of [
-    "src/design-system/primitives.css",
-    "src/design-system/templates.css",
-  ]) {
-    const css = await read(file);
-    assert.doesNotMatch(css, forbiddenOwnership, `${file} attempted to own chapter geometry/motion`);
-    assert.doesNotMatch(css, /!important/i, `${file} must never win by force`);
-  }
-});
-
-test("TDD: the design system has no runtime animation owner", async () => {
-  await assert.rejects(access(resolve(root, "src/design-system/runtime.ts")));
+test("architecture: main loads one predictable CSS ownership chain", async () => {
   const main = await read("src/main.ts");
-  assert.doesNotMatch(main, /mountDesignSystemRuntime|design-system\/runtime/);
-  assert.match(main, /mountVisualContinuity\(\)/);
+  const ordered = [
+    'import "./styles/theme.css"',
+    'import "./styles/base.css"',
+    'import "./styles/shell.css"',
+    'import "./experiences/scroll.css"',
+    'import "./components/agent/agent.css"',
+    'import "./experiences/hero.css"',
+    'import "./experiences/trajectory.css"',
+    'import "./experiences/systems.css"',
+    'import "./experiences/continuity.css"',
+    'import "./styles/chapter-bridges.css"',
+    'import "./experiences/gallery.css"',
+  ];
+
+  let previous = -1;
+  for (const statement of ordered) {
+    const index = main.indexOf(statement);
+    assert.ok(index > previous, `${statement} must be present and ordered`);
+    previous = index;
+  }
+
+  assert.doesNotMatch(main, /design-system|cinematic|typography|systems-motion|trajectory-bridge/);
 });
 
-test("TDD: static design-system layers load only after approved chapter styles", async () => {
-  const main = await read("src/main.ts");
-  const systems = main.indexOf('import "./experiences/systems-motion.css"');
-  const tokens = main.indexOf('import "./design-system/tokens.css"');
-  const primitives = main.indexOf('import "./design-system/primitives.css"');
-  const templates = main.indexOf('import "./design-system/templates.css"');
+test("architecture: theme is the only global semantic vocabulary", async () => {
+  const theme = await read("src/styles/theme.css");
+  const base = await read("src/styles/base.css");
+  const shell = await read("src/styles/shell.css");
 
-  assert.ok(systems >= 0 && systems < tokens && tokens < primitives && primitives < templates);
+  for (const token of ["--color-ink", "--color-paper", "--color-accent", "--font-sans", "--font-mono", "--t-display"]) {
+    assert.match(theme, new RegExp(token.replaceAll("-", "\\-")));
+  }
+  assert.doesNotMatch(base, /:root\s*\{/);
+  assert.doesNotMatch(shell, /:root\s*\{/);
+  assert.doesNotMatch(theme, /--ds-/);
 });
 
-test("BDD golden baseline: Record and Evidence keep the approved shared chapter grammar", async () => {
+test("architecture: continuity owns only cross-chapter pointer interaction", async () => {
   const css = await read("src/experiences/continuity.css");
-  assert.match(css, /\.trajectory-intro,\s*\n\.systems-intro\s*\{/);
-  assert.match(css, /\.trajectory-intro__kicker,\s*\n\.systems-intro__kicker\s*\{/);
-  assert.match(css, /\.trajectory-intro p,\s*\n\.systems-intro p\s*\{/);
-  assert.match(css, /font-size:\s*clamp\(2\.35rem, 3\.55vw, 4\.15rem\)/);
-});
-
-test("BDD golden baseline: pointer field and rail continuity remain owned by the approved continuity layer", async () => {
-  const css = await read("src/experiences/continuity.css");
-  assert.match(css, /\.ref-global-pointer-light\s*\{/);
-  assert.match(css, /ellipse 54rem 38rem/);
-  assert.match(css, /\.trajectory-axis,\s*\n\.systems-axis\s*\{/);
-});
-
-test("TDD regression: Trajectory keeps focus-driven title hierarchy", async () => {
-  const css = await read("src/experiences/trajectory.css");
-  assert.match(
-    css,
-    /\.trajectory-entry h2\s*\{[^}]*color:\s*rgba\(238, 234, 226, calc\(\.10 \+ var\(--entry-focus\) \* \.90\)\)/is,
-  );
-
-  const primitives = await read("src/design-system/primitives.css");
-  const templates = await read("src/design-system/templates.css");
-  assert.doesNotMatch(primitives, /trajectory-entry h2/i);
-  assert.doesNotMatch(templates, /trajectory-entry h2/i);
-});
-
-test("TDD regression: Trajectory director remains the owner of year movement", async () => {
-  const director = await read("src/experiences/trajectory.ts");
-  assert.match(director, /element\.style\.transform = `translate3d\(0, calc\(-50% \+ \$\{y\.toFixed\(3\)\}vh\), 0\)`/);
-
-  for (const file of [
-    "src/design-system/primitives.css",
-    "src/design-system/templates.css",
-  ]) {
-    const css = await read(file);
-    assert.doesNotMatch(css, /trajectory-year/i);
-  }
-});
-
-test("Ponytail: dead global micro-interaction layer is gone", async () => {
-  await assert.rejects(access(resolve(root, "src/styles/interactions.css")));
-  const main = await read("src/main.ts");
-  assert.doesNotMatch(main, /interactions\.css|micro-interactions/i);
-});
-
-test("Ponytail: PortfolioExperience contains only canonical scene mount points", async () => {
+  const runtime = await read("src/experiences/continuity.ts");
   const component = await read("src/components/PortfolioExperience.vue");
 
+  assert.match(css, /\.ref-global-pointer-light\s*\{/);
+  assert.match(css, /\.ref-cursor/);
+  assert.doesNotMatch(css, /\.(trajectory|systems)-/);
+  assert.match(runtime, /addEventListener\("pointermove"/);
+  assert.match(runtime, /requestAnimationFrame\(render\)/);
+  assert.doesNotMatch(component, /pointermove|cursorFrame|requestAnimationFrame|ref-cursor/);
+});
+
+test("architecture: PortfolioExperience is structure, not an animation director", async () => {
+  const component = await read("src/components/PortfolioExperience.vue");
+
+  assert.doesNotMatch(component, /ScrollTrigger|Flip|requestAnimationFrame|addEventListener/);
   assert.doesNotMatch(component, /ref-career-nav|ref-career-copy|ref-system-stack|ref-system-nav|ref-system-copy/);
   assert.doesNotMatch(component, /ref-filmstrip|ref-art-caption|ref-art-index/);
-  assert.doesNotMatch(component, /ScrollTrigger|Flip|displayedProgress|targetProgress|updateDepthObjects/);
   assert.match(component, /<article class="ref-scene ref-scene--career"\s*\/>/);
   assert.match(component, /<article class="ref-scene ref-scene--systems"\s*\/>/);
 });
 
-test("Ponytail: physical scroll has one runtime owner", async () => {
+test("architecture: physical scroll has one runtime owner", async () => {
   const component = await read("src/components/PortfolioExperience.vue");
   const scroll = await read("src/experiences/scroll.ts");
   const gallery = await read("src/experiences/gallery.ts");
 
   assert.doesNotMatch(component, /ScrollTrigger|addEventListener\("wheel"/);
   assert.doesNotMatch(gallery, /addEventListener\("wheel"|scrollToNode|WHEEL_EXIT_LOCK/);
-  assert.doesNotMatch(scroll, /Proxy\(|originalOnUpdate|MAX_INSTALL_ATTEMPTS|runAuthoritativeFrame/);
   assert.match(scroll, /ScrollTrigger\.create/);
+  assert.match(scroll, /mapPhysicalProgressToVirtualProgress/);
 });
 
-test("Ponytail: agent implementation is colocated", async () => {
-  await access(resolve(root, "src/components/agent/AgentOS.vue"));
-  await access(resolve(root, "src/components/agent/AsciiFluidCanvas.vue"));
-  await access(resolve(root, "src/components/agent/agent.css"));
-  await assert.rejects(access(resolve(root, "src/components/AgentOS.vue")));
-  await assert.rejects(access(resolve(root, "src/components/AsciiFluidCanvas.vue")));
-  await assert.rejects(access(resolve(root, "src/styles/agent.css")));
+test("architecture: Systems motion is owned by systems.css", async () => {
+  const systems = await read("src/experiences/systems.css");
+  const bridges = await read("src/styles/chapter-bridges.css");
+
+  assert.match(systems, /--graph-build/);
+  assert.match(systems, /--title-presence/);
+  assert.match(systems, /\.systems-project__detail::before/);
+  assert.doesNotMatch(systems, /ref-scene--chapter\[data-chapter="agent"\]/);
+  assert.match(bridges, /data-chapter="agent"/);
+});
+
+test("architecture: chapter handoffs have one shared owner", async () => {
+  const bridges = await read("src/styles/chapter-bridges.css");
+  assert.match(bridges, /trajectory-axis-reveal/);
+  assert.match(bridges, /systems-gallery-handoff/);
+  assert.match(bridges, /A NOTE ON ORIGIN/);
+  assert.match(bridges, /THE INTERFACE/);
+});
+
+test("architecture: browser Agent has no fake corpus or fallback provider", async () => {
+  const runtime = await read("src/components/agent/useAgentRuntime.ts");
+  const os = await read("src/components/agent/AgentOS.vue");
+
+  assert.doesNotMatch(runtime, /localProvider|CORPUS|CorpusEntry|chunkify|Math\.random/);
+  assert.match(runtime, /useAgentRuntime\(provider: AgentProvider/);
+  assert.match(os, /businessAgentProvider/);
+});
+
+test("architecture: Agent implementation remains colocated", async () => {
+  for (const path of [
+    "src/components/agent/AgentOS.vue",
+    "src/components/agent/AsciiFluidCanvas.vue",
+    "src/components/agent/asciiField.ts",
+    "src/components/agent/businessAgentProvider.ts",
+    "src/components/agent/useAgentRuntime.ts",
+    "src/components/agent/agent.css",
+  ]) {
+    await access(resolve(root, path));
+  }
+});
+
+test("architecture: backend compatibility facades and one-function API files are gone", async () => {
+  await Promise.all(removedBackendFacades.map(absent));
+  const router = await read("server/app/api/router.py");
+  assert.match(router, /class ChatRequest\(BaseModel\)/);
+  assert.match(router, /def encode_sse\(/);
 });

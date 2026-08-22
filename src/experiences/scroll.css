@@ -1,34 +1,8 @@
-/* Keep the normal document scrollbar geometry during the intro. The base
-   stylesheet locks overflow, which changes the layout viewport width exactly
-   when the intro hands off to the vw-based hero title. We keep vertical
-   overflow measurable here and block wheel/touch input in the component
-   instead, so the intro and the Hero share one coordinate system. */
-html.is-refined-intro,
-html.is-refined-intro body {
-  overflow-y: auto !important;
-}
-
-html.is-refined-intro {
-  scrollbar-color: transparent transparent;
-}
-
-html.is-refined-intro::-webkit-scrollbar-thumb,
-html.is-refined-intro::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-/* The physical scroll model contains 14 adjacent intervals. Gallery artwork
-   selection no longer consumes scroll nodes: its ten legacy virtual nodes are
-   compressed into one physical interval by scroll-sync-controller.ts.
-   14 intervals × 36vh + one sticky viewport = 604vh. */
+/* Physical scroll geometry and scene exclusivity. scroll.ts is the only runtime owner. */
 .ref-track {
   height: 604vh !important;
 }
 
-/* The Vue scene director still receives its legacy virtual progress so the
-   approved chapter transitions remain unchanged. Header progress represents
-   the real document position instead, keeping the UI and native scrollbar in
-   the same coordinate system. */
 .ref-progress b {
   transform: scaleX(var(--physical-scroll-progress, 0)) !important;
 }
@@ -67,11 +41,7 @@ html.is-refined-intro::-webkit-scrollbar-track {
   filter: blur(calc((1 - var(--career)) * 4px)) !important;
 }
 
-/* Chapter 05 is an exclusive state boundary. THE INTERFACE must never be
-   composited over the archive: while gallery owns the physical wheel interval
-   the bridge is fully hidden; as soon as the authoritative scene flips to the
-   bridge, the archive is fully removed. This keeps one visible state per wheel
-   position and eliminates the fatal archive + chapter overlay. */
+/* Gallery -> THE INTERFACE -> Agent is an exclusive state boundary. */
 .ref-stage[data-scene="gallery"] .ref-scene--chapter[data-chapter="agent"] {
   opacity: 0 !important;
   visibility: hidden !important;
@@ -88,7 +58,6 @@ html.is-refined-intro::-webkit-scrollbar-track {
   visibility: hidden !important;
 }
 
-/* Keep inactive scenes outside the interaction tree during cross-fades. */
 .ref-scene {
   pointer-events: none !important;
 }
@@ -98,22 +67,4 @@ html.is-refined-intro::-webkit-scrollbar-track {
 .ref-stage[data-scene="gallery"] .ref-scene--gallery,
 .ref-stage[data-scene="agent"] .ref-scene--agent {
   pointer-events: auto !important;
-}
-
-/* Intro -> Hero morph.
-   D and C travel with the exact typography used by DIEGO/CANO. Because the
-   source glyphs already have their final dimensions, the FLIP transform is
-   effectively translation-only instead of visibly resizing the letters. */
-.ref-intro__mark {
-  font-family: var(--font-sans) !important;
-  font-size: clamp(7rem, 19vw, 21rem) !important;
-  font-weight: 700 !important;
-  line-height: .78 !important;
-  letter-spacing: -.045em !important;
-}
-
-@media (max-width: 680px) {
-  .ref-intro__mark {
-    font-size: clamp(7rem, 19vw, 21rem) !important;
-  }
 }

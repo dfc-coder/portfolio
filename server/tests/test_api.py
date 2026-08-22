@@ -5,8 +5,8 @@ from typing import AsyncIterator
 
 from fastapi.testclient import TestClient
 
+from app.infrastructure.config.settings import Settings
 from app.main import create_app
-from app.settings import Settings
 
 
 class FakeAgent:

@@ -1,4 +1,184 @@
-/* Chapters 04 and 05 use the editorial bridge grammar established by THE EVIDENCE. */
+/* Shared chapter transitions and editorial bridge grammar. */
+.ref-scene--chapter {
+  --ch: 0;
+  display: grid;
+  place-items: center;
+  opacity: var(--ch);
+  transform: translate3d(0, calc((1 - var(--ch)) * 2vh), 0);
+  filter: blur(calc((1 - var(--ch)) * 4px));
+  background:
+    radial-gradient(circle at 50% 47%, rgba(238, 234, 226, .035), transparent 46%),
+    var(--color-ink);
+}
+
+.ref-scene--chapter[data-chapter="career"] { --ch: var(--chapter-career, 0); }
+.ref-scene--chapter[data-chapter="systems"] { --ch: var(--chapter-systems, 0); }
+.ref-scene--chapter[data-chapter="gallery"] { --ch: var(--chapter-gallery, 0); }
+.ref-scene--chapter[data-chapter="agent"] { --ch: var(--chapter-agent, 0); }
+
+.ref-chapter {
+  max-width: min(880px, 90vw);
+  text-align: center;
+}
+
+.ref-chapter > i {
+  display: block;
+  width: 66px;
+  height: 1px;
+  margin: 0 auto 18px;
+  background: var(--color-accent);
+  transform: scaleX(var(--ch));
+}
+
+.ref-chapter > span {
+  display: block;
+  margin-bottom: 18px;
+  color: #a39d92;
+  font-size: 9px;
+  letter-spacing: .32em;
+  text-indent: .32em;
+}
+
+.ref-chapter > p {
+  margin: 0;
+  color: var(--color-paper);
+  font-style: italic;
+  text-wrap: balance;
+}
+
+/* Record and Evidence use the same editorial introduction grammar. */
+.trajectory-intro,
+.systems-intro {
+  left: 50%;
+  top: 47%;
+  width: min(680px, 72vw);
+  translate: -50% -50%;
+  text-align: center;
+  isolation: isolate;
+}
+
+.trajectory-intro__kicker,
+.systems-intro__kicker {
+  width: max-content;
+  margin: 0 auto 22px;
+  display: grid;
+  grid-template-columns: auto 52px auto;
+  align-items: center;
+  gap: 10px;
+  color: rgba(238, 234, 226, .64);
+  font: 8.5px/1 var(--font-mono);
+  letter-spacing: .16em;
+}
+
+.trajectory-intro__kicker i,
+.systems-intro__kicker i {
+  height: 1px;
+  background: rgba(238, 234, 226, .44);
+}
+
+.trajectory-intro p,
+.systems-intro p {
+  max-width: 680px;
+  margin: 0 auto;
+  text-align: center;
+  color: rgba(238, 234, 226, .985);
+  font-family: var(--font-serif);
+  font-size: clamp(2.35rem, 3.55vw, 4.15rem);
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.03;
+  letter-spacing: -.03em;
+  text-wrap: balance;
+}
+
+.systems-intro p em {
+  color: rgba(238, 234, 226, .90);
+  font-style: inherit;
+}
+
+/* Hero cue -> Trajectory register. One continuous ownership handoff. */
+html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i {
+  animation: none;
+}
+
+html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue {
+  translate: -50% 0 !important;
+  opacity: calc(
+    (1 - var(--trajectory-axis-reveal, 0)) *
+    (1 - var(--trajectory-cue-exit, 0) * .35)
+  ) !important;
+}
+
+html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue span {
+  opacity: calc(1 - var(--trajectory-cue-exit, 0) * 1.9) !important;
+}
+
+html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i {
+  translate: 0 calc(var(--trajectory-cue-exit, 0) * 18px);
+  transform: scaleY(calc(1 + var(--trajectory-cue-exit, 0) * .28)) !important;
+  transform-origin: top center !important;
+}
+
+.trajectory-bridge-line {
+  display: none !important;
+}
+
+.trajectory-axis {
+  transform: scaleY(var(--trajectory-axis-reveal, 0)) !important;
+  transform-origin: top center !important;
+  will-change: transform, opacity;
+}
+
+.trajectory-intro__kicker {
+  translate: 0 calc(
+    (1 - var(--trajectory-intro-in, 0)) * 8px -
+    var(--trajectory-intro-out, 0) * 12px
+  );
+}
+
+.trajectory-intro p {
+  translate: 0 calc(
+    (1 - var(--trajectory-intro-in, 0)) * 15px -
+    var(--trajectory-intro-out, 0) * 22px
+  );
+}
+
+/* Systems -> Gallery handoff belongs to the chapter boundary, not Systems CSS. */
+html.systems-refined-ready
+  .ref-stage[data-systems-refined="true"]
+  .ref-scene--chapter[data-chapter="gallery"] {
+  --ch: var(--systems-gallery-handoff, 0);
+  opacity: var(--systems-gallery-handoff, 0);
+  transform: translate3d(0, calc((1 - var(--systems-gallery-handoff, 0)) * 10vh), 0);
+  filter: none;
+  background: transparent;
+}
+
+html.systems-refined-ready
+  .ref-stage[data-systems-refined="true"]
+  .ref-scene--chapter[data-chapter="gallery"]
+  .ref-chapter {
+  transform: translate3d(0, calc((1 - var(--systems-gallery-handoff, 0)) * 3.5vh), 0);
+}
+
+.ref-scene--gallery {
+  opacity: max(var(--gallery, 0), calc(var(--chapter-agent, 0) * .18));
+  filter: grayscale(calc(var(--chapter-agent, 0) * .38)) brightness(calc(1 - var(--chapter-agent, 0) * .48));
+  transform: translate3d(0, calc(var(--chapter-agent, 0) * -2.4vh), 0) scale(calc(1 - var(--chapter-agent, 0) * .018));
+}
+
+.ref-scene--chapter[data-chapter="agent"] {
+  background:
+    radial-gradient(circle at 50% 47%, rgba(238, 234, 226, .038), transparent 46%),
+    transparent;
+}
+
+.ref-scene--chapter[data-chapter="agent"] .ref-chapter {
+  position: relative;
+  z-index: 4;
+}
+
+/* Chapters 04 and 05 use the same evidence-bridge layout. */
 .ref-scene--chapter[data-chapter="gallery"] .ref-chapter,
 .ref-scene--chapter[data-chapter="agent"] .ref-chapter {
   width: min(680px, 72vw);
@@ -21,13 +201,8 @@
   letter-spacing: .16em;
 }
 
-.ref-scene--chapter[data-chapter="gallery"] .ref-chapter::before {
-  content: "04";
-}
-
-.ref-scene--chapter[data-chapter="agent"] .ref-chapter::before {
-  content: "05";
-}
+.ref-scene--chapter[data-chapter="gallery"] .ref-chapter::before { content: "04"; }
+.ref-scene--chapter[data-chapter="agent"] .ref-chapter::before { content: "05"; }
 
 .ref-scene--chapter[data-chapter="gallery"] .ref-chapter > i,
 .ref-scene--chapter[data-chapter="agent"] .ref-chapter > i {
@@ -59,13 +234,8 @@
   white-space: nowrap;
 }
 
-.ref-scene--chapter[data-chapter="gallery"] .ref-chapter > span::after {
-  content: "A NOTE ON ORIGIN";
-}
-
-.ref-scene--chapter[data-chapter="agent"] .ref-chapter > span::after {
-  content: "THE INTERFACE";
-}
+.ref-scene--chapter[data-chapter="gallery"] .ref-chapter > span::after { content: "A NOTE ON ORIGIN"; }
+.ref-scene--chapter[data-chapter="agent"] .ref-chapter > span::after { content: "THE INTERFACE"; }
 
 .ref-scene--chapter[data-chapter="gallery"] .ref-chapter > p,
 .ref-scene--chapter[data-chapter="agent"] .ref-chapter > p {
@@ -74,18 +244,19 @@
   width: min(680px, 72vw);
   max-width: 680px;
   margin: 0 auto;
-  color: var(--ref-paper-strong, rgba(238, 234, 226, .985));
-  font-family: var(--font-serif);
+  color: rgba(238, 234, 226, .985);
   font-size: clamp(2.35rem, 3.55vw, 4.15rem);
-  font-style: italic;
-  font-weight: 400;
   line-height: 1.03;
   letter-spacing: -.03em;
   text-align: center;
-  text-wrap: balance;
 }
 
 @media (max-width: 680px) {
+  .trajectory-intro,
+  .systems-intro {
+    width: 76vw;
+  }
+
   .ref-scene--chapter[data-chapter="gallery"] .ref-chapter,
   .ref-scene--chapter[data-chapter="agent"] .ref-chapter {
     width: 76vw;

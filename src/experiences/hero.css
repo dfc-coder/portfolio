@@ -1,69 +1,31 @@
 /* ==========================================================================
    CREATIVE HERO EXPERIENCE
-   One visual hierarchy, one entrance timeline, one interactive field.
-   The legacy intro remains in the Vue component for now but is visually
-   retired here so it cannot compete with the new opening choreography.
+   One owner for Hero structure, typography, entrance and interactive field.
    ========================================================================== */
-
-/* The previous intro duplicated the hero typography and created competing
-   layers during the hand-off. The new opening is mounted by hero-experience.ts
-   and the actual hero stays the only destination layer. */
-.ref-intro {
-  display: none !important;
-}
-
-/* First-paint guard. The creative director removes this class immediately
-   before it mounts its opening, so users see a stable black canvas rather than
-   a one-frame fully rendered Hero while fonts and legacy Vue hooks settle. */
-html.creative-hero-pending .ref-scene--hero .ref-hero__meta,
-html.creative-hero-pending .ref-scene--hero .ref-hero__title,
-html.creative-hero-pending .ref-scene--hero .ref-hero__thesis,
-html.creative-hero-pending .ref-scene--hero .ref-scroll-cue,
-html.creative-hero-pending .ref-header {
-  opacity: 0 !important;
-}
 
 .ref-scene--hero {
   overflow: hidden;
   background: #090908;
 }
 
-.ref-scene--hero::before {
-  content: "";
-  position: absolute;
-  z-index: 2;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 72% 34%, rgba(238, 234, 226, .055), transparent 30%),
-    radial-gradient(circle at 28% 76%, rgba(196, 161, 92, .035), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, .012), transparent 28%, rgba(0, 0, 0, .14));
-}
-
-.ref-hero-field {
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  opacity: .86;
-}
-
-.ref-hero__meta,
-.ref-hero__title,
-.ref-hero__thesis,
-.ref-scroll-cue {
+.ref-hero__meta {
+  position: relative;
   z-index: 6;
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  color: rgba(238, 234, 226, .46);
+  font-size: 8px;
+  letter-spacing: .08em;
 }
 
-/* Editorial asymmetry: the two lines share one typographic voice but anchor to
-   opposite sides. The title is never clipped during entry; it moves as one
-   complete typographic object instead of being sliced by a mask. */
 .ref-hero__title {
+  position: absolute;
+  z-index: 6;
   left: 1.7vw;
   right: 1.7vw;
   top: 49%;
+  margin: 0;
   transform: translateY(-50%);
   font-size: var(--t-display);
   line-height: .82;
@@ -71,13 +33,18 @@ html.creative-hero-pending .ref-header {
 }
 
 .ref-hero__title > span {
+  display: block;
   overflow: visible;
   padding-block: 0;
+  white-space: nowrap;
 }
 
 .ref-hero__title > span > i {
+  display: block;
+  font-style: normal;
   transform-style: preserve-3d;
   backface-visibility: hidden;
+  will-change: transform;
 }
 
 .ref-hero__title > span:first-child > i {
@@ -96,19 +63,18 @@ html.creative-hero-pending .ref-header {
   font-weight: inherit;
   line-height: inherit;
   letter-spacing: inherit;
+  color: inherit;
   vertical-align: baseline;
+  will-change: opacity, clip-path;
 }
 
-.ref-hero__meta {
-  margin-inline: 0;
-  color: rgba(238, 234, 226, .46);
-}
-
-/* The thesis has its own motion language: a quiet editorial rule establishes
-   the block, then the copy settles horizontally. It intentionally does not
-   repeat the vertical name entrance. */
 .ref-hero__thesis {
+  position: absolute;
+  z-index: 6;
+  left: 22px;
+  bottom: 24px;
   width: min(560px, 46vw);
+  margin: 0;
   display: grid;
   grid-template-columns: 1px minmax(0, 1fr);
   align-items: stretch;
@@ -133,10 +99,9 @@ html.creative-hero-pending .ref-header {
   color: rgba(238, 234, 226, .96);
 }
 
-/* Vertical cue: centered below the composition, separate from the editorial
-   text block so it reads as a navigation affordance rather than metadata. */
 .ref-scroll-cue {
   position: absolute;
+  z-index: 6;
   left: 50%;
   right: auto;
   top: auto;
@@ -172,19 +137,50 @@ html.creative-hero-pending .ref-header {
     transform: scaleY(.22);
     opacity: .28;
   }
-
   52% {
     transform: scaleY(1);
     opacity: .9;
   }
 }
 
+/* The legacy intro is retired. The opening below is the only pre-Hero layer. */
+.ref-intro {
+  display: none !important;
+}
+
+html.creative-hero-pending .ref-scene--hero .ref-hero__meta,
+html.creative-hero-pending .ref-scene--hero .ref-hero__title,
+html.creative-hero-pending .ref-scene--hero .ref-hero__thesis,
+html.creative-hero-pending .ref-scene--hero .ref-scroll-cue,
+html.creative-hero-pending .ref-header {
+  opacity: 0 !important;
+}
+
+.ref-scene--hero::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 72% 34%, rgba(238, 234, 226, .055), transparent 30%),
+    radial-gradient(circle at 28% 76%, rgba(196, 161, 92, .035), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, .012), transparent 28%, rgba(0, 0, 0, .14));
+}
+
+.ref-hero-field {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: .86;
+}
+
 /* --------------------------------------------------------------------------
    Opening
-   The opening is intentionally quieter than the hero. It establishes rhythm,
-   then yields in one continuous mask rather than layering multiple reveals.
    -------------------------------------------------------------------------- */
-
 .creative-opening {
   position: fixed;
   z-index: 1200;
@@ -286,10 +282,6 @@ html.creative-hero-pending .ref-header {
   transform-origin: left center;
 }
 
-/* --------------------------------------------------------------------------
-   Interaction polish
-   -------------------------------------------------------------------------- */
-
 .ref-scene--hero[data-hero-hover="true"] .ref-hero__meta {
   color: rgba(238, 234, 226, .58);
 }
@@ -304,6 +296,10 @@ html.creative-hero-pending .ref-header {
     display: none;
   }
 
+  .ref-hero__meta span:last-child {
+    display: none;
+  }
+
   .ref-hero__title {
     left: 3vw;
     right: 3vw;
@@ -311,6 +307,8 @@ html.creative-hero-pending .ref-header {
   }
 
   .ref-hero__thesis {
+    left: 14px;
+    bottom: 64px;
     width: min(84vw, 520px);
     column-gap: 10px;
   }

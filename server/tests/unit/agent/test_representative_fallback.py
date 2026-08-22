@@ -6,10 +6,10 @@ from app.agent.representative import BusinessRepresentative
 from app.agent.responder import Responder
 from app.agent.scheduler import SchedulerReply
 from app.domain.conversation import ActiveWorkflow
+from app.domain.profile import BusinessProfile
 from app.domain.routing import RouteDomain, RouteRelation, RoutingDecision
 from app.infrastructure.sessions.memory import MemorySessionStore
 from app.ports.llm import GenerationConfig
-from app.profile import BusinessProfile
 from app.scheduling.policy import SchedulingPolicy
 
 

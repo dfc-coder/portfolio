@@ -7,11 +7,11 @@ import pytest
 
 from app.agent.scheduler import Scheduler, SchedulingIntent, SchedulingTurn
 from app.domain.conversation import ActiveWorkflow, SessionState
+from app.domain.profile import BusinessProfile
 from app.domain.routing import RouteRelation
 from app.domain.scheduling import OfferedSlot, PendingBooking
 from app.infrastructure.calendar.memory import InMemoryCalendarGateway
 from app.ports.llm import GenerationConfig
-from app.profile import BusinessProfile
 from app.scheduling.policy import SchedulingPolicy
 
 

@@ -5,10 +5,11 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from app.calendar_gateway import BusyInterval, InMemoryCalendarGateway
-from app.policies import SchedulingPolicy
-from app.profile import BusinessProfile
-from app.slot_service import SlotService
+from app.domain.profile import BusinessProfile
+from app.domain.scheduling import BusyInterval
+from app.infrastructure.calendar.memory import InMemoryCalendarGateway
+from app.scheduling.policy import SchedulingPolicy
+from app.scheduling.slots import SlotService
 
 
 @pytest.mark.asyncio
