@@ -260,6 +260,7 @@ export const mountScrollSyncController = () => {
     if (node === undefined) return;
 
     event.preventDefault();
+    stopSmoothScroll();
     const currentNode = trigger.progress * model.physicalLastNode;
     const direction = node >= currentNode ? 1 : -1;
 
