@@ -16,7 +16,6 @@ const removedFrontendLayers = [
   "src/design-system/tokens.css",
   "src/design-system/primitives.css",
   "src/design-system/templates.css",
-  "pnpm-lock.yaml",
 ];
 
 const removedBackendFacades = [
@@ -35,6 +34,12 @@ test("architecture: obsolete frontend layers are removed instead of overridden",
   await Promise.all(removedFrontendLayers.map(absent));
   await access(resolve(root, "src/styles/theme.css"));
   await access(resolve(root, "src/styles/shell.css"));
+});
+
+test("architecture: npm remains canonical while local pnpm state stays ignored", async () => {
+  const gitignore = await read(".gitignore");
+  await access(resolve(root, "package-lock.json"));
+  assert.match(gitignore, /^pnpm-lock\.yaml$/m);
 });
 
 test("architecture: main loads one predictable CSS ownership chain", async () => {
