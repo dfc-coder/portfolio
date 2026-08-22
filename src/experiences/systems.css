@@ -193,6 +193,80 @@ html.systems-refined-ready .ref-scene--systems {
   background: rgba(238, 234, 226, calc(.26 + var(--axis-focus) * .40));
 }
 
+/* Template chrome is rendered once. Project-specific content moves underneath it. */
+.systems-static-chrome {
+  position: absolute;
+  z-index: 30;
+  inset: 0;
+  opacity: calc(var(--systems-content, 0) * (1 - var(--systems-tail-out, 0)));
+  color: rgba(238, 234, 226, .72);
+  font: 500 var(--t-label)/1 var(--font-info);
+  letter-spacing: var(--track-label);
+  pointer-events: none;
+}
+
+.systems-static-chrome__architecture,
+.systems-static-chrome__detail,
+.systems-static-chrome__evidence,
+.systems-static-chrome__implementation {
+  position: absolute;
+}
+
+.systems-static-chrome__architecture {
+  left: 57%;
+  right: 4.8vw;
+  top: 18.5%;
+  height: 50vh;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 12px;
+}
+
+.systems-static-chrome__architecture > i {
+  height: 1px;
+  margin-top: 4px;
+  background: rgba(238, 234, 226, .18);
+}
+
+.systems-static-chrome__architecture::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 36px;
+  height: 1px;
+  background: rgba(238, 234, 226, .13);
+}
+
+.systems-static-chrome__detail {
+  left: 25%;
+  top: 65.5%;
+  width: min(500px, 29vw);
+  padding-top: 15px;
+  border-top: 1px solid rgba(238, 234, 226, .18);
+}
+
+.systems-static-chrome__evidence {
+  left: 57%;
+  top: 73.5%;
+  width: min(430px, 24vw);
+}
+
+.systems-static-chrome__evidence > i {
+  display: block;
+  width: 100%;
+  height: 1px;
+  margin-top: 11px;
+  background: linear-gradient(90deg, rgba(197, 103, 72, .66), rgba(238, 234, 226, .13));
+}
+
+.systems-static-chrome__implementation {
+  right: 4.8vw;
+  top: 88%;
+  width: min(450px, 29vw);
+}
+
 .systems-projects,
 .systems-project {
   position: absolute;
@@ -222,7 +296,7 @@ html.systems-refined-ready .ref-scene--systems {
   z-index: 31;
   left: 25%;
   top: 18.5%;
-  width: min(640px, 37vw);
+  width: min(600px, 29vw);
   opacity: calc(var(--systems-content, 0) * var(--title-presence));
   transform: translate3d(0, var(--title-y), 0);
   will-change: opacity, transform;
@@ -230,7 +304,7 @@ html.systems-refined-ready .ref-scene--systems {
 
 /* Shipped systems carry slightly more visual authority than role titles. */
 .systems-project h3 {
-  max-width: 640px;
+  max-width: 600px;
   margin: 16px 0 0;
   color: rgba(238, 234, 226, .99);
   font-family: var(--font-title);
@@ -242,7 +316,7 @@ html.systems-refined-ready .ref-scene--systems {
 }
 
 .systems-project__premise {
-  width: min(520px, 32vw);
+  width: min(500px, 28vw);
   margin: 21px 0 0;
   color: rgba(238, 234, 226, .92);
   font-size: clamp(1rem, 1.16vw, 1.22rem);
@@ -253,7 +327,7 @@ html.systems-refined-ready .ref-scene--systems {
 .systems-project__architecture {
   position: absolute;
   z-index: 29;
-  left: 47%;
+  left: 57%;
   right: 4.8vw;
   top: 18.5%;
   height: 50vh;
@@ -262,30 +336,10 @@ html.systems-refined-ready .ref-scene--systems {
   will-change: opacity, transform;
 }
 
-.systems-project__architecture-heading {
-  height: 32px;
-  margin: 0;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 12px;
-  color: rgba(238, 234, 226, .72);
-  font: 500 var(--t-label)/1 var(--font-info);
-  letter-spacing: var(--track-label);
-}
-
-.systems-project__architecture-heading i {
-  height: 1px;
-  transform: scaleX(calc(.12 + var(--graph-focus) * .88));
-  transform-origin: left;
-  background: rgba(238, 234, 226, .18);
-}
-
 .systems-graph-field {
   position: absolute;
   inset: 36px 0 0;
   overflow: hidden;
-  border-top: 1px solid rgba(238, 234, 226, .13);
   border-bottom: 1px solid rgba(238, 234, 226, .13);
 }
 
@@ -428,30 +482,12 @@ html.systems-refined-ready .ref-scene--systems {
 .systems-project__evidence {
   position: absolute;
   z-index: 30;
-  left: 47%;
-  bottom: 12vh;
-  width: min(430px, 28vw);
+  left: 57%;
+  top: 73.5%;
+  width: min(430px, 24vw);
+  padding-top: 35px;
   opacity: calc(var(--systems-content, 0) * var(--support-presence));
   transform: translate3d(0, calc(var(--support-y) * .68), 0);
-}
-
-.systems-project__evidence h4,
-.systems-project__implementation h4,
-.systems-project__detail h4 {
-  margin: 0;
-  color: rgba(238, 234, 226, .72);
-  font: 500 var(--t-label)/1 var(--font-info);
-  letter-spacing: var(--track-label);
-}
-
-.systems-project__evidence > i {
-  display: block;
-  width: 100%;
-  height: 1px;
-  margin: 11px 0 13px;
-  transform: scaleX(var(--support-focus));
-  transform-origin: left;
-  background: linear-gradient(90deg, rgba(197, 103, 72, .66), rgba(238, 234, 226, .13));
 }
 
 .systems-project__evidence p {
@@ -467,17 +503,11 @@ html.systems-refined-ready .ref-scene--systems {
   z-index: 28;
   left: 25%;
   top: 65.5%;
-  bottom: auto;
-  width: min(500px, 31vw);
+  width: min(500px, 29vw);
   margin: 0;
-  padding-top: 15px;
-  border-top: 1px solid rgba(238, 234, 226, .18);
+  padding-top: 38px;
   opacity: calc(var(--systems-content, 0) * var(--support-presence));
   transform: translate3d(0, calc(var(--support-y) * .42), 0);
-}
-
-.systems-project__detail h4 {
-  margin-bottom: 10px;
 }
 
 .systems-project__detail p {
@@ -491,14 +521,14 @@ html.systems-refined-ready .ref-scene--systems {
   position: absolute;
   z-index: 28;
   right: 4.8vw;
-  bottom: 5.2vh;
+  top: 88%;
   width: min(450px, 29vw);
   opacity: calc(var(--systems-content, 0) * var(--support-presence));
   transform: translate3d(0, calc(var(--support-y) * .30), 0);
 }
 
 .systems-project__implementation ul {
-  margin: 10px 0 0;
+  margin: 20px 0 0;
   padding: 0;
   display: flex;
   flex-wrap: wrap;
@@ -517,21 +547,24 @@ html.systems-refined-ready .ref-scene--systems {
 @media (max-width: 1100px) {
   .systems-project__identity {
     left: 22%;
-    width: 38vw;
+    width: 32vw;
   }
 
-  .systems-project__architecture {
-    left: 50%;
+  .systems-project__architecture,
+  .systems-static-chrome__architecture {
+    left: 58%;
     right: 3vw;
   }
 
-  .systems-project__detail {
+  .systems-project__detail,
+  .systems-static-chrome__detail {
     left: 22%;
-    width: 34vw;
+    width: 32vw;
   }
 
-  .systems-project__evidence {
-    left: 50%;
+  .systems-project__evidence,
+  .systems-static-chrome__evidence {
+    left: 58%;
     width: 29vw;
   }
 }
@@ -561,26 +594,30 @@ html.systems-refined-ready .ref-scene--systems {
     width: 66vw;
   }
 
-  .systems-project__architecture {
+  .systems-project__architecture,
+  .systems-static-chrome__architecture {
     left: 22%;
     right: 4vw;
     top: 47%;
     height: 34vh;
   }
 
-  .systems-project__detail {
+  .systems-project__detail,
+  .systems-static-chrome__detail {
     display: none;
   }
 
-  .systems-project__evidence {
+  .systems-project__evidence,
+  .systems-static-chrome__evidence {
     left: 22%;
-    bottom: 8vh;
+    top: 83%;
     width: 42vw;
   }
 
-  .systems-project__implementation {
+  .systems-project__implementation,
+  .systems-static-chrome__implementation {
     right: 4vw;
-    bottom: 8vh;
+    top: 83%;
     width: 40vw;
   }
 }
