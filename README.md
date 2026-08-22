@@ -6,6 +6,8 @@ Vue 3 + Vite portfolio with a server-side business representative in Chapter 05.
 
 ```bash
 pnpm install --frozen-lockfile
+pnpm test:visual
+pnpm build
 pnpm dev
 ```
 
