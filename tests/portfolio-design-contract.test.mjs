@@ -43,7 +43,7 @@ test("architecture: pnpm is the only frontend package manager", async () => {
   await access(resolve(root, "pnpm-lock.yaml"));
   await absent("package-lock.json");
   assert.equal(packageJson.packageManager, "pnpm@11.22.0");
-  assert.match(workspace, /onlyBuiltDependencies:\s*\n\s*- esbuild/);
+  assert.match(workspace, /allowBuilds:\s*\n\s*esbuild:\s*true/);
 });
 
 test("architecture: main loads one predictable CSS ownership chain", async () => {
