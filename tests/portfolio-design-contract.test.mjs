@@ -72,17 +72,91 @@ test("architecture: main loads one predictable CSS ownership chain", async () =>
   assert.doesNotMatch(main, /design-system|cinematic|typography|systems-motion|trajectory-bridge/);
 });
 
-test("architecture: theme is the only global semantic vocabulary", async () => {
+test("architecture: theme owns one three-family semantic type system", async () => {
   const theme = await read("src/styles/theme.css");
   const base = await read("src/styles/base.css");
   const shell = await read("src/styles/shell.css");
+  const packageJson = await read("package.json");
+  const lockfile = await read("pnpm-lock.yaml");
 
-  for (const token of ["--color-ink", "--color-paper", "--color-accent", "--font-sans", "--font-mono", "--t-display"]) {
+  for (const token of [
+    "--color-ink",
+    "--color-paper",
+    "--color-accent",
+    "--font-title",
+    "--font-info",
+    "--font-highlight",
+    "--t-display",
+    "--t-role",
+    "--t-system",
+    "--t-label",
+    "--t-meta",
+    "--t-telemetry",
+  ]) {
     assert.match(theme, new RegExp(token.replaceAll("-", "\\-")));
   }
+
+  assert.match(theme, /@fontsource\/syne/);
+  assert.match(theme, /@fontsource\/instrument-sans/);
+  assert.match(theme, /@fontsource\/instrument-serif\/latin-400-italic\.css/);
+  assert.doesNotMatch(theme, /@fontsource\/dm-mono|--font-(mono|sans|serif|display)/);
+  assert.doesNotMatch(packageJson, /@fontsource\/dm-mono/);
+  assert.doesNotMatch(lockfile, /@fontsource\/dm-mono/);
   assert.doesNotMatch(base, /:root\s*\{/);
   assert.doesNotMatch(shell, /:root\s*\{/);
   assert.doesNotMatch(theme, /--ds-/);
+});
+
+test("semantics: visual narrative exposes one h1 and a stable chapter outline", async () => {
+  const portfolio = await read("src/components/PortfolioExperience.vue");
+  const header = await read("src/components/narrative/NarrativeHeader.vue");
+  const trajectory = await read("src/components/narrative/TrajectoryScene.vue");
+  const systems = await read("src/components/narrative/SystemsScene.vue");
+  const agent = await read("src/components/agent/AgentOS.vue");
+
+  assert.equal((portfolio.match(/<h1\b/g) ?? []).length, 1);
+  assert.match(portfolio, /<h1 class="ref-hero__title"/);
+  assert.match(header, /<h2 class="narrative-header__heading"/);
+  assert.match(trajectory, /<h3>\{\{ experience\.role \}\}<\/h3>/);
+  assert.match(systems, /<h3>\{\{ project\.title \}\}<\/h3>/);
+  assert.match(portfolio, /<h2 class="ref-marker">[\s\S]*VISUAL \/ MATERIAL ARCHIVE/);
+  assert.match(agent, /<h2 class="ref-marker">[\s\S]*THE INTERFACE/);
+  assert.doesNotMatch(portfolio, /ref-fallback[\s\S]*<h1/);
+});
+
+test("semantics: metadata and technical subsections use native structures", async () => {
+  const trajectory = await read("src/components/narrative/TrajectoryScene.vue");
+  const systems = await read("src/components/narrative/SystemsScene.vue");
+
+  assert.match(trajectory, /<dl class="trajectory-entry__context">/);
+  assert.match(trajectory, /<dt>ORGANIZATION<\/dt>/);
+  assert.match(trajectory, /<dd>/);
+  assert.match(trajectory, /<h4>FOCUS<\/h4>/);
+  assert.doesNotMatch(trajectory, /<small>|<strong>/);
+
+  assert.match(systems, /<h4>SYSTEM NOTE<\/h4>/);
+  assert.match(systems, /<h4>EVIDENCE<\/h4>/);
+  assert.match(systems, /<h4>IMPLEMENTATION<\/h4>/);
+  assert.match(systems, /<ul>/);
+  assert.doesNotMatch(systems, /systems-project__eyebrow|systems-project__field/);
+});
+
+test("semantics: systems architecture SVG has a concise textual alternative", async () => {
+  const systems = await read("src/components/narrative/SystemsScene.vue");
+
+  assert.match(systems, /role="img"/);
+  assert.match(systems, /:aria-labelledby=/);
+  assert.match(systems, /<title :id=/);
+  assert.match(systems, /<desc :id=/);
+  assert.match(systems, /architectureDescription\(project\)/);
+});
+
+test("hierarchy: roles and shipped systems use explicit balanced scales", async () => {
+  const trajectory = await read("src/experiences/trajectory.css");
+  const systems = await read("src/experiences/systems.css");
+
+  assert.match(trajectory, /\.trajectory-entry h3\s*\{[^}]*font-family:\s*var\(--font-title\)[^}]*font-size:\s*var\(--t-role\)[^}]*font-weight:\s*var\(--w-bold\)/s);
+  assert.match(systems, /\.systems-project h3\s*\{[^}]*font-family:\s*var\(--font-title\)[^}]*font-size:\s*var\(--t-system\)[^}]*font-weight:\s*var\(--w-bold\)/s);
 });
 
 test("architecture: continuity owns only cross-chapter pointer interaction", async () => {
@@ -182,7 +256,8 @@ test("architecture: Systems motion is owned by systems.css", async () => {
 
   assert.match(systems, /--graph-build/);
   assert.match(systems, /--title-presence/);
-  assert.match(systems, /\.systems-project__detail::before/);
+  assert.match(systems, /\.systems-project__detail h4/);
+  assert.doesNotMatch(systems, /content:\s*"SYSTEM NOTE"/);
   assert.doesNotMatch(systems, /ref-scene--chapter\[data-chapter="agent"\]/);
   assert.match(bridges, /data-chapter="agent"/);
 });
