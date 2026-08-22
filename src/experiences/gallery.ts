@@ -149,6 +149,8 @@ export const mountGalleryGel = () => {
   };
 
   const openFocus = (index: number) => {
+    if (!galleryIsVisible()) return;
+
     setSelected(index);
     renderFocus();
     isOpen = true;
@@ -164,10 +166,12 @@ export const mountGalleryGel = () => {
     gallery.classList.remove("is-gallery-focus-open");
     focus.classList.remove("is-open");
     focus.setAttribute("aria-hidden", "true");
-    cards[selectedIndex]?.focus({ preventScroll: true });
+    if (galleryIsVisible()) cards[selectedIndex]?.focus({ preventScroll: true });
   };
 
   const onGalleryClick = (event: MouseEvent) => {
+    if (!galleryIsVisible() && !isOpen) return;
+
     const target = event.target as Element | null;
     const card = target?.closest<HTMLElement>(".ref-art-card");
     if (card) {
@@ -236,9 +240,10 @@ export const mountGalleryGel = () => {
   };
 
   const onPointerMove = (event: PointerEvent) => {
+    if (!galleryIsVisible() || isOpen) return;
     pointerX = event.clientX;
     pointerY = event.clientY;
-    if (galleryIsVisible() && !isOpen) schedulePointerField();
+    schedulePointerField();
   };
 
   const onResize = () => {
@@ -250,7 +255,6 @@ export const mountGalleryGel = () => {
     if (event.target === focus) closeFocus();
   };
 
-  setSelected(0);
   gallery.addEventListener("click", onGalleryClick, true);
   focus.addEventListener("pointerdown", onFocusPointerDown);
   addEventListener("keydown", onKeydown, true);
