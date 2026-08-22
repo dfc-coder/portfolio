@@ -76,10 +76,12 @@ test("BDD: chapter-to-project handoff has no meaningful dead interval", () => {
   assert.ok(longestDeadRun <= 2);
 });
 
-test("BDD: project 00 owns its initial focus plateau", () => {
+test("BDD: every System project uses the same focus cadence", () => {
   const startNode = 6;
-  const during = motion.collectionPosition(startNode + motion.SYSTEMS_COLLECTION.firstHoldEnd - 0.01, startNode, 5);
-  const after = motion.collectionPosition(startNode + motion.SYSTEMS_COLLECTION.firstHoldEnd + 0.10, startNode, 5);
+  assert.equal(motion.SYSTEMS_COLLECTION.firstHoldEnd, motion.SYSTEMS_COLLECTION.holdEnd);
+
+  const during = motion.collectionPosition(startNode + motion.SYSTEMS_COLLECTION.holdEnd - 0.01, startNode, 5);
+  const after = motion.collectionPosition(startNode + motion.SYSTEMS_COLLECTION.holdEnd + 0.10, startNode, 5);
   assert.equal(during, 0);
   assert.ok(after > 0);
 });
@@ -131,7 +133,7 @@ test("SDD: Trajectory and Systems rails share one physical register", async () =
   const trajectoryScene = await read("src/components/narrative/TrajectoryScene.vue");
   const systemsScene = await read("src/components/narrative/SystemsScene.vue");
 
-  assert.match(bridges, /\.narrative-rail\s*\{[^}]*left:\s*15\.5%[^}]*top:\s*30%[^}]*height:\s*43vh/is);
+  assert.match(bridges, /\.narrative-rail\s*\{[^}]*left:\s*var\(--narrative-rail-x,\s*11\.5%\)[^}]*top:\s*28%[^}]*height:\s*48vh/is);
   assert.match(trajectoryScene, /trajectory-axis narrative-rail/);
   assert.match(systemsScene, /systems-axis narrative-rail/);
   assert.match(systemsScene, /systems-axis-items narrative-rail/);
@@ -153,7 +155,7 @@ test("TDD: continuity cannot own Systems or Trajectory geometry", async () => {
   const css = await read("src/experiences/continuity.css");
   assert.doesNotMatch(css, /\.(systems|trajectory)-/);
   assert.match(css, /\.ref-global-pointer-light/);
-  assert.match(css, /ellipse\s+54rem\s+38rem/i);
+  assert.match(css, /ellipse\s+64rem\s+46rem/i);
 });
 
 test("TDD: cross-chapter handoff lives outside Systems", async () => {
