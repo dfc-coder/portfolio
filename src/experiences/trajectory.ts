@@ -1,4 +1,5 @@
 import { narrativeModel } from "./narrative-model";
+import { narrativeRuntime, type NarrativeState } from "./narrative-runtime";
 import { experiences } from "./trajectory-data";
 
 const COLLECTION_HOLD_END = 0.26;
@@ -51,12 +52,10 @@ export const mountTrajectoryExperience = () => {
     return () => undefined;
   }
 
-  const { careerStartNode, chapterSystemsNode, virtualLastNode: lastNode } = narrativeModel;
-  let frame = 0;
+  const { careerStartNode, chapterSystemsNode } = narrativeModel;
 
-  const render = () => {
-    const progress = Number.parseFloat(stage.style.getPropertyValue("--progress")) || 0;
-    const node = clamp01(progress) * lastNode;
+  const render = (state: NarrativeState) => {
+    const node = state.node;
 
     const heroExit = range(node, 0.10, 0.86);
     const cueExit = range(node, 0.24, 1.06);
@@ -113,12 +112,11 @@ export const mountTrajectoryExperience = () => {
       const offset = index - experiencePosition;
       const distance = Math.abs(offset);
       const presence = entryPresence(distance);
-      const focus = presence;
       const directionScale = offset < 0 ? 0.82 : 1;
 
       element.style.visibility = presence > 0.001 ? "visible" : "hidden";
       element.style.opacity = (contentReveal * presence).toFixed(5);
-      element.style.setProperty("--entry-focus", focus.toFixed(5));
+      element.style.setProperty("--entry-focus", presence.toFixed(5));
       element.style.setProperty("--entry-offset", offset.toFixed(5));
       element.style.setProperty("--role-y", `${(offset * 5.2 * directionScale).toFixed(3)}vh`);
       element.style.setProperty("--eyebrow-y", `${(offset * 3.4 * directionScale).toFixed(3)}vh`);
@@ -129,13 +127,12 @@ export const mountTrajectoryExperience = () => {
     });
 
     counterTrack.style.transform = `translate3d(0, ${(-experiencePosition).toFixed(5)}em, 0)`;
-    frame = requestAnimationFrame(render);
   };
 
-  frame = requestAnimationFrame(render);
+  const unsubscribe = narrativeRuntime.subscribe(render);
 
   return () => {
-    cancelAnimationFrame(frame);
+    unsubscribe();
     delete stage.dataset.trajectory;
     [
       "--trajectory-hero-exit",
