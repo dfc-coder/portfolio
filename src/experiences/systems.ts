@@ -1,10 +1,10 @@
 import {
   chapterState,
-  clamp01,
   collectionPosition,
   motionForOffset,
 } from "./systems-motion-contract";
 import { narrativeModel } from "./narrative-model";
+import { narrativeRuntime, type NarrativeState } from "./narrative-runtime";
 import { systemsProjects as projects } from "./systems-projects";
 
 const damp = (current: number, target: number, response: number, dt: number) =>
@@ -38,30 +38,52 @@ export const mountSystemsExperience = () => {
     chapterSystemsNode,
     systemsStartNode,
     chapterGalleryNode,
-    virtualLastNode: lastNode,
   } = narrativeModel;
   const projectCount = projects.length;
 
-  let frame = 0;
+  let latestState = narrativeRuntime.getState();
+  let pointerFrame = 0;
   let pointerX = 0;
   let pointerY = 0;
   let pointerTargetX = 0;
   let pointerTargetY = 0;
-  let lastFrameTime = performance.now();
+  let pointerLastTime = performance.now();
 
-  const onPointerMove = (event: PointerEvent) => {
-    if (stage.dataset.systemsRefined !== "true") return;
-    pointerTargetX = event.clientX / innerWidth - 0.5;
-    pointerTargetY = event.clientY / innerHeight - 0.5;
+  const renderPointer = (time: number) => {
+    pointerFrame = 0;
+    if (latestState.scene !== "systems") return;
+
+    const dt = Math.min(0.05, Math.max(0.001, (time - pointerLastTime) / 1000));
+    pointerLastTime = time;
+    pointerX = damp(pointerX, pointerTargetX, 12, dt);
+    pointerY = damp(pointerY, pointerTargetY, 12, dt);
+    root.style.setProperty("--systems-pointer-x", pointerX.toFixed(4));
+    root.style.setProperty("--systems-pointer-y", pointerY.toFixed(4));
+
+    if (
+      Math.abs(pointerX - pointerTargetX) > 0.001 ||
+      Math.abs(pointerY - pointerTargetY) > 0.001
+    ) {
+      pointerFrame = requestAnimationFrame(renderPointer);
+    }
   };
 
-  const render = (time: number) => {
-    const dt = Math.min(0.05, Math.max(0.001, (time - lastFrameTime) / 1000));
-    lastFrameTime = time;
+  const requestPointerRender = () => {
+    if (pointerFrame || latestState.scene !== "systems") return;
+    pointerLastTime = performance.now();
+    pointerFrame = requestAnimationFrame(renderPointer);
+  };
 
-    const progress =
-      Number.parseFloat(stage.style.getPropertyValue("--progress")) || 0;
-    const node = clamp01(progress) * lastNode;
+  const onPointerMove = (event: PointerEvent) => {
+    if (latestState.scene !== "systems") return;
+    pointerTargetX = event.clientX / innerWidth - 0.5;
+    pointerTargetY = event.clientY / innerHeight - 0.5;
+    requestPointerRender();
+  };
+
+  const renderNarrative = (runtimeState: NarrativeState) => {
+    latestState = runtimeState;
+    const node = runtimeState.node;
     const state = chapterState(node, chapterSystemsNode, chapterGalleryNode);
 
     const projectPosition = collectionPosition(
@@ -106,11 +128,6 @@ export const mountSystemsExperience = () => {
       (1 - state.headerReveal)
     ).toFixed(2)}px, 0)`;
     axis.style.opacity = state.axisReveal.toFixed(5);
-
-    pointerX = damp(pointerX, pointerTargetX, 10.5, dt);
-    pointerY = damp(pointerY, pointerTargetY, 10.5, dt);
-    root.style.setProperty("--systems-pointer-x", pointerX.toFixed(4));
-    root.style.setProperty("--systems-pointer-y", pointerY.toFixed(4));
 
     axisItems.forEach((element, index) => {
       const offset = index - projectPosition;
@@ -159,15 +176,14 @@ export const mountSystemsExperience = () => {
       );
       element.style.setProperty("--graph-x", `${motion.graphX.toFixed(3)}vw`);
     });
-
-    frame = requestAnimationFrame(render);
   };
 
   addEventListener("pointermove", onPointerMove, { passive: true });
-  frame = requestAnimationFrame(render);
+  const unsubscribe = narrativeRuntime.subscribe(renderNarrative);
 
   return () => {
-    cancelAnimationFrame(frame);
+    unsubscribe();
+    if (pointerFrame) cancelAnimationFrame(pointerFrame);
     removeEventListener("pointermove", onPointerMove);
     delete stage.dataset.systemsRefined;
     [
@@ -179,6 +195,8 @@ export const mountSystemsExperience = () => {
       "--systems-progress",
       "--systems-tail-out",
       "--systems-gallery-handoff",
+      "--systems-pointer-x",
+      "--systems-pointer-y",
     ].forEach((property) => stage.style.removeProperty(property));
     document.documentElement.classList.remove("systems-refined-ready");
   };
