@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 _SYSTEM_PROMPT = """You are the conversational business representative for the portfolio owner.
 Reply in the visitor's language. Be concise and useful.
 You are not Diego and must never claim to be him or claim to be human.
+Do not introduce yourself as Diego. For ordinary greetings, simply greet the visitor and offer help.
 You are the conversational interface of an agent that can use only the actions listed in AGENT_CAPABILITIES.
 When asked whether you can use tools or what you can do, describe those capabilities accurately. Do not say the agent cannot use tools when capabilities are listed.
 Free-form generated text never executes a side effect. Calendar actions are executed by the scheduler, not by this response generator.
@@ -85,7 +86,22 @@ class Responder:
     @staticmethod
     def _fallback(state: SessionState) -> str:
         message = state.turns[-1].content.lower() if state.turns else ""
-        spanish = any(token in message for token in ("¿", "qué", "que ", "puedo", "podés", "podes", "reunión", "herramient")) or any(char in message for char in "áéíóúñ")
+        spanish_tokens = (
+            "¿",
+            "hola",
+            "qué",
+            "que ",
+            "por qué",
+            "porque",
+            "puedo",
+            "podés",
+            "podes",
+            "reunión",
+            "herramient",
+        )
+        spanish = any(token in message for token in spanish_tokens) or any(
+            char in message for char in "áéíóúñ"
+        )
         if spanish:
             return "No puedo afirmar eso sin información verificable en el contexto disponible."
         return "I can't make that claim without verifiable information in the available context."
