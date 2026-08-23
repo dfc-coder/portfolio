@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import AsciiFluidCanvas from "./AsciiFluidCanvas.vue";
+import {
+  pulseAgentVisual,
+  setAgentVisualPhase,
+  type AgentVisualPhase,
+} from "../../graphics/stageGraphics";
 import { businessAgentProvider } from "./businessAgentProvider";
 import { useAgentRuntime, type AgentProvider } from "./useAgentRuntime";
 
@@ -11,36 +15,35 @@ const props = withDefaults(
   { provider: () => businessAgentProvider },
 );
 
-const root = ref<HTMLElement | null>(null);
 const laneEl = ref<HTMLElement | null>(null);
 const inputEl = ref<HTMLInputElement | null>(null);
-const canvasRef = ref<InstanceType<typeof AsciiFluidCanvas> | null>(null);
-
 const tokenBeat = ref(0);
 let tokenSequence = 0;
+let scrollFrame = 0;
 
-const stickToBottom = () => {
+const scrollToBottom = () => {
+  scrollFrame = 0;
   const host = laneEl.value;
   if (!host) return;
-  host.scrollTo({ top: host.scrollHeight, behavior: "smooth" });
+  host.scrollTop = host.scrollHeight;
+};
+
+const scheduleScrollToBottom = () => {
+  if (scrollFrame) return;
+  scrollFrame = requestAnimationFrame(scrollToBottom);
 };
 
 const runtime = useAgentRuntime(props.provider, {
   onMessage: (message) => {
-    void nextTick(stickToBottom);
-    if (message.role === "user") canvasRef.value?.pulse(0.5, 0.5, 0.9);
+    scheduleScrollToBottom();
+    if (message.role === "user") pulseAgentVisual(0.78);
   },
   onToken: () => {
     tokenSequence += 1;
-    tokenBeat.value = tokenSequence;
-
-    const angle = tokenSequence * 2.399963229728653;
-    const radius = 0.11 + (tokenSequence % 6) * 0.018;
-    const x = 0.5 + Math.cos(angle) * radius;
-    const y = 0.5 + Math.sin(angle) * radius * 0.72;
-    canvasRef.value?.speak(1.35);
-    canvasRef.value?.pulse(x, y, 0.2);
-    void nextTick(stickToBottom);
+    // Telemetry does not need a Vue render for every streamed chunk.
+    if (tokenSequence % 4 === 0) tokenBeat.value = tokenSequence;
+    pulseAgentVisual(0.22);
+    scheduleScrollToBottom();
   },
 });
 
@@ -63,17 +66,8 @@ const linesOf = (text: string): Line[] =>
       : { kind: "text", value: line };
   });
 
-const active = ref(true);
-let sceneObserver: MutationObserver | null = null;
-
-const fieldWeight = computed(() => {
-  if (state.value === "thinking") return 1;
-  if (state.value === "speaking") return 0.94;
-  if (state.value === "listening") return 0.72;
-  return 0.58;
-});
-
 const statusLabel = computed(() => {
+  if (error.value) return "FAULT";
   if (state.value === "thinking") return "PROCESSING";
   if (state.value === "speaking") return "STREAMING";
   if (state.value === "listening") return "INPUT ACTIVE";
@@ -86,52 +80,42 @@ const streamLabel = computed(() =>
     : `STREAM ${String(tokenBeat.value % 10000).padStart(4, "0")}`,
 );
 
+const syncVisualPhase = () => {
+  const phase: AgentVisualPhase = error.value ? "error" : state.value;
+  setAgentVisualPhase(phase);
+};
+
 const submit = () => {
   void send();
   inputEl.value?.focus();
 };
 
+watch(state, syncVisualPhase, { immediate: true });
+watch(error, syncVisualPhase);
+
 onMounted(() => {
-  void nextTick(stickToBottom);
-
-  const stage = root.value?.closest(".ref-stage") as HTMLElement | null;
-  if (!stage) return;
-
-  const sync = () => (active.value = stage.dataset.scene === "agent");
-  sceneObserver = new MutationObserver(sync);
-  sceneObserver.observe(stage, { attributes: true, attributeFilter: ["data-scene"] });
-  sync();
+  void nextTick(scheduleScrollToBottom);
 });
 
-watch(messages, () => void nextTick(stickToBottom), { deep: true });
-
 onBeforeUnmount(() => {
-  sceneObserver?.disconnect();
+  if (scrollFrame) cancelAnimationFrame(scrollFrame);
+  setAgentVisualPhase("idle");
 });
 </script>
 
 <template>
   <section
-    ref="root"
     class="agent-os"
-    :data-state="state"
-    :style="{ '--field-weight': fieldWeight }"
+    :data-state="error ? 'error' : state"
     aria-label="Agent — ask about Diego's work"
   >
     <h2 class="ref-marker"><span>05</span><i aria-hidden="true" /><span>THE INTERFACE</span></h2>
 
     <aside class="agent-presence" aria-hidden="true">
       <div class="agent-core">
-        <AsciiFluidCanvas
-          ref="canvasRef"
-          class="agent-presence__field"
-          :state="state"
-          :paused="!active"
-        />
         <div class="agent-core__grid" />
         <div class="agent-core__rings"><i /><i /><i /></div>
         <div class="agent-core__reticle"><i /><i /></div>
-        <i v-if="tokenBeat > 0" :key="tokenBeat" class="agent-core__token-ring" />
         <div class="agent-core__readout">
           <span>REASONING FIELD</span>
           <b>{{ statusLabel }}</b>
@@ -200,6 +184,6 @@ onBeforeUnmount(() => {
       <p v-if="error" class="agent-os__error" role="alert">{{ error }}</p>
     </div>
 
-    <footer class="agent-os__foot">VUE / TYPESCRIPT / SERVER-SIDE AI / SSE</footer>
+    <footer class="agent-os__foot">VUE / TYPESCRIPT / THREE.JS / SERVER-SIDE AI / SSE</footer>
   </section>
 </template>
