@@ -40,7 +40,6 @@ const runtime = useAgentRuntime(props.provider, {
   },
   onToken: () => {
     tokenSequence += 1;
-    // Telemetry does not need a Vue render for every streamed chunk.
     if (tokenSequence % 4 === 0) tokenBeat.value = tokenSequence;
     pulseAgentVisual(0.22);
     scheduleScrollToBottom();
@@ -109,7 +108,7 @@ onBeforeUnmount(() => {
     :data-state="error ? 'error' : state"
     aria-label="Agent — ask about Diego's work"
   >
-    <h2 class="ref-marker"><span>05</span><i aria-hidden="true" /><span>THE INTERFACE</span></h2>
+    <h2 class="sr-only">The interface</h2>
 
     <aside class="agent-presence" aria-hidden="true">
       <div class="agent-core">
