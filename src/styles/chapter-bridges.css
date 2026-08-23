@@ -87,12 +87,26 @@
   left: var(--narrative-rail-x, 11.5%);
 }
 
-/* The shared header spans the viewport instead of inheriting a chapter-specific
-   central column. */
-.narrative-header {
+/* Persistent section chrome. Keep each section's existing semantic owner so
+   Trajectory and Systems runtimes retain their header nodes; only the visual
+   register is shared across 02 / 03 / 04 / 05. */
+.narrative-header,
+.ref-scene--gallery > .ref-marker,
+.ref-scene--agent .ref-marker {
+  position: absolute;
+  z-index: 35;
   left: var(--shell-gutter, 22px) !important;
-  right: var(--shell-gutter, 22px) !important;
   top: 22px !important;
+}
+
+.narrative-header {
+  right: var(--shell-gutter, 22px) !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: rgba(238, 234, 226, .70);
+  font: 500 var(--t-label)/1 var(--font-info);
+  letter-spacing: var(--track-label);
 }
 
 .narrative-header__heading {
@@ -100,6 +114,59 @@
   color: inherit;
   font: inherit;
   letter-spacing: inherit;
+}
+
+.narrative-header__label,
+.ref-scene--gallery > .ref-marker,
+.ref-scene--agent .ref-marker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: rgba(238, 234, 226, .70) !important;
+  font: 500 var(--t-label)/1 var(--font-info) !important;
+  letter-spacing: var(--track-label) !important;
+}
+
+.narrative-header__label .narrative-signal__index,
+.ref-scene--gallery > .ref-marker > span:first-child,
+.ref-scene--agent .ref-marker > span:first-child {
+  color: var(--color-accent) !important;
+}
+
+.narrative-header__label > i,
+.ref-scene--gallery > .ref-marker > i,
+.ref-scene--agent .ref-marker > i {
+  width: 42px !important;
+  height: 1px;
+  flex: 0 0 42px;
+  background: currentColor;
+  opacity: .46;
+}
+
+.narrative-header__label .narrative-signal__label,
+.ref-scene--gallery > .ref-marker > span:last-child,
+.ref-scene--agent .ref-marker > span:last-child {
+  color: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.narrative-header__meta {
+  display: flex !important;
+  align-items: center;
+  gap: 18px;
+  color: rgba(238, 234, 226, .52);
+  font-size: var(--t-meta);
+}
+
+.narrative-header__meta span + span::before {
+  content: "·";
+  margin-right: 18px;
+  color: rgba(238, 234, 226, .28);
 }
 
 /* Record and Evidence use one editorial introduction grammar, deliberately
