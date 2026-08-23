@@ -1,50 +1,4 @@
-/* Cross-chapter interaction: GSAP navigation cover + custom cursor. */
-.ref-navigation-transition {
-  --transition-origin: 50% 50%;
-  position: fixed;
-  z-index: 2400;
-  inset: 0;
-  display: block;
-  visibility: hidden;
-  opacity: 0;
-  pointer-events: none;
-  touch-action: none;
-  background:
-    radial-gradient(circle at var(--transition-origin), rgba(197, 103, 72, .16), transparent 34%),
-    radial-gradient(circle at var(--transition-origin), rgba(238, 234, 226, .06), transparent 52%),
-    linear-gradient(135deg, #0b0a09, #15100d 58%, #090908);
-  box-shadow: inset 0 0 140px rgba(0, 0, 0, .66);
-  will-change: clip-path;
-}
-
-.ref-navigation-transition::before,
-.ref-navigation-transition::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.ref-navigation-transition::before {
-  opacity: .26;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  mix-blend-mode: soft-light;
-}
-
-.ref-navigation-transition::after {
-  background: repeating-linear-gradient(
-    to bottom,
-    rgba(238, 234, 226, .014) 0,
-    rgba(238, 234, 226, .014) 1px,
-    transparent 1px,
-    transparent 4px
-  );
-}
-
-.ref-navigation-transition.is-active {
-  pointer-events: auto;
-}
-
+/* Cross-chapter interaction: custom cursor only. Navigation material is WebGL. */
 html.is-section-transitioning {
   overscroll-behavior: none;
 }
@@ -156,7 +110,6 @@ html.is-section-transitioning .ref-cursor-ring {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ref-navigation-transition,
   .ref-cursor,
   .ref-cursor-ring {
     display: none;
