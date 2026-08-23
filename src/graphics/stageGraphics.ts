@@ -417,6 +417,8 @@ class StageGraphics {
   private atmosphereTargetIntensity = 1;
   private atmosphereTurbulence = 0.48;
   private atmosphereTargetTurbulence = 0.48;
+  private agentMode = 0;
+  private agentRotationSpeed = 0.055;
   private transitionActive = false;
   private pointer = new THREE.Vector2(0.72, 0.34);
   private pointerTarget = new THREE.Vector2(0.72, 0.34);
@@ -533,24 +535,18 @@ class StageGraphics {
     });
     this.agentGroup.add(new THREE.Points(this.agentGeometry, this.agentMaterial));
 
-    this.rings = [
-      createRing(1.28, 0.42, 0.14, 0.17),
-      createRing(1.48, -0.62, 0.32, 0.10),
-      createRing(1.08, 0.18, -0.72, 0.14),
-    ];
+    this.rings = [createRing(1.34, 0.42, 0.14, 0.09)];
     this.rings.forEach((ring) => this.agentGroup.add(ring));
 
     const nodePositions = [
-      new THREE.Vector3(1.42, 0.22, 0.16),
-      new THREE.Vector3(-1.18, 0.76, -0.22),
-      new THREE.Vector3(0.54, -1.22, 0.32),
-      new THREE.Vector3(-0.82, -0.92, 0.46),
+      new THREE.Vector3(1.38, 0.24, 0.16),
+      new THREE.Vector3(-1.14, 0.74, -0.22),
     ];
     nodePositions.forEach((position, index) => {
       const material = new THREE.MeshBasicMaterial({
         color: index === 0 ? 0xf2eddc : 0xcdb675,
         transparent: true,
-        opacity: 0.58,
+        opacity: 0.38,
       });
       const node = new THREE.Mesh(this.nodeGeometry, material);
       node.position.copy(position);
@@ -686,7 +682,8 @@ class StageGraphics {
 
     const baseActivity = phaseActivity(agentSignal.phase);
     agentSignal.activityTarget = Math.max(baseActivity, agentSignal.activityTarget * Math.exp(-2.4 * dt));
-    agentSignal.activity = damp(agentSignal.activity, agentSignal.activityTarget, 5.0, dt);
+    agentSignal.activity = damp(agentSignal.activity, agentSignal.activityTarget, 3.2, dt);
+    this.agentMode = damp(this.agentMode, phaseMode(agentSignal.phase), 3.4, dt);
 
     this.atmosphereMaterial.uniforms.uPointer.value.copy(this.pointer);
     this.atmosphereMaterial.uniforms.uVelocity.value = this.pointerVelocity;
@@ -697,28 +694,27 @@ class StageGraphics {
     this.transitionMaterial.uniforms.uTime.value = elapsed;
     this.agentMaterial.uniforms.uTime.value = elapsed;
     this.agentMaterial.uniforms.uActivity.value = agentSignal.activity;
-    this.agentMaterial.uniforms.uMode.value = phaseMode(agentSignal.phase);
+    this.agentMaterial.uniforms.uMode.value = this.agentMode;
 
     if (this.agentGroup.visible) {
-      const rotationSpeed =
+      const rotationSpeedTarget =
         agentSignal.phase === "thinking"
-          ? 0.20
+          ? 0.17
           : agentSignal.phase === "speaking"
-            ? 0.12
+            ? 0.11
             : agentSignal.phase === "error"
-              ? 0.18
-              : 0.055;
-      this.agentGroup.rotation.y += rotationSpeed * dt;
-      this.agentGroup.rotation.x = Math.sin(elapsed * 0.18) * 0.085;
-      this.agentGroup.rotation.z = Math.sin(elapsed * 0.11) * 0.025;
-      this.rings[0].rotation.z += (0.06 + agentSignal.activity * 0.07) * dt;
-      this.rings[1].rotation.z -= (0.045 + agentSignal.activity * 0.045) * dt;
-      this.rings[2].rotation.z += (0.08 + agentSignal.activity * 0.075) * dt;
+              ? 0.15
+              : 0.05;
+      this.agentRotationSpeed = damp(this.agentRotationSpeed, rotationSpeedTarget, 2.6, dt);
+      this.agentGroup.rotation.y += this.agentRotationSpeed * dt;
+      this.agentGroup.rotation.x = Math.sin(elapsed * 0.18) * 0.075;
+      this.agentGroup.rotation.z = Math.sin(elapsed * 0.11) * 0.02;
+      this.rings[0].rotation.z += (0.035 + agentSignal.activity * 0.04) * dt;
       this.nodes.forEach((node, index) => {
         const scale =
           0.78 +
-          Math.sin(elapsed * (0.82 + index * 0.10) + index) * 0.12 +
-          agentSignal.activity * 0.20;
+          Math.sin(elapsed * (0.72 + index * 0.08) + index) * 0.09 +
+          agentSignal.activity * 0.14;
         node.scale.setScalar(scale);
       });
     }
