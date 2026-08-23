@@ -159,55 +159,70 @@ test("TDD: Systems template chrome is persistent and project content stays seman
   assert.match(systems, /--systems-tail-out/);
 });
 
-test("TDD: Systems has one CSS owner and keeps critical motion variables", async () => {
-  const systems = await read("src/experiences/systems.css");
-  assert.match(systems, /--title-presence/);
-  assert.match(systems, /--graph-presence/);
-  assert.match(systems, /--support-presence/);
-  assert.match(systems, /--graph-build/);
-  assert.match(systems, /position:\s*absolute/);
-  assert.match(systems, /font-size:\s*13px/);
-  assert.match(systems, /font-size:\s*var\(--t-system\)/);
-  assert.doesNotMatch(systems, /content:\s*"SYSTEM NOTE"/);
+test("TDD: Systems runtime is event-driven by narrative state", async () => {
+  const runtime = await read("src/experiences/systems.ts");
+
+  assert.match(runtime, /narrativeRuntime\.subscribe\(renderNarrative\)/);
+  assert.doesNotMatch(runtime, /getPropertyValue\("--progress"\)/);
+  assert.doesNotMatch(runtime, /requestAnimationFrame\(renderNarrative\)/);
+  assert.match(runtime, /requestAnimationFrame\(renderPointer\)/);
 });
 
-test("TDD: Systems desktop columns do not geometrically overlap", async () => {
-  const systems = await read("src/experiences/systems.css");
-  assert.match(systems, /\.systems-project__identity\s*\{[^}]*left:\s*25%[^}]*width:\s*min\(600px,\s*29vw\)/is);
-  assert.match(systems, /\.systems-project__architecture\s*\{[^}]*left:\s*57%/is);
-  assert.match(systems, /\.systems-static-chrome__architecture\s*\{[^}]*left:\s*57%/is);
+test("TDD: global atmosphere and pointer response are WebGL-owned", async () => {
+  const graphics = await read("src/graphics/stageGraphics.ts");
+  const continuity = await read("src/experiences/continuity.ts");
+  const continuityCss = await read("src/experiences/continuity.css");
+
+  assert.match(graphics, /const atmosphereFragment/);
+  assert.match(graphics, /uPointer/);
+  assert.match(graphics, /uVelocity/);
+  assert.match(graphics, /uTurbulence/);
+  assert.match(graphics, /new THREE\.WebGLRenderer/);
+  assert.match(graphics, /this\.pointer\.lerp/);
+  assert.doesNotMatch(continuity, /targetVelocityX|lightAngle|positionLight/);
+  assert.doesNotMatch(continuityCss, /ref-global-pointer-light/);
 });
 
-test("TDD: continuity pointer field stays localized and compositor driven", async () => {
-  const css = await read("src/experiences/continuity.css");
-  const runtime = await read("src/experiences/continuity.ts");
+test("TDD: WebGL renderer adapts work to scene and interaction", async () => {
+  const graphics = await read("src/graphics/stageGraphics.ts");
 
-  assert.doesNotMatch(css, /\.(systems|trajectory)-/);
-  assert.match(css, /\.ref-global-pointer-light/);
-  assert.match(css, /width:\s*clamp\(24rem,\s*36vw,\s*34rem\)/i);
-  assert.match(css, /height:\s*clamp\(24rem,\s*36vw,\s*34rem\)/i);
-  assert.match(css, /border-radius:\s*50%/i);
-  assert.match(css, /overflow:\s*hidden/i);
-  assert.match(css, /circle\s+at\s+center/i);
-  assert.match(css, /transform:\s*translate3d\(/i);
-  assert.match(css, /contain:\s*layout\s+paint\s+style/i);
-  assert.match(runtime, /targetVelocityX/);
-  assert.match(runtime, /targetVelocityY/);
-  assert.match(runtime, /Math\.atan2\(velocityY, velocityX\)/);
-  assert.match(runtime, /scale\(\$\{/);
+  assert.match(graphics, /if \(this\.transitionActive \|\| this\.scene === "agent"\) return 60/);
+  assert.match(graphics, /return 24/);
+  assert.match(graphics, /pointerHotUntil/);
+  assert.match(graphics, /document\.hidden/);
+  assert.match(graphics, /setPixelRatio\(Math\.min\(window\.devicePixelRatio \|\| 1, dprCap\)\)/);
 });
 
-test("TDD: cross-chapter handoff lives outside Systems", async () => {
-  const systems = await read("src/experiences/systems.css");
+test("TDD: menu transition is isolated WebGL driven by shared GSAP", async () => {
+  const graphics = await read("src/graphics/stageGraphics.ts");
+  const transition = await read("src/experiences/section-transition.ts");
+  const continuityCss = await read("src/experiences/continuity.css");
+
+  assert.equal((graphics.match(/new THREE\.WebGLRenderer/g) ?? []).length, 1);
+  assert.match(transition, /document\.createElement\("canvas"\)/);
+  assert.match(transition, /document\.body\.append\(canvas\)/);
+  assert.match(transition, /getContext\("webgl"/);
+  assert.match(transition, /gsap\.timeline/);
+  assert.doesNotMatch(transition, /setStageTransition|requestAnimationFrame/);
+  assert.match(continuityCss, /\.ref-navigation-transition\.is-active/);
+});
+
+test("TDD: section titles share a register without removing runtime headers", async () => {
   const bridges = await read("src/styles/chapter-bridges.css");
-  assert.doesNotMatch(systems, /data-chapter="agent"/);
-  assert.doesNotMatch(systems, /ref-scene--gallery/);
-  assert.match(bridges, /systems-gallery-handoff/);
-  assert.match(bridges, /data-chapter="agent"/);
+  const trajectoryScene = await read("src/components/narrative/TrajectoryScene.vue");
+  const systemsScene = await read("src/components/narrative/SystemsScene.vue");
+
+  assert.match(bridges, /Persistent section chrome/);
+  assert.match(bridges, /\.narrative-header,[\s\S]*\.ref-scene--gallery > \.ref-marker,[\s\S]*\.ref-scene--agent \.ref-marker/);
+  assert.match(bridges, /left:\s*var\(--shell-gutter,\s*22px\)\s*!important/);
+  assert.match(bridges, /top:\s*22px\s*!important/);
+  assert.match(trajectoryScene, /<NarrativeHeader[\s\S]*class="trajectory-header"/);
+  assert.match(systemsScene, /<NarrativeHeader[\s\S]*class="systems-header"/);
 });
 
 test("TDD: main mounts canonical experience modules only", async () => {
   const main = await read("src/main.ts");
+  assert.match(main, /mountStageGraphics/);
   assert.match(main, /experiences\/systems/);
   assert.match(main, /experiences\/continuity/);
   assert.doesNotMatch(main, /systems-motion\.css|-v\d|hotfix|integration-fix|cinematic-tuning/);

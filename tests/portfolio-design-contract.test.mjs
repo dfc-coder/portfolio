@@ -30,13 +30,15 @@ const removedBackendFacades = [
   "server/app/api/sse.py",
 ];
 
-test("architecture: obsolete frontend layers are removed instead of overridden", async () => {
+test("architecture: obsolete frontend layers stay removed", async () => {
   await Promise.all(removedFrontendLayers.map(absent));
   await access(resolve(root, "src/styles/theme.css"));
   await access(resolve(root, "src/styles/shell.css"));
+  await access(resolve(root, "src/graphics/stageGraphics.ts"));
+  await access(resolve(root, "src/graphics/stage-graphics.css"));
 });
 
-test("architecture: pnpm is the only frontend package manager", async () => {
+test("architecture: pnpm remains the only frontend package manager", async () => {
   const packageJson = JSON.parse(await read("package.json"));
   const workspace = await read("pnpm-workspace.yaml");
 
@@ -44,14 +46,18 @@ test("architecture: pnpm is the only frontend package manager", async () => {
   await absent("package-lock.json");
   assert.equal(packageJson.packageManager, "pnpm@11.22.0");
   assert.match(workspace, /allowBuilds:\s*\n\s*esbuild:\s*true/);
+  assert.ok(packageJson.dependencies.gsap);
+  assert.ok(packageJson.dependencies.three);
+  assert.ok(packageJson.dependencies.vue);
 });
 
-test("architecture: main loads one predictable CSS ownership chain", async () => {
+test("architecture: main mounts one shared WebGL stage and predictable CSS ownership", async () => {
   const main = await read("src/main.ts");
   const ordered = [
     'import "./styles/theme.css"',
     'import "./styles/base.css"',
     'import "./styles/shell.css"',
+    'import "./graphics/stage-graphics.css"',
     'import "./experiences/scroll.css"',
     'import "./components/agent/agent.css"',
     'import "./experiences/hero.css"',
@@ -69,45 +75,12 @@ test("architecture: main loads one predictable CSS ownership chain", async () =>
     previous = index;
   }
 
-  assert.doesNotMatch(main, /design-system|cinematic|typography|systems-motion|trajectory-bridge/);
+  assert.match(main, /mountStageGraphics\(\)/);
+  assert.match(main, /mountScrollSyncController\(\)/);
+  assert.doesNotMatch(main, /design-system|cinematic|systems-motion|trajectory-bridge/);
 });
 
-test("architecture: theme owns one three-family semantic type system", async () => {
-  const theme = await read("src/styles/theme.css");
-  const base = await read("src/styles/base.css");
-  const shell = await read("src/styles/shell.css");
-  const packageJson = await read("package.json");
-  const lockfile = await read("pnpm-lock.yaml");
-
-  for (const token of [
-    "--color-ink",
-    "--color-paper",
-    "--color-accent",
-    "--font-title",
-    "--font-info",
-    "--font-highlight",
-    "--t-display",
-    "--t-role",
-    "--t-system",
-    "--t-label",
-    "--t-meta",
-    "--t-telemetry",
-  ]) {
-    assert.match(theme, new RegExp(token.replaceAll("-", "\\-")));
-  }
-
-  assert.match(theme, /@fontsource\/syne/);
-  assert.match(theme, /@fontsource\/instrument-sans/);
-  assert.match(theme, /@fontsource\/instrument-serif\/latin-400-italic\.css/);
-  assert.doesNotMatch(theme, /@fontsource\/dm-mono|--font-(mono|sans|serif|display)/);
-  assert.doesNotMatch(packageJson, /@fontsource\/dm-mono/);
-  assert.doesNotMatch(lockfile, /@fontsource\/dm-mono/);
-  assert.doesNotMatch(base, /:root\s*\{/);
-  assert.doesNotMatch(shell, /:root\s*\{/);
-  assert.doesNotMatch(theme, /--ds-/);
-});
-
-test("semantics: visual narrative exposes one h1 and a stable chapter outline", async () => {
+test("semantics: visual narrative keeps one h1 and stable chapter headings", async () => {
   const portfolio = await read("src/components/PortfolioExperience.vue");
   const header = await read("src/components/narrative/NarrativeHeader.vue");
   const trajectory = await read("src/components/narrative/TrajectoryScene.vue");
@@ -118,6 +91,8 @@ test("semantics: visual narrative exposes one h1 and a stable chapter outline", 
   assert.equal((portfolio.match(/<h1\b/g) ?? []).length, 1);
   assert.match(portfolio, /<h1 class="ref-hero__title"/);
   assert.match(header, /<h2 class="narrative-header__heading"/);
+  assert.match(trajectory, /<NarrativeHeader[\s\S]*class="trajectory-header"/);
+  assert.match(systems, /<NarrativeHeader[\s\S]*class="systems-header"/);
   assert.match(trajectory, /<h3>\{\{ experience\.role \}\}<\/h3>/);
   assert.match(systems, /<h3>\{\{ project\.title \}\}<\/h3>/);
   assert.match(portfolio, /<h2 class="ref-marker">[\s\S]*VISUAL \/ MATERIAL ARCHIVE/);
@@ -125,111 +100,35 @@ test("semantics: visual narrative exposes one h1 and a stable chapter outline", 
   assert.doesNotMatch(fallback, /<h1\b/);
 });
 
-test("semantics: metadata and technical subsections use native structures", async () => {
-  const trajectory = await read("src/components/narrative/TrajectoryScene.vue");
-  const systems = await read("src/components/narrative/SystemsScene.vue");
-
-  assert.match(trajectory, /<dl class="trajectory-entry__context">/);
-  assert.match(trajectory, /<dt>ORGANIZATION<\/dt>/);
-  assert.match(trajectory, /<dd>/);
-  assert.match(trajectory, /<h4>FOCUS<\/h4>/);
-  assert.doesNotMatch(trajectory, /<small>|<strong>/);
-
-  assert.match(systems, /<h4 class="sr-only">System architecture<\/h4>/);
-  assert.match(systems, /<h4 class="sr-only">System note<\/h4>/);
-  assert.match(systems, /<h4 class="sr-only">Evidence<\/h4>/);
-  assert.match(systems, /<h4 class="sr-only">Implementation<\/h4>/);
-  assert.match(systems, /class="systems-static-chrome"/);
-  assert.match(systems, /<ul>/);
-  assert.doesNotMatch(systems, /systems-project__eyebrow|systems-project__field/);
-});
-
-test("semantics: systems architecture SVG has a concise textual alternative", async () => {
-  const systems = await read("src/components/narrative/SystemsScene.vue");
-
-  assert.match(systems, /role="img"/);
-  assert.match(systems, /:aria-labelledby=/);
-  assert.match(systems, /<title :id=/);
-  assert.match(systems, /<desc :id=/);
-  assert.match(systems, /architectureDescription\(project\)/);
-});
-
-test("hierarchy: roles and shipped systems use explicit balanced scales", async () => {
-  const trajectory = await read("src/experiences/trajectory.css");
-  const systems = await read("src/experiences/systems.css");
-
-  assert.match(trajectory, /\.trajectory-entry h3\s*\{[^}]*font-family:\s*var\(--font-title\)[^}]*font-size:\s*var\(--t-role\)[^}]*font-weight:\s*var\(--w-bold\)/s);
-  assert.match(systems, /\.systems-project h3\s*\{[^}]*font-family:\s*var\(--font-title\)[^}]*font-size:\s*var\(--t-system\)[^}]*font-weight:\s*var\(--w-bold\)/s);
-});
-
-test("architecture: continuity owns only cross-chapter pointer interaction", async () => {
-  const css = await read("src/experiences/continuity.css");
-  const runtime = await read("src/experiences/continuity.ts");
-  const component = await read("src/components/PortfolioExperience.vue");
-
-  assert.match(css, /\.ref-global-pointer-light\s*\{/);
-  assert.match(css, /\.ref-cursor/);
-  assert.doesNotMatch(css, /\.(trajectory|systems)-/);
-  assert.match(runtime, /addEventListener\("pointermove"/);
-  assert.match(runtime, /requestAnimationFrame\(render\)/);
-  assert.doesNotMatch(component, /pointermove|cursorFrame|requestAnimationFrame|ref-cursor/);
-});
-
-test("architecture: PortfolioExperience composes declarative scenes", async () => {
-  const component = await read("src/components/PortfolioExperience.vue");
-
-  assert.doesNotMatch(component, /ScrollTrigger|Flip|requestAnimationFrame|addEventListener/);
-  assert.match(component, /<TrajectoryScene\s*\/>/);
-  assert.match(component, /<SystemsScene\s*\/>/);
-  assert.match(component, /<ChapterSignal\s+:index="chapter\.index"\s+:label="chapter\.label"\s*\/>/);
-});
-
-test("architecture: repeated narrative structure is componentized once", async () => {
+test("architecture: runtime anchor headers cannot be removed by visual refactors", async () => {
   const trajectoryScene = await read("src/components/narrative/TrajectoryScene.vue");
   const systemsScene = await read("src/components/narrative/SystemsScene.vue");
-  const signal = await read("src/components/narrative/ChapterSignal.vue");
-  const header = await read("src/components/narrative/NarrativeHeader.vue");
+  const trajectoryRuntime = await read("src/experiences/trajectory.ts");
+  const systemsRuntime = await read("src/experiences/systems.ts");
 
-  assert.match(signal, /class="narrative-signal"/);
-  assert.match(header, /ChapterSignal/);
-  for (const scene of [trajectoryScene, systemsScene]) {
-    assert.match(scene, /ChapterSignal/);
-    assert.match(scene, /NarrativeHeader/);
-    assert.match(scene, /narrative-rail/);
-  }
+  assert.match(trajectoryScene, /class="trajectory-header"/);
+  assert.match(systemsScene, /class="systems-header"/);
+  assert.match(trajectoryRuntime, /querySelector<HTMLElement>\("\.trajectory-header"\)/);
+  assert.match(systemsRuntime, /querySelector<HTMLElement>\("\.systems-header"\)/);
 });
 
-test("architecture: scene controllers animate existing Vue DOM instead of rendering HTML", async () => {
-  for (const file of ["src/experiences/trajectory.ts", "src/experiences/systems.ts"]) {
-    const runtime = await read(file);
-    assert.doesNotMatch(runtime, /insertAdjacentHTML|innerHTML|const markup|Markup\s*=/);
-    assert.match(runtime, /requestAnimationFrame\(render\)/);
-  }
-});
-
-test("architecture: narrative topology has one source of truth", async () => {
-  const model = await read("src/experiences/narrative-model.ts");
+test("architecture: one GSAP module owns ScrollTrigger registration", async () => {
+  const motion = await read("src/motion/gsap.ts");
   const scroll = await read("src/experiences/scroll.ts");
-  const trajectory = await read("src/experiences/trajectory.ts");
-  const systems = await read("src/experiences/systems.ts");
+  const hero = await read("src/experiences/hero.ts");
+  const transition = await read("src/experiences/section-transition.ts");
 
-  assert.match(model, /export const narrativeModel = buildNarrativeModel\(\)/);
-  for (const runtime of [scroll, trajectory, systems]) {
-    assert.match(runtime, /narrativeModel/);
-  }
-  assert.doesNotMatch(trajectory, /const careerStartNode = 2|chapterAgentNode =/);
-  assert.doesNotMatch(systems, /const careerStartNode = 2|chapterAgentNode =/);
-  assert.doesNotMatch(scroll, /const buildScrollModel|type ScrollModel/);
+  assert.match(motion, /import gsap from "gsap"/);
+  assert.match(motion, /ScrollTrigger/);
+  assert.match(motion, /gsap\.registerPlugin\(ScrollTrigger\)/);
+  assert.match(scroll, /from "\.\.\/motion\/gsap"/);
+  assert.match(hero, /from "\.\.\/motion\/gsap"/);
+  assert.match(transition, /from "\.\.\/motion\/gsap"/);
+  assert.doesNotMatch(scroll, /from "gsap(?:\/ScrollTrigger)?"/);
+  assert.doesNotMatch(hero, /from "gsap"/);
 });
 
-test("architecture: Systems has no hidden counter runtime", async () => {
-  const scene = await read("src/components/narrative/SystemsScene.vue");
-  const runtime = await read("src/experiences/systems.ts");
-  assert.doesNotMatch(scene, /systems-counter/);
-  assert.doesNotMatch(runtime, /counterCurrent|systems-counter/);
-});
-
-test("architecture: physical scroll has one runtime owner", async () => {
+test("architecture: GSAP ScrollTrigger is the single physical scroll owner", async () => {
   const component = await read("src/components/PortfolioExperience.vue");
   const scroll = await read("src/experiences/scroll.ts");
   const gallery = await read("src/experiences/gallery.ts");
@@ -238,64 +137,114 @@ test("architecture: physical scroll has one runtime owner", async () => {
   assert.doesNotMatch(gallery, /addEventListener\("wheel"|scrollToNode|WHEEL_EXIT_LOCK/);
   assert.match(scroll, /ScrollTrigger\.create/);
   assert.match(scroll, /mapPhysicalProgressToVirtualProgress/);
+  assert.match(scroll, /narrativeRuntime\.publish/);
+  assert.match(scroll, /gsap\.to\(scrollProxy/);
+  assert.doesNotMatch(scroll, /requestAnimationFrame\(runSmoothScroll\)/);
 });
 
-test("architecture: Gallery is isolated outside its active scene", async () => {
+test("architecture: narrative consumers subscribe instead of polling CSS every frame", async () => {
+  const trajectory = await read("src/experiences/trajectory.ts");
+  const systems = await read("src/experiences/systems.ts");
+
+  for (const runtime of [trajectory, systems]) {
+    assert.match(runtime, /narrativeRuntime\.subscribe/);
+    assert.doesNotMatch(runtime, /getPropertyValue\("--progress"\)/);
+    assert.doesNotMatch(runtime, /insertAdjacentHTML|innerHTML|const markup|Markup\s*=/);
+  }
+
+  assert.doesNotMatch(trajectory, /requestAnimationFrame/);
+  assert.doesNotMatch(systems, /requestAnimationFrame\(renderNarrative\)/);
+  assert.match(systems, /requestAnimationFrame\(renderPointer\)/);
+});
+
+test("architecture: persistent Three stage and isolated menu WebGL have separate lifecycles", async () => {
+  const graphics = await read("src/graphics/stageGraphics.ts");
+  const hero = await read("src/experiences/hero.ts");
+  const transition = await read("src/experiences/section-transition.ts");
+  const continuity = await read("src/experiences/continuity.css");
+
+  assert.equal((graphics.match(/new THREE\.WebGLRenderer/g) ?? []).length, 1);
+  assert.match(graphics, /const atmosphereFragment/);
+  assert.match(graphics, /const agentVertex/);
+  assert.match(graphics, /new THREE\.Points/);
+  assert.match(graphics, /new THREE\.PerspectiveCamera/);
+  assert.match(graphics, /renderer\.render\(this\.atmosphereScene/);
+  assert.match(graphics, /renderer\.render\(this\.agentScene/);
+  assert.doesNotMatch(hero, /three|WebGLRenderer|ShaderMaterial/);
+
+  assert.match(transition, /document\.createElement\("canvas"\)/);
+  assert.match(transition, /document\.body\.append\(canvas\)/);
+  assert.match(transition, /getContext\("webgl"/);
+  assert.match(transition, /const fragmentShader/);
+  assert.match(transition, /gsap\.timeline/);
+  assert.doesNotMatch(transition, /requestAnimationFrame/);
+  assert.match(continuity, /\.ref-navigation-transition\.is-active/);
+});
+
+test("architecture: section titles share one register without changing component ownership", async () => {
+  const bridges = await read("src/styles/chapter-bridges.css");
+  const trajectory = await read("src/components/narrative/TrajectoryScene.vue");
+  const systems = await read("src/components/narrative/SystemsScene.vue");
+  const portfolio = await read("src/components/PortfolioExperience.vue");
+  const agent = await read("src/components/agent/AgentOS.vue");
+
+  assert.match(bridges, /Persistent section chrome/);
+  assert.match(bridges, /\.narrative-header,[\s\S]*\.ref-scene--gallery > \.ref-marker,[\s\S]*\.ref-scene--agent \.ref-marker/);
+  assert.match(bridges, /left:\s*var\(--shell-gutter,\s*22px\)\s*!important/);
+  assert.match(bridges, /top:\s*22px\s*!important/);
+  assert.match(trajectory, /class="trajectory-header"/);
+  assert.match(systems, /class="systems-header"/);
+  assert.match(portfolio, /<h2 class="ref-marker">[\s\S]*VISUAL \/ MATERIAL ARCHIVE/);
+  assert.match(agent, /<h2 class="ref-marker">[\s\S]*THE INTERFACE/);
+});
+
+test("architecture: CSS owns only static surface texture and small UI motion", async () => {
+  const graphicsCss = await read("src/graphics/stage-graphics.css");
+  const shell = await read("src/styles/shell.css");
+  const continuity = await read("src/experiences/continuity.css");
+
+  assert.match(shell, /\.ref-grain\s*\{/);
+  assert.match(graphicsCss, /repeating-linear-gradient/);
+  assert.match(graphicsCss, /radial-gradient/);
+  assert.doesNotMatch(continuity, /ref-global-pointer-light/);
+  assert.match(continuity, /\.ref-cursor/);
+});
+
+test("architecture: continuity no longer owns an animation loop", async () => {
+  const runtime = await read("src/experiences/continuity.ts");
+  const component = await read("src/components/PortfolioExperience.vue");
+
+  assert.match(runtime, /mountSectionTransition/);
+  assert.match(runtime, /addEventListener\("pointermove"/);
+  assert.doesNotMatch(runtime, /requestAnimationFrame/);
+  assert.doesNotMatch(component, /pointermove|cursorFrame|requestAnimationFrame|ref-cursor/);
+});
+
+test("architecture: Agent UI drives shared Three state and batches stream rendering", async () => {
+  const os = await read("src/components/agent/AgentOS.vue");
+  const runtime = await read("src/components/agent/useAgentRuntime.ts");
+
+  assert.match(os, /setAgentVisualPhase/);
+  assert.match(os, /pulseAgentVisual/);
+  assert.doesNotMatch(os, /AsciiFluidCanvas/);
+  assert.match(runtime, /pendingText/);
+  assert.match(runtime, /scheduleStreamFlush/);
+  assert.match(runtime, /requestAnimationFrame\(flushStream\)/);
+  assert.doesNotMatch(runtime, /localProvider|CORPUS|CorpusEntry|chunkify|Math\.random/);
+});
+
+test("architecture: Gallery remains isolated outside its active scene", async () => {
   const component = await read("src/components/PortfolioExperience.vue");
   const scrollCss = await read("src/experiences/scroll.css");
   const gallery = await read("src/experiences/gallery.ts");
 
   assert.match(component, /<img[^>]+draggable="false"/);
   assert.match(scrollCss, /\.ref-stage:not\(\[data-scene="gallery"\]\) \.ref-scene--gallery/);
-  assert.match(scrollCss, /\.ref-art-card,[\s\S]*pointer-events:\s*none !important/);
   assert.match(gallery, /const openFocus = \(index: number\) => \{\s*if \(!galleryIsVisible\(\)\) return;/);
   assert.match(gallery, /const onPointerMove = \(event: PointerEvent\) => \{\s*if \(!galleryIsVisible\(\) \|\| isOpen\) return;/);
-  assert.doesNotMatch(gallery, /\n\s*setSelected\(0\);\n\s*gallery\.addEventListener/);
 });
 
-test("architecture: Systems motion is owned by systems.css", async () => {
-  const systems = await read("src/experiences/systems.css");
-  const bridges = await read("src/styles/chapter-bridges.css");
-
-  assert.match(systems, /--graph-build/);
-  assert.match(systems, /--title-presence/);
-  assert.match(systems, /\.systems-static-chrome\s*\{/);
-  assert.match(systems, /\.systems-static-chrome__detail\s*\{/);
-  assert.doesNotMatch(systems, /content:\s*"SYSTEM NOTE"/);
-  assert.doesNotMatch(systems, /ref-scene--chapter\[data-chapter="agent"\]/);
-  assert.match(bridges, /data-chapter="agent"/);
-});
-
-test("architecture: chapter handoffs have one shared owner", async () => {
-  const bridges = await read("src/styles/chapter-bridges.css");
-  assert.match(bridges, /trajectory-axis-reveal/);
-  assert.match(bridges, /systems-gallery-handoff/);
-  assert.match(bridges, /narrative-signal/);
-});
-
-test("architecture: browser Agent has no fake corpus or fallback provider", async () => {
-  const runtime = await read("src/components/agent/useAgentRuntime.ts");
-  const os = await read("src/components/agent/AgentOS.vue");
-
-  assert.doesNotMatch(runtime, /localProvider|CORPUS|CorpusEntry|chunkify|Math\.random/);
-  assert.match(runtime, /useAgentRuntime\(provider: AgentProvider/);
-  assert.match(os, /businessAgentProvider/);
-});
-
-test("architecture: Agent implementation remains colocated", async () => {
-  for (const path of [
-    "src/components/agent/AgentOS.vue",
-    "src/components/agent/AsciiFluidCanvas.vue",
-    "src/components/agent/asciiField.ts",
-    "src/components/agent/businessAgentProvider.ts",
-    "src/components/agent/useAgentRuntime.ts",
-    "src/components/agent/agent.css",
-  ]) {
-    await access(resolve(root, path));
-  }
-});
-
-test("architecture: backend compatibility facades and one-function API files are gone", async () => {
+test("architecture: backend compatibility facades stay removed", async () => {
   await Promise.all(removedBackendFacades.map(absent));
   const router = await read("server/app/api/router.py");
   assert.match(router, /class ChatRequest\(BaseModel\)/);

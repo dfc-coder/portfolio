@@ -1,15 +1,13 @@
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { gsap, ScrollTrigger } from "../motion/gsap";
 import { transitionSectionNavigation } from "./continuity";
 import { narrativeModel, type NarrativeModel } from "./narrative-model";
+import { narrativeRuntime, type NarrativeScene } from "./narrative-runtime";
 
 const SCROLL_STEP_VH = 56;
 const SCENE_CROSSFADE_WIDTH = 0.34;
 const GALLERY_EXIT_START = 0.72;
 const GALLERY_EXIT_VIRTUAL_LEAD = 0.8;
 const WHEEL_GAIN = 1.08;
-const SCROLL_RESPONSE = 15;
-const MAX_FRAME_DT = 0.05;
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 const clamp = (value: number, min: number, max: number) =>
@@ -22,11 +20,6 @@ const smoother = (value: number) => {
 
 const range = (value: number, start: number, end: number) =>
   smoother((value - start) / (end - start));
-
-const damp = (current: number, target: number, response: number, dt: number) =>
-  current + (target - current) * (1 - Math.exp(-response * dt));
-
-type SceneName = "hero" | "chapter" | "career" | "systems" | "gallery" | "agent";
 
 export const mapPhysicalProgressToVirtualProgress = (
   physicalProgress: number,
@@ -64,7 +57,7 @@ export const mapPhysicalProgressToVirtualProgress = (
   return clamp01(virtualNode / model.virtualLastNode);
 };
 
-const sceneForNode = (node: number, model: NarrativeModel): SceneName => {
+const sceneForNode = (node: number, model: NarrativeModel): NarrativeScene => {
   if (node < 0.5) return "hero";
   if (node < model.careerStartNode - 0.5) return "chapter";
   if (node < model.chapterSystemsNode - 0.5) return "career";
@@ -136,8 +129,6 @@ export const mountScrollSyncController = () => {
   if (!track || !stage || !portfolio) return () => undefined;
   if (track.dataset.scrollSyncOwner === "physical") return () => undefined;
 
-  gsap.registerPlugin(ScrollTrigger);
-
   const model = narrativeModel;
   const trackHeightVh = 100 + model.physicalLastNode * SCROLL_STEP_VH;
 
@@ -148,6 +139,7 @@ export const mountScrollSyncController = () => {
     const physical = clamp01(physicalProgress);
     const progress = mapPhysicalProgressToVirtualProgress(physical, model);
     const node = progress * model.virtualLastNode;
+    const scene = sceneForNode(node, model);
     const opacity = sceneOpacities(node, model);
 
     portfolio.style.setProperty("--physical-scroll-progress", physical.toFixed(5));
@@ -156,7 +148,7 @@ export const mountScrollSyncController = () => {
       String(Math.round(physical * 100)).padStart(2, "0"),
     );
 
-    stage.dataset.scene = sceneForNode(node, model);
+    stage.dataset.scene = scene;
     stage.style.setProperty("--progress", progress.toFixed(6));
     stage.style.setProperty("--scroll-director-progress", progress.toFixed(6));
     stage.style.setProperty("--hero", opacity.hero.toFixed(6));
@@ -168,46 +160,45 @@ export const mountScrollSyncController = () => {
     stage.style.setProperty("--chapter-systems", opacity.chapterSystems.toFixed(6));
     stage.style.setProperty("--chapter-gallery", opacity.chapterGallery.toFixed(6));
     stage.style.setProperty("--chapter-agent", opacity.chapterAgent.toFixed(6));
+
+    narrativeRuntime.publish({
+      physicalProgress: physical,
+      progress,
+      node,
+      scene,
+    });
   };
 
-  let smoothFrame = 0;
-  let currentScrollY = scrollY;
+  const scrollProxy = { y: scrollY };
   let targetScrollY = scrollY;
-  let lastFrameTime = performance.now();
+  let scrollTween: ReturnType<typeof gsap.to> | null = null;
 
   const maxScrollY = () =>
     Math.max(0, document.documentElement.scrollHeight - innerHeight);
 
   const stopSmoothScroll = () => {
-    if (smoothFrame) cancelAnimationFrame(smoothFrame);
-    smoothFrame = 0;
-    currentScrollY = scrollY;
+    scrollTween?.kill();
+    scrollTween = null;
+    scrollProxy.y = scrollY;
     targetScrollY = scrollY;
-  };
-
-  const runSmoothScroll = (time: number) => {
-    const dt = Math.min(MAX_FRAME_DT, Math.max(0.001, (time - lastFrameTime) / 1000));
-    lastFrameTime = time;
-    currentScrollY = damp(currentScrollY, targetScrollY, SCROLL_RESPONSE, dt);
-
-    if (Math.abs(targetScrollY - currentScrollY) < 0.25) {
-      currentScrollY = targetScrollY;
-      scrollTo(0, currentScrollY);
-      smoothFrame = 0;
-      return;
-    }
-
-    scrollTo(0, currentScrollY);
-    smoothFrame = requestAnimationFrame(runSmoothScroll);
   };
 
   const smoothTo = (top: number) => {
     targetScrollY = clamp(top, 0, maxScrollY());
-    if (!smoothFrame) {
-      currentScrollY = scrollY;
-      lastFrameTime = performance.now();
-      smoothFrame = requestAnimationFrame(runSmoothScroll);
-    }
+    scrollTween?.kill();
+    scrollProxy.y = scrollY;
+    scrollTween = gsap.to(scrollProxy, {
+      y: targetScrollY,
+      duration: 0.34,
+      ease: "power3.out",
+      overwrite: true,
+      onUpdate: () => scrollTo(0, scrollProxy.y),
+      onComplete: () => {
+        scrollTo(0, targetScrollY);
+        scrollProxy.y = targetScrollY;
+        scrollTween = null;
+      },
+    });
   };
 
   const physicalNodeTop = (node: number) => {
@@ -291,13 +282,13 @@ export const mountScrollSyncController = () => {
     if (!delta || nestedScrollerCanConsume(event.target, delta)) return;
 
     event.preventDefault();
-    const origin = smoothFrame ? targetScrollY : scrollY;
+    const origin = scrollTween ? targetScrollY : scrollY;
     smoothTo(origin + delta * WHEEL_GAIN);
   };
 
   const onNativeScroll = () => {
-    if (smoothFrame) return;
-    currentScrollY = scrollY;
+    if (scrollTween) return;
+    scrollProxy.y = scrollY;
     targetScrollY = scrollY;
   };
 

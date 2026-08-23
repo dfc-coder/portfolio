@@ -1,14 +1,10 @@
+import { gsap } from "../motion/gsap";
+
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
-const smoother = (value: number) => {
-  const x = clamp(value, 0, 1);
-  return x * x * x * (x * (x * 6 - 15) + 10);
-};
-
-const NAVIGATION_COVER_MS = 900;
-const NAVIGATION_HOLD_MS = 20;
-const NAVIGATION_REVEAL_MS = 980;
+const NAVIGATION_SECONDS = 1.42;
+const COMMIT_PROGRESS = 0.13;
 const MAX_TRANSITION_PIXELS = 1_250_000;
 
 type NavigationCommit = () => void;
@@ -24,6 +20,16 @@ void main() {
 }
 `;
 
+/**
+ * Single-pass centre-out burn transition.
+ *
+ * The previous implementation had two separate motions: cover the current
+ * section completely, reset the radial front, then reveal the destination.
+ * On this dark portfolio that read as a hard cut to black followed by a second
+ * animation. Here progress is monotonic for the whole transition. A dark paper
+ * veil settles in during the first part, navigation commits under that veil,
+ * and the same burnt aperture keeps expanding from the centre to the edges.
+ */
 const fragmentShader = `
 precision mediump float;
 
@@ -48,73 +54,95 @@ float noise(vec2 p) {
   );
 }
 
-float fbm3(vec2 p) {
+float fbm(vec2 p) {
   float value = 0.0;
-  value += noise(p) * 0.56;
-  p = mat2(0.80, -0.60, 0.60, 0.80) * p * 2.03 + vec2(9.7, 5.1);
-  value += noise(p) * 0.28;
-  p = mat2(0.80, -0.60, 0.60, 0.80) * p * 2.01 + vec2(4.3, 11.9);
-  value += noise(p) * 0.16;
+  value += noise(p) * 0.50;
+  p = mat2(0.80, -0.60, 0.60, 0.80) * p * 2.02 + vec2(5.2, 1.7);
+  value += noise(p) * 0.27;
+  p = mat2(0.80, -0.60, 0.60, 0.80) * p * 2.03 + vec2(2.9, 7.4);
+  value += noise(p) * 0.15;
+  p = mat2(0.80, -0.60, 0.60, 0.80) * p * 2.01 + vec2(8.1, 3.6);
+  value += noise(p) * 0.08;
   return value;
 }
 
 void main() {
   vec2 uv = gl_FragCoord.xy / uResolution.xy;
   float aspect = uResolution.x / max(uResolution.y, 1.0);
+  vec2 p = (uv - 0.5) * vec2(aspect, 1.0);
 
-  vec2 origin = vec2(0.5 + uDirection * 0.012, 0.5);
-  vec2 p = (uv - origin) * vec2(aspect, 1.0);
-  float radial = length(p);
+  float maximumRadius = length(vec2(aspect * 0.5, 0.5));
+  float radial = length(p) / max(maximumRadius, 0.0001);
   float angle = atan(p.y, p.x);
-  float time = uTime * 0.045;
+  float t = clamp(uProgress, 0.0, 1.0);
 
-  float coarse = fbm3(p * 3.15 + vec2(time, -time * 0.72));
-  float detail = fbm3(p * 8.4 - vec2(time * 1.23, time * 0.81));
+  // The material field is intentionally almost static. The frontier should
+  // consume a fixed paper texture rather than wobble like liquid as it grows.
+  float drift = uTime * 0.004 * uDirection;
+  vec2 base = p * 3.0;
+  float warpX = fbm(base * 0.92 + vec2(drift, -drift * 0.45));
+  float warpY = fbm(base * 0.92 + vec2(6.4 - drift * 0.30, 2.8 + drift * 0.22));
+  vec2 warped = base + (vec2(warpX, warpY) - 0.5) * 1.30;
 
-  float tornLobes =
-    sin(angle * 8.0 + coarse * 6.2) * 0.038 +
-    sin(angle * 17.0 - detail * 7.0) * 0.018;
+  float macroNoise = fbm(warped * 0.72 + vec2(1.7, 4.1));
+  float mediumNoise = fbm(warped * 1.72 + vec2(7.3, 2.2));
+  float fineNoise = noise(warped * 5.8 + vec2(4.9, 8.6));
 
-  float displacement =
-    (coarse - 0.5) * 0.255 +
-    (detail - 0.5) * 0.078 +
-    tornLobes;
+  float lobes =
+    sin(angle * 5.0 + macroNoise * 5.0) * 0.034 +
+    sin(angle * 11.0 - mediumNoise * 5.7) * 0.018 +
+    sin(angle * 23.0 + fineNoise * 3.4) * 0.006;
 
-  float maximumRadius = length(vec2(aspect * 0.58, 0.62)) + 0.36;
-  float burnRadius = mix(-0.17, maximumRadius, uProgress);
-  float sd = radial - burnRadius - displacement;
-  float edgeWidth = mix(0.052, 0.030, uProgress);
-  float material = 1.0 - smoothstep(-edgeWidth, edgeWidth, sd);
-
-  float edgeDistance = abs(sd);
-  float charBand = 1.0 - smoothstep(0.022, 0.105, edgeDistance);
-  float emberBand = 1.0 - smoothstep(0.0, 0.021, edgeDistance);
-  float hotLine = 1.0 - smoothstep(0.0, 0.007, edgeDistance);
-
-  float fleckNoise = noise(
-    p * 34.0 + vec2(uTime * 0.13, -uTime * 0.09) + coarse * 4.0
+  // Keep irregularity stable for most of the travel. Previously its amplitude
+  // grew and collapsed with progress, which made the outline visibly pulse.
+  float irregularityIn = smoothstep(0.015, 0.10, t);
+  float irregularity = irregularityIn * (
+    (macroNoise - 0.5) * 0.148 +
+    (mediumNoise - 0.5) * 0.068 +
+    (fineNoise - 0.5) * 0.022 +
+    lobes
   );
-  float fleckZone =
-    (1.0 - smoothstep(0.035, 0.155, edgeDistance)) *
-    smoothstep(0.60, 0.88, fleckNoise);
 
-  vec3 soot = vec3(0.014, 0.013, 0.012);
-  vec3 charBrown = vec3(0.105, 0.048, 0.018);
-  vec3 ember = vec3(0.79, 0.225, 0.045);
-  vec3 hotPaper = vec3(0.92, 0.61, 0.30);
+  // One frontier for the entire navigation. No midpoint reset.
+  float frontier = mix(-0.055, 1.085, t);
+  float signedDistance = radial - frontier - irregularity;
+
+  float feather = 0.012;
+  float holeMask = 1.0 - smoothstep(-feather, feather, signedDistance);
+
+  // The veil fades in smoothly before the DOM navigation commit. It never
+  // becomes perfectly opaque, avoiding the one-frame black slab visible in the
+  // previous version. The expanding hole then reveals the destination beneath.
+  float veil = smoothstep(0.0, 0.115, t) * 0.965;
+  float coreAlpha = (1.0 - holeMask) * veil;
+
+  float edgeDistance = abs(signedDistance);
+  float edgeLife =
+    smoothstep(0.012, 0.075, t) *
+    (1.0 - smoothstep(0.94, 1.0, t));
+
+  float charBand = (1.0 - smoothstep(0.009, 0.052, edgeDistance)) * edgeLife;
+  float emberBand = (1.0 - smoothstep(0.003, 0.024, edgeDistance)) * edgeLife;
+  float hotLine = (1.0 - smoothstep(0.000, 0.008, edgeDistance)) * edgeLife;
+
+  float flecks = noise(warped * 8.5 + vec2(2.4, 6.8));
+  float charVariation = 0.78 + flecks * 0.22;
+  float emberVariation = 0.70 + mediumNoise * 0.30;
+
+  vec3 soot = vec3(0.014, 0.012, 0.011);
+  vec3 charBrown = vec3(0.165, 0.050, 0.022);
+  vec3 ember = vec3(0.78, 0.205, 0.070);
+  vec3 hotCopper = vec3(1.00, 0.515, 0.175);
 
   vec3 color = soot;
-  color = mix(color, charBrown, charBand * 0.88);
-  color = mix(color, ember, emberBand * (0.70 + detail * 0.24));
-  color = mix(color, hotPaper, hotLine * 0.42);
-  color = mix(color, ember, fleckZone * 0.44);
+  color = mix(color, charBrown, charBand * 0.84 * charVariation);
+  color = mix(color, ember, emberBand * 0.82 * emberVariation);
+  color = mix(color, hotCopper, hotLine * 0.36);
 
-  float alpha = material;
-  alpha = max(alpha, charBand * 0.88);
-  alpha = max(alpha, fleckZone * 0.62);
-  alpha = clamp(alpha, 0.0, 1.0);
+  float edgeAlpha = max(charBand * 0.64, emberBand * 0.80);
+  float alpha = max(coreAlpha, edgeAlpha);
 
-  gl_FragColor = vec4(color, alpha);
+  gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0));
 }
 `;
 
@@ -130,6 +158,10 @@ const compileShader = (
   gl.compileShader(shader);
 
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    console.error(
+      "[section-transition] shader compile failed",
+      gl.getShaderInfoLog(shader),
+    );
     gl.deleteShader(shader);
     return null;
   }
@@ -137,20 +169,20 @@ const compileShader = (
   return shader;
 };
 
-export const mountSectionTransition = (portfolio: HTMLElement) => {
-  portfolio.querySelector(".ref-navigation-transition")?.remove();
+export const mountSectionTransition = (_portfolio: HTMLElement) => {
+  document.querySelector(".ref-navigation-transition")?.remove();
 
   const canvas = document.createElement("canvas");
   canvas.className = "ref-navigation-transition";
   canvas.setAttribute("aria-hidden", "true");
-  portfolio.append(canvas);
+  document.body.append(canvas);
 
   const gl = canvas.getContext("webgl", {
     alpha: true,
     antialias: false,
     depth: false,
     stencil: false,
-    premultipliedAlpha: true,
+    premultipliedAlpha: false,
     powerPreference: "high-performance",
   });
 
@@ -179,6 +211,10 @@ export const mountSectionTransition = (portfolio: HTMLElement) => {
   gl.deleteShader(fragment);
 
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    console.error(
+      "[section-transition] program link failed",
+      gl.getProgramInfoLog(program),
+    );
     gl.deleteProgram(program);
     canvas.remove();
     navigationTransition = null;
@@ -209,20 +245,19 @@ export const mountSectionTransition = (portfolio: HTMLElement) => {
   gl.useProgram(program);
   gl.enableVertexAttribArray(positionLocation);
   gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
-  gl.enable(gl.BLEND);
-  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-  let frame = 0;
+  let timeline: ReturnType<typeof gsap.timeline> | null = null;
   let active = false;
+  let currentDirection = 1;
+  const state = { progress: 0 };
 
   const resize = () => {
     const cssWidth = Math.max(1, innerWidth);
     const cssHeight = Math.max(1, innerHeight);
-    const dpr = Math.min(devicePixelRatio || 1, 1);
     const pixelBudgetScale = Math.sqrt(
       MAX_TRANSITION_PIXELS / (cssWidth * cssHeight),
     );
-    const scale = Math.min(dpr, pixelBudgetScale, 1);
+    const scale = Math.min(devicePixelRatio || 1, pixelBudgetScale, 1);
     const width = Math.max(1, Math.round(cssWidth * scale));
     const height = Math.max(1, Math.round(cssHeight * scale));
 
@@ -234,74 +269,57 @@ export const mountSectionTransition = (portfolio: HTMLElement) => {
     gl.viewport(0, 0, width, height);
   };
 
-  const draw = (progress: number, direction: number, time: number) => {
+  const draw = (progress: number) => {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram(program);
     gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
     gl.uniform1f(progressLocation, clamp(progress, 0, 1));
-    gl.uniform1f(directionLocation, direction);
-    gl.uniform1f(timeLocation, time * 0.001);
+    gl.uniform1f(directionLocation, currentDirection);
+    gl.uniform1f(timeLocation, performance.now() * 0.001);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
+  };
+
+  const finish = () => {
+    active = false;
+    state.progress = 0;
+    canvas.classList.remove("is-active");
+    document.documentElement.classList.remove("is-section-transitioning");
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
   };
 
   const run: NavigationTransition = (commit, direction) => {
     if (active) return;
 
     active = true;
+    currentDirection = direction < 0 ? -1 : 1;
+    state.progress = 0;
     resize();
     canvas.classList.add("is-active");
     document.documentElement.classList.add("is-section-transitioning");
+    draw(0);
 
-    const startedAt = performance.now();
-    const normalizedDirection = direction < 0 ? -1 : 1;
     let committed = false;
+    timeline?.kill();
+    timeline = gsap.timeline({
+      defaults: { overwrite: true },
+      onComplete: finish,
+      onInterrupt: finish,
+    });
 
-    const render = (now: number) => {
-      const elapsed = now - startedAt;
-
-      if (elapsed < NAVIGATION_COVER_MS) {
-        // OUT: burn material expands from the nucleus until the source view is
-        // fully absorbed.
-        draw(smoother(elapsed / NAVIGATION_COVER_MS), normalizedDirection, now);
-      } else {
-        if (!committed) {
+    timeline.to(state, {
+      progress: 1,
+      duration: NAVIGATION_SECONDS,
+      ease: "sine.inOut",
+      onUpdate: () => {
+        if (!committed && state.progress >= COMMIT_PROGRESS) {
           committed = true;
-          draw(1, normalizedDirection, now);
           commit();
         }
-
-        if (elapsed < NAVIGATION_COVER_MS + NAVIGATION_HOLD_MS) {
-          draw(1, normalizedDirection, now);
-        } else {
-          // IN: the same material boundary now contracts toward the nucleus.
-          // The destination is exposed from the viewport perimeter inward,
-          // making the second half the spatial inverse of OUT rather than a
-          // second centre-out reveal.
-          const revealElapsed =
-            elapsed - NAVIGATION_COVER_MS - NAVIGATION_HOLD_MS;
-          const reveal = smoother(revealElapsed / NAVIGATION_REVEAL_MS);
-          draw(1 - reveal, normalizedDirection, now);
-        }
-      }
-
-      if (
-        elapsed <
-        NAVIGATION_COVER_MS + NAVIGATION_HOLD_MS + NAVIGATION_REVEAL_MS
-      ) {
-        frame = requestAnimationFrame(render);
-        return;
-      }
-
-      active = false;
-      frame = 0;
-      canvas.classList.remove("is-active");
-      document.documentElement.classList.remove("is-section-transitioning");
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-    };
-
-    frame = requestAnimationFrame(render);
+        draw(state.progress);
+      },
+    });
   };
 
   navigationTransition = run;
@@ -310,11 +328,11 @@ export const mountSectionTransition = (portfolio: HTMLElement) => {
 
   return {
     destroy: () => {
-      if (frame) cancelAnimationFrame(frame);
-      active = false;
+      timeline?.kill();
+      timeline = null;
       navigationTransition = null;
       removeEventListener("resize", resize);
-      document.documentElement.classList.remove("is-section-transitioning");
+      finish();
       gl.deleteBuffer(buffer);
       gl.deleteProgram(program);
       canvas.remove();
