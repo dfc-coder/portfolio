@@ -1,126 +1,345 @@
 {
   "owner": {
-    "name": "Diego Cano",
-    "headline": "Applied AI, distributed systems and integration architecture",
-    "location": "Argentina / Remote"
+    "name": "Diego Fernando Cano",
+    "headline": "Desarrollador IA | Python | Agentes LLM | RAG | LangGraph | FastAPI",
+    "location": "Buenos Aires, Argentina / Remote",
+    "email": "diegocanomera@gmail.com",
+    "phone": "+54 9 11 5996-5231",
+    "github": "https://github.com/dfc-coder",
+    "portfolio": "https://portfolio-diego-cano.netlify.app"
   },
   "representative": {
     "label": "Business Representative",
     "disclosure": "I am Diego Cano's digital business representative, not Diego himself."
   },
   "positioning": {
-    "summary": "Diego designs and builds production-oriented AI products, agent systems and integration architectures with explicit operational boundaries, validation and maintainable contracts.",
+    "summary": "AI Developer / Software Engineer with 4+ years of experience building Python services, APIs, integrations and production-oriented LLM applications. Hands-on experience with RAG, agentic workflows, NL-to-SQL, structured document extraction, MCP financial tooling and secure on-premise AI processing.",
     "differentiators": [
-      "Treats LLM and agent behaviour as something to evaluate and bound, not as an implicit source of truth.",
-      "Combines AI product engineering with distributed-system and integration concerns.",
-      "Uses typed contracts, validation and observable execution paths around model-driven components.",
-      "Can work with local or private inference when data isolation is a product requirement."
+      "Builds production-oriented AI systems with validation, auditability, clean architecture, observability and security.",
+      "Combines AI engineering with backend, distributed systems and integration architecture.",
+      "Has practical experience with local-first and on-premise AI where data isolation is required.",
+      "Uses automated testing, contract validation and CI quality gates across Python, Rust, Go and Node.js projects."
     ]
   },
   "experience": [
     {
-      "name": "Agentic AI and local-first systems",
-      "summary": "Bounded agents using local models, injected tools, deterministic verification, retrieval and controlled autonomous execution."
-    },
-    {
-      "name": "Private document intelligence",
-      "summary": "Structured extraction from sensitive documents using local models, typed validation and evidence-linked outputs."
+      "name": "Agentic AI and RAG systems",
+      "summary": "LLM agents, RAG, LangGraph, MCP, semantic search, reranking, prompt engineering and tool-based workflows."
     },
     {
       "name": "Guarded conversational data access",
-      "summary": "Natural-language access to data with schema retrieval, ambiguity handling, business rules and safety policies before query execution."
+      "summary": "NL-to-SQL systems with schema discovery, ambiguity resolution, validation, business rules and SQL safety guardrails."
     },
     {
-      "name": "Integration and distributed architecture",
-      "summary": "API-led, event-driven and distributed integration design focused on maintainable contracts, observability and clean system boundaries."
+      "name": "Private document intelligence",
+      "summary": "Local-first extraction from sensitive PDFs and images with field-level validation, evidence links, auditability and isolated on-premise processing."
+    },
+    {
+      "name": "Backend, integrations and distributed systems",
+      "summary": "Python/FastAPI, Node.js/NestJS, REST/GraphQL APIs, PostgreSQL and reliable integration architectures."
+    },
+    {
+      "name": "Cloud-native delivery and reliability",
+      "summary": "AWS, Docker, GitHub Actions, CI/CD, observability, secure development and automated quality gates."
+    }
+  ],
+  "professional_experience": [
+    {
+      "title": "Ingeniero de IA / Desarrollador Full-Stack",
+      "company": "Freelance",
+      "period": "Ene 2024 - Actualidad",
+      "highlights": [
+        "Implemented a RAG insurance assistant with AWS S3 document ingestion, indexing, retrieval over internal knowledge sources, answer generation and backend API integration.",
+        "Designed a financial MCP server with real-time market-data tools, technical indicators and multi-agent investment recommendation workflows.",
+        "Built backend services with Python, FastAPI, Node.js, TypeScript, PostgreSQL and API integrations.",
+        "Built an AI shopping assistant with semantic search over 50K+ products, improving search performance by 60% and recommendation accuracy by 40%.",
+        "Developed AI financial-analysis pipelines combining historical and fundamental data for portfolio optimization."
+      ]
+    },
+    {
+      "title": "Ingeniero de IA",
+      "company": "AiRoss",
+      "period": "Dic 2025 - Abr 2026",
+      "highlights": [
+        "Built an agentic NL-to-SQL system with tool-based architecture, schema discovery, ambiguity resolution, validation and strict SQL safety restrictions.",
+        "Developed a local-first document extraction system for a banking client, processing sensitive PDFs and images on isolated on-premise infrastructure without external APIs.",
+        "Implemented structured extraction pipelines with field-level validation, auditability and data isolation for financial documents.",
+        "Designed AI recruitment workflows with LLM decision-making, candidate intake, job matching, evaluation, ranking, Make.com automation and Webflow.",
+        "Created reusable modules for AI workflows, observability, maintainability and scalable automation."
+      ]
+    },
+    {
+      "title": "Ingeniero de Software",
+      "company": "FK Tech",
+      "period": "Ene 2023 - Sep 2025",
+      "highlights": [
+        "Designed and implemented a multi-agent RAG platform integrated with internal knowledge bases, reducing onboarding time by 30% and debugging time by 40%.",
+        "Automated CI/CD pipelines, reducing deployment time by 53% and production incidents by 50%.",
+        "Refactored legacy systems, reducing code complexity by 25% and improving execution performance by 20%.",
+        "Improved architecture, engineering standards, documentation and delivery practices for backend and full-stack projects."
+      ]
     }
   ],
   "skills": {
-    "programming_languages": ["Python", "TypeScript"],
-    "frameworks": ["FastAPI", "LangChain"],
+    "programming_languages": [
+      "Python",
+      "TypeScript",
+      "JavaScript",
+      "SQL",
+      "Rust",
+      "Go"
+    ],
+    "frameworks": [
+      "FastAPI",
+      "LangGraph",
+      "LangChain",
+      "Node.js",
+      "NestJS"
+    ],
     "ai": [
-      "Qwen3.5",
-      "llama.cpp",
-      "OpenVINO",
+      "LLM agents",
       "RAG",
+      "Prompt engineering",
+      "LangGraph",
+      "MCP",
+      "NL-to-SQL",
+      "Structured extraction",
+      "Semantic search",
       "Embeddings",
       "Reranking",
       "Tool calling",
-      "MCP"
+      "Qwen3.5",
+      "llama.cpp",
+      "OpenVINO"
     ],
-    "cloud_and_delivery": ["AWS CDK", "AWS Lambda", "Podman"],
+    "data": [
+      "SQL",
+      "PostgreSQL",
+      "MySQL",
+      "MongoDB / NoSQL",
+      "Vector databases",
+      "Data modeling"
+    ],
+    "backend": [
+      "Python",
+      "FastAPI",
+      "REST APIs",
+      "GraphQL APIs",
+      "Node.js",
+      "NestJS",
+      "Authentication",
+      "Authorization"
+    ],
+    "cloud_and_delivery": [
+      "AWS Lambda",
+      "Amazon S3",
+      "EC2",
+      "RDS",
+      "API Gateway",
+      "Docker",
+      "GitHub Actions",
+      "CI/CD",
+      "Observability"
+    ],
+    "security_and_reliability": [
+      "OWASP Top 10",
+      "Secure development",
+      "Data isolation",
+      "Field-level validation",
+      "SQL safety guardrails",
+      "Clean architecture",
+      "Distributed systems"
+    ],
+    "testing_and_quality": [
+      "TDD",
+      "Automated test suites",
+      "Contract tests",
+      "Race tests",
+      "Acceptance tests",
+      "Edge-case validation",
+      "CI quality gates",
+      "Rust cargo test",
+      "Go test",
+      "Node.js test runner"
+    ],
     "architecture": [
       "Distributed systems",
       "API-led integration",
       "Event-driven integration",
       "Typed tool contracts",
-      "Observability"
+      "Observability",
+      "Agentic workflows",
+      "Local-first systems"
     ]
   },
   "services": [
     {
       "name": "Applied AI Engineering",
-      "description": "Production-oriented LLM, RAG and agent systems with explicit evaluation and operational boundaries."
+      "description": "Production-oriented LLM, RAG, agent, NL-to-SQL and document-intelligence systems with explicit validation and operational boundaries."
     },
     {
-      "name": "Integration Architecture",
-      "description": "API-led, event-driven and distributed integration design with maintainable contracts and observability."
+      "name": "Backend & Integration Engineering",
+      "description": "Python/FastAPI, Node.js/NestJS, REST/GraphQL APIs, databases and reliable integration architectures."
     },
     {
       "name": "Full-stack AI Products",
-      "description": "Backend, frontend and cloud delivery for AI-enabled products that must remain understandable after handover."
+      "description": "Backend, frontend, cloud delivery and automation for AI-enabled products."
+    },
+    {
+      "name": "Private / Local AI Systems",
+      "description": "Local-first or on-premise AI processing for sensitive data and isolated environments."
     }
   ],
   "projects": [
     {
-      "name": "Reflective ReAct Agent",
-      "summary": "A bounded local-first assistant with injected tools, deterministic verification, triggered reflection and private retrieval.",
+      "name": "Agente NL-to-SQL",
+      "summary": "Schema-aware query generation with ambiguity resolution, tool orchestration, validation and SQL safety guardrails for executable queries.",
       "stack": [
         "Python",
-        "Qwen3.5",
-        "llama.cpp",
-        "OpenVINO",
-        "LangChain",
-        "AWS CDK",
-        "AWS Lambda",
-        "S3 Vectors",
-        "Podman"
+        "Tool calling",
+        "Schema discovery",
+        "SQL policies",
+        "Evaluation"
       ],
-      "outcome": "General-purpose local agent with controlled autonomous execution."
+      "outcome": "Guarded conversational access to data with safe executable SQL."
     },
     {
-      "name": "Secure Document Extractor",
-      "summary": "Private document intelligence that turns PDFs and images into structured financial data with typed validation and evidence links.",
-      "stack": ["Python", "FastAPI", "Docling", "Local LLM", "Redis"],
-      "outcome": "Private-by-design extraction with reviewable evidence-linked output."
+      "name": "Servidor MCP Financiero",
+      "summary": "MCP-based financial tools with real-time market data, technical indicators, multi-agent analysis and portfolio recommendation workflows.",
+      "stack": [
+        "MCP",
+        "Python",
+        "Market data",
+        "Technical indicators",
+        "Agents"
+      ],
+      "outcome": "Reusable and auditable financial tooling for agents."
     },
     {
-      "name": "Natural Language to SQL",
-      "summary": "Guarded conversational data access using intent resolution, relevant-schema retrieval, business rules and safe query generation.",
-      "stack": ["Python", "Tool calling", "Schema RAG", "SQL policies", "Evaluation"],
-      "outcome": "Grounded questions with guarded SQL execution."
+      "name": "Xarlatan",
+      "summary": "Local-first low-latency voice gateway for AI agents in Go with an event-driven coordinator, persistent STT/TTS workers, Silero VAD, ACP integration, barge-in/cancellation, latency instrumentation and contract/race/acceptance tests.",
+      "stack": [
+        "Go",
+        "STT",
+        "TTS",
+        "Silero VAD",
+        "ACP",
+        "Event-driven architecture",
+        "Testing"
+      ],
+      "outcome": "Low-latency local-first voice infrastructure for AI agents.",
+      "source_url": "https://github.com/dfc-coder/xarlatan"
     },
     {
-      "name": "Financial MCP Server",
-      "summary": "Typed and auditable market-data tools with explicit contracts and predictable outputs for specialised agents.",
-      "stack": ["MCP", "Python", "Market data", "Typed tools", "Agents"],
-      "outcome": "Market signals exposed as reusable and auditable agent tools."
+      "name": "PocketTrace",
+      "summary": "Local-first trace inspector written in Rust with SQLite/WAL and a local CLI/UI. Automated tests cover duplicate IDs, invalid references, size limits and malformed snapshots, with OWASP-based HTTP hardening.",
+      "stack": [
+        "Rust",
+        "SQLite",
+        "WAL",
+        "CLI",
+        "Local UI",
+        "OWASP",
+        "Automated tests"
+      ],
+      "outcome": "Inspectable local trace storage with explicit validation and hardening.",
+      "source_url": "https://github.com/dfc-coder/pockettrace"
     },
     {
-      "name": "Intent-aware Shopping Assistant",
-      "summary": "Product discovery that converts incomplete user needs into comparable attributes, hybrid retrieval candidates and explainable ranking signals.",
-      "stack": ["TypeScript", "Embeddings", "Hybrid search", "Catalog API", "Metrics"],
-      "outcome": "Faster product discovery with explainable relevance."
+      "name": "ecTask",
+      "summary": "Rust/Tauri desktop launcher for reproducing AI capture tasks. It validates and clones repositories, launches Cursor/VS Code workflows, extracts telemetry, synchronizes state through Tauri commands/events and uses automated tests plus GitHub Actions releases.",
+      "stack": [
+        "Rust",
+        "Tauri",
+        "Git",
+        "Cursor",
+        "VS Code",
+        "Telemetry",
+        "GitHub Actions"
+      ],
+      "outcome": "Reproducible desktop workflow for AI task capture.",
+      "source_url": "https://github.com/dfc-coder/ecTask"
+    },
+    {
+      "name": "System-G (Growntrol)",
+      "summary": "ESP32-oriented control system with a pure Rust domain core, developed with Specification-Driven Development and TDD. Includes deterministic lighting, sensing, fan hysteresis, irrigation state machines and specs traced to automated tests.",
+      "stack": [
+        "Rust",
+        "ESP32",
+        "TDD",
+        "Specification-Driven Development",
+        "State machines",
+        "Embedded systems"
+      ],
+      "outcome": "Deterministic embedded-control domain with traceable specifications and tests.",
+      "source_url": "https://github.com/dfc-coder/system-g"
+    }
+  ],
+  "education": [
+    {
+      "program": "Desarrollo Full Stack",
+      "institution": "Henry Bootcamp",
+      "period": "2022",
+      "status": "Completed"
+    },
+    {
+      "program": "Diseño de Producto Industrial",
+      "institution": "SENA",
+      "period": "2013-2016",
+      "status": "Título Técnico"
+    },
+    {
+      "program": "Ingeniería de Sistemas",
+      "institution": "Universidad del Valle",
+      "period": "2012-2013",
+      "status": "Carrera no completada"
+    }
+  ],
+  "certifications": [
+    {
+      "name": "Deep Research with LangGraph"
+    },
+    {
+      "name": "Deep Agents with LangGraph"
+    },
+    {
+      "name": "Python for Data Science"
+    },
+    {
+      "name": "Professional PostgreSQL"
+    },
+    {
+      "name": "OWASP Top 10 Secure Coding"
+    },
+    {
+      "name": "GitHub Copilot Advanced Productivity"
+    }
+  ],
+  "languages": [
+    {
+      "language": "Español",
+      "level": "Nativo"
+    },
+    {
+      "language": "Inglés",
+      "level": "A2, en mejora activa"
     }
   ],
   "business": {
-    "collaboration_modes": ["Remote collaboration"],
+    "collaboration_modes": [
+      "Remote collaboration"
+    ],
     "project_types": [
       "Applied AI engineering",
+      "RAG and agent systems",
+      "Backend and API engineering",
       "Integration architecture",
-      "Full-stack AI product engineering"
+      "Full-stack AI product engineering",
+      "Private / on-premise AI"
     ],
-    "geographic_scope": ["Remote"],
+    "geographic_scope": [
+      "Remote"
+    ],
     "boundaries": [
       "Rates are not published in this profile.",
       "Client names are not provided unless explicitly present in the configured context.",
@@ -131,15 +350,27 @@
   "faq": [
     {
       "question": "What can the representative do?",
-      "answer": "It can answer grounded questions about Diego's work, projects and services, check calendar availability and prepare a meeting that is created only after explicit confirmation."
+      "answer": "It can answer grounded questions about Diego's work, projects, skills and services, check calendar availability and prepare a meeting that is created only after explicit confirmation."
+    },
+    {
+      "question": "Has Diego built projects in Rust?",
+      "answer": "Yes. The selected portfolio includes PocketTrace, ecTask and System-G, all implemented substantially in Rust."
+    },
+    {
+      "question": "Has Diego worked with Go?",
+      "answer": "Yes. Xarlatan is a local-first low-latency voice gateway for AI agents implemented in Go."
+    },
+    {
+      "question": "Does Diego have LangGraph experience?",
+      "answer": "Yes. LangGraph is listed in his AI engineering skills, and his certifications include Deep Research with LangGraph and Deep Agents with LangGraph."
+    },
+    {
+      "question": "Has Diego worked with RAG?",
+      "answer": "Yes. His experience includes a RAG insurance assistant, a multi-agent RAG platform integrated with internal knowledge bases, and production-oriented RAG systems."
     },
     {
       "question": "Can Diego work on local or private AI systems?",
-      "answer": "Yes. The portfolio includes local-first agent work and private document processing using local models and isolated infrastructure."
-    },
-    {
-      "question": "Can Diego combine AI work with integration architecture?",
-      "answer": "Yes. His positioning and services explicitly combine applied AI with API-led, event-driven and distributed integration design."
+      "answer": "Yes. His experience includes local-first agent work and an on-premise document extraction system for sensitive banking documents without external APIs."
     },
     {
       "question": "What is Diego's hourly rate?",
@@ -158,15 +389,32 @@
     "max_days_ahead": 30,
     "max_slots": 6,
     "business_hours": {
-      "monday": ["09:00", "18:00"],
-      "tuesday": ["09:00", "18:00"],
-      "wednesday": ["09:00", "18:00"],
-      "thursday": ["09:00", "18:00"],
-      "friday": ["09:00", "18:00"]
+      "monday": [
+        "09:00",
+        "18:00"
+      ],
+      "tuesday": [
+        "09:00",
+        "18:00"
+      ],
+      "wednesday": [
+        "09:00",
+        "18:00"
+      ],
+      "thursday": [
+        "09:00",
+        "18:00"
+      ],
+      "friday": [
+        "09:00",
+        "18:00"
+      ]
     }
   },
   "instructions": [
     "Answer the visitor's question before trying to advance the conversation.",
+    "Use the configured professional experience, skills, projects, education and certifications as grounded facts.",
+    "Absence of a fact is not evidence that the opposite is true. If a fact is not present, say it is not available rather than answering no.",
     "Do not turn capability questions into meeting requests.",
     "Do not invent rates, client names, availability, results, credentials or dates.",
     "Prefer a short answer and at most one useful next question.",
