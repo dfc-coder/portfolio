@@ -36,7 +36,22 @@ def profiles_for(family: str) -> tuple[diagnostic.InferenceProfile, ...]:
             for profile in diagnostic.QWEN35_PROFILES
             if profile.name == "qwen_unsloth_instruct_general"
         )
-    return diagnostic.GEMMA4_PROFILES
+
+    # Exact Unsloth Gemma 4 standardized sampling recommendation.
+    # Thinking is disabled by not adding <|think|> to the system prompt.
+    return (
+        diagnostic.InferenceProfile(
+            "gemma_unsloth_standard",
+            "production",
+            False,
+            1.0,
+            0.95,
+            64,
+            None,
+            None,
+            None,
+        ),
+    )
 
 
 def critical_gate(result: dict) -> tuple[bool, list[str]]:
@@ -105,7 +120,7 @@ async def main() -> int:
     print("\n=== MODEL SELECTION PROTOCOL ===", flush=True)
     print(f"Critical gate: {critical_calls} calls = {critical_counts}", flush=True)
     print(f"Full corpus (only if gate passes): {full_calls} calls = {full_counts}", flush=True)
-    print(f"Maximum calls for one Qwen candidate: {critical_calls + full_calls}", flush=True)
+    print(f"Maximum calls for one candidate: {critical_calls + full_calls}", flush=True)
     print("No repeated x5 reliability run is performed during model selection.\n", flush=True)
 
     timeout = max(settings.llama_timeout_seconds, 120.0)
