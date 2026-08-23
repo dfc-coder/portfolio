@@ -26,24 +26,24 @@ class BusinessRepresentative:
         self._responder = responder
 
     async def respond(self, session_id: str, user_message: str) -> AsyncIterator[str]:
-        state = await self._sessions.get(session_id)
-        await self._sessions.append_turn(state, "user", user_message)
+        async with self._sessions.session(session_id) as state:
+            await self._sessions.append_turn(state, "user", user_message)
 
-        decision = await self._router.route(state, user_message)
-        state.current_focus = decision.domain
+            decision = await self._router.route(state, user_message)
+            state.current_focus = decision.domain
 
-        if decision.domain == RouteDomain.SCHEDULING:
-            reply = await self._scheduler.handle(state, user_message, decision.relation)
-            if not reply.not_applicable:
-                await self._sessions.append_turn(state, "assistant", reply.text)
-                yield reply.text
-                return
+            if decision.domain == RouteDomain.SCHEDULING:
+                reply = await self._scheduler.handle(state, user_message, decision.relation)
+                if not reply.not_applicable:
+                    await self._sessions.append_turn(state, "assistant", reply.text)
+                    yield reply.text
+                    return
 
-            fallback = await self._router.route_non_scheduling(state, user_message)
-            state.current_focus = fallback.domain
+                fallback = await self._router.route_non_scheduling(state, user_message)
+                state.current_focus = fallback.domain
 
-        chunks: list[str] = []
-        async for chunk in self._responder.stream(state):
-            chunks.append(chunk)
-            yield chunk
-        await self._sessions.append_turn(state, "assistant", "".join(chunks))
+            chunks: list[str] = []
+            async for chunk in self._responder.stream(state):
+                chunks.append(chunk)
+                yield chunk
+            await self._sessions.append_turn(state, "assistant", "".join(chunks))
