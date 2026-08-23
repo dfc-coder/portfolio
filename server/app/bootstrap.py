@@ -20,17 +20,31 @@ def build_agent(settings: Settings) -> tuple[BusinessRepresentative, LlamaCppCli
     profile = load_business_profile(settings.profile_path)
     policy = SchedulingPolicy(profile.scheduling)
     sessions = MemorySessionStore(settings.session_ttl_seconds, settings.session_max_turns)
-    calendar = GoogleCalendarGateway(settings) if settings.calendar_mode == "google" else InMemoryCalendarGateway()
+    calendar = (
+        GoogleCalendarGateway(settings)
+        if settings.calendar_mode == "google"
+        else InMemoryCalendarGateway()
+    )
     slots = SlotService(calendar, policy)
 
-    llm = LlamaCppClient(settings.llama_base_url, settings.llama_model, settings.llama_timeout_seconds)
-    reranker = LlamaCppReranker(settings.reranker_base_url, settings.reranker_model, settings.reranker_timeout_seconds)
+    llm = LlamaCppClient(
+        settings.llama_base_url,
+        settings.llama_model,
+        settings.llama_timeout_seconds,
+    )
+    reranker = LlamaCppReranker(
+        settings.reranker_base_url,
+        settings.reranker_model,
+        settings.reranker_timeout_seconds,
+    )
 
+    # Control-plane decisions must be reproducible. The scheduler only calls this
+    # fallback when deterministic parsing cannot resolve the visitor turn.
     interpreter_config = GenerationConfig(
-        temperature=settings.planner_temperature,
-        max_tokens=settings.planner_max_tokens,
-        top_p=0.9,
-        top_k=20,
+        temperature=0.0,
+        max_tokens=min(settings.planner_max_tokens, 64),
+        top_p=1.0,
+        top_k=1,
     )
     renderer_config = GenerationConfig(
         temperature=settings.renderer_temperature,
@@ -39,10 +53,10 @@ def build_agent(settings: Settings) -> tuple[BusinessRepresentative, LlamaCppCli
         top_k=20,
     )
     judge_config = GenerationConfig(
-        temperature=settings.router_judge_temperature,
-        max_tokens=settings.router_judge_max_tokens,
-        top_p=0.8,
-        top_k=10,
+        temperature=0.0,
+        max_tokens=min(settings.router_judge_max_tokens, 32),
+        top_p=1.0,
+        top_k=1,
     )
 
     router = SemanticRouter(
