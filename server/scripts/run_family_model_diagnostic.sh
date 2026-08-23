@@ -70,6 +70,7 @@ IMAGE="${LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}"
 PORT="${BENCHMARK_PORT:-18080}"
 GPU_LAYERS="${BENCHMARK_N_GPU_LAYERS:-${LLAMA_N_GPU_LAYERS:-0}}"
 NAME="portfolio-family-diagnostic-$$"
+CTX=16384
 
 cleanup() {
   "$ENGINE" rm -f "$NAME" >/dev/null 2>&1 || true
@@ -79,7 +80,6 @@ trap cleanup EXIT INT TERM
 SERVER_EXTRA_ARGS=()
 if [[ "$FAMILY" == "qwen35" ]]; then
   # Exact Unsloth Qwen3.5 small-model non-thinking/general-task configuration.
-  CTX=16384
   SERVER_EXTRA_ARGS+=(
     --temp 0.7
     --top-p 0.8
@@ -88,7 +88,13 @@ if [[ "$FAMILY" == "qwen35" ]]; then
     --chat-template-kwargs '{"enable_thinking":false}'
   )
 else
-  CTX="${BENCHMARK_CTX_SIZE:-8192}"
+  # Exact Unsloth Gemma 4 standardized sampling recommendation.
+  # Thinking remains disabled because the benchmark prompts do not include <|think|>.
+  SERVER_EXTRA_ARGS+=(
+    --temp 1.0
+    --top-p 0.95
+    --top-k 64
+  )
 fi
 
 echo "Starting isolated llama.cpp family benchmark"
@@ -101,6 +107,10 @@ if [[ "$FAMILY" == "qwen35" ]]; then
   echo "Profile: Unsloth Qwen3.5 small / instruct non-thinking / general tasks"
   echo "Params:  temp=0.7 top_p=0.8 top_k=20 min_p=0.0 presence_penalty=1.5 repeat_penalty=1.0"
   echo "Thinking: false"
+else
+  echo "Profile: Unsloth Gemma 4 standardized sampling"
+  echo "Params:  temp=1.0 top_p=0.95 top_k=64"
+  echo "Thinking: false (no <|think|> token in system prompt)"
 fi
 
 echo "Protocol: fail-fast model selection (no x5 repetitions)"
@@ -146,5 +156,4 @@ PYTHONPATH=. uv run python tests/evals/run_family_model_selection.py \
   --model-label "$MODEL_LABEL" \
   --family "$FAMILY" \
   --output "$OUTPUT"
-
 echo "Report: $OUTPUT"
