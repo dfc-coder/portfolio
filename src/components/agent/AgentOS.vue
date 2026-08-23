@@ -112,10 +112,13 @@ onBeforeUnmount(() => {
     <h2 class="ref-marker"><span>05</span><i aria-hidden="true" /><span>THE INTERFACE</span></h2>
 
     <aside class="agent-presence" aria-hidden="true">
-      <div class="agent-core">
-        <div class="agent-core__grid" />
-        <div class="agent-core__rings"><i /><i /><i /></div>
-        <div class="agent-core__reticle"><i /><i /></div>
+      <div class="agent-core agent-core--three">
+        <div class="agent-core__viewport" />
+        <div class="agent-core__ticks" />
+        <div class="agent-core__mode">
+          <span>WEBGL / THREE.JS</span>
+          <span>LIVE STATE INPUT</span>
+        </div>
         <div class="agent-core__readout">
           <span>REASONING FIELD</span>
           <b>{{ statusLabel }}</b>
@@ -125,7 +128,7 @@ onBeforeUnmount(() => {
 
       <div class="agent-presence__label">
         <span class="agent-presence__dot" />
-        <span>AGENT CORE</span>
+        <span>AGENT FIELD</span>
         <b>{{ statusLabel }}</b>
       </div>
     </aside>
@@ -187,3 +190,5 @@ onBeforeUnmount(() => {
     <footer class="agent-os__foot">VUE / TYPESCRIPT / THREE.JS / SERVER-SIDE AI / SSE</footer>
   </section>
 </template>
+
+<style src="./agent-three-core.css"></style>
