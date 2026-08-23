@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 
 from pydantic import BaseModel
@@ -83,9 +84,22 @@ _ACTIVE_SCHEDULING_ROUTES = (
     ),
 )
 
+# High-precision boundary for clearly professional questions. These should never become
+# scheduling merely because the reranker is uncertain or a meeting workflow is active.
+_BUSINESS_QUESTION_RE = re.compile(
+    r"\b(?:"
+    r"experiencia|experience|trabaja|work(?:ed|s|ing)?|proyecto(?:s)?|projects?|"
+    r"tecnolog(?:ia|ía|ias|ías)|technolog(?:y|ies)|skills?|habilidades?|"
+    r"certificaciones?|certifications?|stack|lenguajes?|languages?|"
+    r"frameworks?|aws|python|rust|golang|\bgo\b|typescript|javascript|"
+    r"langgraph|langchain|rag|mcp|fastapi|sql|mulesoft"
+    r")\b",
+    re.IGNORECASE,
+)
+
 
 class SemanticRouter:
-    """Three-way semantic routing: reranker first, tiny LLM only for ambiguity."""
+    """Three-way semantic routing: explicit boundaries, reranker, then tiny LLM on ambiguity."""
 
     def __init__(
         self,
@@ -108,6 +122,9 @@ class SemanticRouter:
             if state.active_workflow == ActiveWorkflow.SCHEDULING
             else _NEW_ROUTES
         )
+        explicit_business = self._explicit_business_route(user_message, routes)
+        if explicit_business is not None:
+            return self._decision(explicit_business, 1.0, "explicit_business_boundary", routes, [])
         return await self._choose(state, user_message, routes)
 
     async def route_non_scheduling(
@@ -120,6 +137,9 @@ class SemanticRouter:
             Route("business_fallback", RouteDomain.BUSINESS, relation, _NEW_ROUTES[0].description),
             Route("general_fallback", RouteDomain.GENERAL, relation, _NEW_ROUTES[2].description),
         )
+        explicit_business = self._explicit_business_route(user_message, routes)
+        if explicit_business is not None:
+            return self._decision(explicit_business, 1.0, "explicit_business_boundary", routes, [])
         return await self._choose(state, user_message, routes)
 
     async def _choose(
@@ -195,6 +215,12 @@ class SemanticRouter:
 
         score = scores[routes.index(chosen)] if scores and chosen in routes else 0.5
         return self._decision(chosen, score, source, routes, scores)
+
+    @staticmethod
+    def _explicit_business_route(user_message: str, routes: tuple[Route, ...]) -> Route | None:
+        if not _BUSINESS_QUESTION_RE.search(user_message):
+            return None
+        return next((route for route in routes if route.domain == RouteDomain.BUSINESS), None)
 
     @staticmethod
     def _query(state: SessionState, user_message: str) -> str:
