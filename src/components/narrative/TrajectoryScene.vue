@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import ChapterSignal from "./ChapterSignal.vue";
-import NarrativeHeader from "./NarrativeHeader.vue";
 import { experiences } from "../../experiences/trajectory-data";
 
 const splitCompany = (company: string) => {
@@ -17,14 +16,6 @@ const roleCount = String(experiences.length).padStart(2, "0");
       <ChapterSignal class="trajectory-intro__kicker" index="02" label="THE RECORD" />
       <p>First, the proof —<br />where the practice was built.</p>
     </div>
-
-    <NarrativeHeader
-      class="trajectory-header"
-      variant="trajectory"
-      index="02"
-      label="PROFESSIONAL TRAJECTORY"
-      :meta="['2023 — NOW', `${roleCount} ROLES`]"
-    />
 
     <div class="trajectory-axis narrative-rail" aria-hidden="true"><i /></div>
 
