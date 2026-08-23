@@ -40,8 +40,8 @@ _EXPLICIT_CONFIRMATIONS = {
 }
 
 _REJECTION_PATTERNS = (
-    r"\b(?:no|cancel|cancel it|don't book|do not book|another time)\b",
-    r"\b(?:no|cancelá|cancela|no agendes|otro horario|otra hora)\b",
+    r"^\s*(?:cancel|cancel it|cancel the meeting|don't book(?: it)?|do not book(?: it)?|another time)\s*[.!]?\s*$",
+    r"^\s*(?:cancelá|cancela|cancelar|no agendes(?: nada)?|no lo agendes|otro horario|otra hora)\s*[.!]?\s*$",
 )
 
 
