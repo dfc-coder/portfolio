@@ -61,8 +61,9 @@ _ACTIVE_SCHEDULING_ROUTES = (
         RouteDomain.BUSINESS,
         RouteRelation.INTERRUPT,
         (
-            "A professional or capability question that interrupts the active meeting task. "
-            "Preserve the meeting data and answer the question without advancing scheduling."
+            "A professional question about Diego's work, projects, technologies, experience, "
+            "skills, services, credentials or capabilities that interrupts the active meeting task. "
+            "Preserve the meeting data and answer the professional question without advancing scheduling."
         ),
     ),
     Route(
@@ -70,8 +71,8 @@ _ACTIVE_SCHEDULING_ROUTES = (
         RouteDomain.SCHEDULING,
         RouteRelation.CONTINUE,
         (
-            "A continuation of the active meeting task: dates, meeting details, slot selection, "
-            "confirmation, changes, rejection, or cancellation."
+            "A continuation of the active meeting task: a date or date range, meeting details, "
+            "slot selection, confirmation, availability request, change, rejection or cancellation."
         ),
     ),
     Route(
@@ -197,18 +198,11 @@ class SemanticRouter:
 
     @staticmethod
     def _query(state: SessionState, user_message: str) -> str:
-        visitor = user_message.strip()
-        if state.active_workflow != ActiveWorkflow.SCHEDULING:
-            return f"VISITOR: {visitor}"
-
-        facts = ",".join(sorted(state.scheduling.facts())) or "none"
-        return "\n".join(
-            (
-                "ACTIVE_WORKFLOW: scheduling",
-                f"SCHEDULING_FACTS: {facts}",
-                f"VISITOR: {visitor}",
-            )
-        )
+        # Route the meaning of the latest visitor turn only. The active workflow is already
+        # represented by the candidate route set; injecting workflow/state text into the
+        # reranker query biases unrelated professional questions toward scheduling_continue.
+        del state
+        return f"VISITOR: {user_message.strip()}"
 
     @staticmethod
     def _decision(
