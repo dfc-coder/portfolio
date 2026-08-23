@@ -3,9 +3,9 @@ import { gsap } from "../motion/gsap";
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
-const NAVIGATION_COVER_SECONDS = 0.74;
-const NAVIGATION_HOLD_SECONDS = 0.025;
-const NAVIGATION_REVEAL_SECONDS = 0.82;
+const NAVIGATION_COVER_SECONDS = 0.92;
+const NAVIGATION_HOLD_SECONDS = 0.02;
+const NAVIGATION_REVEAL_SECONDS = 1.02;
 const MAX_TRANSITION_PIXELS = 1_250_000;
 
 type NavigationCommit = () => void;
@@ -22,15 +22,15 @@ void main() {
 `;
 
 /**
- * Organic transition derived from the same masking idea used by
- * akella/webGLImageTransitions demo1: progress drives a threshold while noise
- * distorts only the moving frontier. The reference moves that threshold along
- * X; here the threshold is radial, so both cover and reveal travel from the
- * centre toward the viewport edges.
+ * Centre-out burn transition.
  *
- * uPhase = 0: opaque material grows centre -> outside, covering the old scene.
+ * The front is a warped radial signed-distance field rather than a geometric
+ * circle with noise pasted on top. Large/medium/fine noise layers produce a
+ * torn paper edge while GSAP owns the smooth temporal progression.
+ *
+ * uPhase = 0: dark material grows centre -> outside, covering the old scene.
  * uPhase = 1: a transparent opening grows centre -> outside, revealing the new
- *             scene underneath.
+ *             scene beneath the same organic burnt frontier.
  */
 const fragmentShader = `
 precision mediump float;
@@ -59,61 +59,93 @@ float noise(vec2 p) {
 
 float fbm(vec2 p) {
   float value = 0.0;
-  value += noise(p) * 0.55;
-  p = mat2(0.80, -0.60, 0.60, 0.80) * p * 2.03 + vec2(7.1, 3.7);
-  value += noise(p) * 0.29;
-  p = mat2(0.80, -0.60, 0.60, 0.80) * p * 2.01 + vec2(4.3, 9.2);
-  value += noise(p) * 0.16;
+  value += noise(p) * 0.50;
+  p = mat2(0.80, -0.60, 0.60, 0.80) * p * 2.02 + vec2(5.2, 1.7);
+  value += noise(p) * 0.27;
+  p = mat2(0.80, -0.60, 0.60, 0.80) * p * 2.03 + vec2(2.9, 7.4);
+  value += noise(p) * 0.15;
+  p = mat2(0.80, -0.60, 0.60, 0.80) * p * 2.01 + vec2(8.1, 3.6);
+  value += noise(p) * 0.08;
   return value;
-}
-
-float parabola(float x) {
-  return 4.0 * x * (1.0 - x);
 }
 
 void main() {
   vec2 uv = gl_FragCoord.xy / uResolution.xy;
   float aspect = uResolution.x / max(uResolution.y, 1.0);
 
-  // Aspect-correct radial coordinates: circles remain circular on wide screens.
   vec2 p = (uv - 0.5) * vec2(aspect, 1.0);
   float maximumRadius = length(vec2(aspect * 0.5, 0.5));
   float radial = length(p) / max(maximumRadius, 0.0001);
   float angle = atan(p.y, p.x);
 
-  // The direction only changes the organic drift. Navigation never becomes a
-  // left/right wipe: the spatial transition is always centre -> outside.
-  float drift = uTime * 0.055 * uDirection;
-  float coarse = fbm(p * 4.25 + vec2(drift, -drift * 0.72));
-  float detail = fbm(p * 10.8 - vec2(drift * 0.63, drift * 0.41));
+  float t = clamp(uProgress, 0.0, 1.0);
+  float edgeActivity = sin(t * 3.14159265);
 
-  // Like the reference shader, roughness is strongest mid-transition and
-  // collapses at both endpoints so progress 0 and 1 are deterministic.
-  float activeWidth = parabola(uProgress);
+  // Keep the noise field almost stationary. It should feel like material being
+  // consumed, not like animated liquid wobbling around the hole.
+  float drift = uTime * 0.018 * uDirection;
+  vec2 base = p * 3.0;
+  float warpX = fbm(base * 0.92 + vec2(drift, -drift * 0.55));
+  float warpY = fbm(base * 0.92 + vec2(6.4 - drift * 0.42, 2.8 + drift * 0.34));
+  vec2 warped = base + (vec2(warpX, warpY) - 0.5) * 1.28;
+
+  float macroNoise = fbm(warped * 0.72 + vec2(1.7, 4.1));
+  float mediumNoise = fbm(warped * 1.72 + vec2(7.3, 2.2));
+  float fineNoise = noise(warped * 5.8 + vec2(4.9, 8.6));
+
+  // Broad bites give the hole an irregular silhouette; finer layers fray only
+  // the frontier. The amount collapses at the endpoints to guarantee a clean
+  // fully-covered / fully-revealed frame.
   float lobes =
-    sin(angle * 9.0 + coarse * 5.4) * 0.033 +
-    sin(angle * 19.0 - detail * 6.7) * 0.014;
-  float displacement = activeWidth * (
-    (coarse - 0.5) * 0.205 +
-    (detail - 0.5) * 0.082 +
+    sin(angle * 5.0 + macroNoise * 5.0) * 0.032 +
+    sin(angle * 11.0 - mediumNoise * 5.7) * 0.017 +
+    sin(angle * 23.0 + fineNoise * 3.4) * 0.006;
+
+  float irregularity = edgeActivity * (
+    (macroNoise - 0.5) * 0.145 +
+    (mediumNoise - 0.5) * 0.067 +
+    (fineNoise - 0.5) * 0.022 +
     lobes
   );
 
-  // Start safely before the centre and finish beyond every viewport corner.
-  // This guarantees no stale pixels before/after the navigation commit.
-  float frontier = mix(-0.105, 1.105, uProgress);
-  float signedDistance = radial - frontier - displacement;
-  float feather = mix(0.013, 0.006, activeWidth);
+  float frontier = mix(-0.10, 1.10, t);
+  float signedDistance = radial - frontier - irregularity;
+
+  // Soft antialiased material edge. The colour bands below are wider than the
+  // actual alpha transition so the burn reads as a paper edge rather than a
+  // glowing circle.
+  float feather = 0.010;
   float grownMask = 1.0 - smoothstep(-feather, feather, signedDistance);
+  float coreAlpha = mix(grownMask, 1.0 - grownMask, uPhase);
 
-  // Cover: material grows outward. Reveal: the same noisy radial front becomes
-  // a transparent aperture, also growing outward, exposing the destination.
-  float alpha = mix(grownMask, 1.0 - grownMask, uPhase);
+  float edgeDistance = abs(signedDistance);
+  float charBand = 1.0 - smoothstep(0.008, 0.050, edgeDistance);
+  float emberBand = 1.0 - smoothstep(0.003, 0.023, edgeDistance);
+  float hotLine = 1.0 - smoothstep(0.000, 0.008, edgeDistance);
 
-  // Keep the transition material neutral. The visual character must come from
-  // the torn/noisy boundary, not from a fire/ember colour treatment.
-  vec3 material = vec3(0.020, 0.019, 0.018);
-  gl_FragColor = vec4(material, clamp(alpha, 0.0, 1.0));
+  // Stable flecks break the coloured rim so it looks scorched rather than
+  // neon. Time only drifts them imperceptibly to keep the effect alive.
+  float flecks = noise(warped * 8.5 + vec2(uTime * 0.025, -uTime * 0.018));
+  float charVariation = 0.78 + flecks * 0.22;
+  float emberVariation = 0.70 + mediumNoise * 0.30;
+
+  vec3 soot = vec3(0.014, 0.012, 0.011);
+  vec3 charBrown = vec3(0.165, 0.050, 0.022);
+  vec3 ember = vec3(0.78, 0.205, 0.070);
+  vec3 hotCopper = vec3(1.00, 0.515, 0.175);
+
+  vec3 color = soot;
+  color = mix(color, charBrown, charBand * 0.84 * charVariation);
+  color = mix(color, ember, emberBand * 0.82 * emberVariation);
+  color = mix(color, hotCopper, hotLine * 0.36);
+
+  // The coloured edge survives on either side of the mask during reveal. This
+  // makes the new section appear through a burning paper aperture instead of a
+  // mathematically clean hole.
+  float edgeAlpha = max(charBand * 0.66, emberBand * 0.82);
+  float alpha = max(coreAlpha, edgeAlpha);
+
+  gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0));
 }
 `;
 
@@ -286,12 +318,10 @@ export const mountSectionTransition = (_portfolio: HTMLElement) => {
       .to(state, {
         progress: 1,
         duration: NAVIGATION_COVER_SECONDS,
-        ease: "power2.out",
+        ease: "sine.inOut",
         onUpdate: () => draw(state.progress, 0),
       })
       .add(() => {
-        // The old section is fully hidden here. Commit synchronously, then keep
-        // a fully opaque frame before beginning the centre-out reveal.
         draw(1, 0);
         commit();
         state.progress = 0;
@@ -302,7 +332,7 @@ export const mountSectionTransition = (_portfolio: HTMLElement) => {
       .to(state, {
         progress: 1,
         duration: NAVIGATION_REVEAL_SECONDS,
-        ease: "power2.out",
+        ease: "sine.inOut",
         onUpdate: () => draw(state.progress, 1),
       });
   };
