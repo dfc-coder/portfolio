@@ -29,12 +29,14 @@ export const stamp = (date = new Date()): string => timeFormatter.format(date);
 
 export interface RuntimeHooks {
   onMessage?: (message: AgentMessage) => void;
+  /** Called once per rendered stream batch, not once per transport chunk. */
   onToken?: () => void;
 }
 
 /**
  * Conversation state only. Transport belongs to AgentProvider; rendering belongs
- * to AgentOS. There is deliberately no browser-side corpus or simulated model.
+ * to AgentOS. Stream chunks are coalesced to animation frames so Vue and the
+ * WebGL visual state never have to react at transport frequency.
  */
 export function useAgentRuntime(provider: AgentProvider, hooks: RuntimeHooks = {}) {
   const messages = ref<AgentMessage[]>([]);
@@ -43,6 +45,9 @@ export function useAgentRuntime(provider: AgentProvider, hooks: RuntimeHooks = {
   const busy = ref(false);
   const error = ref<string | null>(null);
   const nextId = shallowRef(1);
+  let streamFrame = 0;
+  let pendingText = "";
+  let replyId = -1;
 
   const state = computed<RuntimeState>(() => {
     if (messages.value.some((message) => message.streaming)) return "speaking";
@@ -67,6 +72,33 @@ export function useAgentRuntime(provider: AgentProvider, hooks: RuntimeHooks = {
     return message;
   };
 
+  const reply = () => messages.value.find((message) => message.id === replyId);
+
+  const flushStream = () => {
+    streamFrame = 0;
+    if (!pendingText) return;
+    const target = reply();
+    if (!target) {
+      pendingText = "";
+      return;
+    }
+
+    target.text += pendingText;
+    pendingText = "";
+    hooks.onToken?.();
+  };
+
+  const scheduleStreamFlush = () => {
+    if (streamFrame) return;
+    streamFrame = requestAnimationFrame(flushStream);
+  };
+
+  const flushStreamNow = () => {
+    if (streamFrame) cancelAnimationFrame(streamFrame);
+    streamFrame = 0;
+    flushStream();
+  };
+
   const seed = (entries: Array<{ role: AgentRole; text: string; time?: string }>) => {
     for (const entry of entries) {
       messages.value.push({
@@ -89,9 +121,9 @@ export function useAgentRuntime(provider: AgentProvider, hooks: RuntimeHooks = {
     busy.value = true;
 
     const history = messages.value.slice(0, -1);
-    let replyId = -1;
+    replyId = -1;
+    pendingText = "";
     let receivedChunk = false;
-    const reply = () => messages.value.find((message) => message.id === replyId);
 
     try {
       for await (const chunk of provider.ask(question, history)) {
@@ -101,16 +133,16 @@ export function useAgentRuntime(provider: AgentProvider, hooks: RuntimeHooks = {
           busy.value = false;
           replyId = push("agent", "", true).id;
         }
-        const target = reply();
-        if (!target) break;
-        target.text += chunk;
-        hooks.onToken?.();
+        pendingText += chunk;
+        scheduleStreamFlush();
       }
 
+      flushStreamNow();
       if (!receivedChunk) throw new Error("Agent provider returned no content");
       const target = reply();
       if (target) target.streaming = false;
     } catch (cause) {
+      flushStreamNow();
       error.value = "The agent could not answer. Try again.";
       const target = reply();
       if (target) target.streaming = false;
@@ -121,6 +153,10 @@ export function useAgentRuntime(provider: AgentProvider, hooks: RuntimeHooks = {
   };
 
   const reset = () => {
+    if (streamFrame) cancelAnimationFrame(streamFrame);
+    streamFrame = 0;
+    pendingText = "";
+    replyId = -1;
     messages.value = [];
     draft.value = "";
     error.value = null;
