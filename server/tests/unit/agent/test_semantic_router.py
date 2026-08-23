@@ -105,7 +105,7 @@ async def test_new_turn_routing_does_not_include_previous_assistant_text() -> No
 
 
 @pytest.mark.asyncio
-async def test_active_scheduling_uses_only_workflow_facts_and_visitor_turn() -> None:
+async def test_active_scheduling_routes_latest_turn_without_workflow_state_in_query() -> None:
     reranker = FixedReranker([0.05, 0.90, 0.02])
     router = SemanticRouter(
         reranker,
@@ -125,11 +125,10 @@ async def test_active_scheduling_uses_only_workflow_facts_and_visitor_turn() -> 
     decision = await router.route(state, "Mi email es ana@example.com")
 
     assert decision.domain == RouteDomain.SCHEDULING
-    assert "ACTIVE_WORKFLOW: scheduling" in reranker.query
-    assert "SCHEDULING_FACTS:" in reranker.query
-    assert "visitor_name" in reranker.query
-    assert "VISITOR: Mi email es ana@example.com" in reranker.query
-    assert "LAST_ASSISTANT" not in reranker.query
+    assert reranker.query == "VISITOR: Mi email es ana@example.com"
+    assert "ACTIVE_WORKFLOW" not in reranker.query
+    assert "SCHEDULING_FACTS" not in reranker.query
+    assert "visitor_name" not in reranker.query
     assert "Tell me which meeting slot" not in reranker.query
 
 
@@ -150,3 +149,22 @@ async def test_active_scheduling_business_interrupt_preserves_memory() -> None:
     assert decision.relation == RouteRelation.INTERRUPT
     assert state.active_workflow == ActiveWorkflow.SCHEDULING
     assert state.scheduling.visitor_name == "Ana"
+
+
+@pytest.mark.asyncio
+async def test_active_scheduling_rust_experience_question_is_business_interrupt() -> None:
+    reranker = FixedReranker([0.94, 0.10, 0.03])
+    router = SemanticRouter(
+        reranker,
+        JudgeLlm("general_interrupt"),
+        GenerationConfig(temperature=0.0, max_tokens=32),
+    )
+    state = SessionState("s-rust")
+    state.active_workflow = ActiveWorkflow.SCHEDULING
+    state.scheduling.requested_start_date = None
+
+    decision = await router.route(state, "Diego tiene experiencia con rust?")
+
+    assert decision.domain == RouteDomain.BUSINESS
+    assert decision.relation == RouteRelation.INTERRUPT
+    assert reranker.query == "VISITOR: Diego tiene experiencia con rust?"
