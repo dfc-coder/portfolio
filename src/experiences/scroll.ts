@@ -94,7 +94,7 @@ const sceneOpacities = (node: number, model: NarrativeModel) => {
     chapterSystems: careerToChapter * (1 - chapterToSystems),
     systems: chapterToSystems * (1 - systemsToChapter),
     chapterGallery: systemsToChapter * (1 - chapterToGallery),
-    gallery: chapterGallery = chapterToGallery * (1 - galleryToChapter),
+    gallery: chapterToGallery * (1 - galleryToChapter),
     chapterAgent: galleryToChapter * (1 - chapterToAgent),
     agent: chapterToAgent,
   };
