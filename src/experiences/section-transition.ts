@@ -1,4 +1,4 @@
-import gsap from "gsap";
+import { gsap } from "../motion/gsap";
 import { setStageTransition } from "../graphics/stageGraphics";
 
 type NavigationCommit = () => void;
