@@ -171,7 +171,7 @@ export const mountScrollSyncController = () => {
 
   const scrollProxy = { y: scrollY };
   let targetScrollY = scrollY;
-  let scrollTween: gsap.core.Tween | null = null;
+  let scrollTween: ReturnType<typeof gsap.to> | null = null;
 
   const maxScrollY = () =>
     Math.max(0, document.documentElement.scrollHeight - innerHeight);
