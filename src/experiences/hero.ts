@@ -1,4 +1,4 @@
-import gsap from "gsap";
+import { gsap } from "../motion/gsap";
 
 const HERO_SELECTOR = ".ref-scene--hero";
 const STRUCTURAL_EASE = "power3.inOut";
