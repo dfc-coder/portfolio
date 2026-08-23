@@ -21,15 +21,17 @@ def load(path: Path) -> dict[str, Any]:
     return data
 
 
+def size_rank(label: str) -> int:
+    normalized = label.lower()
+    for rank, token in enumerate(("0.8b", "2b", "4b", "9b")):
+        if token in normalized:
+            return rank
+    return 99
+
+
 def rank_key(report: dict[str, Any]) -> tuple[int, float, float]:
     best = report["finalists"][0]
-    label = report["model_label"].lower()
-    size_rank = 99
-    for rank, token in enumerate(("0.8b", "2b", "4b", "9b")):
-        if token in label:
-            size_rank = rank
-            break
-    return size_rank, -best["score"], best["scheduling"]["latency_ms"]["p95"]
+    return size_rank(report["model_label"]), -best["score"], best["scheduling"]["latency_ms"]["p95"]
 
 
 def summarize(report: dict[str, Any]) -> dict[str, Any]:
@@ -71,25 +73,40 @@ def verdict(reports: list[dict[str, Any]]) -> dict[str, Any]:
             "status": "change_model",
             "selected_model": selected["model_label"],
             "selected_profile": best["profile"]["name"],
-            "reason": "The current 0.8B model fails the thresholds while a larger model passes the same corpus and configuration search.",
+            "reason": "The 0.8B model fails while a larger Qwen3.5 model passes the identical corpus and configuration search.",
         }
 
-    if len(ordered) == 1:
+    tested_ranks = {size_rank(report["model_label"]) for report in ordered}
+    if 0 not in tested_ranks:
         return {
-            "status": "need_larger_model_benchmark",
+            "status": "missing_baseline",
             "selected_model": None,
             "selected_profile": None,
-            "reason": "No tested 0.8B configuration is sufficient. Run the identical benchmark against 2B before deciding.",
+            "reason": "Benchmark Qwen3.5-0.8B so configuration-vs-size can be determined against the current baseline.",
+        }
+    if 1 not in tested_ranks:
+        return {
+            "status": "benchmark_2b",
+            "selected_model": None,
+            "selected_profile": None,
+            "reason": "No 0.8B configuration is sufficient. Run the identical benchmark against Qwen3.5-2B.",
+        }
+    if 2 not in tested_ranks:
+        return {
+            "status": "benchmark_4b",
+            "selected_model": None,
+            "selected_profile": None,
+            "reason": "0.8B and 2B both fail. Run Qwen3.5-4B once before concluding that scale does not solve the task.",
         }
 
-    largest = ordered[-1]
+    largest = max(ordered, key=lambda report: size_rank(report["model_label"]))
     return {
-        "status": "model_size_not_sufficient_up_to_tested_limit",
+        "status": "configuration_and_scale_insufficient_up_to_4b",
         "selected_model": None,
         "selected_profile": None,
         "reason": (
-            f"None of the tested models up to {largest['model_label']} meets the thresholds. "
-            "Do not keep tuning sampling parameters; revisit task/prompt design or evaluate targeted fine-tuning."
+            f"No tested inference configuration passes on 0.8B, 2B, or {largest['model_label']}. "
+            "Stop tuning sampling parameters; redesign the task contract/prompt or evaluate targeted fine-tuning."
         ),
     }
 
