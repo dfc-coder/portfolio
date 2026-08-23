@@ -1,160 +1,66 @@
-/* Three.js agent presence — the WebGL point cloud is the agent identity.
-   This layer only frames the shared stage canvas with telemetry. */
+/* The shared Three.js canvas is the agent identity. This layer only carries
+   a minimal state label so the point field can own the space. */
 
 .agent-core--three {
   width: min(35vw, 540px);
   max-width: 94%;
-  background:
-    radial-gradient(circle at 50% 50%, rgba(205, 182, 117, 0.045), transparent 54%),
-    radial-gradient(circle at 50% 50%, transparent 0 67%, rgba(6, 7, 8, 0.28) 82%, rgba(6, 7, 8, 0.68) 100%);
+  background: none;
 }
 
-.agent-core--three::before {
-  inset: 4%;
-  border-color: rgba(236, 230, 213, 0.11);
-  box-shadow:
-    0 0 0 1px rgba(205, 182, 117, 0.025) inset,
-    0 0 72px rgba(205, 182, 117, 0.035) inset;
-}
-
+.agent-core--three::before,
 .agent-core--three::after {
-  inset: 18%;
-  border-color: rgba(205, 182, 117, 0.13);
-  border-style: dashed;
-  opacity: 0.7;
+  display: none;
 }
 
-.agent-core__viewport {
-  position: absolute;
-  inset: 8%;
-  border-radius: 50%;
-  pointer-events: none;
-}
-
-.agent-core__viewport::before,
-.agent-core__viewport::after {
-  content: "";
+.agent-core__status {
   position: absolute;
   left: 50%;
-  top: 50%;
-  background: rgba(236, 230, 213, 0.075);
-  translate: -50% -50%;
+  bottom: 6%;
+  translate: -50% 0;
+  color: rgba(205, 182, 117, 0.58);
+  font: 500 var(--t-meta)/1 var(--font-info);
+  letter-spacing: 0.14em;
+  opacity: 0.72;
+  transition:
+    color 0.55s ease,
+    opacity 0.55s ease,
+    transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.agent-core__viewport::before {
-  width: 82%;
-  height: 1px;
-  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+.agent-os[data-state="idle"] .agent-core__status,
+.agent-os[data-state="listening"] .agent-core__status {
+  opacity: 0.42;
 }
 
-.agent-core__viewport::after {
-  width: 1px;
-  height: 82%;
-  mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
+.agent-os[data-state="thinking"] .agent-core__status,
+.agent-os[data-state="speaking"] .agent-core__status {
+  opacity: 0.82;
+  transform: translateY(-2px);
 }
 
-.agent-core__ticks {
-  position: absolute;
-  inset: 2%;
-  border-radius: 50%;
-  opacity: 0.34;
-  pointer-events: none;
-  background: repeating-conic-gradient(
-    from 0deg,
-    rgba(205, 182, 117, 0.38) 0deg 0.42deg,
-    transparent 0.42deg 9deg
-  );
-  mask-image: radial-gradient(circle, transparent 0 90%, #000 90.5% 92%, transparent 92.5%);
-}
-
-.agent-core__mode {
-  position: absolute;
-  left: 4%;
-  top: 15%;
-  display: grid;
-  gap: 5px;
-  color: rgba(236, 230, 213, 0.4);
-  font: 500 var(--t-telemetry)/1 var(--font-info);
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-}
-
-.agent-core__mode::before {
-  content: "3D POINT FIELD";
-  color: rgba(205, 182, 117, 0.72);
-}
-
-.agent-core__mode span {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.agent-core__mode span::before {
-  content: "";
-  width: 12px;
-  height: 1px;
-  background: currentColor;
-}
-
-.agent-core--three .agent-core__readout {
-  z-index: 2;
-}
-
-.agent-os[data-state="listening"] .agent-core--three::after {
-  border-color: rgba(205, 182, 117, 0.24);
-}
-
-.agent-os[data-state="thinking"] .agent-core__ticks {
-  opacity: 0.62;
-  animation: os-three-ticks-spin 18s linear infinite;
-}
-
-.agent-os[data-state="speaking"] .agent-core--three::before {
-  border-color: rgba(205, 182, 117, 0.28);
-  box-shadow:
-    0 0 0 1px rgba(205, 182, 117, 0.05) inset,
-    0 0 94px rgba(205, 182, 117, 0.07) inset;
-}
-
-.agent-os[data-state="error"] .agent-core--three::before,
-.agent-os[data-state="error"] .agent-core--three::after {
-  border-color: rgba(208, 138, 106, 0.42);
-}
-
-@keyframes os-three-ticks-spin {
-  to {
-    rotate: 360deg;
-  }
+.agent-os[data-state="error"] .agent-core__status {
+  color: rgba(208, 138, 106, 0.78);
 }
 
 @media (max-width: 920px) {
   .agent-core--three {
     width: min(40vw, 440px);
   }
-
-  .agent-core__mode {
-    display: none;
-  }
 }
 
 @media (max-width: 820px) {
   .agent-core--three {
     width: min(80vw, 460px);
-    opacity: 0.46;
-    background: radial-gradient(circle at 50% 50%, rgba(205, 182, 117, 0.035), transparent 62%);
+    opacity: 0.42;
   }
 
-  .agent-core--three::before,
-  .agent-core--three::after,
-  .agent-core__ticks,
-  .agent-core__viewport {
-    opacity: 0.42;
+  .agent-core__status {
+    display: none;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .agent-core__ticks {
-    animation: none !important;
+  .agent-core__status {
+    transition: none;
   }
 }
