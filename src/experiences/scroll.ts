@@ -2,6 +2,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { transitionSectionNavigation } from "./continuity";
 import { narrativeModel, type NarrativeModel } from "./narrative-model";
+import { narrativeRuntime, type NarrativeScene } from "./narrative-runtime";
 
 const SCROLL_STEP_VH = 56;
 const SCENE_CROSSFADE_WIDTH = 0.34;
@@ -25,8 +26,6 @@ const range = (value: number, start: number, end: number) =>
 
 const damp = (current: number, target: number, response: number, dt: number) =>
   current + (target - current) * (1 - Math.exp(-response * dt));
-
-type SceneName = "hero" | "chapter" | "career" | "systems" | "gallery" | "agent";
 
 export const mapPhysicalProgressToVirtualProgress = (
   physicalProgress: number,
@@ -64,7 +63,7 @@ export const mapPhysicalProgressToVirtualProgress = (
   return clamp01(virtualNode / model.virtualLastNode);
 };
 
-const sceneForNode = (node: number, model: NarrativeModel): SceneName => {
+const sceneForNode = (node: number, model: NarrativeModel): NarrativeScene => {
   if (node < 0.5) return "hero";
   if (node < model.careerStartNode - 0.5) return "chapter";
   if (node < model.chapterSystemsNode - 0.5) return "career";
@@ -136,6 +135,7 @@ export const mountScrollSyncController = () => {
   if (!track || !stage || !portfolio) return () => undefined;
   if (track.dataset.scrollSyncOwner === "physical") return () => undefined;
 
+  // ScrollTrigger is the single source of truth for physical scroll progress.
   gsap.registerPlugin(ScrollTrigger);
 
   const model = narrativeModel;
@@ -148,6 +148,7 @@ export const mountScrollSyncController = () => {
     const physical = clamp01(physicalProgress);
     const progress = mapPhysicalProgressToVirtualProgress(physical, model);
     const node = progress * model.virtualLastNode;
+    const scene = sceneForNode(node, model);
     const opacity = sceneOpacities(node, model);
 
     portfolio.style.setProperty("--physical-scroll-progress", physical.toFixed(5));
@@ -156,7 +157,7 @@ export const mountScrollSyncController = () => {
       String(Math.round(physical * 100)).padStart(2, "0"),
     );
 
-    stage.dataset.scene = sceneForNode(node, model);
+    stage.dataset.scene = scene;
     stage.style.setProperty("--progress", progress.toFixed(6));
     stage.style.setProperty("--scroll-director-progress", progress.toFixed(6));
     stage.style.setProperty("--hero", opacity.hero.toFixed(6));
@@ -168,8 +169,18 @@ export const mountScrollSyncController = () => {
     stage.style.setProperty("--chapter-systems", opacity.chapterSystems.toFixed(6));
     stage.style.setProperty("--chapter-gallery", opacity.chapterGallery.toFixed(6));
     stage.style.setProperty("--chapter-agent", opacity.chapterAgent.toFixed(6));
+
+    narrativeRuntime.publish({
+      physicalProgress: physical,
+      progress,
+      node,
+      scene,
+    });
   };
 
+  // This loop exists only while physical scrolling is settling. It is not a
+  // second narrative clock: ScrollTrigger still observes the resulting scroll
+  // position and publishes the canonical state above.
   let smoothFrame = 0;
   let currentScrollY = scrollY;
   let targetScrollY = scrollY;
