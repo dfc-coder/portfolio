@@ -479,11 +479,21 @@ class StageGraphics {
   }
 
   setTransition(progress: number, direction: number, active: boolean): void {
+    const changed = this.transitionActive !== active;
     this.transitionActive = active;
     this.transitionMaterial.uniforms.uProgress.value = clamp01(progress);
     this.transitionMaterial.uniforms.uDirection.value = direction < 0 ? -1 : 1;
     this.canvas.classList.toggle("is-transitioning", active);
-    this.stage.classList.toggle("has-webgl-transition", active);
+
+    if (changed) {
+      if (active) {
+        document.body.append(this.canvas);
+      } else {
+        this.stage.prepend(this.canvas);
+      }
+      this.resize();
+    }
+
     this.wake();
   }
 
@@ -645,7 +655,6 @@ class StageGraphics {
     this.nodeGeometry.dispose();
     this.renderer.dispose();
     this.canvas.remove();
-    this.stage.classList.remove("has-webgl-transition");
   }
 }
 
