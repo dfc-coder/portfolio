@@ -3,14 +3,9 @@ import { gsap } from "../motion/gsap";
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
-const smoother = (value: number) => {
-  const x = clamp(value, 0, 1);
-  return x * x * x * (x * (x * 6 - 15) + 10);
-};
-
-const NAVIGATION_COVER_SECONDS = 0.9;
-const NAVIGATION_HOLD_SECONDS = 0.02;
-const NAVIGATION_REVEAL_SECONDS = 0.98;
+const NAVIGATION_COVER_SECONDS = 0.74;
+const NAVIGATION_HOLD_SECONDS = 0.025;
+const NAVIGATION_REVEAL_SECONDS = 0.82;
 const MAX_TRANSITION_PIXELS = 1_250_000;
 
 type NavigationCommit = () => void;
@@ -26,11 +21,23 @@ void main() {
 }
 `;
 
+/**
+ * Organic transition derived from the same masking idea used by
+ * akella/webGLImageTransitions demo1: progress drives a threshold while noise
+ * distorts only the moving frontier. The reference moves that threshold along
+ * X; here the threshold is radial, so both cover and reveal travel from the
+ * centre toward the viewport edges.
+ *
+ * uPhase = 0: opaque material grows centre -> outside, covering the old scene.
+ * uPhase = 1: a transparent opening grows centre -> outside, revealing the new
+ *             scene underneath.
+ */
 const fragmentShader = `
 precision mediump float;
 
 uniform vec2 uResolution;
 uniform float uProgress;
+uniform float uPhase;
 uniform float uDirection;
 uniform float uTime;
 
@@ -50,71 +57,63 @@ float noise(vec2 p) {
   );
 }
 
-float fbm3(vec2 p) {
+float fbm(vec2 p) {
   float value = 0.0;
-  value += noise(p) * 0.56;
-  p = mat2(0.80, -0.60, 0.60, 0.80) * p * 2.03 + vec2(9.7, 5.1);
-  value += noise(p) * 0.28;
-  p = mat2(0.80, -0.60, 0.60, 0.80) * p * 2.01 + vec2(4.3, 11.9);
+  value += noise(p) * 0.55;
+  p = mat2(0.80, -0.60, 0.60, 0.80) * p * 2.03 + vec2(7.1, 3.7);
+  value += noise(p) * 0.29;
+  p = mat2(0.80, -0.60, 0.60, 0.80) * p * 2.01 + vec2(4.3, 9.2);
   value += noise(p) * 0.16;
   return value;
+}
+
+float parabola(float x) {
+  return 4.0 * x * (1.0 - x);
 }
 
 void main() {
   vec2 uv = gl_FragCoord.xy / uResolution.xy;
   float aspect = uResolution.x / max(uResolution.y, 1.0);
 
-  vec2 origin = vec2(0.5 + uDirection * 0.012, 0.5);
-  vec2 p = (uv - origin) * vec2(aspect, 1.0);
-  float radial = length(p);
+  // Aspect-correct radial coordinates: circles remain circular on wide screens.
+  vec2 p = (uv - 0.5) * vec2(aspect, 1.0);
+  float maximumRadius = length(vec2(aspect * 0.5, 0.5));
+  float radial = length(p) / max(maximumRadius, 0.0001);
   float angle = atan(p.y, p.x);
-  float time = uTime * 0.045;
 
-  float coarse = fbm3(p * 3.15 + vec2(time, -time * 0.72));
-  float detail = fbm3(p * 8.4 - vec2(time * 1.23, time * 0.81));
+  // The direction only changes the organic drift. Navigation never becomes a
+  // left/right wipe: the spatial transition is always centre -> outside.
+  float drift = uTime * 0.055 * uDirection;
+  float coarse = fbm(p * 4.25 + vec2(drift, -drift * 0.72));
+  float detail = fbm(p * 10.8 - vec2(drift * 0.63, drift * 0.41));
 
-  float tornLobes =
-    sin(angle * 8.0 + coarse * 6.2) * 0.038 +
-    sin(angle * 17.0 - detail * 7.0) * 0.018;
-
-  float displacement =
-    (coarse - 0.5) * 0.255 +
-    (detail - 0.5) * 0.078 +
-    tornLobes;
-
-  float maximumRadius = length(vec2(aspect * 0.58, 0.62)) + 0.36;
-  float burnRadius = mix(-0.17, maximumRadius, uProgress);
-  float sd = radial - burnRadius - displacement;
-  float edgeWidth = mix(0.052, 0.030, uProgress);
-  float material = 1.0 - smoothstep(-edgeWidth, edgeWidth, sd);
-
-  float edgeDistance = abs(sd);
-  float charBand = 1.0 - smoothstep(0.022, 0.105, edgeDistance);
-  float emberBand = 1.0 - smoothstep(0.0, 0.021, edgeDistance);
-  float hotLine = 1.0 - smoothstep(0.0, 0.007, edgeDistance);
-
-  float fleckNoise = noise(
-    p * 34.0 + vec2(uTime * 0.13, -uTime * 0.09) + coarse * 4.0
+  // Like the reference shader, roughness is strongest mid-transition and
+  // collapses at both endpoints so progress 0 and 1 are deterministic.
+  float activeWidth = parabola(uProgress);
+  float lobes =
+    sin(angle * 9.0 + coarse * 5.4) * 0.033 +
+    sin(angle * 19.0 - detail * 6.7) * 0.014;
+  float displacement = activeWidth * (
+    (coarse - 0.5) * 0.205 +
+    (detail - 0.5) * 0.082 +
+    lobes
   );
-  float fleckZone =
-    (1.0 - smoothstep(0.035, 0.155, edgeDistance)) *
-    smoothstep(0.60, 0.88, fleckNoise);
 
-  vec3 soot = vec3(0.014, 0.013, 0.012);
-  vec3 charBrown = vec3(0.105, 0.048, 0.018);
-  vec3 ember = vec3(0.79, 0.225, 0.045);
-  vec3 hotPaper = vec3(0.92, 0.61, 0.30);
+  // Start safely before the centre and finish beyond every viewport corner.
+  // This guarantees no stale pixels before/after the navigation commit.
+  float frontier = mix(-0.105, 1.105, uProgress);
+  float signedDistance = radial - frontier - displacement;
+  float feather = mix(0.013, 0.006, activeWidth);
+  float grownMask = 1.0 - smoothstep(-feather, feather, signedDistance);
 
-  vec3 color = soot;
-  color = mix(color, charBrown, charBand * 0.88);
-  color = mix(color, ember, emberBand * (0.70 + detail * 0.24));
-  color = mix(color, hotPaper, hotLine * 0.42);
-  color = mix(color, ember, fleckZone * 0.44);
+  // Cover: material grows outward. Reveal: the same noisy radial front becomes
+  // a transparent aperture, also growing outward, exposing the destination.
+  float alpha = mix(grownMask, 1.0 - grownMask, uPhase);
 
-  float alpha = material;
-  alpha = max(alpha, charBand * 0.88);
-  alpha = max(alpha, fleckZone * 0.62);
-  gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0));
+  // Keep the transition material neutral. The visual character must come from
+  // the torn/noisy boundary, not from a fire/ember colour treatment.
+  vec3 material = vec3(0.020, 0.019, 0.018);
+  gl_FragColor = vec4(material, clamp(alpha, 0.0, 1.0));
 }
 `;
 
@@ -154,7 +153,7 @@ export const mountSectionTransition = (_portfolio: HTMLElement) => {
     antialias: false,
     depth: false,
     stencil: false,
-    premultipliedAlpha: true,
+    premultipliedAlpha: false,
     powerPreference: "high-performance",
   });
 
@@ -196,6 +195,7 @@ export const mountSectionTransition = (_portfolio: HTMLElement) => {
   const positionLocation = gl.getAttribLocation(program, "aPosition");
   const resolutionLocation = gl.getUniformLocation(program, "uResolution");
   const progressLocation = gl.getUniformLocation(program, "uProgress");
+  const phaseLocation = gl.getUniformLocation(program, "uPhase");
   const directionLocation = gl.getUniformLocation(program, "uDirection");
   const timeLocation = gl.getUniformLocation(program, "uTime");
   const buffer = gl.createBuffer();
@@ -217,13 +217,11 @@ export const mountSectionTransition = (_portfolio: HTMLElement) => {
   gl.useProgram(program);
   gl.enableVertexAttribArray(positionLocation);
   gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
-  gl.enable(gl.BLEND);
-  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
   let timeline: ReturnType<typeof gsap.timeline> | null = null;
   let active = false;
   let currentDirection = 1;
-  const state = { progress: 0 };
+  const state = { progress: 0, phase: 0 };
 
   const resize = () => {
     const cssWidth = Math.max(1, innerWidth);
@@ -243,12 +241,13 @@ export const mountSectionTransition = (_portfolio: HTMLElement) => {
     gl.viewport(0, 0, width, height);
   };
 
-  const draw = (progress: number) => {
+  const draw = (progress: number, phase: number) => {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram(program);
     gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
     gl.uniform1f(progressLocation, clamp(progress, 0, 1));
+    gl.uniform1f(phaseLocation, clamp(phase, 0, 1));
     gl.uniform1f(directionLocation, currentDirection);
     gl.uniform1f(timeLocation, performance.now() * 0.001);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
@@ -257,6 +256,7 @@ export const mountSectionTransition = (_portfolio: HTMLElement) => {
   const finish = () => {
     active = false;
     state.progress = 0;
+    state.phase = 0;
     canvas.classList.remove("is-active");
     document.documentElement.classList.remove("is-section-transitioning");
     gl.clearColor(0, 0, 0, 0);
@@ -269,10 +269,11 @@ export const mountSectionTransition = (_portfolio: HTMLElement) => {
     active = true;
     currentDirection = direction < 0 ? -1 : 1;
     state.progress = 0;
+    state.phase = 0;
     resize();
     canvas.classList.add("is-active");
     document.documentElement.classList.add("is-section-transitioning");
-    draw(0);
+    draw(0, 0);
 
     timeline?.kill();
     timeline = gsap.timeline({
@@ -285,19 +286,24 @@ export const mountSectionTransition = (_portfolio: HTMLElement) => {
       .to(state, {
         progress: 1,
         duration: NAVIGATION_COVER_SECONDS,
-        ease: "none",
-        onUpdate: () => draw(smoother(state.progress)),
+        ease: "power2.out",
+        onUpdate: () => draw(state.progress, 0),
       })
       .add(() => {
-        draw(1);
+        // The old section is fully hidden here. Commit synchronously, then keep
+        // a fully opaque frame before beginning the centre-out reveal.
+        draw(1, 0);
         commit();
+        state.progress = 0;
+        state.phase = 1;
+        draw(0, 1);
       })
       .to({}, { duration: NAVIGATION_HOLD_SECONDS })
       .to(state, {
-        progress: 0,
+        progress: 1,
         duration: NAVIGATION_REVEAL_SECONDS,
-        ease: "none",
-        onUpdate: () => draw(smoother(state.progress)),
+        ease: "power2.out",
+        onUpdate: () => draw(state.progress, 1),
       });
   };
 
