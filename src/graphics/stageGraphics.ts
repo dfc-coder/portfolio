@@ -38,39 +38,12 @@ export const pulseAgentVisual = (strength = 0.3): void => {
   mountedGraphics?.wake();
 };
 
-export const setStageTransition = (
-  progress: number,
-  direction: number,
-  active = true,
-): void => {
-  mountedGraphics?.setTransition(progress, direction, active);
-};
-
 const fullscreenVertex = /* glsl */ `
   varying vec2 vUv;
 
   void main() {
     vUv = uv;
     gl_Position = vec4(position.xy, 0.0, 1.0);
-  }
-`;
-
-const noiseFunctions = /* glsl */ `
-  float hash21(vec2 p) {
-    p = fract(p * vec2(127.1, 311.7));
-    p += dot(p, p + 19.19);
-    return fract(p.x * p.y);
-  }
-
-  float noise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    vec2 u = f * f * (3.0 - 2.0 * f);
-    return mix(
-      mix(hash21(i), hash21(i + vec2(1.0, 0.0)), u.x),
-      mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), u.x),
-      u.y
-    );
   }
 `;
 
@@ -85,7 +58,24 @@ const atmosphereFragment = /* glsl */ `
   uniform float uTurbulence;
   varying vec2 vUv;
 
-  ${noiseFunctions}
+  float hash21(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+  }
+
+  float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+
+    float a = hash21(i);
+    float b = hash21(i + vec2(1.0, 0.0));
+    float c = hash21(i + vec2(0.0, 1.0));
+    float d = hash21(i + vec2(1.0, 1.0));
+
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+  }
 
   float fbm(vec2 p) {
     float value = 0.0;
@@ -144,82 +134,6 @@ const atmosphereFragment = /* glsl */ `
   }
 `;
 
-const transitionFragment = /* glsl */ `
-  precision highp float;
-
-  uniform vec2 uResolution;
-  uniform float uProgress;
-  uniform float uDirection;
-  uniform float uTime;
-  varying vec2 vUv;
-
-  ${noiseFunctions}
-
-  float fbm3(vec2 p) {
-    float value = 0.0;
-    value += noise(p) * 0.56;
-    p = mat2(0.80, -0.60, 0.60, 0.80) * p * 2.03 + vec2(9.7, 5.1);
-    value += noise(p) * 0.28;
-    p = mat2(0.80, -0.60, 0.60, 0.80) * p * 2.01 + vec2(4.3, 11.9);
-    value += noise(p) * 0.16;
-    return value;
-  }
-
-  void main() {
-    vec2 uv = vUv;
-    float aspect = uResolution.x / max(uResolution.y, 1.0);
-    vec2 origin = vec2(0.5 + uDirection * 0.012, 0.5);
-    vec2 p = (uv - origin) * vec2(aspect, 1.0);
-    float radial = length(p);
-    float angle = atan(p.y, p.x);
-    float time = uTime * 0.045;
-
-    float coarse = fbm3(p * 3.15 + vec2(time, -time * 0.72));
-    float detail = fbm3(p * 8.4 - vec2(time * 1.23, time * 0.81));
-    float tornLobes =
-      sin(angle * 8.0 + coarse * 6.2) * 0.038 +
-      sin(angle * 17.0 - detail * 7.0) * 0.018;
-
-    float displacement =
-      (coarse - 0.5) * 0.255 +
-      (detail - 0.5) * 0.078 +
-      tornLobes;
-
-    float maximumRadius = length(vec2(aspect * 0.58, 0.62)) + 0.36;
-    float burnRadius = mix(-0.17, maximumRadius, clamp(uProgress, 0.0, 1.0));
-    float sd = radial - burnRadius - displacement;
-    float edgeWidth = mix(0.052, 0.030, uProgress);
-    float material = 1.0 - smoothstep(-edgeWidth, edgeWidth, sd);
-
-    float edgeDistance = abs(sd);
-    float charBand = 1.0 - smoothstep(0.022, 0.105, edgeDistance);
-    float emberBand = 1.0 - smoothstep(0.0, 0.021, edgeDistance);
-    float hotLine = 1.0 - smoothstep(0.0, 0.007, edgeDistance);
-
-    float fleckNoise = noise(
-      p * 34.0 + vec2(uTime * 0.13, -uTime * 0.09) + coarse * 4.0
-    );
-    float fleckZone =
-      (1.0 - smoothstep(0.035, 0.155, edgeDistance)) *
-      smoothstep(0.60, 0.88, fleckNoise);
-
-    vec3 soot = vec3(0.014, 0.013, 0.012);
-    vec3 charBrown = vec3(0.105, 0.048, 0.018);
-    vec3 ember = vec3(0.79, 0.225, 0.045);
-    vec3 hotPaper = vec3(0.92, 0.61, 0.30);
-
-    vec3 color = soot;
-    color = mix(color, charBrown, charBand * 0.88);
-    color = mix(color, ember, emberBand * (0.70 + detail * 0.24));
-    color = mix(color, hotPaper, hotLine * 0.42);
-    color = mix(color, ember, fleckZone * 0.44);
-
-    float alpha = max(material, charBand * 0.88);
-    alpha = max(alpha, fleckZone * 0.62);
-    gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0));
-  }
-`;
-
 const agentVertex = /* glsl */ `
   uniform float uTime;
   uniform float uActivity;
@@ -266,8 +180,13 @@ const agentFragment = /* glsl */ `
 `;
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
-const damp = (current: number, target: number, response: number, dt: number) =>
-  current + (target - current) * (1 - Math.exp(-response * dt));
+
+const damp = (
+  current: number,
+  target: number,
+  response: number,
+  dt: number,
+) => current + (target - current) * (1 - Math.exp(-response * dt));
 
 const atmosphereForScene = (scene: NarrativeScene) => {
   switch (scene) {
@@ -309,8 +228,10 @@ const createRing = (
   opacity: number,
 ) => {
   const points: THREE.Vector3[] = [];
-  for (let index = 0; index < 128; index += 1) {
-    const angle = (index / 128) * Math.PI * 2;
+  const segments = 128;
+
+  for (let index = 0; index < segments; index += 1) {
+    const angle = (index / segments) * Math.PI * 2;
     points.push(
       new THREE.Vector3(
         Math.cos(angle) * radius,
@@ -337,15 +258,11 @@ class StageGraphics {
   private readonly stage: HTMLElement;
   private readonly canvas: HTMLCanvasElement;
   private readonly renderer: THREE.WebGLRenderer;
-  private readonly fullscreenGeometry = new THREE.PlaneGeometry(2, 2);
 
   private readonly atmosphereScene = new THREE.Scene();
   private readonly atmosphereCamera = new THREE.Camera();
+  private readonly atmosphereGeometry = new THREE.PlaneGeometry(2, 2);
   private readonly atmosphereMaterial: THREE.ShaderMaterial;
-
-  private readonly transitionScene = new THREE.Scene();
-  private readonly transitionCamera = new THREE.Camera();
-  private readonly transitionMaterial: THREE.ShaderMaterial;
 
   private readonly agentScene = new THREE.Scene();
   private readonly agentCamera = new THREE.PerspectiveCamera(42, 1, 0.1, 30);
@@ -360,7 +277,6 @@ class StageGraphics {
   private unsubscribeNarrative: (() => void) | null = null;
 
   private scene: NarrativeScene = "hero";
-  private transitionActive = false;
   private atmosphereIntensity = 1;
   private atmosphereTargetIntensity = 1;
   private atmosphereTurbulence = 0.48;
@@ -382,12 +298,10 @@ class StageGraphics {
 
   constructor(stage: HTMLElement) {
     this.stage = stage;
-    const host = stage.closest<HTMLElement>(".ref-portfolio") ?? stage;
-
     this.canvas = document.createElement("canvas");
     this.canvas.className = "ref-stage-graphics";
     this.canvas.setAttribute("aria-hidden", "true");
-    host.prepend(this.canvas);
+    stage.prepend(this.canvas);
 
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
@@ -415,24 +329,7 @@ class StageGraphics {
       },
     });
     this.atmosphereScene.add(
-      new THREE.Mesh(this.fullscreenGeometry, this.atmosphereMaterial),
-    );
-
-    this.transitionMaterial = new THREE.ShaderMaterial({
-      vertexShader: fullscreenVertex,
-      fragmentShader: transitionFragment,
-      transparent: true,
-      depthTest: false,
-      depthWrite: false,
-      uniforms: {
-        uResolution: { value: new THREE.Vector2(1, 1) },
-        uProgress: { value: 0 },
-        uDirection: { value: 1 },
-        uTime: { value: 0 },
-      },
-    });
-    this.transitionScene.add(
-      new THREE.Mesh(this.fullscreenGeometry, this.transitionMaterial),
+      new THREE.Mesh(this.atmosphereGeometry, this.atmosphereMaterial),
     );
 
     const positions = new Float32Array(1600 * 3);
@@ -473,12 +370,14 @@ class StageGraphics {
     ];
     this.rings.forEach((ring) => this.agentGroup.add(ring));
 
-    [
+    const nodePositions = [
       new THREE.Vector3(1.42, 0.22, 0.16),
       new THREE.Vector3(-1.18, 0.76, -0.22),
       new THREE.Vector3(0.54, -1.22, 0.32),
       new THREE.Vector3(-0.82, -0.92, 0.46),
-    ].forEach((position, index) => {
+    ];
+
+    nodePositions.forEach((position, index) => {
       const material = new THREE.MeshBasicMaterial({
         color: index === 0 ? 0xf2eddc : 0xcdb675,
         transparent: true,
@@ -513,27 +412,20 @@ class StageGraphics {
     this.schedule(0);
   }
 
-  setTransition(progress: number, direction: number, active: boolean): void {
-    this.transitionActive = active;
-    this.transitionMaterial.uniforms.uProgress.value = clamp01(progress);
-    this.transitionMaterial.uniforms.uDirection.value = direction < 0 ? -1 : 1;
-    this.canvas.classList.toggle("is-transitioning", active);
-    this.wake();
-  }
-
   wake(): void {
     if (this.destroyed || document.hidden || this.frame || this.timer) return;
     this.schedule(0);
   }
 
   private targetFps(): number {
-    if (this.transitionActive || this.scene === "agent") return 60;
+    if (this.scene === "agent") return 60;
     if (performance.now() < this.pointerHotUntil) return 36;
     return 24;
   }
 
   private schedule(delay?: number): void {
     if (this.destroyed || document.hidden || this.frame || this.timer) return;
+
     const wait = delay ?? 1000 / this.targetFps();
     this.timer = window.setTimeout(() => {
       this.timer = 0;
@@ -550,8 +442,10 @@ class StageGraphics {
       Math.min(window.devicePixelRatio || 1, dprCap),
     );
     this.renderer.setSize(rect.width, rect.height, false);
-    this.atmosphereMaterial.uniforms.uResolution.value.set(rect.width, rect.height);
-    this.transitionMaterial.uniforms.uResolution.value.set(rect.width, rect.height);
+    this.atmosphereMaterial.uniforms.uResolution.value.set(
+      rect.width,
+      rect.height,
+    );
 
     this.agentCamera.aspect = rect.width / rect.height;
     this.agentCamera.updateProjectionMatrix();
@@ -605,15 +499,6 @@ class StageGraphics {
     this.lastRenderTime = now;
     const elapsed = (now - this.startTime) / 1000;
 
-    this.transitionMaterial.uniforms.uTime.value = elapsed;
-
-    if (this.transitionActive) {
-      this.renderer.clear();
-      this.renderer.render(this.transitionScene, this.transitionCamera);
-      this.schedule();
-      return;
-    }
-
     this.pointer.lerp(this.pointerTarget, 1 - Math.exp(-7.5 * dt));
     this.pointerVelocity = damp(
       this.pointerVelocity,
@@ -651,8 +536,10 @@ class StageGraphics {
     this.atmosphereMaterial.uniforms.uPointer.value.copy(this.pointer);
     this.atmosphereMaterial.uniforms.uVelocity.value = this.pointerVelocity;
     this.atmosphereMaterial.uniforms.uTime.value = elapsed;
-    this.atmosphereMaterial.uniforms.uIntensity.value = this.atmosphereIntensity;
-    this.atmosphereMaterial.uniforms.uTurbulence.value = this.atmosphereTurbulence;
+    this.atmosphereMaterial.uniforms.uIntensity.value =
+      this.atmosphereIntensity;
+    this.atmosphereMaterial.uniforms.uTurbulence.value =
+      this.atmosphereTurbulence;
 
     this.agentMaterial.uniforms.uTime.value = elapsed;
     this.agentMaterial.uniforms.uActivity.value = agentSignal.activity;
@@ -702,9 +589,8 @@ class StageGraphics {
     removeEventListener("pointermove", this.onPointerMove);
     document.removeEventListener("visibilitychange", this.onVisibility);
 
-    this.fullscreenGeometry.dispose();
+    this.atmosphereGeometry.dispose();
     this.atmosphereMaterial.dispose();
-    this.transitionMaterial.dispose();
     this.agentGeometry.dispose();
     this.agentMaterial.dispose();
     this.rings.forEach((ring) => {
