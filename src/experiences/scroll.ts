@@ -9,8 +9,6 @@ const SCENE_CROSSFADE_WIDTH = 0.34;
 const GALLERY_EXIT_START = 0.72;
 const GALLERY_EXIT_VIRTUAL_LEAD = 0.8;
 const WHEEL_GAIN = 1.08;
-const SCROLL_RESPONSE = 15;
-const MAX_FRAME_DT = 0.05;
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 const clamp = (value: number, min: number, max: number) =>
@@ -23,9 +21,6 @@ const smoother = (value: number) => {
 
 const range = (value: number, start: number, end: number) =>
   smoother((value - start) / (end - start));
-
-const damp = (current: number, target: number, response: number, dt: number) =>
-  current + (target - current) * (1 - Math.exp(-response * dt));
 
 export const mapPhysicalProgressToVirtualProgress = (
   physicalProgress: number,
@@ -99,7 +94,7 @@ const sceneOpacities = (node: number, model: NarrativeModel) => {
     chapterSystems: careerToChapter * (1 - chapterToSystems),
     systems: chapterToSystems * (1 - systemsToChapter),
     chapterGallery: systemsToChapter * (1 - chapterToGallery),
-    gallery: chapterToGallery * (1 - galleryToChapter),
+    gallery: chapterGallery = chapterToGallery * (1 - galleryToChapter),
     chapterAgent: galleryToChapter * (1 - chapterToAgent),
     agent: chapterToAgent,
   };
@@ -135,7 +130,6 @@ export const mountScrollSyncController = () => {
   if (!track || !stage || !portfolio) return () => undefined;
   if (track.dataset.scrollSyncOwner === "physical") return () => undefined;
 
-  // ScrollTrigger is the single source of truth for physical scroll progress.
   gsap.registerPlugin(ScrollTrigger);
 
   const model = narrativeModel;
@@ -178,47 +172,36 @@ export const mountScrollSyncController = () => {
     });
   };
 
-  // This loop exists only while physical scrolling is settling. It is not a
-  // second narrative clock: ScrollTrigger still observes the resulting scroll
-  // position and publishes the canonical state above.
-  let smoothFrame = 0;
-  let currentScrollY = scrollY;
+  const scrollProxy = { y: scrollY };
   let targetScrollY = scrollY;
-  let lastFrameTime = performance.now();
+  let scrollTween: gsap.core.Tween | null = null;
 
   const maxScrollY = () =>
     Math.max(0, document.documentElement.scrollHeight - innerHeight);
 
   const stopSmoothScroll = () => {
-    if (smoothFrame) cancelAnimationFrame(smoothFrame);
-    smoothFrame = 0;
-    currentScrollY = scrollY;
+    scrollTween?.kill();
+    scrollTween = null;
+    scrollProxy.y = scrollY;
     targetScrollY = scrollY;
-  };
-
-  const runSmoothScroll = (time: number) => {
-    const dt = Math.min(MAX_FRAME_DT, Math.max(0.001, (time - lastFrameTime) / 1000));
-    lastFrameTime = time;
-    currentScrollY = damp(currentScrollY, targetScrollY, SCROLL_RESPONSE, dt);
-
-    if (Math.abs(targetScrollY - currentScrollY) < 0.25) {
-      currentScrollY = targetScrollY;
-      scrollTo(0, currentScrollY);
-      smoothFrame = 0;
-      return;
-    }
-
-    scrollTo(0, currentScrollY);
-    smoothFrame = requestAnimationFrame(runSmoothScroll);
   };
 
   const smoothTo = (top: number) => {
     targetScrollY = clamp(top, 0, maxScrollY());
-    if (!smoothFrame) {
-      currentScrollY = scrollY;
-      lastFrameTime = performance.now();
-      smoothFrame = requestAnimationFrame(runSmoothScroll);
-    }
+    scrollTween?.kill();
+    scrollProxy.y = scrollY;
+    scrollTween = gsap.to(scrollProxy, {
+      y: targetScrollY,
+      duration: 0.34,
+      ease: "power3.out",
+      overwrite: true,
+      onUpdate: () => scrollTo(0, scrollProxy.y),
+      onComplete: () => {
+        scrollTo(0, targetScrollY);
+        scrollProxy.y = targetScrollY;
+        scrollTween = null;
+      },
+    });
   };
 
   const physicalNodeTop = (node: number) => {
@@ -302,13 +285,13 @@ export const mountScrollSyncController = () => {
     if (!delta || nestedScrollerCanConsume(event.target, delta)) return;
 
     event.preventDefault();
-    const origin = smoothFrame ? targetScrollY : scrollY;
+    const origin = scrollTween ? targetScrollY : scrollY;
     smoothTo(origin + delta * WHEEL_GAIN);
   };
 
   const onNativeScroll = () => {
-    if (smoothFrame) return;
-    currentScrollY = scrollY;
+    if (scrollTween) return;
+    scrollProxy.y = scrollY;
     targetScrollY = scrollY;
   };
 
