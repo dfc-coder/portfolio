@@ -1,18 +1,12 @@
 import gsap from "gsap";
+import { setStageTransition } from "../graphics/stageGraphics";
 
 type NavigationCommit = () => void;
 type NavigationTransition = (commit: NavigationCommit, direction: number) => void;
 
 let navigationTransition: NavigationTransition | null = null;
 
-export const mountSectionTransition = (portfolio: HTMLElement) => {
-  portfolio.querySelector(".ref-navigation-transition")?.remove();
-
-  const cover = document.createElement("div");
-  cover.className = "ref-navigation-transition";
-  cover.setAttribute("aria-hidden", "true");
-  portfolio.append(cover);
-
+export const mountSectionTransition = (_portfolio: HTMLElement) => {
   let timeline: gsap.core.Timeline | null = null;
   let active = false;
 
@@ -20,39 +14,35 @@ export const mountSectionTransition = (portfolio: HTMLElement) => {
     if (active) return;
 
     active = true;
-    const origin = direction < 0 ? "42% 50%" : "58% 50%";
-    cover.style.setProperty("--transition-origin", origin);
-    cover.classList.add("is-active");
+    const normalizedDirection = direction < 0 ? -1 : 1;
+    const state = { progress: 0 };
     document.documentElement.classList.add("is-section-transitioning");
+    setStageTransition(0, normalizedDirection, true);
 
     timeline?.kill();
     timeline = gsap.timeline({
       defaults: { overwrite: true },
       onComplete: () => {
         active = false;
-        cover.classList.remove("is-active");
+        setStageTransition(0, normalizedDirection, false);
         document.documentElement.classList.remove("is-section-transitioning");
-        gsap.set(cover, { clearProps: "clipPath,opacity,visibility" });
       },
     });
 
     timeline
-      .set(cover, {
-        visibility: "visible",
-        opacity: 1,
-        clipPath: `circle(0% at ${origin})`,
-      })
-      .to(cover, {
-        clipPath: `circle(150% at ${origin})`,
-        duration: 0.54,
-        ease: "expo.inOut",
+      .to(state, {
+        progress: 1,
+        duration: 0.62,
+        ease: "power3.inOut",
+        onUpdate: () => setStageTransition(state.progress, normalizedDirection, true),
       })
       .add(() => commit())
       .to({}, { duration: 0.04 })
-      .to(cover, {
-        clipPath: `circle(0% at ${origin})`,
-        duration: 0.62,
-        ease: "expo.inOut",
+      .to(state, {
+        progress: 0,
+        duration: 0.70,
+        ease: "power3.inOut",
+        onUpdate: () => setStageTransition(state.progress, normalizedDirection, true),
       });
   };
 
@@ -64,8 +54,8 @@ export const mountSectionTransition = (portfolio: HTMLElement) => {
       timeline = null;
       active = false;
       navigationTransition = null;
+      setStageTransition(0, 1, false);
       document.documentElement.classList.remove("is-section-transitioning");
-      cover.remove();
     },
   };
 };
