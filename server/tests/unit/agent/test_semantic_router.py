@@ -152,19 +152,19 @@ async def test_active_scheduling_business_interrupt_preserves_memory() -> None:
 
 
 @pytest.mark.asyncio
-async def test_active_scheduling_rust_experience_question_is_business_interrupt() -> None:
-    reranker = FixedReranker([0.94, 0.10, 0.03])
+async def test_active_scheduling_rust_experience_question_bypasses_bad_reranker_score() -> None:
+    reranker = FixedReranker([0.01, 0.99, 0.00])
     router = SemanticRouter(
         reranker,
-        JudgeLlm("general_interrupt"),
+        JudgeLlm("scheduling_continue"),
         GenerationConfig(temperature=0.0, max_tokens=32),
     )
     state = SessionState("s-rust")
     state.active_workflow = ActiveWorkflow.SCHEDULING
-    state.scheduling.requested_start_date = None
 
     decision = await router.route(state, "Diego tiene experiencia con rust?")
 
     assert decision.domain == RouteDomain.BUSINESS
     assert decision.relation == RouteRelation.INTERRUPT
-    assert reranker.query == "VISITOR: Diego tiene experiencia con rust?"
+    assert decision.source == "explicit_business_boundary"
+    assert reranker.query == ""
