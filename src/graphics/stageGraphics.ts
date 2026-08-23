@@ -23,7 +23,8 @@ export const setAgentVisualPhase = (phase: AgentVisualPhase): void => {
 };
 
 export const pulseAgentVisual = (strength = 0.3): void => {
-  agentSignal.activityTarget = Math.min(1, Math.max(agentSignal.activityTarget, 0.18 + strength));
+  const impulse = Math.min(1, Math.max(0, strength));
+  agentSignal.activityTarget = Math.min(1, agentSignal.activityTarget + impulse);
   mountedGraphics?.wake();
 };
 
@@ -215,23 +216,82 @@ const transitionFragment = /* glsl */ `
 `;
 
 const agentVertex = /* glsl */ `
+  attribute float aSeed;
+  attribute float aLayer;
+  attribute float aSize;
+
   uniform float uTime;
   uniform float uActivity;
   uniform float uMode;
+
   varying float vEnergy;
+  varying float vSeed;
+  varying float vLayer;
+
+  mat2 rotate2d(float angle) {
+    float c = cos(angle);
+    float s = sin(angle);
+    return mat2(c, -s, s, c);
+  }
+
+  float modeMask(float mode) {
+    return 1.0 - smoothstep(0.12, 0.62, abs(uMode - mode));
+  }
 
   void main() {
     vec3 p = position;
-    float phase = p.y * 4.2 + p.x * 2.6 + uTime * (0.55 + uMode * 0.12);
-    float wave = sin(phase) * 0.055 + cos(p.z * 5.0 - uTime * 0.42) * 0.035;
-    p += normalize(p) * wave * (0.45 + uActivity * 1.25);
-    p.x += sin(uTime * 0.28 + p.y * 3.0) * 0.025 * uActivity;
-    p.y += cos(uTime * 0.24 + p.x * 2.0) * 0.022 * uActivity;
+    float radius = max(0.001, length(p));
+    vec3 direction = p / radius;
+
+    float idle = modeMask(0.0);
+    float listening = modeMask(1.0);
+    float thinking = modeMask(2.0);
+    float speaking = modeMask(3.0);
+    float error = modeMask(4.0);
+
+    float breath = sin(uTime * 0.72 + aSeed * 6.28318 + aLayer * 1.7) * 0.5 + 0.5;
+    p += direction * (0.010 + breath * 0.026) * (0.48 + uActivity * 0.92);
+
+    float driftPhase = uTime * (0.22 + aLayer * 0.045) + aSeed * 9.0;
+    p.x += sin(driftPhase + p.y * 2.8) * 0.018 * (idle + listening * 0.45);
+    p.y += cos(driftPhase * 0.82 + p.x * 2.1) * 0.016 * (idle + listening * 0.35);
+
+    float listenRipple = sin(radius * 11.0 - uTime * 2.8 + aSeed * 4.0);
+    p += direction * listenRipple * 0.030 * listening * (0.35 + uActivity);
+    p.z *= 1.0 - listening * 0.13;
+
+    float thinkingWave = sin((p.y + aSeed * 0.46) * 8.0 + uTime * 2.15);
+    float twist = thinking * (0.22 + uActivity * 0.72) * (p.y * 1.28 + thinkingWave * 0.24);
+    p.xz = rotate2d(twist) * p.xz;
+    p += direction * thinkingWave * 0.052 * thinking * (0.42 + uActivity * 0.72);
+
+    float packet = sin(radius * 15.0 - uTime * 5.2 + aLayer * 1.9 + aSeed * 1.4) * 0.5 + 0.5;
+    packet = smoothstep(0.46, 0.98, packet);
+    p += direction * packet * (0.034 + uActivity * 0.095) * speaking;
+
+    vec3 glitch = vec3(
+      sin(uTime * 15.0 + aSeed * 43.0),
+      cos(uTime * 13.0 + aSeed * 31.0),
+      sin(uTime * 17.0 + aSeed * 37.0)
+    );
+    p += glitch * 0.040 * error * (0.38 + uActivity * 0.76);
 
     vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
     gl_Position = projectionMatrix * mvPosition;
-    gl_PointSize = (1.3 + uActivity * 1.45) * (88.0 / max(1.0, -mvPosition.z));
-    vEnergy = 0.42 + uActivity * 0.58 + wave * 1.8;
+
+    float perspective = 82.0 / max(1.0, -mvPosition.z);
+    float pointScale = 0.25 + aSize * 0.31 + uActivity * 0.17 + speaking * packet * 0.13;
+    gl_PointSize = clamp(pointScale * perspective, 1.35, 11.0);
+
+    float stateEnergy =
+      listening * abs(listenRipple) * 0.12 +
+      thinking * abs(thinkingWave) * 0.24 +
+      speaking * packet * 0.36 +
+      error * 0.34;
+
+    vEnergy = clamp(0.24 + uActivity * 0.62 + stateEnergy + aSize * 0.10, 0.0, 1.0);
+    vSeed = aSeed;
+    vLayer = aLayer;
   }
 `;
 
@@ -239,17 +299,35 @@ const agentFragment = /* glsl */ `
   precision highp float;
 
   uniform float uActivity;
+  uniform float uMode;
+
   varying float vEnergy;
+  varying float vSeed;
+  varying float vLayer;
 
   void main() {
     vec2 p = gl_PointCoord - 0.5;
     float d = length(p);
     if (d > 0.5) discard;
 
-    float alpha = smoothstep(0.5, 0.08, d) * (0.42 + uActivity * 0.50);
+    float core = 1.0 - smoothstep(0.055, 0.16, d);
+    float body = 1.0 - smoothstep(0.12, 0.31, d);
+    float halo = 1.0 - smoothstep(0.22, 0.5, d);
+
+    float alpha = core * 0.72 + body * 0.34 + halo * 0.10;
+    alpha *= (0.28 + vEnergy * 0.72) * (0.76 + uActivity * 0.20);
+
     vec3 bronze = vec3(0.48, 0.39, 0.20);
     vec3 paper = vec3(0.95, 0.91, 0.78);
-    vec3 color = mix(bronze, paper, clamp(vEnergy, 0.0, 1.0));
+    vec3 copper = vec3(0.78, 0.34, 0.20);
+
+    float sparkle = smoothstep(0.72, 1.0, vEnergy) * fract(vSeed * 17.13 + vLayer * 0.37);
+    float brightness = clamp(vEnergy * 0.78 + core * 0.16 + sparkle * 0.14, 0.0, 1.0);
+    vec3 color = mix(bronze, paper, brightness);
+
+    float error = 1.0 - smoothstep(0.12, 0.62, abs(uMode - 4.0));
+    color = mix(color, copper, error * 0.62);
+
     gl_FragColor = vec4(color, alpha);
   }
 `;
@@ -402,20 +480,45 @@ class StageGraphics {
     });
     this.transitionScene.add(new THREE.Mesh(this.fullscreenGeometry, this.transitionMaterial));
 
-    const positions = new Float32Array(1600 * 3);
-    for (let index = 0; index < 1600; index += 1) {
-      const t = (index + 0.5) / 1600;
+    const pointCount = 4096;
+    const positions = new Float32Array(pointCount * 3);
+    const seeds = new Float32Array(pointCount);
+    const layers = new Float32Array(pointCount);
+    const sizes = new Float32Array(pointCount);
+    const goldenAngle = 2.399963229728653;
+    const fract = (value: number) => value - Math.floor(value);
+    const hash = (index: number, salt: number) =>
+      fract(Math.sin((index + 1) * (12.9898 + salt * 17.233)) * 43758.5453);
+
+    for (let index = 0; index < pointCount; index += 1) {
+      const t = (index + 0.5) / pointCount;
       const y = 1 - t * 2;
       const radial = Math.sqrt(Math.max(0, 1 - y * y));
-      const angle = index * 2.399963229728653;
-      const shell = 0.82 + 0.22 * (0.5 + 0.5 * Math.sin(index * 12.9898));
-      positions[index * 3] = Math.cos(angle) * radial * shell;
-      positions[index * 3 + 1] = y * shell * 1.12;
-      positions[index * 3 + 2] = Math.sin(angle) * radial * shell;
+      const angle = index * goldenAngle;
+      const seed = hash(index, 0.31);
+      const shellSelector = hash(index, 1.17);
+      const radialSeed = hash(index, 2.41);
+      const radius =
+        shellSelector < 0.68
+          ? 0.72 + radialSeed * 0.30
+          : 0.18 + Math.cbrt(radialSeed) * 0.66;
+      const asymmetry = 1 + Math.sin(angle * 3 + seed * Math.PI * 2) * 0.055;
+
+      positions[index * 3] = Math.cos(angle) * radial * radius * asymmetry;
+      positions[index * 3 + 1] = y * radius * 1.10;
+      positions[index * 3 + 2] = Math.sin(angle) * radial * radius / asymmetry;
+      seeds[index] = seed;
+      layers[index] = index % 3;
+      sizes[index] = 0.34 + hash(index, 3.73) * 0.66;
     }
 
     this.agentGeometry = new THREE.BufferGeometry();
     this.agentGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    this.agentGeometry.setAttribute("aSeed", new THREE.BufferAttribute(seeds, 1));
+    this.agentGeometry.setAttribute("aLayer", new THREE.BufferAttribute(layers, 1));
+    this.agentGeometry.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
+    this.agentGeometry.computeBoundingSphere();
+
     this.agentMaterial = new THREE.ShaderMaterial({
       vertexShader: agentVertex,
       fragmentShader: agentFragment,
@@ -431,9 +534,9 @@ class StageGraphics {
     this.agentGroup.add(new THREE.Points(this.agentGeometry, this.agentMaterial));
 
     this.rings = [
-      createRing(1.28, 0.42, 0.14, 0.24),
-      createRing(1.48, -0.62, 0.32, 0.14),
-      createRing(1.08, 0.18, -0.72, 0.20),
+      createRing(1.28, 0.42, 0.14, 0.17),
+      createRing(1.48, -0.62, 0.32, 0.10),
+      createRing(1.08, 0.18, -0.72, 0.14),
     ];
     this.rings.forEach((ring) => this.agentGroup.add(ring));
 
@@ -447,7 +550,7 @@ class StageGraphics {
       const material = new THREE.MeshBasicMaterial({
         color: index === 0 ? 0xf2eddc : 0xcdb675,
         transparent: true,
-        opacity: 0.72,
+        opacity: 0.58,
       });
       const node = new THREE.Mesh(this.nodeGeometry, material);
       node.position.copy(position);
@@ -597,14 +700,25 @@ class StageGraphics {
     this.agentMaterial.uniforms.uMode.value = phaseMode(agentSignal.phase);
 
     if (this.agentGroup.visible) {
-      const rotationSpeed = agentSignal.phase === "thinking" ? 0.22 : agentSignal.phase === "speaking" ? 0.14 : 0.07;
+      const rotationSpeed =
+        agentSignal.phase === "thinking"
+          ? 0.20
+          : agentSignal.phase === "speaking"
+            ? 0.12
+            : agentSignal.phase === "error"
+              ? 0.18
+              : 0.055;
       this.agentGroup.rotation.y += rotationSpeed * dt;
-      this.agentGroup.rotation.x = Math.sin(elapsed * 0.18) * 0.10;
-      this.rings[0].rotation.z += (0.08 + agentSignal.activity * 0.08) * dt;
-      this.rings[1].rotation.z -= (0.06 + agentSignal.activity * 0.05) * dt;
-      this.rings[2].rotation.z += (0.11 + agentSignal.activity * 0.09) * dt;
+      this.agentGroup.rotation.x = Math.sin(elapsed * 0.18) * 0.085;
+      this.agentGroup.rotation.z = Math.sin(elapsed * 0.11) * 0.025;
+      this.rings[0].rotation.z += (0.06 + agentSignal.activity * 0.07) * dt;
+      this.rings[1].rotation.z -= (0.045 + agentSignal.activity * 0.045) * dt;
+      this.rings[2].rotation.z += (0.08 + agentSignal.activity * 0.075) * dt;
       this.nodes.forEach((node, index) => {
-        const scale = 0.82 + Math.sin(elapsed * (0.9 + index * 0.11) + index) * 0.14 + agentSignal.activity * 0.22;
+        const scale =
+          0.78 +
+          Math.sin(elapsed * (0.82 + index * 0.10) + index) * 0.12 +
+          agentSignal.activity * 0.20;
         node.scale.setScalar(scale);
       });
     }
