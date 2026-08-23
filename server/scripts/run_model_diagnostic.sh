@@ -59,6 +59,7 @@ echo "Starting isolated llama.cpp benchmark server"
 echo "Model: $MODEL_FILE"
 echo "Label: $MODEL_LABEL"
 echo "Port:  $PORT"
+echo "Mode:  reasoning OFF (agent structured-output benchmark)"
 
 "$ENGINE" run -d --rm \
   --name "$NAME" \
@@ -73,6 +74,7 @@ echo "Port:  $PORT"
   --parallel 1 \
   --cache-prompt \
   --jinja \
+  --reasoning off \
   --n-predict 512 \
   --n-gpu-layers "$GPU_LAYERS" >/dev/null
 
@@ -84,7 +86,7 @@ for _ in $(seq 1 120); do
   fi
   printf "."
   sleep 1
- done
+done
 
 if ! curl -fsS "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; then
   echo
@@ -100,6 +102,12 @@ PYTHONPATH=. uv run python tests/evals/run_model_diagnostic.py \
   --model-label "$MODEL_LABEL" \
   --critical-repetitions "${CRITICAL_REPETITIONS:-3}" \
   --finalists "${DIAGNOSTIC_FINALISTS:-2}" \
+  --profiles \
+    project_current \
+    unsloth_instruct_general \
+    unsloth_instruct_reasoning \
+    minimal_instruct_general \
+    minimal_instruct_reasoning \
   --output "$OUTPUT"
 
 echo "Report: $OUTPUT"
