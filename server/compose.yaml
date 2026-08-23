@@ -19,6 +19,8 @@ services:
       - "1"
       - --cache-prompt
       - --jinja
+      - --chat-template-kwargs
+      - '{"enable_thinking":false}'
       - --n-predict
       - "256"
       - --n-gpu-layers
