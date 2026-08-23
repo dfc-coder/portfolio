@@ -12,6 +12,8 @@ const roleCount = String(experiences.length).padStart(2, "0");
 
 <template>
   <div class="trajectory-experience" aria-label="Professional trajectory">
+    <h2 class="sr-only">Professional trajectory</h2>
+
     <div class="trajectory-intro" aria-hidden="true">
       <ChapterSignal class="trajectory-intro__kicker" index="02" label="THE RECORD" />
       <p>First, the proof —<br />where the practice was built.</p>
