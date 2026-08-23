@@ -91,10 +91,25 @@ test("semantics: visual narrative keeps one h1 and stable chapter headings", asy
   assert.equal((portfolio.match(/<h1\b/g) ?? []).length, 1);
   assert.match(portfolio, /<h1 class="ref-hero__title"/);
   assert.match(header, /<h2 class="narrative-header__heading"/);
+  assert.match(trajectory, /<NarrativeHeader[\s\S]*class="trajectory-header"/);
+  assert.match(systems, /<NarrativeHeader[\s\S]*class="systems-header"/);
   assert.match(trajectory, /<h3>\{\{ experience\.role \}\}<\/h3>/);
   assert.match(systems, /<h3>\{\{ project\.title \}\}<\/h3>/);
+  assert.match(portfolio, /<h2 class="ref-marker">[\s\S]*VISUAL \/ MATERIAL ARCHIVE/);
   assert.match(agent, /<h2 class="ref-marker">[\s\S]*THE INTERFACE/);
   assert.doesNotMatch(fallback, /<h1\b/);
+});
+
+test("architecture: runtime anchor headers cannot be removed by visual refactors", async () => {
+  const trajectoryScene = await read("src/components/narrative/TrajectoryScene.vue");
+  const systemsScene = await read("src/components/narrative/SystemsScene.vue");
+  const trajectoryRuntime = await read("src/experiences/trajectory.ts");
+  const systemsRuntime = await read("src/experiences/systems.ts");
+
+  assert.match(trajectoryScene, /class="trajectory-header"/);
+  assert.match(systemsScene, /class="systems-header"/);
+  assert.match(trajectoryRuntime, /querySelector<HTMLElement>\("\.trajectory-header"\)/);
+  assert.match(systemsRuntime, /querySelector<HTMLElement>\("\.systems-header"\)/);
 });
 
 test("architecture: one GSAP module owns ScrollTrigger registration", async () => {
@@ -142,25 +157,45 @@ test("architecture: narrative consumers subscribe instead of polling CSS every f
   assert.match(systems, /requestAnimationFrame\(renderPointer\)/);
 });
 
-test("architecture: one Three WebGLRenderer owns atmosphere, transition and agent 3D", async () => {
+test("architecture: persistent Three stage and isolated menu WebGL have separate lifecycles", async () => {
   const graphics = await read("src/graphics/stageGraphics.ts");
-  const graphicsCss = await read("src/graphics/stage-graphics.css");
   const hero = await read("src/experiences/hero.ts");
   const transition = await read("src/experiences/section-transition.ts");
+  const continuity = await read("src/experiences/continuity.css");
 
   assert.equal((graphics.match(/new THREE\.WebGLRenderer/g) ?? []).length, 1);
   assert.match(graphics, /const atmosphereFragment/);
-  assert.match(graphics, /const transitionFragment/);
   assert.match(graphics, /const agentVertex/);
-  assert.match(graphics, /new THREE\.ShaderMaterial/);
   assert.match(graphics, /new THREE\.Points/);
   assert.match(graphics, /new THREE\.PerspectiveCamera/);
   assert.match(graphics, /renderer\.render\(this\.atmosphereScene/);
   assert.match(graphics, /renderer\.render\(this\.agentScene/);
-  assert.match(graphics, /renderer\.render\(this\.transitionScene/);
-  assert.match(graphicsCss, /\.ref-stage-graphics\.is-transitioning/);
   assert.doesNotMatch(hero, /three|WebGLRenderer|ShaderMaterial/);
-  assert.match(transition, /setStageTransition/);
+
+  assert.match(transition, /document\.createElement\("canvas"\)/);
+  assert.match(transition, /document\.body\.append\(canvas\)/);
+  assert.match(transition, /getContext\("webgl"/);
+  assert.match(transition, /const fragmentShader/);
+  assert.match(transition, /gsap\.timeline/);
+  assert.doesNotMatch(transition, /requestAnimationFrame/);
+  assert.match(continuity, /\.ref-navigation-transition\.is-active/);
+});
+
+test("architecture: section titles share one register without changing component ownership", async () => {
+  const bridges = await read("src/styles/chapter-bridges.css");
+  const trajectory = await read("src/components/narrative/TrajectoryScene.vue");
+  const systems = await read("src/components/narrative/SystemsScene.vue");
+  const portfolio = await read("src/components/PortfolioExperience.vue");
+  const agent = await read("src/components/agent/AgentOS.vue");
+
+  assert.match(bridges, /Persistent section chrome/);
+  assert.match(bridges, /\.narrative-header,[\s\S]*\.ref-scene--gallery > \.ref-marker,[\s\S]*\.ref-scene--agent \.ref-marker/);
+  assert.match(bridges, /left:\s*var\(--shell-gutter,\s*22px\)\s*!important/);
+  assert.match(bridges, /top:\s*22px\s*!important/);
+  assert.match(trajectory, /class="trajectory-header"/);
+  assert.match(systems, /class="systems-header"/);
+  assert.match(portfolio, /<h2 class="ref-marker">[\s\S]*VISUAL \/ MATERIAL ARCHIVE/);
+  assert.match(agent, /<h2 class="ref-marker">[\s\S]*THE INTERFACE/);
 });
 
 test("architecture: CSS owns only static surface texture and small UI motion", async () => {
