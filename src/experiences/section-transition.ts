@@ -3,11 +3,12 @@ import { setStageTransition } from "../graphics/stageGraphics";
 
 type NavigationCommit = () => void;
 type NavigationTransition = (commit: NavigationCommit, direction: number) => void;
+type GsapTimeline = ReturnType<typeof gsap.timeline>;
 
 let navigationTransition: NavigationTransition | null = null;
 
 export const mountSectionTransition = (_portfolio: HTMLElement) => {
-  let timeline: gsap.core.Timeline | null = null;
+  let timeline: GsapTimeline | null = null;
   let active = false;
 
   const run: NavigationTransition = (commit, direction) => {
