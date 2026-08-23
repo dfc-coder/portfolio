@@ -21,3 +21,5 @@ def test_rejection_only_cancels_explicit_scheduling_language(profile: BusinessPr
     assert policy.is_rejection("cancel")
     assert policy.is_rejection("no agendes")
     assert not policy.is_rejection("¿En qué tecnologías trabaja Diego?")
+    assert not policy.is_rejection("No tengo email todavía")
+    assert not policy.is_rejection("No sé qué horario prefiero")
