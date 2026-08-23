@@ -24,6 +24,22 @@ if [[ ! -f .env ]]; then
   exit 2
 fi
 
+REQUIRED_EVAL_FILES=(
+  tests/evals/run_family_model_diagnostic_fast.py
+  tests/evals/run_family_model_diagnostic.py
+  tests/evals/run_model_diagnostic.py
+  tests/evals/scheduling_turn_cases.jsonl
+  tests/evals/cases.jsonl
+  tests/evals/business_response_cases.jsonl
+)
+for required in "${REQUIRED_EVAL_FILES[@]}"; do
+  if [[ ! -f "$required" ]]; then
+    echo "Missing benchmark dependency: $ROOT/$required" >&2
+    echo "Run: git pull" >&2
+    exit 2
+  fi
+done
+
 set -a
 # shellcheck disable=SC1091
 source .env
