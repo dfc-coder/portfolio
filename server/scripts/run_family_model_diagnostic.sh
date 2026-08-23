@@ -25,7 +25,7 @@ if [[ ! -f .env ]]; then
 fi
 
 REQUIRED_EVAL_FILES=(
-  tests/evals/run_family_model_diagnostic_fast.py
+  tests/evals/run_family_model_selection.py
   tests/evals/run_family_model_diagnostic.py
   tests/evals/run_model_diagnostic.py
   tests/evals/scheduling_turn_cases.jsonl
@@ -70,7 +70,6 @@ IMAGE="${LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}"
 PORT="${BENCHMARK_PORT:-18080}"
 GPU_LAYERS="${BENCHMARK_N_GPU_LAYERS:-${LLAMA_N_GPU_LAYERS:-0}}"
 NAME="portfolio-family-diagnostic-$$"
-FINALISTS="${DIAGNOSTIC_FINALISTS:-2}"
 
 cleanup() {
   "$ENGINE" rm -f "$NAME" >/dev/null 2>&1 || true
@@ -81,7 +80,6 @@ SERVER_EXTRA_ARGS=()
 if [[ "$FAMILY" == "qwen35" ]]; then
   # Exact Unsloth Qwen3.5 small-model non-thinking/general-task configuration.
   CTX=16384
-  FINALISTS=1
   SERVER_EXTRA_ARGS+=(
     --temp 0.7
     --top-p 0.8
@@ -104,6 +102,8 @@ if [[ "$FAMILY" == "qwen35" ]]; then
   echo "Params:  temp=0.7 top_p=0.8 top_k=20 min_p=0.0 presence_penalty=1.5 repeat_penalty=1.0"
   echo "Thinking: false"
 fi
+
+echo "Protocol: fail-fast model selection (no x5 repetitions)"
 
 "$ENGINE" run -d --rm \
   --name "$NAME" \
@@ -140,13 +140,11 @@ if ! curl -fsS "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; then
 fi
 
 mkdir -p "$(dirname "$OUTPUT")"
-PYTHONPATH=. uv run python tests/evals/run_family_model_diagnostic_fast.py \
+PYTHONPATH=. uv run python tests/evals/run_family_model_selection.py \
   --base-url "http://127.0.0.1:${PORT}" \
   --model benchmark-model \
   --model-label "$MODEL_LABEL" \
   --family "$FAMILY" \
-  --critical-repetitions "${CRITICAL_REPETITIONS:-5}" \
-  --finalists "$FINALISTS" \
   --output "$OUTPUT"
 
 echo "Report: $OUTPUT"
