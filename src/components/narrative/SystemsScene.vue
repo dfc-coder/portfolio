@@ -41,6 +41,8 @@ const architectureDescription = (project: SystemProject) => {
 
 <template>
   <div class="systems-experience" aria-label="Selected technical systems">
+    <h2 class="sr-only">Selected technical systems</h2>
+
     <div class="systems-intro" aria-hidden="true">
       <ChapterSignal class="systems-intro__kicker" index="03" label="THE EVIDENCE" />
       <p>The work becomes evidence —<br /><em>systems designed, built and shipped.</em></p>
