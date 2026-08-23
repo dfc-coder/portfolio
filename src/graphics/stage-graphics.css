@@ -8,7 +8,22 @@
   pointer-events: none;
 }
 
-/* Surface-only effects remain CSS because they do not need per-frame GPU work. */
+/* During section navigation the same WebGL canvas becomes the transition
+   surface. The renderer stays shared; only the stacking context changes. */
+.ref-stage.has-webgl-transition {
+  z-index: 2450;
+}
+
+.ref-stage-graphics.is-transitioning {
+  position: fixed;
+  z-index: 2400;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* Surface-only effects remain CSS because they are static compositor layers.
+   Dynamic atmosphere, distortion and transition material stay in WebGL. */
 .ref-grain::before,
 .ref-grain::after {
   content: "";
