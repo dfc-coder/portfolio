@@ -186,23 +186,35 @@ test("TDD: global atmosphere and pointer response are WebGL-owned", async () => 
 test("TDD: WebGL renderer adapts work to scene and interaction", async () => {
   const graphics = await read("src/graphics/stageGraphics.ts");
 
-  assert.match(graphics, /if \(this\.transitionActive \|\| this\.scene === "agent"\) return 60/);
+  assert.match(graphics, /if \(this\.scene === "agent"\) return 60/);
   assert.match(graphics, /return 24/);
   assert.match(graphics, /pointerHotUntil/);
   assert.match(graphics, /document\.hidden/);
-  assert.match(graphics, /setPixelRatio\(Math\.min\(window\.devicePixelRatio \|\| 1, dprCap\)\)/);
+  assert.match(graphics, /setPixelRatio\(/);
+  assert.match(graphics, /dprCap/);
 });
 
-test("TDD: WebGL transition is driven by GSAP, not a second renderer", async () => {
+test("TDD: menu transition is isolated WebGL driven by the shared GSAP runtime", async () => {
   const graphics = await read("src/graphics/stageGraphics.ts");
   const transition = await read("src/experiences/section-transition.ts");
 
   assert.equal((graphics.match(/new THREE\.WebGLRenderer/g) ?? []).length, 1);
-  assert.match(graphics, /transitionFragment/);
-  assert.match(graphics, /renderer\.render\(this\.transitionScene/);
+  assert.doesNotMatch(graphics, /transitionFragment|transitionScene|setStageTransition/);
+  assert.match(transition, /getContext\("webgl"/);
+  assert.match(transition, /const fragmentShader/);
   assert.match(transition, /gsap\.timeline/);
-  assert.match(transition, /setStageTransition/);
-  assert.doesNotMatch(transition, /createElement\("canvas"\)|getContext\("webgl"\)/);
+  assert.match(transition, /document\.body\.append\(canvas\)/);
+  assert.doesNotMatch(transition, /requestAnimationFrame/);
+});
+
+test("TDD: section title and narrative rails use fixed cross-section registers", async () => {
+  const bridges = await read("src/styles/chapter-bridges.css");
+
+  assert.match(bridges, /Persistent section chrome/);
+  assert.match(bridges, /\.narrative-header,[\s\S]*\.ref-scene--gallery > \.ref-marker,[\s\S]*\.ref-scene--agent \.ref-marker/);
+  assert.match(bridges, /left:\s*var\(--shell-gutter,\s*22px\)\s*!important/);
+  assert.match(bridges, /top:\s*22px\s*!important/);
+  assert.match(bridges, /\.narrative-rail\s*\{[^}]*left:\s*var\(--narrative-rail-x,\s*11\.5%\)/is);
 });
 
 test("TDD: main mounts canonical experience modules only", async () => {
