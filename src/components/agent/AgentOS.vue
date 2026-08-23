@@ -42,14 +42,22 @@ const runtime = useAgentRuntime(props.provider, {
   },
 });
 
-const { messages, draft, focused, busy, error, state, canSend, send, seed } = runtime;
+const { messages, draft, focused, busy, error, state, canSend, send } = runtime;
 
-seed([
+const starters = [
   {
-    role: "agent",
-    text: "Hi. I can answer questions about Diego's work and, if useful, help you find a time to talk.",
+    label: "PROJECTS",
+    prompt: "What has Diego built with Rust and Go?",
   },
-]);
+  {
+    label: "AI SYSTEMS",
+    prompt: "Tell me about Diego's agent, RAG, and NL-to-SQL work.",
+  },
+  {
+    label: "AVAILABILITY",
+    prompt: "I want to schedule a meeting with Diego.",
+  },
+] as const;
 
 type Line = { kind: "text"; value: string } | { kind: "item"; index: string; value: string };
 
@@ -76,6 +84,12 @@ const syncVisualPhase = () => {
 const submit = () => {
   void send();
   inputEl.value?.focus();
+};
+
+const startPrompt = (prompt: string) => {
+  if (busy.value) return;
+  draft.value = prompt;
+  submit();
 };
 
 watch(state, syncVisualPhase, { immediate: true });
@@ -107,6 +121,23 @@ onBeforeUnmount(() => {
 
     <div class="agent-chat">
       <div ref="laneEl" class="agent-lane" role="log" aria-live="polite">
+        <div v-if="messages.length === 0 && !busy" class="agent-empty" aria-label="Suggested questions">
+          <p class="agent-empty__intro">Ask about projects, AI systems, or availability.</p>
+          <div class="agent-empty__starters">
+            <button
+              v-for="(starter, index) in starters"
+              :key="starter.label"
+              type="button"
+              class="agent-empty__starter"
+              @click="startPrompt(starter.prompt)"
+            >
+              <span>{{ String(index + 1).padStart(2, "0") }}</span>
+              <b>{{ starter.label }}</b>
+              <small>{{ starter.prompt }}</small>
+            </button>
+          </div>
+        </div>
+
         <article
           v-for="message in messages"
           :key="message.id"
@@ -158,3 +189,4 @@ onBeforeUnmount(() => {
 </template>
 
 <style src="./agent-three-core.css"></style>
+<style src="./agent-empty.css"></style>
