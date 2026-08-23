@@ -31,6 +31,18 @@ def test_stream_guard_allows_capability_description() -> None:
     assert guard.feed(text) + guard.finish() == text
 
 
+def test_stream_guard_allows_owner_identity_disclaimer() -> None:
+    guard = StreamGuard()
+    text = "Hola. No soy Diego; soy su representante conversacional."
+    assert guard.feed(text) + guard.finish() == text
+
+
+def test_stream_guard_allows_english_owner_identity_disclaimer() -> None:
+    guard = StreamGuard()
+    text = "I'm not Diego; I'm his conversational representative."
+    assert guard.feed(text) + guard.finish() == text
+
+
 def test_stream_guard_blocks_owner_impersonation() -> None:
     guard = StreamGuard()
 
