@@ -68,9 +68,9 @@ fi
 
 IMAGE="${LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}"
 PORT="${BENCHMARK_PORT:-18080}"
-CTX="${BENCHMARK_CTX_SIZE:-8192}"
 GPU_LAYERS="${BENCHMARK_N_GPU_LAYERS:-${LLAMA_N_GPU_LAYERS:-0}}"
 NAME="portfolio-family-diagnostic-$$"
+FINALISTS="${DIAGNOSTIC_FINALISTS:-2}"
 
 cleanup() {
   "$ENGINE" rm -f "$NAME" >/dev/null 2>&1 || true
@@ -79,7 +79,18 @@ trap cleanup EXIT INT TERM
 
 SERVER_EXTRA_ARGS=()
 if [[ "$FAMILY" == "qwen35" ]]; then
-  SERVER_EXTRA_ARGS+=(--reasoning off)
+  # Exact Unsloth Qwen3.5 small-model non-thinking/general-task configuration.
+  CTX=16384
+  FINALISTS=1
+  SERVER_EXTRA_ARGS+=(
+    --temp 0.7
+    --top-p 0.8
+    --top-k 20
+    --min-p 0.0
+    --chat-template-kwargs '{"enable_thinking":false}'
+  )
+else
+  CTX="${BENCHMARK_CTX_SIZE:-8192}"
 fi
 
 echo "Starting isolated llama.cpp family benchmark"
@@ -87,8 +98,11 @@ echo "Model:  $MODEL_FILE"
 echo "Label:  $MODEL_LABEL"
 echo "Family: $FAMILY"
 echo "Port:   $PORT"
+echo "Ctx:    $CTX"
 if [[ "$FAMILY" == "qwen35" ]]; then
-  echo "Mode:   reasoning OFF"
+  echo "Profile: Unsloth Qwen3.5 small / instruct non-thinking / general tasks"
+  echo "Params:  temp=0.7 top_p=0.8 top_k=20 min_p=0.0 presence_penalty=1.5 repeat_penalty=1.0"
+  echo "Thinking: false"
 fi
 
 "$ENGINE" run -d --rm \
@@ -132,7 +146,7 @@ PYTHONPATH=. uv run python tests/evals/run_family_model_diagnostic_fast.py \
   --model-label "$MODEL_LABEL" \
   --family "$FAMILY" \
   --critical-repetitions "${CRITICAL_REPETITIONS:-5}" \
-  --finalists "${DIAGNOSTIC_FINALISTS:-2}" \
+  --finalists "$FINALISTS" \
   --output "$OUTPUT"
 
 echo "Report: $OUTPUT"
