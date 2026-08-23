@@ -61,11 +61,19 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+SERVER_EXTRA_ARGS=()
+if [[ "$FAMILY" == "qwen35" ]]; then
+  SERVER_EXTRA_ARGS+=(--reasoning off)
+fi
+
 echo "Starting isolated llama.cpp family benchmark"
 echo "Model:  $MODEL_FILE"
 echo "Label:  $MODEL_LABEL"
 echo "Family: $FAMILY"
 echo "Port:   $PORT"
+if [[ "$FAMILY" == "qwen35" ]]; then
+  echo "Mode:   reasoning OFF"
+fi
 
 "$ENGINE" run -d --rm \
   --name "$NAME" \
@@ -80,6 +88,7 @@ echo "Port:   $PORT"
   --parallel 1 \
   --cache-prompt \
   --jinja \
+  "${SERVER_EXTRA_ARGS[@]}" \
   --n-predict 512 \
   --n-gpu-layers "$GPU_LAYERS" >/dev/null
 
@@ -101,7 +110,7 @@ if ! curl -fsS "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; then
 fi
 
 mkdir -p "$(dirname "$OUTPUT")"
-PYTHONPATH=. uv run python tests/evals/run_family_model_diagnostic.py \
+PYTHONPATH=. uv run python tests/evals/run_family_model_diagnostic_fast.py \
   --base-url "http://127.0.0.1:${PORT}" \
   --model benchmark-model \
   --model-label "$MODEL_LABEL" \
