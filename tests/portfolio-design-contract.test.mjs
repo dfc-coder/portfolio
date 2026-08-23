@@ -142,25 +142,44 @@ test("architecture: narrative consumers subscribe instead of polling CSS every f
   assert.match(systems, /requestAnimationFrame\(renderPointer\)/);
 });
 
-test("architecture: one Three WebGLRenderer owns atmosphere, transition and agent 3D", async () => {
+test("architecture: Three owns persistent graphics and menu transition is isolated WebGL", async () => {
   const graphics = await read("src/graphics/stageGraphics.ts");
   const graphicsCss = await read("src/graphics/stage-graphics.css");
   const hero = await read("src/experiences/hero.ts");
   const transition = await read("src/experiences/section-transition.ts");
+  const continuity = await read("src/experiences/continuity.css");
 
   assert.equal((graphics.match(/new THREE\.WebGLRenderer/g) ?? []).length, 1);
   assert.match(graphics, /const atmosphereFragment/);
-  assert.match(graphics, /const transitionFragment/);
   assert.match(graphics, /const agentVertex/);
   assert.match(graphics, /new THREE\.ShaderMaterial/);
   assert.match(graphics, /new THREE\.Points/);
   assert.match(graphics, /new THREE\.PerspectiveCamera/);
   assert.match(graphics, /renderer\.render\(this\.atmosphereScene/);
   assert.match(graphics, /renderer\.render\(this\.agentScene/);
-  assert.match(graphics, /renderer\.render\(this\.transitionScene/);
-  assert.match(graphicsCss, /\.ref-stage-graphics\.is-transitioning/);
   assert.doesNotMatch(hero, /three|WebGLRenderer|ShaderMaterial/);
-  assert.match(transition, /setStageTransition/);
+
+  assert.match(transition, /getContext\("webgl"/);
+  assert.match(transition, /const fragmentShader/);
+  assert.match(transition, /gsap\.timeline/);
+  assert.match(transition, /document\.body\.append\(canvas\)/);
+  assert.match(continuity, /\.ref-navigation-transition\.is-active/);
+  assert.doesNotMatch(graphicsCss, /ref-stage-graphics\.is-transitioning/);
+});
+
+test("architecture: section titles share one physical register and one visual grammar", async () => {
+  const bridges = await read("src/styles/chapter-bridges.css");
+  const portfolio = await read("src/components/PortfolioExperience.vue");
+  const agent = await read("src/components/agent/AgentOS.vue");
+
+  assert.match(bridges, /\.narrative-header,[\s\S]*\.ref-scene--gallery > \.ref-marker,[\s\S]*\.ref-scene--agent \.ref-marker/);
+  assert.match(bridges, /left:\s*var\(--shell-gutter,\s*22px\)\s*!important/);
+  assert.match(bridges, /top:\s*22px\s*!important/);
+  assert.match(bridges, /border:\s*0/);
+  assert.match(bridges, /background:\s*transparent/);
+  assert.match(bridges, /color:\s*var\(--color-accent\)\s*!important/);
+  assert.match(portfolio, /<h2 class="ref-marker">[\s\S]*VISUAL \/ MATERIAL ARCHIVE/);
+  assert.match(agent, /<h2 class="ref-marker">[\s\S]*THE INTERFACE/);
 });
 
 test("architecture: CSS owns only static surface texture and small UI motion", async () => {
