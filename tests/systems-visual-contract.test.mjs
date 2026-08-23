@@ -193,16 +193,31 @@ test("TDD: WebGL renderer adapts work to scene and interaction", async () => {
   assert.match(graphics, /setPixelRatio\(Math\.min\(window\.devicePixelRatio \|\| 1, dprCap\)\)/);
 });
 
-test("TDD: WebGL transition is driven by GSAP, not a second renderer", async () => {
+test("TDD: menu transition is isolated WebGL driven by shared GSAP", async () => {
   const graphics = await read("src/graphics/stageGraphics.ts");
   const transition = await read("src/experiences/section-transition.ts");
+  const continuityCss = await read("src/experiences/continuity.css");
 
   assert.equal((graphics.match(/new THREE\.WebGLRenderer/g) ?? []).length, 1);
-  assert.match(graphics, /transitionFragment/);
-  assert.match(graphics, /renderer\.render\(this\.transitionScene/);
+  assert.match(transition, /document\.createElement\("canvas"\)/);
+  assert.match(transition, /document\.body\.append\(canvas\)/);
+  assert.match(transition, /getContext\("webgl"/);
   assert.match(transition, /gsap\.timeline/);
-  assert.match(transition, /setStageTransition/);
-  assert.doesNotMatch(transition, /createElement\("canvas"\)|getContext\("webgl"\)/);
+  assert.doesNotMatch(transition, /setStageTransition|requestAnimationFrame/);
+  assert.match(continuityCss, /\.ref-navigation-transition\.is-active/);
+});
+
+test("TDD: section titles share a register without removing runtime headers", async () => {
+  const bridges = await read("src/styles/chapter-bridges.css");
+  const trajectoryScene = await read("src/components/narrative/TrajectoryScene.vue");
+  const systemsScene = await read("src/components/narrative/SystemsScene.vue");
+
+  assert.match(bridges, /Persistent section chrome/);
+  assert.match(bridges, /\.narrative-header,[\s\S]*\.ref-scene--gallery > \.ref-marker,[\s\S]*\.ref-scene--agent \.ref-marker/);
+  assert.match(bridges, /left:\s*var\(--shell-gutter,\s*22px\)\s*!important/);
+  assert.match(bridges, /top:\s*22px\s*!important/);
+  assert.match(trajectoryScene, /<NarrativeHeader[\s\S]*class="trajectory-header"/);
+  assert.match(systemsScene, /<NarrativeHeader[\s\S]*class="systems-header"/);
 });
 
 test("TDD: main mounts canonical experience modules only", async () => {
