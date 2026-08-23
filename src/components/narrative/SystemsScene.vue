@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import ChapterSignal from "./ChapterSignal.vue";
-import NarrativeHeader from "./NarrativeHeader.vue";
 import {
   systemsProjects as projects,
   type GraphEdge,
@@ -38,8 +37,6 @@ const architectureDescription = (project: SystemProject) => {
     .join("; ");
   return `Components: ${nodes}. Connections: ${edges}.`;
 };
-
-const systemCount = String(projects.length).padStart(2, "0");
 </script>
 
 <template>
@@ -48,14 +45,6 @@ const systemCount = String(projects.length).padStart(2, "0");
       <ChapterSignal class="systems-intro__kicker" index="03" label="THE EVIDENCE" />
       <p>The work becomes evidence —<br /><em>systems designed, built and shipped.</em></p>
     </div>
-
-    <NarrativeHeader
-      class="systems-header"
-      variant="systems"
-      index="03"
-      label="SELECTED TECHNICAL SYSTEMS"
-      :meta="[`${systemCount} SYSTEMS`, 'BUILT / SHIPPED']"
-    />
 
     <div class="systems-axis narrative-rail" aria-hidden="true">
       <i class="systems-axis__progress" />
