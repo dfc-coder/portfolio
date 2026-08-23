@@ -17,8 +17,6 @@ const props = withDefaults(
 
 const laneEl = ref<HTMLElement | null>(null);
 const inputEl = ref<HTMLInputElement | null>(null);
-const tokenBeat = ref(0);
-let tokenSequence = 0;
 let scrollFrame = 0;
 
 const scrollToBottom = () => {
@@ -39,9 +37,6 @@ const runtime = useAgentRuntime(props.provider, {
     if (message.role === "user") pulseAgentVisual(0.78);
   },
   onToken: () => {
-    tokenSequence += 1;
-    // Telemetry does not need a Vue render for every streamed chunk.
-    if (tokenSequence % 4 === 0) tokenBeat.value = tokenSequence;
     pulseAgentVisual(0.22);
     scheduleScrollToBottom();
   },
@@ -68,17 +63,10 @@ const linesOf = (text: string): Line[] =>
 
 const statusLabel = computed(() => {
   if (error.value) return "FAULT";
-  if (state.value === "thinking") return "PROCESSING";
-  if (state.value === "speaking") return "STREAMING";
-  if (state.value === "listening") return "INPUT ACTIVE";
-  return "STANDBY";
+  if (state.value === "thinking") return "THINKING";
+  if (state.value === "speaking") return "RESPONDING";
+  return "READY";
 });
-
-const streamLabel = computed(() =>
-  tokenBeat.value === 0
-    ? "STREAM 0000"
-    : `STREAM ${String(tokenBeat.value % 10000).padStart(4, "0")}`,
-);
 
 const syncVisualPhase = () => {
   const phase: AgentVisualPhase = error.value ? "error" : state.value;
@@ -113,31 +101,11 @@ onBeforeUnmount(() => {
 
     <aside class="agent-presence" aria-hidden="true">
       <div class="agent-core agent-core--three">
-        <div class="agent-core__viewport" />
-        <div class="agent-core__ticks" />
-        <div class="agent-core__mode">
-          <span>WEBGL / THREE.JS</span>
-          <span>LIVE STATE INPUT</span>
-        </div>
-        <div class="agent-core__readout">
-          <span>REASONING FIELD</span>
-          <b>{{ statusLabel }}</b>
-          <small>{{ streamLabel }}</small>
-        </div>
-      </div>
-
-      <div class="agent-presence__label">
-        <span class="agent-presence__dot" />
-        <span>AGENT FIELD</span>
-        <b>{{ statusLabel }}</b>
+        <span class="agent-core__status">{{ statusLabel }}</span>
       </div>
     </aside>
 
     <div class="agent-chat">
-      <div class="agent-chat__rail" aria-hidden="true">
-        <span>LIVE DIALOGUE</span><i /><b>{{ streamLabel }}</b>
-      </div>
-
       <div ref="laneEl" class="agent-lane" role="log" aria-live="polite">
         <article
           v-for="message in messages"
@@ -186,8 +154,6 @@ onBeforeUnmount(() => {
 
       <p v-if="error" class="agent-os__error" role="alert">{{ error }}</p>
     </div>
-
-    <footer class="agent-os__foot">VUE / TYPESCRIPT / THREE.JS / SERVER-SIDE AI / SSE</footer>
   </section>
 </template>
 
