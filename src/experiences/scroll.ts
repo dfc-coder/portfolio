@@ -69,6 +69,16 @@ const sceneForNode = (node: number, model: NarrativeModel): NarrativeScene => {
   return "agent";
 };
 
+type NarrativeSection = Exclude<NarrativeScene, "chapter">;
+
+const sectionForNode = (node: number, model: NarrativeModel): NarrativeSection => {
+  if (node < 0.5) return "hero";
+  if (node < model.chapterSystemsNode - 0.5) return "career";
+  if (node < model.chapterGalleryNode - 0.5) return "systems";
+  if (node < model.virtualChapterAgentNode - 0.5) return "gallery";
+  return "agent";
+};
+
 const crossfadeAt = (node: number, boundary: number) =>
   range(
     node,
@@ -140,6 +150,7 @@ export const mountScrollSyncController = () => {
     const progress = mapPhysicalProgressToVirtualProgress(physical, model);
     const node = progress * model.virtualLastNode;
     const scene = sceneForNode(node, model);
+    const section = sectionForNode(node, model);
     const opacity = sceneOpacities(node, model);
 
     portfolio.style.setProperty("--physical-scroll-progress", physical.toFixed(5));
@@ -149,6 +160,7 @@ export const mountScrollSyncController = () => {
     );
 
     stage.dataset.scene = scene;
+    stage.dataset.section = section;
     stage.style.setProperty("--progress", progress.toFixed(6));
     stage.style.setProperty("--scroll-director-progress", progress.toFixed(6));
     stage.style.setProperty("--hero", opacity.hero.toFixed(6));
@@ -330,6 +342,7 @@ export const mountScrollSyncController = () => {
     removeEventListener("pointerdown", stopSmoothScroll);
     track.style.removeProperty("height");
     delete track.dataset.scrollSyncOwner;
+    delete stage.dataset.section;
     portfolio.style.removeProperty("--physical-scroll-progress");
     progressCurrent?.removeAttribute("data-scroll-progress");
     [
