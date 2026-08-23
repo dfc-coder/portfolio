@@ -1,5 +1,4 @@
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { gsap, ScrollTrigger } from "../motion/gsap";
 import { transitionSectionNavigation } from "./continuity";
 import { narrativeModel, type NarrativeModel } from "./narrative-model";
 import { narrativeRuntime, type NarrativeScene } from "./narrative-runtime";
@@ -129,8 +128,6 @@ export const mountScrollSyncController = () => {
 
   if (!track || !stage || !portfolio) return () => undefined;
   if (track.dataset.scrollSyncOwner === "physical") return () => undefined;
-
-  gsap.registerPlugin(ScrollTrigger);
 
   const model = narrativeModel;
   const trackHeightVh = 100 + model.physicalLastNode * SCROLL_STEP_VH;
