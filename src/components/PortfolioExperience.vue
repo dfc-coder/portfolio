@@ -35,6 +35,13 @@ const chapters = [
   },
 ] as const;
 
+const sectionTitles = [
+  ["career", "02", "PROFESSIONAL TRAJECTORY"],
+  ["systems", "03", "SELECTED TECHNICAL SYSTEMS"],
+  ["gallery", "04", "VISUAL / MATERIAL ARCHIVE"],
+  ["agent", "05", "THE INTERFACE"],
+] as const;
+
 const menuOpen = ref(false);
 </script>
 
@@ -74,6 +81,16 @@ const menuOpen = ref(false);
       <section class="ref-stage" data-scene="hero" aria-label="Scroll-driven portfolio narrative">
         <div class="ref-grain" aria-hidden="true" />
 
+        <div class="ref-section-chrome">
+          <h2
+            v-for="([key, index, label]) in sectionTitles"
+            :key="key"
+            :class="['ref-section-marker', `ref-section-marker--${key}`]"
+          >
+            <span>{{ index }}</span><i aria-hidden="true" /><span>{{ label }}</span>
+          </h2>
+        </div>
+
         <article class="ref-scene ref-scene--hero">
           <p class="ref-hero__meta">
             <span>BUENOS AIRES · ARGENTINA</span>
@@ -94,7 +111,6 @@ const menuOpen = ref(false);
         <article class="ref-scene ref-scene--systems"><SystemsScene /></article>
 
         <article class="ref-scene ref-scene--gallery">
-          <h2 class="ref-marker"><span>04</span><i aria-hidden="true" /><span>VISUAL / MATERIAL ARCHIVE</span></h2>
           <div class="ref-gallery-stage" aria-label="Visual works">
             <button
               v-for="artwork in artworks"
