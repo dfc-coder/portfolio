@@ -99,18 +99,6 @@ export function useAgentRuntime(provider: AgentProvider, hooks: RuntimeHooks = {
     flushStream();
   };
 
-  const seed = (entries: Array<{ role: AgentRole; text: string; time?: string }>) => {
-    for (const entry of entries) {
-      messages.value.push({
-        id: nextId.value++,
-        role: entry.role,
-        text: entry.text,
-        time: entry.time ?? stamp(),
-        streaming: false,
-      });
-    }
-  };
-
   const send = async () => {
     const question = draft.value.trim();
     if (!question || busy.value) return;
@@ -162,5 +150,5 @@ export function useAgentRuntime(provider: AgentProvider, hooks: RuntimeHooks = {
     error.value = null;
   };
 
-  return { messages, draft, focused, busy, error, state, canSend, send, seed, reset };
+  return { messages, draft, focused, busy, error, state, canSend, send, reset };
 }
