@@ -78,17 +78,22 @@ const menuOpen = ref(false);
     </nav>
 
     <main class="ref-track">
-      <section class="ref-stage" data-scene="hero" aria-label="Scroll-driven portfolio narrative">
+      <section
+        class="ref-stage"
+        data-scene="hero"
+        data-section="hero"
+        aria-label="Scroll-driven portfolio narrative"
+      >
         <div class="ref-grain" aria-hidden="true" />
 
-        <div class="ref-section-chrome">
-          <h2
+        <div class="ref-section-chrome" aria-hidden="true">
+          <div
             v-for="([key, index, label]) in sectionTitles"
             :key="key"
             :class="['ref-section-marker', `ref-section-marker--${key}`]"
           >
-            <span>{{ index }}</span><i aria-hidden="true" /><span>{{ label }}</span>
-          </h2>
+            <ChapterSignal :index="index" :label="label" />
+          </div>
         </div>
 
         <article class="ref-scene ref-scene--hero">
@@ -111,6 +116,7 @@ const menuOpen = ref(false);
         <article class="ref-scene ref-scene--systems"><SystemsScene /></article>
 
         <article class="ref-scene ref-scene--gallery">
+          <h2 class="sr-only">Visual / material archive</h2>
           <div class="ref-gallery-stage" aria-label="Visual works">
             <button
               v-for="artwork in artworks"
