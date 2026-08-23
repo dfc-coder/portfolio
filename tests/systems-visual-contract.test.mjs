@@ -208,12 +208,15 @@ test("TDD: menu transition is isolated WebGL driven by the shared GSAP runtime",
 });
 
 test("TDD: section title and narrative rails use fixed cross-section registers", async () => {
+  const shell = await read("src/styles/shell.css");
   const bridges = await read("src/styles/chapter-bridges.css");
+  const portfolio = await read("src/components/PortfolioExperience.vue");
 
-  assert.match(bridges, /Persistent section chrome/);
-  assert.match(bridges, /\.narrative-header,[\s\S]*\.ref-scene--gallery > \.ref-marker,[\s\S]*\.ref-scene--agent \.ref-marker/);
-  assert.match(bridges, /left:\s*var\(--shell-gutter,\s*22px\)\s*!important/);
-  assert.match(bridges, /top:\s*22px\s*!important/);
+  assert.match(shell, /One fixed register for every visible section title/);
+  assert.match(portfolio, /class="ref-section-chrome"/);
+  assert.match(portfolio, /v-for="\(\[key, index, label\]\) in sectionTitles"/);
+  assert.match(shell, /\.ref-section-marker\s*\{[^}]*left:\s*var\(--shell-gutter\)[^}]*top:\s*92px/is);
+  assert.match(shell, /\.ref-section-marker \.narrative-signal\s*\{[^}]*grid-template-columns:\s*auto\s+42px\s+auto/is);
   assert.match(bridges, /\.narrative-rail\s*\{[^}]*left:\s*var\(--narrative-rail-x,\s*11\.5%\)/is);
 });
 
