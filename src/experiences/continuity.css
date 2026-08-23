@@ -1,24 +1,4 @@
-/* Cross-chapter interaction: WebGL menu transition + custom cursor. */
-.ref-navigation-transition {
-  position: fixed;
-  z-index: 4000;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  display: block;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  touch-action: none;
-  image-rendering: auto;
-}
-
-.ref-navigation-transition.is-active {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-}
-
+/* Cross-chapter interaction: shared WebGL transition + custom cursor. */
 html.is-section-transitioning {
   overscroll-behavior: none;
 }
@@ -130,7 +110,6 @@ html.is-section-transitioning .ref-cursor-ring {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ref-navigation-transition,
   .ref-cursor,
   .ref-cursor-ring {
     display: none;
