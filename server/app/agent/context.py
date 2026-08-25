@@ -117,6 +117,9 @@ class ProfileRetriever:
         self._document_vectors: list[list[float]] | None = None
         self._index_lock = asyncio.Lock()
 
+    async def warm(self) -> None:
+        await self._ensure_index()
+
     async def search(self, query: str) -> tuple[RetrievedDocument, ...]:
         documents = self._index.documents
         if not documents or not query.strip():
@@ -210,6 +213,9 @@ class ContextAssembler:
             f"AGENT_CAPABILITIES:\n{capabilities_text}\n"
             f"OWNER_POLICY:\n{policy}"
         )
+
+    async def warm(self) -> None:
+        await self._retriever.warm()
 
     async def build(
         self,
