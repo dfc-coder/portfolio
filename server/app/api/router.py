@@ -20,6 +20,7 @@ from app.scheduling.approval import (
 class ChatRequest(BaseModel):
     session_id: str = Field(min_length=8, max_length=96)
     message: str = Field(min_length=1, max_length=2000)
+    locale: str = Field(default="en", min_length=2, max_length=32)
 
 
 class BookingActionRequest(BaseModel):
@@ -34,7 +35,12 @@ def encode_sse(event: str, payload: dict[str, object]) -> str:
 
 
 class StreamingAgent(Protocol):
-    def respond(self, session_id: str, user_message: str) -> AsyncIterator[str]: ...
+    def respond(
+        self,
+        session_id: str,
+        user_message: str,
+        locale: str = "en",
+    ) -> AsyncIterator[str]: ...
 
 
 def _validate_session_id(session_id: str) -> None:
@@ -58,6 +64,7 @@ def create_router(
                 async for token in agent.respond(
                     body.session_id,
                     body.message.strip(),
+                    body.locale,
                 ):
                     if await request.is_disconnected():
                         return
@@ -118,15 +125,10 @@ def create_router(
                 result = await approvals.confirm(body.session_id, booking_id)
             except BookingExpired as exc:
                 raise HTTPException(status_code=410, detail=str(exc)) from exc
+            except BookingAlreadyConfirmed as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
             except BookingNotPending as exc:
                 raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-            if result is None:
-                return {
-                    "status": "confirmed",
-                    "booking_id": booking_id,
-                    "already_confirmed": True,
-                }
 
             return {
                 "status": "confirmed",
@@ -135,7 +137,6 @@ def create_router(
                 "html_link": result.html_link,
                 "start": result.start.isoformat(),
                 "end": result.end.isoformat(),
-                "already_confirmed": False,
             }
 
         @router.post("/v1/bookings/{booking_id}/cancel")
