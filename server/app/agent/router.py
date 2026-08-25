@@ -1,18 +1,13 @@
 from __future__ import annotations
 
-import json
-import logging
-import re
+import asyncio
 from dataclasses import dataclass
-
-from pydantic import BaseModel
 
 from app.domain.conversation import ActiveWorkflow, SessionState
 from app.domain.routing import RouteDomain, RouteRelation, RoutingDecision
-from app.ports.llm import GenerationConfig, LlmPort
-from app.ports.reranker import RerankerPort
+from app.ports.embeddings import EmbeddingPort
 
-logger = logging.getLogger(__name__)
+from .similarity import cosine_similarity
 
 
 @dataclass(frozen=True)
@@ -23,19 +18,14 @@ class Route:
     description: str
 
 
-class RouteChoice(BaseModel):
-    route_key: str
-
-
 _NEW_ROUTES = (
     Route(
         "business",
         RouteDomain.BUSINESS,
         RouteRelation.NEW,
         (
-            "Questions about Diego's professional work, projects, technologies, services, "
-            "rates, clients, credentials, capabilities, or what this representative can do. "
-            "Capability questions are informational and do not start a meeting workflow."
+            "A visitor asks about Diego's professional background, experience, projects, "
+            "technologies, skills, services, credentials, rates, clients or capabilities."
         ),
     ),
     Route(
@@ -43,16 +33,18 @@ _NEW_ROUTES = (
         RouteDomain.SCHEDULING,
         RouteRelation.NEW,
         (
-            "An actual request to arrange, reschedule, cancel, select a time for, or check "
-            "real availability for a meeting with Diego. Do not choose this route when the "
-            "visitor only asks whether scheduling is a supported capability."
+            "A visitor wants to arrange, reschedule or cancel a meeting with Diego, check real "
+            "calendar availability, choose a meeting time, or provide meeting details."
         ),
     ),
     Route(
         "general",
         RouteDomain.GENERAL,
         RouteRelation.NEW,
-        "General conversation unrelated to Diego's professional work or an actual meeting task.",
+        (
+            "A greeting, small talk, casual conversation, or a question unrelated to Diego's "
+            "professional profile and unrelated to arranging a meeting."
+        ),
     ),
 )
 
@@ -63,8 +55,7 @@ _ACTIVE_SCHEDULING_ROUTES = (
         RouteRelation.INTERRUPT,
         (
             "A professional question about Diego's work, projects, technologies, experience, "
-            "skills, services, credentials or capabilities that interrupts the active meeting task. "
-            "Preserve the meeting data and answer the professional question without advancing scheduling."
+            "skills, services or credentials while a meeting workflow is already active."
         ),
     ),
     Route(
@@ -72,49 +63,44 @@ _ACTIVE_SCHEDULING_ROUTES = (
         RouteDomain.SCHEDULING,
         RouteRelation.CONTINUE,
         (
-            "A continuation of the active meeting task: a date or date range, meeting details, "
-            "slot selection, confirmation, availability request, change, rejection or cancellation."
+            "A continuation of the active meeting workflow, such as providing a date, email, "
+            "meeting subject, selecting a proposed slot, changing a time, or cancelling it."
         ),
     ),
     Route(
         "general_interrupt",
         RouteDomain.GENERAL,
         RouteRelation.INTERRUPT,
-        "General conversation that interrupts the active meeting task. Preserve the meeting data.",
+        (
+            "A greeting, small talk or unrelated conversation while a meeting workflow is active. "
+            "The existing meeting state must be preserved."
+        ),
     ),
 )
 
-# High-precision boundary for clearly professional questions. These should never become
-# scheduling merely because the reranker is uncertain or a meeting workflow is active.
-_BUSINESS_QUESTION_RE = re.compile(
-    r"\b(?:"
-    r"experiencia|experience|trabaja|work(?:ed|s|ing)?|proyecto(?:s)?|projects?|"
-    r"tecnolog(?:ia|ía|ias|ías)|technolog(?:y|ies)|skills?|habilidades?|"
-    r"certificaciones?|certifications?|stack|lenguajes?|languages?|"
-    r"frameworks?|aws|python|rust|golang|\bgo\b|typescript|javascript|"
-    r"langgraph|langchain|rag|mcp|fastapi|sql|mulesoft"
-    r")\b",
-    re.IGNORECASE,
+_FALLBACK_ROUTES = (
+    Route(
+        "business_fallback",
+        RouteDomain.BUSINESS,
+        RouteRelation.NEW,
+        _NEW_ROUTES[0].description,
+    ),
+    Route(
+        "general_fallback",
+        RouteDomain.GENERAL,
+        RouteRelation.NEW,
+        _NEW_ROUTES[2].description,
+    ),
 )
 
 
 class SemanticRouter:
-    """Three-way semantic routing: explicit boundaries, reranker, then tiny LLM on ambiguity."""
+    """Three-way semantic routing using the same dense embeddings as profile retrieval."""
 
-    def __init__(
-        self,
-        reranker: RerankerPort,
-        llm: LlmPort,
-        judge_config: GenerationConfig,
-        *,
-        min_score: float = 0.10,
-        min_margin: float = 0.08,
-    ) -> None:
-        self._reranker = reranker
-        self._llm = llm
-        self._judge_config = judge_config
-        self._min_score = min_score
-        self._min_margin = min_margin
+    def __init__(self, embeddings: EmbeddingPort) -> None:
+        self._embeddings = embeddings
+        self._route_vectors: dict[str, list[float]] = {}
+        self._index_lock = asyncio.Lock()
 
     async def route(self, state: SessionState, user_message: str) -> RoutingDecision:
         routes = (
@@ -122,10 +108,7 @@ class SemanticRouter:
             if state.active_workflow == ActiveWorkflow.SCHEDULING
             else _NEW_ROUTES
         )
-        explicit_business = self._explicit_business_route(user_message, routes)
-        if explicit_business is not None:
-            return self._decision(explicit_business, 1.0, "explicit_business_boundary", routes, [])
-        return await self._choose(state, user_message, routes)
+        return await self._choose(user_message, routes)
 
     async def route_non_scheduling(
         self,
@@ -133,121 +116,58 @@ class SemanticRouter:
         user_message: str,
     ) -> RoutingDecision:
         relation = RouteRelation.INTERRUPT if state.active_workflow else RouteRelation.NEW
-        routes = (
-            Route("business_fallback", RouteDomain.BUSINESS, relation, _NEW_ROUTES[0].description),
-            Route("general_fallback", RouteDomain.GENERAL, relation, _NEW_ROUTES[2].description),
+        routes = tuple(
+            Route(route.key, route.domain, relation, route.description)
+            for route in _FALLBACK_ROUTES
         )
-        explicit_business = self._explicit_business_route(user_message, routes)
-        if explicit_business is not None:
-            return self._decision(explicit_business, 1.0, "explicit_business_boundary", routes, [])
-        return await self._choose(state, user_message, routes)
+        return await self._choose(user_message, routes)
 
     async def _choose(
         self,
-        state: SessionState,
         user_message: str,
         routes: tuple[Route, ...],
     ) -> RoutingDecision:
-        query = self._query(state, user_message)
-        scores: list[float] = []
-        try:
-            scores = await self._reranker.rerank(
-                query,
-                [route.description for route in routes],
-            )
-            ranked = sorted(
-                zip(routes, scores, strict=True),
-                key=lambda item: item[1],
-                reverse=True,
-            )
-            top, top_score = ranked[0]
-            second_score = ranked[1][1] if len(ranked) > 1 else 0.0
-            if top_score >= self._min_score and top_score - second_score >= self._min_margin:
-                return self._decision(top, top_score, "reranker", routes, scores)
-        except Exception as exc:
-            logger.warning("semantic reranker unavailable: %s", exc)
-
-        return await self._judge(query, routes, scores)
-
-    async def _judge(
-        self,
-        query: str,
-        routes: tuple[Route, ...],
-        scores: list[float],
-    ) -> RoutingDecision:
-        allowed = {route.key: route.description for route in routes}
-        messages = [
-            {
-                "role": "system",
-                "content": "Choose exactly one route_key from ROUTES. Do not answer the visitor.",
-            },
-            {
-                "role": "user",
-                "content": json.dumps(
-                    {"CONTEXT": query, "ROUTES": allowed},
-                    ensure_ascii=False,
-                ),
-            },
+        await self._ensure_route_vectors(routes)
+        query_vector = await self._embeddings.embed_query(user_message)
+        scores = [
+            cosine_similarity(query_vector, self._route_vectors[route.key])
+            for route in routes
         ]
-        chosen: Route | None = None
-        source = "llm_judge"
-        try:
-            raw = await self._llm.complete(
-                messages,
-                self._judge_config,
-                response_schema=RouteChoice,
+        best_index = max(range(len(routes)), key=scores.__getitem__)
+        chosen = routes[best_index]
+        return self._decision(chosen, scores[best_index], routes, scores)
+
+    async def _ensure_route_vectors(self, routes: tuple[Route, ...]) -> None:
+        missing = [route for route in routes if route.key not in self._route_vectors]
+        if not missing:
+            return
+        async with self._index_lock:
+            missing = [route for route in routes if route.key not in self._route_vectors]
+            if not missing:
+                return
+            vectors = await self._embeddings.embed_documents(
+                [route.description for route in missing]
             )
-            parsed = RouteChoice.model_validate_json(raw)
-            chosen = next((route for route in routes if route.key == parsed.route_key), None)
-        except Exception as exc:
-            logger.warning("routing judge failed: %s", exc)
-
-        if chosen is None:
-            if scores:
-                chosen = routes[max(range(len(scores)), key=scores.__getitem__)]
-                source = "reranker_fallback"
-            else:
-                chosen = next(
-                    (route for route in routes if route.domain == RouteDomain.GENERAL),
-                    routes[0],
-                )
-                source = "safe_fallback"
-
-        score = scores[routes.index(chosen)] if scores and chosen in routes else 0.5
-        return self._decision(chosen, score, source, routes, scores)
-
-    @staticmethod
-    def _explicit_business_route(user_message: str, routes: tuple[Route, ...]) -> Route | None:
-        if not _BUSINESS_QUESTION_RE.search(user_message):
-            return None
-        return next((route for route in routes if route.domain == RouteDomain.BUSINESS), None)
-
-    @staticmethod
-    def _query(state: SessionState, user_message: str) -> str:
-        # Route the meaning of the latest visitor turn only. The active workflow is already
-        # represented by the candidate route set; injecting workflow/state text into the
-        # reranker query biases unrelated professional questions toward scheduling_continue.
-        del state
-        return f"VISITOR: {user_message.strip()}"
+            if len(vectors) != len(missing):
+                raise ValueError("Embedding service returned an unexpected route vector count")
+            for route, vector in zip(missing, vectors, strict=True):
+                self._route_vectors[route.key] = vector
 
     @staticmethod
     def _decision(
         route: Route,
         confidence: float,
-        source: str,
         routes: tuple[Route, ...],
         scores: list[float],
     ) -> RoutingDecision:
-        score_map = (
-            {item.key: score for item, score in zip(routes, scores, strict=True)}
-            if scores
-            else {}
-        )
         return RoutingDecision(
             domain=route.domain,
             relation=route.relation,
             route_key=route.key,
             confidence=max(0.0, min(1.0, confidence)),
-            source=source,
-            scores=score_map,
+            source="embedding",
+            scores={
+                item.key: score
+                for item, score in zip(routes, scores, strict=True)
+            },
         )
