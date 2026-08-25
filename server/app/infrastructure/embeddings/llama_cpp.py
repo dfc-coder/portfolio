@@ -12,9 +12,7 @@ class LlamaCppEmbeddingClient:
         model: str,
         timeout_seconds: float = 30.0,
         *,
-        query_instruction: str = (
-            "Retrieve the most relevant facts from a professional portfolio for the visitor query."
-        ),
+        query_instruction: str = "Retrieve the text that best matches the visitor's intent.",
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
