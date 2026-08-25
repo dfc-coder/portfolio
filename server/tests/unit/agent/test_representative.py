@@ -41,7 +41,7 @@ class ExperienceEmbeddings:
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         return [
             [1.0, 0.0]
-            if "professional_experience" in text or '"experience"' in text
+            if "Professional experience." in text or "Experience area:" in text
             else [0.0, 1.0]
             for text in texts
         ]
@@ -66,7 +66,7 @@ async def test_business_question_uses_profile_retrieval_without_intent_router(
         GenerationConfig(temperature=0.65, max_tokens=180),
         ("Check calendar availability.",),
         ExperienceEmbeddings(),
-        knowledge_min_score=0.50,
+        knowledge_min_score=0.25,
     )
     agent = BusinessRepresentative(
         sessions,
@@ -92,6 +92,43 @@ async def test_business_question_uses_profile_retrieval_without_intent_router(
 
 
 @pytest.mark.asyncio
+async def test_bare_availability_question_stays_on_operational_path(
+    profile: BusinessProfile,
+) -> None:
+    sessions = MemorySessionStore()
+    scheduler = NotApplicableScheduler()
+    responder = Responder(
+        GroundedLlm(),
+        profile,
+        GenerationConfig(temperature=0.65, max_tokens=180),
+        (),
+        ExperienceEmbeddings(),
+        knowledge_min_score=0.25,
+    )
+    agent = BusinessRepresentative(
+        sessions,
+        scheduler,  # type: ignore[arg-type]
+        responder,
+    )
+
+    answer = "".join(
+        [
+            chunk
+            async for chunk in agent.respond(
+                "session-availability",
+                "sobre tu disponibilidad?",
+            )
+        ]
+    )
+    state = await sessions.get("session-availability")
+
+    assert scheduler.calls == 1
+    assert "agenda de Diego" in answer
+    assert state.current_focus == RouteDomain.SCHEDULING
+    assert state.active_workflow == ActiveWorkflow.SCHEDULING
+
+
+@pytest.mark.asyncio
 async def test_business_interrupt_preserves_active_scheduling_state(
     profile: BusinessProfile,
 ) -> None:
@@ -107,7 +144,7 @@ async def test_business_interrupt_preserves_active_scheduling_state(
         GenerationConfig(temperature=0.65, max_tokens=180),
         (),
         ExperienceEmbeddings(),
-        knowledge_min_score=0.50,
+        knowledge_min_score=0.25,
     )
     agent = BusinessRepresentative(
         sessions,
