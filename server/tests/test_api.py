@@ -11,9 +11,15 @@ from app.main import create_app
 
 
 class FakeAgent:
-    async def respond(self, session_id: str, user_message: str) -> AsyncIterator[str]:
+    async def respond(
+        self,
+        session_id: str,
+        user_message: str,
+        locale: str = "en",
+    ) -> AsyncIterator[str]:
         assert session_id == "browser-session-123"
         assert user_message == "Hello"
+        assert locale == "es-AR"
         yield "Hello"
         yield " from server"
 
@@ -64,7 +70,11 @@ async def test_sse_contract_streams_tokens() -> None:
     ) as client:
         response = await client.post(
             "/v1/chat/stream",
-            json={"session_id": "browser-session-123", "message": "Hello"},
+            json={
+                "session_id": "browser-session-123",
+                "message": "Hello",
+                "locale": "es-AR",
+            },
         )
 
     assert response.status_code == 200
