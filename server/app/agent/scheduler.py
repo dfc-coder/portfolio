@@ -11,6 +11,7 @@ from app.domain.routing import RouteRelation
 from app.domain.scheduling import OfferedSlot, PendingBooking
 from app.ports.calendar import CalendarPort
 from app.ports.llm import GenerationConfig, LlmPort
+from app.scheduling.admission import is_new_scheduling_request
 from app.scheduling.policy import SchedulingPolicy
 from app.scheduling.slots import SlotService
 from app.scheduling.turn_parser import SchedulingIntent, SchedulingTurn, SchedulingTurnParser
@@ -25,6 +26,7 @@ _SPANISH_HINTS = {
     "podemos",
     "reunion",
     "reunión",
+    "entrevista",
     "horario",
     "mañana",
     "gracias",
@@ -105,6 +107,13 @@ class Scheduler:
             )
 
         turn = await self._interpret(state, user_message, relation)
+        if (
+            turn.intent == SchedulingIntent.OTHER
+            and relation == RouteRelation.NEW
+            and is_new_scheduling_request(user_message)
+        ):
+            turn = SchedulingTurn(intent=SchedulingIntent.REQUEST)
+
         if turn.intent == SchedulingIntent.OTHER:
             return SchedulerReply(not_applicable=True)
         if turn.intent == SchedulingIntent.CANCEL:
@@ -138,13 +147,20 @@ class Scheduler:
             memory.pending_booking = None
 
         if memory.requested_start_date is None or memory.requested_end_date is None:
-            return SchedulerReply(
-                text=(
-                    "¿Qué día o rango de fechas te sirve para la reunión?"
-                    if spanish
-                    else "What day or date range works for the meeting?"
+            if turn.intent == SchedulingIntent.REQUEST:
+                today = datetime.now(timezone.utc).astimezone(self._policy.timezone).date()
+                memory.requested_start_date = today
+                memory.requested_end_date = today + timedelta(
+                    days=self._policy.config.max_days_ahead
                 )
-            )
+            else:
+                return SchedulerReply(
+                    text=(
+                        "¿Qué día o rango de fechas te sirve para la reunión?"
+                        if spanish
+                        else "What day or date range works for the meeting?"
+                    )
+                )
 
         if not memory.offered_slots:
             try:
@@ -231,14 +247,14 @@ class Scheduler:
     def _render_slots(self, slots: dict[str, OfferedSlot], spanish: bool) -> str:
         if not slots:
             return (
-                "No encontré horarios disponibles en ese rango. Decime otra fecha o rango."
+                "No encontré horarios disponibles en los próximos días."
                 if spanish
-                else "I couldn't find available slots in that range. Give me another date or range."
+                else "I couldn't find available slots in the upcoming days."
             )
         heading = (
-            f"Tengo estos horarios disponibles ({self._policy.config.timezone}):"
+            f"Estos son los próximos horarios disponibles ({self._policy.config.timezone}):"
             if spanish
-            else f"I have these available times ({self._policy.config.timezone}):"
+            else f"These are the next available times ({self._policy.config.timezone}):"
         )
         lines = [
             f"- {slot_id}: {self._format_datetime(slot.start, spanish)}"
