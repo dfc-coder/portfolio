@@ -3,7 +3,7 @@
 {"kind":"workflow","stage":"scheduling_slot","input":"El segundo","expected_action":"select_slot","expected_slot_id":"S2"}
 {"kind":"workflow","stage":"scheduling_slot","input":"S2. Soy Ana, ana@example.com, para hablar de arquitectura","expected_action":"select_slot","expected_slot_id":"S2"}
 {"kind":"workflow","stage":"scheduling_details","input":"Soy Ana, ana@example.com, para hablar de arquitectura","expected_action":"prepare_booking"}
-{"kind":"workflow","stage":"scheduling_confirmation","input":"Sí, confirmo","expected_fast_path":"calendar_write"}
+{"kind":"workflow","stage":"scheduling_confirmation","input":"Sí, confirmo","expected_fast_path":"hitl_required"}
 {"kind":"workflow","stage":"scheduling_confirmation","input":"Tuesday could work","expected_fast_path":"confirmation_reminder"}
 {"kind":"routing","id":"b01","state":{"active_workflow":null},"message":"¿Cuánto cobra Diego por hora?","domain":"business","relation":"new"}
 {"kind":"routing","id":"b02","state":{"active_workflow":null},"message":"Quiero hablar sobre el proyecto SQL","domain":"business","relation":"new"}
@@ -79,4 +79,4 @@
 {"kind":"conversation","id":"conv02","critical":true,"turns":["¿Podés agendar reuniones?"],"expected_booking_count":0,"expected_active_workflow":null}
 {"kind":"conversation","id":"conv03","turns":["Quiero una reunión el próximo martes"],"expected_booking_count":0,"expected_active_workflow":"scheduling"}
 {"kind":"conversation","id":"conv04","critical":true,"turns":["Quiero una reunión el próximo martes","S1. Soy Ana, ana@example.com, para hablar de arquitectura","Tuesday could work"],"expected_booking_count":0,"expected_active_workflow":"scheduling"}
-{"kind":"conversation","id":"conv05","critical":true,"turns":["Quiero una reunión el próximo martes","S1. Soy Ana, ana@example.com, para hablar de arquitectura","Sí, confirmo"],"expected_booking_count":1,"expected_active_workflow":null}
+{"kind":"conversation","id":"conv05","critical":true,"turns":["Quiero una reunión el próximo martes","S1. Soy Ana, ana@example.com, para hablar de arquitectura","Sí, confirmo"],"expected_booking_count":0,"expected_active_workflow":"scheduling"}
