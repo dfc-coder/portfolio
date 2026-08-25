@@ -8,7 +8,11 @@ from typing import TYPE_CHECKING
 from app.domain.conversation import ActiveWorkflow
 from app.domain.routing import RouteDomain, RouteRelation
 from app.ports.sessions import SessionStorePort
-from app.scheduling.admission import is_new_scheduling_request
+from app.scheduling.admission import (
+    availability_clarification,
+    is_availability_request,
+    is_new_scheduling_request,
+)
 
 from .responder import Responder
 from .scheduler import Scheduler
@@ -50,6 +54,9 @@ class BusinessRepresentative:
 
                 active_scheduling = (
                     state.active_workflow == ActiveWorkflow.SCHEDULING
+                )
+                new_availability_request = (
+                    not active_scheduling and is_availability_request(user_message)
                 )
                 should_try_scheduler = active_scheduling or is_new_scheduling_request(
                     user_message
@@ -94,6 +101,24 @@ class BusinessRepresentative:
                         )
                         response_chunks.append(reply.text)
                         yield reply.text
+                        return
+
+                    # A bare availability question has no date to parse yet. Keep it
+                    # on the operational path and ask only for the missing date/range;
+                    # do not fall through to RAG where the model can invent tool limits.
+                    if new_availability_request:
+                        state.active_workflow = ActiveWorkflow.SCHEDULING
+                        state.current_focus = RouteDomain.SCHEDULING
+                        text = availability_clarification(user_message)
+                        if trace is not None:
+                            trace.add_attributes(
+                                route=RouteDomain.SCHEDULING.value,
+                                route_relation=RouteRelation.NEW.value,
+                                route_source="scheduling:availability",
+                            )
+                        await self._sessions.append_turn(state, "assistant", text)
+                        response_chunks.append(text)
+                        yield text
                         return
 
                 async for chunk in self._responder.stream(state, trace):
