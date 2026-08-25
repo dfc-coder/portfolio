@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 _MEETING_OBJECT = re.compile(
-    r"\b(?:reuni[oó]n|reuniones|meeting|meetings|call|llamada)\b",
+    r"\b(?:reuni[oó]n|reuniones|entrevista|entrevistas|meeting|meetings|interview|interviews|call|llamada)\b",
     re.IGNORECASE,
 )
 _MEETING_ACTION = re.compile(
@@ -27,15 +27,8 @@ def is_availability_request(message: str) -> bool:
     return bool(_AVAILABILITY_ES.search(text) or _AVAILABILITY_EN.search(text))
 
 
-def availability_clarification(message: str) -> str:
-    """Ask for the minimum missing input needed to query availability."""
-    if _AVAILABILITY_ES.search(message):
-        return "¿Qué día o rango de fechas querés que consulte en la agenda de Diego?"
-    return "What day or date range would you like me to check on Diego's calendar?"
-
-
 def is_new_scheduling_request(message: str) -> bool:
-    """Admit explicit meeting or availability requests into the operational workflow."""
+    """Admit explicit meeting, interview or availability requests."""
     text = message.strip()
     explicit_meeting = bool(_MEETING_OBJECT.search(text) and _MEETING_ACTION.search(text))
     return explicit_meeting or is_availability_request(text)
