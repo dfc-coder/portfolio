@@ -31,16 +31,11 @@ class Settings:
     planner_max_tokens: int = 64
     renderer_temperature: float = 0.65
     renderer_max_tokens: int = 180
-    reranker_base_url: str = "http://reranker:8081"
-    reranker_model: str = "Qwen3-Reranker-0.6B-Q8_0"
-    reranker_timeout_seconds: float = 30.0
-    router_min_score: float = 0.10
-    router_min_margin: float = 0.08
-    router_judge_temperature: float = 0.0
-    router_judge_max_tokens: int = 32
-    context_relevance_threshold: float = 0.10
-    context_max_chars: int = 6000
-    context_max_documents: int = 6
+    embedding_base_url: str = "http://embedding:8081"
+    embedding_model: str = "Qwen3-Embedding-0.6B"
+    embedding_timeout_seconds: float = 30.0
+    context_max_chars: int = 4000
+    context_max_documents: int = 4
     pockettrace_enabled: bool = False
     pockettrace_url: str = "http://host.containers.internal:4319"
     pockettrace_timeout_seconds: float = 1.0
@@ -72,18 +67,15 @@ class Settings:
             planner_max_tokens=int(os.getenv("PLANNER_MAX_TOKENS", "64")),
             renderer_temperature=float(os.getenv("RENDERER_TEMPERATURE", "0.65")),
             renderer_max_tokens=int(os.getenv("RENDERER_MAX_TOKENS", "180")),
-            reranker_base_url=os.getenv("RERANKER_BASE_URL", "http://reranker:8081").rstrip("/"),
-            reranker_model=os.getenv("RERANKER_MODEL", "Qwen3-Reranker-0.6B-Q8_0"),
-            reranker_timeout_seconds=float(os.getenv("RERANKER_TIMEOUT_SECONDS", "30")),
-            router_min_score=float(os.getenv("ROUTER_MIN_SCORE", "0.10")),
-            router_min_margin=float(os.getenv("ROUTER_MIN_MARGIN", "0.08")),
-            router_judge_temperature=float(os.getenv("ROUTER_JUDGE_TEMPERATURE", "0.0")),
-            router_judge_max_tokens=int(os.getenv("ROUTER_JUDGE_MAX_TOKENS", "32")),
-            context_relevance_threshold=float(
-                os.getenv("CONTEXT_RELEVANCE_THRESHOLD", "0.10")
+            embedding_base_url=os.getenv(
+                "EMBEDDING_BASE_URL", "http://embedding:8081"
+            ).rstrip("/"),
+            embedding_model=os.getenv("EMBEDDING_MODEL", "Qwen3-Embedding-0.6B"),
+            embedding_timeout_seconds=float(
+                os.getenv("EMBEDDING_TIMEOUT_SECONDS", "30")
             ),
-            context_max_chars=int(os.getenv("CONTEXT_MAX_CHARS", "6000")),
-            context_max_documents=int(os.getenv("CONTEXT_MAX_DOCUMENTS", "6")),
+            context_max_chars=int(os.getenv("CONTEXT_MAX_CHARS", "4000")),
+            context_max_documents=int(os.getenv("CONTEXT_MAX_DOCUMENTS", "4")),
             pockettrace_enabled=_bool(os.getenv("POCKETTRACE_ENABLED", "false")),
             pockettrace_url=os.getenv(
                 "POCKETTRACE_URL", "http://host.containers.internal:4319"
