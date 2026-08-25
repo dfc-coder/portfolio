@@ -5,6 +5,7 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from app.domain.conversation import ChatTurn, SessionState
 from app.domain.profile import BusinessProfile
@@ -205,6 +206,7 @@ class ContextAssembler:
         history_turns: int = 4,
     ) -> None:
         self._profile = profile
+        self._timezone = ZoneInfo(profile.scheduling.timezone)
         self._retriever = retriever
         self._history_turns = max(1, history_turns)
         policy = "\n".join(f"- {item}" for item in profile.instructions)
@@ -248,7 +250,7 @@ class ContextAssembler:
         )
 
     def _runtime_state(self, state: SessionState) -> str:
-        now = datetime.now(timezone.utc).astimezone(self._profile.scheduling.timezone)
+        now = datetime.now(timezone.utc).astimezone(self._timezone)
         workflow = state.active_workflow.value if state.active_workflow else "none"
         scheduling_facts = ",".join(sorted(state.scheduling.facts()))
         return (
