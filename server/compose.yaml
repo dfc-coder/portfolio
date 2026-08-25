@@ -32,28 +32,29 @@ services:
       retries: 20
       start_period: 30s
 
-  reranker:
+  embedding:
     image: ${LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
     restart: unless-stopped
     volumes:
       - ${LLAMA_MODELS_DIR:-./models}:/models:ro,Z
     command:
       - -m
-      - /models/${RERANKER_MODEL_FILE:-qwen3-reranker-0.6b-q8_0.gguf}
+      - /models/${EMBEDDING_MODEL_FILE:-Qwen3-Embedding-0.6B-Q8_0.gguf}
+      - --alias
+      - ${EMBEDDING_MODEL:-Qwen3-Embedding-0.6B}
       - --host
       - 0.0.0.0
       - --port
       - "8081"
       - --ctx-size
-      - ${RERANKER_CTX_SIZE:-2048}
+      - ${EMBEDDING_CTX_SIZE:-4096}
       - --parallel
       - "1"
       - --embedding
-      - --rerank
       - --pooling
-      - rank
+      - last
       - --n-gpu-layers
-      - ${RERANKER_N_GPU_LAYERS:-0}
+      - ${EMBEDDING_N_GPU_LAYERS:-0}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8081/health"]
       interval: 10s
@@ -68,11 +69,11 @@ services:
       - .env
     environment:
       LLAMA_BASE_URL: http://llama:8080
-      RERANKER_BASE_URL: http://reranker:8081
+      EMBEDDING_BASE_URL: http://embedding:8081
     ports:
       - "8000:8000"
     depends_on:
       llama:
         condition: service_healthy
-      reranker:
+      embedding:
         condition: service_healthy
