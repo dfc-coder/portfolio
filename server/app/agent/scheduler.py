@@ -3,9 +3,6 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
-from enum import StrEnum
-
-from pydantic import BaseModel, Field
 
 from app.domain.conversation import ActiveWorkflow, SessionState
 from app.domain.routing import RouteRelation
@@ -13,38 +10,12 @@ from app.domain.scheduling import OfferedSlot, PendingBooking
 from app.ports.calendar import CalendarPort
 from app.ports.llm import GenerationConfig, LlmPort
 from app.scheduling.policy import SchedulingPolicy
+from app.scheduling.result import SchedulerReply, SchedulerReplyKind, SlotOption
 from app.scheduling.slots import SlotService
 from app.scheduling.turn_parser import SchedulingIntent, SchedulingTurn, SchedulingTurnParser
 
 _EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 _APPROVAL_TTL = timedelta(minutes=15)
-
-
-class SchedulerReplyKind(StrEnum):
-    NOT_APPLICABLE = "not_applicable"
-    CANCELLED = "cancelled"
-    NEED_DATE = "need_date"
-    INVALID_RANGE = "invalid_range"
-    INVALID_SLOT = "invalid_slot"
-    SLOTS = "slots"
-    NO_SLOTS = "no_slots"
-    MISSING_DETAILS = "missing_details"
-    APPROVAL_REQUIRED = "approval_required"
-
-
-class SlotOption(BaseModel):
-    slot_id: str
-    start: datetime
-    end: datetime
-
-
-class SchedulerReply(BaseModel):
-    kind: SchedulerReplyKind = SchedulerReplyKind.NOT_APPLICABLE
-    not_applicable: bool = False
-    slots: list[SlotOption] = Field(default_factory=list)
-    missing_fields: list[str] = Field(default_factory=list)
-    subject: str | None = None
-    start: datetime | None = None
 
 
 class Scheduler:
@@ -64,7 +35,7 @@ class Scheduler:
         policy: SchedulingPolicy,
         config: GenerationConfig,
     ) -> None:
-        del calendar  # Calendar writes remain outside this service.
+        del calendar
         self._slots = slots
         self._policy = policy
         self._parser = SchedulingTurnParser(llm, policy, config)
@@ -89,11 +60,6 @@ class Scheduler:
             return SchedulerReply(kind=SchedulerReplyKind.CANCELLED)
 
         turn = await self._parser.parse(state, user_message, relation)
-
-        # NEW turns reach Scheduler only after operational admission. The parser may
-        # still return OTHER when no date/details are present; admission is the authority
-        # that this is a scheduling request, so treat it as REQUEST without duplicating
-        # vocabulary here.
         if turn.intent == SchedulingIntent.OTHER and relation == RouteRelation.NEW:
             turn = SchedulingTurn(intent=SchedulingIntent.REQUEST)
 
@@ -226,11 +192,4 @@ class Scheduler:
         )
 
 
-__all__ = [
-    "Scheduler",
-    "SchedulerReply",
-    "SchedulerReplyKind",
-    "SlotOption",
-    "SchedulingIntent",
-    "SchedulingTurn",
-]
+__all__ = ["Scheduler", "SchedulingIntent", "SchedulingTurn"]
