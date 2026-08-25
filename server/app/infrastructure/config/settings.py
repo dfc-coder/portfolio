@@ -36,7 +36,7 @@ class Settings:
     embedding_timeout_seconds: float = 30.0
     context_max_chars: int = 4000
     context_max_documents: int = 4
-    knowledge_relevance_threshold: float = 0.50
+    knowledge_relevance_threshold: float = 0.25
     pockettrace_enabled: bool = False
     pockettrace_url: str = "http://host.containers.internal:4319"
     pockettrace_timeout_seconds: float = 1.0
@@ -109,7 +109,7 @@ class Settings:
                 os.getenv("CONTEXT_MAX_DOCUMENTS", "4")
             ),
             knowledge_relevance_threshold=float(
-                os.getenv("KNOWLEDGE_RELEVANCE_THRESHOLD", "0.50")
+                os.getenv("KNOWLEDGE_RELEVANCE_THRESHOLD", "0.25")
             ),
             pockettrace_enabled=_bool(
                 os.getenv("POCKETTRACE_ENABLED", "false")
