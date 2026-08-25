@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from app.domain.conversation import ActiveWorkflow, SessionState
 from app.domain.routing import RouteRelation
-from app.domain.scheduling import PendingBooking
+from app.domain.scheduling import OfferedSlot, PendingBooking
 from app.ports.calendar import CalendarPort
 from app.ports.llm import GenerationConfig, LlmPort
 from app.scheduling.policy import SchedulingPolicy
@@ -211,9 +211,9 @@ class Scheduler:
             memory.subject = turn.subject.strip()
 
     @staticmethod
-    def _slot_options(slots: dict[str, object]) -> list[SlotOption]:
+    def _slot_options(slots: dict[str, OfferedSlot]) -> list[SlotOption]:
         return [
-            SlotOption(slot_id=slot_id, start=slot.start, end=slot.end)  # type: ignore[attr-defined]
+            SlotOption(slot_id=slot_id, start=slot.start, end=slot.end)
             for slot_id, slot in slots.items()
         ]
 
