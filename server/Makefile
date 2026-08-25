@@ -17,7 +17,7 @@ COMPOSE = $(CONTAINER_ENGINE) compose -f $(COMPOSE_FILE) --env-file $(ENV_FILE)
 	logs logs-api logs-llama logs-reranker shell-api \
 	health ready wait-ready \
 	compile test test-unit test-e2e check \
-	eval-routing eval-scheduling eval-live clean model models
+	eval-routing eval-scheduling eval-live eval-smoke clean model models
 
 help: ## Show available targets
 	@printf "\nPortfolio Business Representative\n\n"
@@ -160,17 +160,26 @@ test-e2e: ## Run end-to-end agent tests
 
 check: compile test ## Run compile + complete test suite
 
-eval-routing: engine-check env-check ## Run real reranker + SLM routing/conversation evaluation
+eval-routing: up ## Run the complete real reranker + SLM routing/conversation evaluation
+	@echo "Full routing/conversation eval: all cases run; CRITICAL_REPETITIONS only changes repeated critical cases."
+	@echo "On CPU-only llama.cpp this can take several minutes and the legacy runner prints its report only at the end."
 	@cd "$(ROOT)" && $(COMPOSE) run --rm --no-deps \
 		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
 		api python tests/evals/run_live.py --critical-repetitions $(CRITICAL_REPETITIONS)
 
-eval-scheduling: engine-check env-check ## Run SchedulingTurn structured semantic evaluation
+eval-scheduling: up ## Run the complete SchedulingTurn structured semantic evaluation
+	@echo "Full scheduling eval: all SchedulingTurn cases run; CRITICAL_REPETITIONS only changes repeated critical cases."
 	@cd "$(ROOT)" && $(COMPOSE) run --rm --no-deps \
 		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
 		api python tests/evals/run_scheduling_turn_live.py --critical-repetitions $(CRITICAL_REPETITIONS)
 
-eval-live: eval-routing eval-scheduling ## Run all live-model evaluations
+eval-live: eval-routing eval-scheduling ## Run all complete live-model evaluations
+
+eval-smoke: up ## Run a small live-model regression sample with visible per-case progress
+	@echo "Running fast live-model smoke evaluation with per-case progress."
+	@cd "$(ROOT)" && $(COMPOSE) run --rm --no-deps \
+		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
+		api python -u tests/evals/run_smoke.py
 
 clean: ## Remove Python/test caches only; keeps models and containers
 	@find "$(ROOT)" -type d -name __pycache__ -prune -exec rm -rf {} +
