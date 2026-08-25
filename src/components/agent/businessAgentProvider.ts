@@ -6,7 +6,7 @@ import type {
   BookingApprovalAction,
 } from "./useAgentRuntime";
 
-const SESSION_KEY = "portfolio-business-representative-session";
+const SESSION_ID = `web-${crypto.randomUUID()}`;
 
 const apiBaseUrl = (): string => {
   const configured = import.meta.env.VITE_AGENT_API_URL?.trim();
@@ -14,15 +14,6 @@ const apiBaseUrl = (): string => {
     throw new Error("VITE_AGENT_API_URL is not configured");
   }
   return configured.replace(/\/$/, "");
-};
-
-const sessionId = (): string => {
-  const existing = window.sessionStorage.getItem(SESSION_KEY);
-  if (existing) return existing;
-
-  const created = `web-${crypto.randomUUID()}`;
-  window.sessionStorage.setItem(SESSION_KEY, created);
-  return created;
 };
 
 type SseFrame = {
@@ -68,7 +59,7 @@ async function* streamBusinessAgent(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      session_id: sessionId(),
+      session_id: SESSION_ID,
       message: question,
     }),
   });
@@ -122,7 +113,7 @@ const bookingAction = async (
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: sessionId() }),
+      body: JSON.stringify({ session_id: SESSION_ID }),
     },
   );
 
