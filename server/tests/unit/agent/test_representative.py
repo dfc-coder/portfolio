@@ -22,6 +22,23 @@ class NotApplicableScheduler:
         return SchedulerReply(not_applicable=True)
 
 
+class AvailableScheduler:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def handle(self, state, user_message, relation):  # type: ignore[no-untyped-def]
+        del user_message, relation
+        self.calls += 1
+        state.active_workflow = ActiveWorkflow.SCHEDULING
+        return SchedulerReply(
+            text=(
+                "Estos son los próximos horarios disponibles:\n"
+                "- S1: miércoles 26/08 a las 09:00\n"
+                "- S2: miércoles 26/08 a las 09:30"
+            )
+        )
+
+
 class GroundedLlm:
     async def complete(self, messages, config, response_schema=None):  # type: ignore[no-untyped-def]
         del messages, config, response_schema
@@ -92,11 +109,11 @@ async def test_business_question_uses_profile_retrieval_without_intent_router(
 
 
 @pytest.mark.asyncio
-async def test_bare_availability_question_stays_on_operational_path(
+async def test_bare_availability_question_returns_slots_from_scheduler(
     profile: BusinessProfile,
 ) -> None:
     sessions = MemorySessionStore()
-    scheduler = NotApplicableScheduler()
+    scheduler = AvailableScheduler()
     responder = Responder(
         GroundedLlm(),
         profile,
@@ -123,7 +140,8 @@ async def test_bare_availability_question_stays_on_operational_path(
     state = await sessions.get("session-availability")
 
     assert scheduler.calls == 1
-    assert "agenda de Diego" in answer
+    assert "próximos horarios disponibles" in answer
+    assert "S1" in answer
     assert state.current_focus == RouteDomain.SCHEDULING
     assert state.active_workflow == ActiveWorkflow.SCHEDULING
 
