@@ -102,6 +102,23 @@ async def test_meeting_request_is_deterministic(profile: BusinessProfile) -> Non
 
 
 @pytest.mark.asyncio
+async def test_new_workflow_cannot_be_started_by_semantic_fallback(
+    profile: BusinessProfile,
+) -> None:
+    llm = TrackingLlm(
+        '{"intent":"request","visitor_name":null,"subject":null}'
+    )
+    parser = make_parser(profile, llm)
+    state = SessionState("no-semantic-start")
+
+    turn = await parser.parse(state, "¿Qué hora es?", RouteRelation.NEW)
+
+    assert turn.intent == SchedulingIntent.OTHER
+    assert state.active_workflow is None
+    assert llm.calls == []
+
+
+@pytest.mark.asyncio
 async def test_professional_interruption_uses_minimal_semantic_fallback(
     profile: BusinessProfile,
 ) -> None:
