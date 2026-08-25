@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 
 
@@ -17,9 +19,9 @@ class LlamaCppEmbeddingClient:
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._model = model
-        self._timeout_seconds = timeout_seconds
         self._query_instruction = query_instruction
-        self._client = client
+        self._client = client or httpx.AsyncClient(timeout=timeout_seconds)
+        self._slot = asyncio.Semaphore(1)
 
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         return await self._embed(texts)
@@ -31,11 +33,7 @@ class LlamaCppEmbeddingClient:
 
     async def health(self) -> bool:
         try:
-            if self._client is not None:
-                response = await self._client.get(f"{self._base_url}/health", timeout=5.0)
-            else:
-                async with httpx.AsyncClient(timeout=5.0) as client:
-                    response = await client.get(f"{self._base_url}/health")
+            response = await self._client.get(f"{self._base_url}/health", timeout=5.0)
             return response.status_code == 200
         except httpx.HTTPError:
             return False
@@ -44,23 +42,15 @@ class LlamaCppEmbeddingClient:
         if not texts:
             return []
 
-        payload = {
-            "model": self._model,
-            "input": texts,
-            "encoding_format": "float",
-        }
-        if self._client is not None:
+        async with self._slot:
             response = await self._client.post(
                 f"{self._base_url}/v1/embeddings",
-                json=payload,
-                timeout=self._timeout_seconds,
+                json={
+                    "model": self._model,
+                    "input": texts,
+                    "encoding_format": "float",
+                },
             )
-        else:
-            async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
-                response = await client.post(
-                    f"{self._base_url}/v1/embeddings",
-                    json=payload,
-                )
         response.raise_for_status()
         data = response.json().get("data") or []
         ordered = sorted(data, key=lambda item: int(item["index"]))
