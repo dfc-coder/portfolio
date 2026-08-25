@@ -13,6 +13,7 @@ from app.domain.scheduling import OfferedSlot
 from app.infrastructure.calendar.memory import InMemoryCalendarGateway
 from app.ports.llm import GenerationConfig
 from app.scheduling.policy import SchedulingPolicy
+from app.scheduling.result import SchedulerReplyKind
 
 
 class OneTurnLlm:
@@ -59,5 +60,6 @@ async def test_scheduler_rejects_unoffered_slot(profile: BusinessProfile) -> Non
 
     reply = await scheduler.handle(state, "S2", RouteRelation.CONTINUE)
 
-    assert "offered" in reply.text.lower() or "ofrecí" in reply.text.lower()
+    assert reply.kind == SchedulerReplyKind.INVALID_SLOT
+    assert [slot.slot_id for slot in reply.slots] == ["S1"]
     assert state.scheduling.selected_slot_id is None
