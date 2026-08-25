@@ -66,7 +66,13 @@ def build_runtime(settings: Settings) -> AgentRuntime:
         top_k=20,
     )
 
-    router = SemanticRouter(embeddings)
+    router = SemanticRouter(
+        embeddings,
+        business_threshold=settings.router_business_threshold,
+        scheduling_threshold=settings.router_scheduling_threshold,
+        continuation_threshold=settings.router_continuation_threshold,
+        min_margin=settings.router_min_margin,
+    )
     scheduler = Scheduler(
         llm,
         slots,
