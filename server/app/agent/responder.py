@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 
 from app.domain.conversation import SessionState
 from app.domain.profile import BusinessProfile
+from app.ports.embeddings import EmbeddingPort
 from app.ports.llm import GenerationConfig, LlmPort
-from app.ports.reranker import RerankerPort
 from app.scheduling.policy import SchedulingPolicy
 
 from .context import ContextAssembler, ProfileDocumentIndex, ProfileRetriever
@@ -28,11 +28,10 @@ class Responder:
         policy: SchedulingPolicy,
         config: GenerationConfig,
         capabilities: tuple[str, ...],
-        reranker: RerankerPort | None = None,
+        embeddings: EmbeddingPort,
         *,
-        context_relevance_threshold: float = 0.10,
-        context_max_chars: int = 6000,
-        context_max_documents: int = 6,
+        context_max_chars: int = 4000,
+        context_max_documents: int = 4,
     ) -> None:
         del policy  # Timezone/policy data is already represented in BusinessProfile.
         self._llm = llm
@@ -40,8 +39,7 @@ class Responder:
         index = ProfileDocumentIndex(profile)
         retriever = ProfileRetriever(
             index,
-            reranker,
-            min_score=context_relevance_threshold,
+            embeddings,
             max_chars=context_max_chars,
             max_documents=context_max_documents,
         )
