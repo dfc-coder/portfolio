@@ -36,6 +36,10 @@ class Settings:
     embedding_timeout_seconds: float = 30.0
     context_max_chars: int = 4000
     context_max_documents: int = 4
+    router_business_threshold: float = 0.55
+    router_scheduling_threshold: float = 0.58
+    router_continuation_threshold: float = 0.50
+    router_min_margin: float = 0.05
     pockettrace_enabled: bool = False
     pockettrace_url: str = "http://host.containers.internal:4319"
     pockettrace_timeout_seconds: float = 1.0
@@ -76,6 +80,16 @@ class Settings:
             ),
             context_max_chars=int(os.getenv("CONTEXT_MAX_CHARS", "4000")),
             context_max_documents=int(os.getenv("CONTEXT_MAX_DOCUMENTS", "4")),
+            router_business_threshold=float(
+                os.getenv("ROUTER_BUSINESS_THRESHOLD", "0.55")
+            ),
+            router_scheduling_threshold=float(
+                os.getenv("ROUTER_SCHEDULING_THRESHOLD", "0.58")
+            ),
+            router_continuation_threshold=float(
+                os.getenv("ROUTER_CONTINUATION_THRESHOLD", "0.50")
+            ),
+            router_min_margin=float(os.getenv("ROUTER_MIN_MARGIN", "0.05")),
             pockettrace_enabled=_bool(os.getenv("POCKETTRACE_ENABLED", "false")),
             pockettrace_url=os.getenv(
                 "POCKETTRACE_URL", "http://host.containers.internal:4319"
