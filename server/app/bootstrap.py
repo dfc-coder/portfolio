@@ -91,6 +91,10 @@ def build_runtime(settings: Settings) -> AgentRuntime:
         policy,
         renderer_config,
         scheduler.public_capabilities,
+        reranker,
+        context_relevance_threshold=settings.context_relevance_threshold,
+        context_max_chars=settings.context_max_chars,
+        context_max_documents=settings.context_max_documents,
     )
     representative = BusinessRepresentative(
         sessions,
