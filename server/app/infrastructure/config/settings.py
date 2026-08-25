@@ -9,6 +9,10 @@ def _csv(value: str) -> tuple[str, ...]:
     return tuple(item.strip() for item in value.split(",") if item.strip())
 
 
+def _bool(value: str) -> bool:
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 @dataclass(frozen=True)
 class Settings:
     profile_path: Path
@@ -37,6 +41,9 @@ class Settings:
     context_relevance_threshold: float = 0.10
     context_max_chars: int = 6000
     context_max_documents: int = 6
+    pockettrace_enabled: bool = False
+    pockettrace_url: str = "http://host.containers.internal:4319"
+    pockettrace_timeout_seconds: float = 1.0
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -77,6 +84,13 @@ class Settings:
             ),
             context_max_chars=int(os.getenv("CONTEXT_MAX_CHARS", "6000")),
             context_max_documents=int(os.getenv("CONTEXT_MAX_DOCUMENTS", "6")),
+            pockettrace_enabled=_bool(os.getenv("POCKETTRACE_ENABLED", "false")),
+            pockettrace_url=os.getenv(
+                "POCKETTRACE_URL", "http://host.containers.internal:4319"
+            ).rstrip("/"),
+            pockettrace_timeout_seconds=float(
+                os.getenv("POCKETTRACE_TIMEOUT_SECONDS", "1.0")
+            ),
         )
 
     def validate_calendar(self) -> None:
