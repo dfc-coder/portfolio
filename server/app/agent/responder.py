@@ -30,7 +30,7 @@ class Responder:
         capabilities: tuple[str, ...],
         embeddings: EmbeddingPort,
         *,
-        knowledge_min_score: float = 0.50,
+        knowledge_min_score: float = 0.25,
         context_max_chars: int = 4000,
         context_max_documents: int = 4,
     ) -> None:
