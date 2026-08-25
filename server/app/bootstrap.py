@@ -10,9 +10,9 @@ from app.infrastructure.calendar.google import GoogleCalendarGateway
 from app.infrastructure.calendar.memory import InMemoryCalendarGateway
 from app.infrastructure.config.profile_loader import load_business_profile
 from app.infrastructure.config.settings import Settings
+from app.infrastructure.embeddings.llama_cpp import LlamaCppEmbeddingClient
 from app.infrastructure.llm.llama_cpp import LlamaCppClient
 from app.infrastructure.pockettrace import PocketTraceRecorder
-from app.infrastructure.reranker.llama_cpp import LlamaCppReranker
 from app.infrastructure.sessions.memory import MemorySessionStore
 from app.ports.llm import GenerationConfig
 from app.scheduling.approval import BookingApproval
@@ -25,7 +25,7 @@ class AgentRuntime:
     agent: BusinessRepresentative
     approvals: BookingApproval
     llm: LlamaCppClient
-    reranker: LlamaCppReranker
+    embeddings: LlamaCppEmbeddingClient
 
 
 def build_runtime(settings: Settings) -> AgentRuntime:
@@ -47,10 +47,10 @@ def build_runtime(settings: Settings) -> AgentRuntime:
         settings.llama_model,
         settings.llama_timeout_seconds,
     )
-    reranker = LlamaCppReranker(
-        settings.reranker_base_url,
-        settings.reranker_model,
-        settings.reranker_timeout_seconds,
+    embeddings = LlamaCppEmbeddingClient(
+        settings.embedding_base_url,
+        settings.embedding_model,
+        settings.embedding_timeout_seconds,
     )
 
     interpreter_config = GenerationConfig(
@@ -65,20 +65,8 @@ def build_runtime(settings: Settings) -> AgentRuntime:
         top_p=0.9,
         top_k=20,
     )
-    judge_config = GenerationConfig(
-        temperature=0.0,
-        max_tokens=min(settings.router_judge_max_tokens, 32),
-        top_p=1.0,
-        top_k=1,
-    )
 
-    router = SemanticRouter(
-        reranker,
-        llm,
-        judge_config,
-        min_score=settings.router_min_score,
-        min_margin=settings.router_min_margin,
-    )
+    router = SemanticRouter(embeddings)
     scheduler = Scheduler(
         llm,
         slots,
@@ -92,8 +80,7 @@ def build_runtime(settings: Settings) -> AgentRuntime:
         policy,
         renderer_config,
         scheduler.public_capabilities,
-        reranker,
-        context_relevance_threshold=settings.context_relevance_threshold,
+        embeddings,
         context_max_chars=settings.context_max_chars,
         context_max_documents=settings.context_max_documents,
     )
@@ -118,13 +105,13 @@ def build_runtime(settings: Settings) -> AgentRuntime:
         agent=representative,
         approvals=approvals,
         llm=llm,
-        reranker=reranker,
+        embeddings=embeddings,
     )
 
 
 def build_agent(
     settings: Settings,
-) -> tuple[BusinessRepresentative, LlamaCppClient, LlamaCppReranker]:
+) -> tuple[BusinessRepresentative, LlamaCppClient, LlamaCppEmbeddingClient]:
     """Compatibility helper for callers that only need the conversational agent."""
     runtime = build_runtime(settings)
-    return runtime.agent, runtime.llm, runtime.reranker
+    return runtime.agent, runtime.llm, runtime.embeddings
