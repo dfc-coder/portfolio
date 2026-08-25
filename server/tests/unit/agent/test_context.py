@@ -67,7 +67,7 @@ async def test_general_context_does_not_retrieve_business_profile(
 
     assert reranker.calls == []
     assert context.document_ids == ()
-    assert "RELEVANT_KNOWLEDGE" not in context.system_prompt
+    assert "\nRELEVANT_KNOWLEDGE:\n" not in context.system_prompt
     assert context.history[-1].content == "Hola"
 
 
@@ -75,7 +75,9 @@ async def test_general_context_does_not_retrieve_business_profile(
 async def test_business_context_contains_only_semantically_selected_documents(
     profile: BusinessProfile,
 ) -> None:
-    reranker = RecordingReranker(target="PocketTrace")
+    # Use a value unique to the PocketTrace project document. "PocketTrace" also
+    # appears in an FAQ, which correctly makes that FAQ relevant to a real reranker.
+    reranker = RecordingReranker(target="https://github.com/dfc-coder/pockettrace")
     assembler = make_assembler(profile, reranker)
     state = SessionState("business-context")
     state.current_focus = RouteDomain.BUSINESS
