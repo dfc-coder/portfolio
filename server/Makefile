@@ -14,7 +14,7 @@ COMPOSE = $(CONTAINER_ENGINE) compose -f $(COMPOSE_FILE) --env-file $(ENV_FILE)
 
 .PHONY: help env env-check engine-check doctor config \
 	up dev down stop restart reset build rebuild pull ps status \
-	logs logs-api logs-llama logs-reranker shell-api \
+	logs logs-api logs-llama logs-embedding shell-api \
 	health ready wait-ready \
 	compile test test-unit test-e2e check \
 	eval-routing eval-scheduling eval-live eval-smoke clean model models
@@ -29,7 +29,7 @@ env: ## Create .env from .env.example when missing
 		echo ".env already exists: $(ENV_FILE)"; \
 	elif [ -f "$(ENV_EXAMPLE)" ]; then \
 		cp "$(ENV_EXAMPLE)" "$(ENV_FILE)"; \
-		echo "Created $(ENV_FILE). Review model, reranker and Calendar settings before starting."; \
+		echo "Created $(ENV_FILE). Review model, embedding and Calendar settings before starting."; \
 	else \
 		echo "Missing $(ENV_EXAMPLE)" >&2; \
 		exit 1; \
@@ -52,16 +52,16 @@ env-check: ## Validate .env and both configured GGUF files
 	model_dir="$${LLAMA_MODELS_DIR:-./models}"; \
 	if [[ "$$model_dir" != /* ]]; then model_dir="$(ROOT)/$$model_dir"; fi; \
 	main_file="$${LLAMA_MODEL_FILE:-}"; \
-	router_file="$${RERANKER_MODEL_FILE:-}"; \
+	embedding_file="$${EMBEDDING_MODEL_FILE:-}"; \
 	if [ -z "$$main_file" ] || [ ! -f "$$model_dir/$$main_file" ]; then \
 		echo "Main GGUF not found: $$model_dir/$$main_file" >&2; exit 1; \
 	fi; \
-	if [ -z "$$router_file" ] || [ ! -f "$$model_dir/$$router_file" ]; then \
-		echo "Reranker GGUF not found: $$model_dir/$$router_file" >&2; exit 1; \
+	if [ -z "$$embedding_file" ] || [ ! -f "$$model_dir/$$embedding_file" ]; then \
+		echo "Embedding GGUF not found: $$model_dir/$$embedding_file" >&2; exit 1; \
 	fi; \
 	echo "Environment OK"; \
 	echo "Main model: $$model_dir/$$main_file"; \
-	echo "Reranker:   $$model_dir/$$router_file"
+	echo "Embedding:  $$model_dir/$$embedding_file"
 
 doctor: ## Diagnose runtime, env, models and service state
 	@echo "== Runtime =="
@@ -79,7 +79,7 @@ doctor: ## Diagnose runtime, env, models and service state
 config: engine-check env-check ## Render resolved Compose configuration
 	@cd "$(ROOT)" && $(COMPOSE) config
 
-up: engine-check env-check ## Start API + main LLM + reranker in background
+up: engine-check env-check ## Start API + main LLM + embedding service in background
 	@cd "$(ROOT)" && $(COMPOSE) up -d
 	@$(MAKE) --no-print-directory wait-ready
 
@@ -107,7 +107,7 @@ rebuild: engine-check env-check ## Rebuild API without build cache
 	@cd "$(ROOT)" && $(COMPOSE) build --no-cache api
 
 pull: engine-check env-check ## Pull llama.cpp image used by both model services
-	@cd "$(ROOT)" && $(COMPOSE) pull llama reranker
+	@cd "$(ROOT)" && $(COMPOSE) pull llama embedding
 
 ps: engine-check env-check ## Show service/container status
 	@cd "$(ROOT)" && $(COMPOSE) ps
@@ -123,8 +123,8 @@ logs-api: engine-check env-check ## Follow FastAPI logs
 logs-llama: engine-check env-check ## Follow main Qwen logs
 	@cd "$(ROOT)" && $(COMPOSE) logs -f --tail=200 llama
 
-logs-reranker: engine-check env-check ## Follow semantic reranker logs
-	@cd "$(ROOT)" && $(COMPOSE) logs -f --tail=200 reranker
+logs-embedding: engine-check env-check ## Follow semantic embedding service logs
+	@cd "$(ROOT)" && $(COMPOSE) logs -f --tail=200 embedding
 
 shell-api: engine-check env-check ## Open a shell inside the API container
 	@cd "$(ROOT)" && $(COMPOSE) exec api sh
@@ -132,14 +132,14 @@ shell-api: engine-check env-check ## Open a shell inside the API container
 health: ## Query FastAPI health endpoint
 	@curl -fsS "$(API_URL)/health"; echo
 
-ready: ## Query main LLM + reranker readiness
+ready: ## Query main LLM + embedding readiness
 	@curl -fsS "$(API_URL)/ready"; echo
 
 wait-ready: ## Wait until both models are ready through FastAPI
 	@echo "Waiting for $(API_URL)/ready ..."
 	@for attempt in $$(seq 1 60); do \
 		body="$$(curl -fsS "$(API_URL)/ready" 2>/dev/null || true)"; \
-		if echo "$$body" | grep -q '"status":"ok"' && echo "$$body" | grep -q '"llama":"ready"' && echo "$$body" | grep -q '"reranker":"ready"'; then \
+		if echo "$$body" | grep -q '"status":"ok"' && echo "$$body" | grep -q '"llama":"ready"' && echo "$$body" | grep -q '"embedding":"ready"'; then \
 			echo "Ready: $$body"; exit 0; \
 		fi; \
 		printf "."; sleep 2; \
@@ -160,9 +160,8 @@ test-e2e: ## Run end-to-end agent tests
 
 check: compile test ## Run compile + complete test suite
 
-eval-routing: up ## Run the complete real reranker + SLM routing/conversation evaluation
+eval-routing: up ## Run the complete live embedding routing/conversation evaluation
 	@echo "Full routing/conversation eval: all cases run; CRITICAL_REPETITIONS only changes repeated critical cases."
-	@echo "On CPU-only llama.cpp this can take several minutes and the legacy runner prints its report only at the end."
 	@cd "$(ROOT)" && $(COMPOSE) run --rm --no-deps \
 		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
 		api python tests/evals/run_live.py --critical-repetitions $(CRITICAL_REPETITIONS)
@@ -190,6 +189,6 @@ models: env-check ## Show both configured GGUF paths and sizes
 	@set -a; source "$(ENV_FILE)"; set +a; \
 	model_dir="$${LLAMA_MODELS_DIR:-./models}"; \
 	if [[ "$$model_dir" != /* ]]; then model_dir="$(ROOT)/$$model_dir"; fi; \
-	du -h "$$model_dir/$$LLAMA_MODEL_FILE" "$$model_dir/$$RERANKER_MODEL_FILE"
+	du -h "$$model_dir/$$LLAMA_MODEL_FILE" "$$model_dir/$$EMBEDDING_MODEL_FILE"
 
 model: models ## Alias for models
