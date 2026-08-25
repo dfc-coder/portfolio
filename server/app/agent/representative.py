@@ -9,6 +9,7 @@ from app.domain.conversation import ActiveWorkflow
 from app.domain.routing import RouteDomain, RouteRelation
 from app.ports.sessions import SessionStorePort
 from app.scheduling.admission import is_new_scheduling_request
+from app.scheduling.presenter import SchedulingPresenter
 
 from .responder import Responder
 from .scheduler import Scheduler
@@ -24,11 +25,13 @@ class BusinessRepresentative:
         self,
         sessions: SessionStorePort,
         scheduler: Scheduler,
+        scheduling_presenter: SchedulingPresenter,
         responder: Responder,
         trace_recorder: PocketTraceRecorder | None = None,
     ) -> None:
         self._sessions = sessions
         self._scheduler = scheduler
+        self._scheduling_presenter = scheduling_presenter
         self._responder = responder
         self._trace_recorder = trace_recorder
         self._trace_tasks: set[asyncio.Task[None]] = set()
@@ -36,7 +39,12 @@ class BusinessRepresentative:
     async def warm(self) -> None:
         await self._responder.warm()
 
-    async def respond(self, session_id: str, user_message: str) -> AsyncIterator[str]:
+    async def respond(
+        self,
+        session_id: str,
+        user_message: str,
+        locale: str = "en",
+    ) -> AsyncIterator[str]:
         trace: TurnTrace | None = (
             self._trace_recorder.start_turn(session_id, user_message)
             if self._trace_recorder is not None
@@ -81,19 +89,16 @@ class BusinessRepresentative:
 
                     if not reply.not_applicable:
                         state.current_focus = RouteDomain.SCHEDULING
+                        text = self._scheduling_presenter.render(reply, locale)
                         if trace is not None:
                             trace.add_attributes(
                                 route=RouteDomain.SCHEDULING.value,
                                 route_relation=relation.value,
                                 route_source="scheduling:admission",
                             )
-                        await self._sessions.append_turn(
-                            state,
-                            "assistant",
-                            reply.text,
-                        )
-                        response_chunks.append(reply.text)
-                        yield reply.text
+                        await self._sessions.append_turn(state, "assistant", text)
+                        response_chunks.append(text)
+                        yield text
                         return
 
                 async for chunk in self._responder.stream(state, trace):
