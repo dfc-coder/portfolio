@@ -31,7 +31,7 @@ class ControlledEmbeddings:
         return True
 
 
-def test_profile_index_is_generated_from_structured_profile(
+def test_profile_index_is_generated_as_natural_language_chunks(
     profile: BusinessProfile,
 ) -> None:
     index = ProfileDocumentIndex(
@@ -43,22 +43,23 @@ def test_profile_index_is_generated_from_structured_profile(
     assert "owner" in ids
     assert "positioning" in ids
     assert "skills.programming_languages" in ids
-    assert "representative.capabilities" in ids
+    assert "representative.capabilities" not in ids
     assert any(value.startswith("experience.") for value in ids)
     assert any(value.startswith("professional_experience.") for value in ids)
     assert any(value.startswith("projects.") for value in ids)
-    assert not any(value.startswith("faq.") for value in ids)
+    assert any(value.startswith("faq.") for value in ids)
+    assert all(not document.text.lstrip().startswith("{") for document in index.documents)
 
 
 @pytest.mark.asyncio
 async def test_experience_query_is_driven_by_profile_documents(
     profile: BusinessProfile,
 ) -> None:
-    embeddings = ControlledEmbeddings(target="professional_experience")
+    embeddings = ControlledEmbeddings(target="Professional experience.")
     retriever = ProfileRetriever(
         ProfileDocumentIndex(profile),
         embeddings,
-        min_score=0.50,
+        min_score=0.25,
         max_documents=2,
     )
 
@@ -82,7 +83,7 @@ async def test_irrelevant_query_returns_no_portfolio_context(
     retriever = ProfileRetriever(
         ProfileDocumentIndex(profile),
         embeddings,
-        min_score=0.50,
+        min_score=0.25,
     )
 
     result = await retriever.search("¿Qué hora es?")
@@ -100,7 +101,7 @@ async def test_profile_vectors_are_computed_once(
     retriever = ProfileRetriever(
         ProfileDocumentIndex(profile),
         embeddings,
-        min_score=0.50,
+        min_score=0.25,
     )
 
     await retriever.search("PocketTrace")
