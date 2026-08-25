@@ -102,6 +102,11 @@ class SemanticRouter:
         self._route_vectors: dict[str, list[float]] = {}
         self._index_lock = asyncio.Lock()
 
+    async def warm(self) -> None:
+        await self._ensure_route_vectors(
+            _NEW_ROUTES + _ACTIVE_SCHEDULING_ROUTES + _FALLBACK_ROUTES
+        )
+
     async def route(self, state: SessionState, user_message: str) -> RoutingDecision:
         routes = (
             _ACTIVE_SCHEDULING_ROUTES
