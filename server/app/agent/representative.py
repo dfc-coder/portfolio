@@ -34,6 +34,12 @@ class BusinessRepresentative:
         self._trace_recorder = trace_recorder
         self._trace_tasks: set[asyncio.Task[None]] = set()
 
+    async def warm(self) -> None:
+        await asyncio.gather(
+            self._router.warm(),
+            self._responder.warm(),
+        )
+
     async def respond(self, session_id: str, user_message: str) -> AsyncIterator[str]:
         trace: TurnTrace | None = (
             self._trace_recorder.start_turn(session_id, user_message)
@@ -109,8 +115,6 @@ class BusinessRepresentative:
             if trace is not None and self._trace_recorder is not None:
                 if trace.status == "running":
                     trace.finish(output={"response": "".join(response_chunks)})
-                # Observability must not add response latency. Keep a strong reference
-                # until the fail-open export finishes.
                 task = asyncio.create_task(self._trace_recorder.flush(trace))
                 self._trace_tasks.add(task)
                 task.add_done_callback(self._trace_tasks.discard)
