@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from app.agent.scheduler import SchedulerReply, SchedulerReplyKind, SlotOption
+from app.scheduling.result import SchedulerReply, SchedulerReplyKind, SlotOption
 
 _SPANISH_WEEKDAYS = (
     "lunes",
