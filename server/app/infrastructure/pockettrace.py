@@ -38,11 +38,10 @@ class TraceSpan:
     error: dict[str, Any] | None = None
 
     def as_snapshot(self, trace_id: str) -> dict[str, Any]:
-        return _without_none(
+        payload = _without_none(
             {
                 "id": self.span_id,
                 "trace_id": trace_id,
-                "parent_span_id": None,
                 "name": self.name,
                 "duration_ms": self.duration_ms,
                 "status": self.status,
@@ -52,6 +51,9 @@ class TraceSpan:
                 "error": self.error,
             }
         )
+        # PocketTrace requires root spans to carry an explicit null parent.
+        payload["parent_span_id"] = None
+        return payload
 
 
 @dataclass
