@@ -7,22 +7,22 @@ A portfolio visitor interacts with a concise server-side representative that can
 ## Feature: business conversation
 
 ### Scenario: answer a portfolio question with real streaming
-Given the server-side model is ready
+Given the server-side model and embedding service are ready
 When the visitor asks about Diego's experience, projects, technologies or services
-Then the turn is routed to business/general knowledge
+Then the turn is routed semantically
+And relevant business-profile facts are retrieved from cached embeddings
 And the answer is streamed while the model generates it
 And owner-specific claims use only the configured business profile
 And no Calendar side effect is executed
 
 ### Scenario: describe real agent tools
-Given the scheduler can check availability and create a confirmed meeting
+Given the scheduler can check availability and prepare a meeting
 When the visitor asks "¿Podés usar herramientas?"
 Then the representative describes those enabled capabilities
-And it does not claim that it is unable to use tools
 And it does not claim that an action already happened
 
 ### Scenario: unknown owner-specific fact
-Given the requested fact is absent from the business profile
+Given the requested fact is absent from the supplied business context
 When the representative answers
 Then it abstains rather than inventing the fact
 
@@ -46,7 +46,6 @@ Given scheduling memory contains offered slots S1, S2 and S3
 When the visitor says "el segundo"
 Then S2 may be selected
 And an unoffered slot cannot be selected
-And the visitor does not need to repeat scheduling keywords
 
 ### Scenario: interruption preserves meeting data
 Given an active scheduling task contains dates or slots
@@ -70,24 +69,24 @@ And visitor name, valid email and subject are known
 When the scheduler has enough information
 Then a pending booking is prepared
 And no Calendar event is created
-And explicit confirmation is requested
+And an explicit approval action is shown in the interface
 
-### Scenario: ambiguous agreement is not confirmation
+### Scenario: chat confirmation cannot authorize a write
 Given a pending booking exists
-When the visitor says "Tuesday could work"
-Then no Calendar write occurs
-And the pending booking remains available
+When the visitor writes "sí, confirmo" or another free-form agreement
+Then no Calendar write occurs from that text alone
+And the pending booking remains available for explicit UI approval
 
-### Scenario: explicit confirmation creates one event
+### Scenario: explicit UI approval creates one event
 Given a valid pending booking exists
-When the visitor explicitly confirms using a phrase accepted by confirmation policy
+When the visitor approves that booking through the explicit interface action
 Then exactly one Calendar write is attempted
 And success is reported only after Calendar accepts the write
-And the active scheduling task is cleared after success
+And repeated approval is idempotent
 
 ### Scenario: Calendar write fails
 Given a valid pending booking exists
-When explicit confirmation is accepted
+When explicit UI approval is submitted
 And Calendar returns an error
 Then the representative reports failure
 And does not claim that the meeting was created
@@ -96,7 +95,7 @@ And the pending booking remains available for retry
 ## Feature: streaming safety
 
 ### Scenario: capability statement is allowed
-When the model says it can schedule a meeting after explicit confirmation
+When the model says it can prepare a meeting for approval
 Then the stream guard allows the statement
 
 ### Scenario: unverified completion claim is blocked
@@ -109,4 +108,4 @@ Then the stream guard blocks that claim before it crosses SSE
 Given the portfolio frontend is loaded
 When the visitor uses the representative
 Then only the web application is downloaded
-And Qwen3.5-0.8B and Qwen3-Reranker-0.6B remain server-side
+And the conversational Qwen model and Qwen3-Embedding-0.6B remain server-side

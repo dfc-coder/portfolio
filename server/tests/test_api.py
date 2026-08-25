@@ -3,7 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import AsyncIterator
 
-from fastapi.testclient import TestClient
+import httpx
+import pytest
 
 from app.infrastructure.config.settings import Settings
 from app.main import create_app
@@ -17,8 +18,16 @@ class FakeAgent:
         yield " from server"
 
 
-def test_sse_contract_streams_tokens() -> None:
-    settings = Settings(
+class WarmAgent(FakeAgent):
+    def __init__(self) -> None:
+        self.warm_calls = 0
+
+    async def warm(self) -> None:
+        self.warm_calls += 1
+
+
+def test_settings() -> Settings:
+    return Settings(
         profile_path=Path("unused.json"),
         llama_base_url="http://llama:8080",
         llama_model="test",
@@ -32,10 +41,28 @@ def test_sse_contract_streams_tokens() -> None:
         google_client_secret=None,
         google_refresh_token=None,
     )
-    app = create_app(settings, agent=FakeAgent())  # type: ignore[arg-type]
 
-    with TestClient(app) as client:
-        response = client.post(
+
+@pytest.mark.asyncio
+async def test_lifespan_warms_semantic_indexes_before_serving() -> None:
+    agent = WarmAgent()
+    app = create_app(test_settings(), agent=agent)  # type: ignore[arg-type]
+
+    assert agent.warm_calls == 0
+    async with app.router.lifespan_context(app):
+        assert agent.warm_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_sse_contract_streams_tokens() -> None:
+    app = create_app(test_settings(), agent=FakeAgent())  # type: ignore[arg-type]
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
             "/v1/chat/stream",
             json={"session_id": "browser-session-123", "message": "Hello"},
         )

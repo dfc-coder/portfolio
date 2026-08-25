@@ -46,6 +46,18 @@ class CapabilityAwareLlm:
         return True
 
 
+class FakeEmbeddings:
+    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [[1.0, 0.0] for _ in texts]
+
+    async def embed_query(self, text: str) -> list[float]:
+        del text
+        return [1.0, 0.0]
+
+    async def health(self) -> bool:
+        return True
+
+
 @pytest.mark.asyncio
 async def test_false_scheduling_route_falls_back_to_business_and_preserves_workflow(profile: BusinessProfile) -> None:
     policy = SchedulingPolicy(profile.scheduling)
@@ -60,6 +72,7 @@ async def test_false_scheduling_route_falls_back_to_business_and_preserves_workf
         policy,
         GenerationConfig(temperature=0.65, max_tokens=180),
         ("Check calendar availability.", "Create a meeting after explicit confirmation."),
+        FakeEmbeddings(),
     )
     agent = BusinessRepresentative(
         sessions,
