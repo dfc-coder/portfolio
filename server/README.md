@@ -39,14 +39,14 @@ cached route embeddings + cosine similarity
 
 The semantic path intentionally has no cross-encoder reranker, LLM routing judge, topic regex whitelist, vector database, generic tool selector or ReAct loop.
 
-Static semantic data is embedded once in memory:
+Static semantic data is embedded once during FastAPI startup:
 
 ```text
 route descriptions  -> embedding vectors, cached
 business profile    -> document vectors, cached
 ```
 
-Each visitor turn requires only a query embedding plus cosine similarity over the cached vectors. This is the standard dense semantic-search pattern: encode the corpus once, encode each query, rank by vector similarity and take the top results.
+The application does not finish startup until those vectors are ready. Each visitor turn then requires only a query embedding plus cosine similarity over the cached vectors.
 
 `server/app/agent` contains:
 
@@ -70,9 +70,9 @@ A business/general interruption does not clear scheduling memory, so the visitor
 
 ## Routing and retrieval
 
-`SemanticRouter` compares the latest visitor turn with three cached semantic route descriptions. During an active meeting task the descriptions become scheduling continuation versus business/general interruption.
+`SemanticRouter` compares the latest visitor turn with cached semantic route descriptions. During an active meeting task the descriptions become scheduling continuation versus business/general interruption.
 
-Business questions use the same embedding service against the structured business profile. Profile documents are embedded on the first business retrieval and reused for the process lifetime. The query is compared locally with cosine similarity and only the top documents that fit the context budget are sent to the conversational model.
+Business questions use the same embedding service against the structured business profile. Profile document embeddings are computed during startup and reused for the process lifetime. The query is compared locally with cosine similarity and only the top documents that fit the context budget are sent to the conversational model.
 
 No profile document is pairwise reranked by another language model on every turn.
 
@@ -80,7 +80,25 @@ No profile document is pairwise reranked by another language model on every turn
 
 Business/general answers use llama.cpp streaming end-to-end. `StreamGuard` keeps a small rolling holdback and blocks narrow operational claims such as owner impersonation or claiming an external action completed when it was not verified.
 
-PocketTrace can optionally record router, profile retrieval, context assembly, generation and guard spans without becoming a functional dependency of the agent.
+## Optional PocketTrace observability
+
+PocketTrace is strictly optional and never becomes a functional dependency of the agent.
+
+```env
+POCKETTRACE_ENABLED=false
+```
+
+With `POCKETTRACE_ENABLED=false` (the default), `PocketTraceRecorder` is not instantiated: the agent does not create trace snapshots and does not make HTTP calls to PocketTrace.
+
+Enable it explicitly for local development when trace-level diagnostics are needed:
+
+```env
+POCKETTRACE_ENABLED=true
+POCKETTRACE_URL=http://host.containers.internal:4319
+POCKETTRACE_TIMEOUT_SECONDS=1.0
+```
+
+This can remain `false` in production or in any environment where trace payload capture is not desired.
 
 ## Required models
 
