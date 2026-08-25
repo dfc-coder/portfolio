@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from dataclasses import dataclass
 
 from app.domain.profile import BusinessProfile
@@ -34,88 +33,158 @@ class KnowledgeSearch:
 
 
 class ProfileDocumentIndex:
-    """Static portfolio knowledge transformed into retrievable documents."""
+    """Static portfolio knowledge transformed into natural-language retrieval chunks."""
 
     def __init__(
         self,
         profile: BusinessProfile,
         capabilities: tuple[str, ...] = (),
     ) -> None:
-        self.documents = tuple(self._build(profile, capabilities))
+        # Operational capabilities are deliberately not indexed as portfolio knowledge.
+        # Tool/scheduling admission happens before RAG, matching production assistants
+        # that keep agent/tool dispatch separate from document retrieval.
+        del capabilities
+        self.documents = tuple(self._build(profile))
+
+    @staticmethod
+    def _text(*parts: object) -> str:
+        return " ".join(str(part).strip() for part in parts if part).strip()
 
     @classmethod
-    def _build(
-        cls,
-        profile: BusinessProfile,
-        capabilities: tuple[str, ...],
-    ) -> list[ProfileDocument]:
+    def _build(cls, profile: BusinessProfile) -> list[ProfileDocument]:
         documents: list[ProfileDocument] = []
 
-        def add(document_id: str, payload: object) -> None:
-            documents.append(
-                ProfileDocument(
-                    document_id=document_id,
-                    text=json.dumps(payload, ensure_ascii=False),
-                )
-            )
+        def add(document_id: str, *parts: object) -> None:
+            text = cls._text(*parts)
+            if text:
+                documents.append(ProfileDocument(document_id=document_id, text=text))
 
-        add("owner", {"owner": profile.owner.model_dump()})
-        add("positioning", {"positioning": profile.positioning.model_dump()})
+        owner = profile.owner
+        add(
+            "owner",
+            f"Portfolio owner: {owner.name}.",
+            f"Professional headline: {owner.headline}.",
+            f"Location: {owner.location}." if owner.location else None,
+            f"Email: {owner.email}." if owner.email else None,
+            f"GitHub: {owner.github}." if owner.github else None,
+            f"Portfolio: {owner.portfolio}." if owner.portfolio else None,
+        )
+
+        positioning = profile.positioning
+        add(
+            "positioning",
+            f"Professional summary: {positioning.summary}",
+            (
+                "Differentiators: " + "; ".join(positioning.differentiators)
+                if positioning.differentiators
+                else None
+            ),
+        )
 
         for index, item in enumerate(profile.experience):
-            add(f"experience.{index}", {"experience": item.model_dump()})
+            add(
+                f"experience.{index}",
+                f"Experience area: {item.name}.",
+                item.summary,
+            )
+
         for index, item in enumerate(profile.professional_experience):
             add(
                 f"professional_experience.{index}",
-                {"professional_experience": item.model_dump()},
+                "Professional experience.",
+                f"Role: {item.title}.",
+                f"Company: {item.company}.",
+                f"Period: {item.period}.",
+                (
+                    "Highlights: " + "; ".join(item.highlights)
+                    if item.highlights
+                    else None
+                ),
             )
 
         for field_name, values in profile.skills.model_dump().items():
             if values:
-                add(f"skills.{field_name}", {"skills": {field_name: values}})
+                label = field_name.replace("_", " ")
+                add(
+                    f"skills.{field_name}",
+                    f"Professional skills ({label}): {', '.join(values)}.",
+                )
 
         for index, item in enumerate(profile.services):
-            add(f"services.{index}", {"service": item.model_dump()})
+            add(
+                f"services.{index}",
+                f"Professional service: {item.name}.",
+                item.description,
+            )
+
         for index, item in enumerate(profile.projects):
-            add(f"projects.{index}", {"project": item.model_dump()})
+            add(
+                f"projects.{index}",
+                f"Portfolio project: {item.name}.",
+                item.summary,
+                f"Stack: {', '.join(item.stack)}." if item.stack else None,
+                f"Outcome: {item.outcome}." if item.outcome else None,
+                f"Source: {item.source_url}." if item.source_url else None,
+            )
+
         for index, item in enumerate(profile.education):
-            add(f"education.{index}", {"education": item.model_dump()})
+            add(
+                f"education.{index}",
+                f"Education: {item.program} at {item.institution}.",
+                f"Period: {item.period}." if item.period else None,
+                f"Status: {item.status}." if item.status else None,
+            )
+
         for index, item in enumerate(profile.certifications):
-            add(f"certifications.{index}", {"certification": item.model_dump()})
+            add(f"certifications.{index}", f"Certification: {item.name}.")
+
         for index, item in enumerate(profile.languages):
-            add(f"languages.{index}", {"language": item.model_dump()})
+            add(
+                f"languages.{index}",
+                f"Language: {item.language}. Level: {item.level}.",
+            )
 
         business = profile.business
         if business.collaboration_modes:
             add(
                 "business.collaboration_modes",
-                {"collaboration_modes": business.collaboration_modes},
+                "Collaboration modes: " + ", ".join(business.collaboration_modes) + ".",
             )
         if business.project_types:
-            add("business.project_types", {"project_types": business.project_types})
+            add(
+                "business.project_types",
+                "Project types: " + ", ".join(business.project_types) + ".",
+            )
         if business.geographic_scope:
             add(
                 "business.geographic_scope",
-                {"geographic_scope": business.geographic_scope},
+                "Geographic scope: " + ", ".join(business.geographic_scope) + ".",
             )
         if business.boundaries:
-            add("business.boundaries", {"boundaries": business.boundaries})
+            add(
+                "business.boundaries",
+                "Business boundaries: " + "; ".join(business.boundaries),
+            )
 
-        if capabilities:
-            add("representative.capabilities", {"capabilities": list(capabilities)})
+        for index, item in enumerate(profile.faq):
+            add(
+                f"faq.{index}",
+                f"Question: {item.question}",
+                f"Answer: {item.answer}",
+            )
 
         return documents
 
 
 class ProfileRetriever:
-    """Dense relevance gate: cached portfolio vectors + one query embedding."""
+    """Dense retrieval over cached portfolio vectors using one query embedding."""
 
     def __init__(
         self,
         index: ProfileDocumentIndex,
         embeddings: EmbeddingPort,
         *,
-        min_score: float = 0.50,
+        min_score: float = 0.25,
         max_chars: int = 4000,
         max_documents: int = 4,
     ) -> None:
