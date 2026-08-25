@@ -61,6 +61,7 @@ async function* streamBusinessAgent(
     body: JSON.stringify({
       session_id: SESSION_ID,
       message: question,
+      locale: navigator.language || "en",
     }),
   });
 
