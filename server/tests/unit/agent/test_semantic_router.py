@@ -1,93 +1,64 @@
 from __future__ import annotations
 
-import json
-from typing import Any
+import math
 
 import pytest
-from pydantic import BaseModel
 
-from app.agent.router import RouteChoice, SemanticRouter
+from app.agent.router import SemanticRouter
 from app.domain.conversation import ActiveWorkflow, ChatTurn, SessionState
 from app.domain.routing import RouteDomain, RouteRelation
-from app.ports.llm import GenerationConfig
 
 
-class FixedReranker:
+class FixedEmbeddings:
     def __init__(self, scores: list[float]) -> None:
         self.scores = scores
         self.documents: list[str] = []
         self.query = ""
 
-    async def rerank(self, query: str, documents: list[str]) -> list[float]:
-        assert "VISITOR:" in query
-        self.query = query
-        self.documents = documents
-        return self.scores[: len(documents)]
+    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        self.documents = texts
+        return [self._vector(score) for score in self.scores[: len(texts)]]
+
+    async def embed_query(self, text: str) -> list[float]:
+        self.query = text
+        return [1.0, 0.0]
 
     async def health(self) -> bool:
         return True
 
-
-class JudgeLlm:
-    def __init__(self, route_key: str) -> None:
-        self.route_key = route_key
-        self.calls = 0
-
-    async def complete(
-        self,
-        messages: list[dict[str, Any]],
-        config: GenerationConfig,
-        response_schema: type[BaseModel] | None = None,
-    ) -> str:
-        del messages, config
-        self.calls += 1
-        assert response_schema is RouteChoice
-        return json.dumps({"route_key": self.route_key})
-
-    async def stream(self, messages, config):  # type: ignore[no-untyped-def]
-        del messages, config
-        if False:
-            yield ""
-
-    async def health(self) -> bool:
-        return True
+    @staticmethod
+    def _vector(score: float) -> list[float]:
+        bounded = max(-1.0, min(1.0, score))
+        return [bounded, math.sqrt(max(0.0, 1.0 - bounded * bounded))]
 
 
 @pytest.mark.asyncio
-async def test_high_margin_reranker_routes_without_llm_judge() -> None:
-    router = SemanticRouter(
-        FixedReranker([0.92, 0.10, 0.05]),
-        JudgeLlm("general"),
-        GenerationConfig(temperature=0.05, max_tokens=48),
-    )
+async def test_embedding_router_selects_highest_business_similarity() -> None:
+    embeddings = FixedEmbeddings([0.92, 0.10, 0.05])
+    router = SemanticRouter(embeddings)
+
     decision = await router.route(SessionState("s1"), "¿Cuánto cobra Diego por hora?")
+
     assert decision.domain == RouteDomain.BUSINESS
     assert decision.relation == RouteRelation.NEW
-    assert decision.source == "reranker"
+    assert decision.source == "embedding"
 
 
 @pytest.mark.asyncio
-async def test_ambiguous_scores_escalate_to_llm_judge() -> None:
-    llm = JudgeLlm("scheduling")
-    router = SemanticRouter(
-        FixedReranker([0.51, 0.50, 0.10]),
-        llm,
-        GenerationConfig(temperature=0.05, max_tokens=48),
-    )
+async def test_embedding_router_selects_scheduling_without_llm_judge() -> None:
+    embeddings = FixedEmbeddings([0.50, 0.91, 0.10])
+    router = SemanticRouter(embeddings)
+
     decision = await router.route(SessionState("s2"), "¿A qué hora podemos hablar?")
+
     assert decision.domain == RouteDomain.SCHEDULING
-    assert decision.source == "llm_judge"
-    assert llm.calls == 1
+    assert decision.source == "embedding"
 
 
 @pytest.mark.asyncio
-async def test_new_turn_routing_does_not_include_previous_assistant_text() -> None:
-    reranker = FixedReranker([0.90, 0.05, 0.02])
-    router = SemanticRouter(
-        reranker,
-        JudgeLlm("general"),
-        GenerationConfig(temperature=0.05, max_tokens=48),
-    )
+async def test_new_turn_routing_uses_latest_visitor_text_only() -> None:
+    embeddings = FixedEmbeddings([0.90, 0.05, 0.02])
+    router = SemanticRouter(embeddings)
     state = SessionState("s-capabilities")
     state.turns = [
         ChatTurn(
@@ -99,19 +70,15 @@ async def test_new_turn_routing_does_not_include_previous_assistant_text() -> No
     decision = await router.route(state, "¿Qué podés hacer?")
 
     assert decision.domain == RouteDomain.BUSINESS
-    assert reranker.query == "VISITOR: ¿Qué podés hacer?"
-    assert "LAST_ASSISTANT" not in reranker.query
-    assert "CURRENT_FOCUS" not in reranker.query
+    assert embeddings.query == "¿Qué podés hacer?"
+    assert "LAST_ASSISTANT" not in embeddings.query
+    assert "CURRENT_FOCUS" not in embeddings.query
 
 
 @pytest.mark.asyncio
-async def test_active_scheduling_routes_latest_turn_without_workflow_state_in_query() -> None:
-    reranker = FixedReranker([0.05, 0.90, 0.02])
-    router = SemanticRouter(
-        reranker,
-        JudgeLlm("general_interrupt"),
-        GenerationConfig(temperature=0.05, max_tokens=48),
-    )
+async def test_active_scheduling_routes_latest_turn_without_workflow_text_in_query() -> None:
+    embeddings = FixedEmbeddings([0.05, 0.90, 0.02])
+    router = SemanticRouter(embeddings)
     state = SessionState("s-workflow")
     state.active_workflow = ActiveWorkflow.SCHEDULING
     state.scheduling.visitor_name = "Ana"
@@ -125,20 +92,17 @@ async def test_active_scheduling_routes_latest_turn_without_workflow_state_in_qu
     decision = await router.route(state, "Mi email es ana@example.com")
 
     assert decision.domain == RouteDomain.SCHEDULING
-    assert reranker.query == "VISITOR: Mi email es ana@example.com"
-    assert "ACTIVE_WORKFLOW" not in reranker.query
-    assert "SCHEDULING_FACTS" not in reranker.query
-    assert "visitor_name" not in reranker.query
-    assert "Tell me which meeting slot" not in reranker.query
+    assert embeddings.query == "Mi email es ana@example.com"
+    assert "ACTIVE_WORKFLOW" not in embeddings.query
+    assert "SCHEDULING_FACTS" not in embeddings.query
+    assert "visitor_name" not in embeddings.query
+    assert "Tell me which meeting slot" not in embeddings.query
 
 
 @pytest.mark.asyncio
 async def test_active_scheduling_business_interrupt_preserves_memory() -> None:
-    router = SemanticRouter(
-        FixedReranker([0.95, 0.08, 0.04]),
-        JudgeLlm("general_interrupt"),
-        GenerationConfig(temperature=0.05, max_tokens=48),
-    )
+    embeddings = FixedEmbeddings([0.95, 0.08, 0.04])
+    router = SemanticRouter(embeddings)
     state = SessionState("s3")
     state.active_workflow = ActiveWorkflow.SCHEDULING
     state.scheduling.visitor_name = "Ana"
@@ -152,19 +116,14 @@ async def test_active_scheduling_business_interrupt_preserves_memory() -> None:
 
 
 @pytest.mark.asyncio
-async def test_active_scheduling_rust_experience_question_bypasses_bad_reranker_score() -> None:
-    reranker = FixedReranker([0.01, 0.99, 0.00])
-    router = SemanticRouter(
-        reranker,
-        JudgeLlm("scheduling_continue"),
-        GenerationConfig(temperature=0.0, max_tokens=32),
-    )
-    state = SessionState("s-rust")
-    state.active_workflow = ActiveWorkflow.SCHEDULING
+async def test_route_document_embeddings_are_cached() -> None:
+    embeddings = FixedEmbeddings([0.95, 0.08, 0.04])
+    router = SemanticRouter(embeddings)
+    state = SessionState("s-cache")
 
-    decision = await router.route(state, "Diego tiene experiencia con rust?")
+    await router.route(state, "Diego tiene experiencia con Rust?")
+    first_documents = list(embeddings.documents)
+    await router.route(state, "¿Qué proyectos tiene?")
 
-    assert decision.domain == RouteDomain.BUSINESS
-    assert decision.relation == RouteRelation.INTERRUPT
-    assert decision.source == "explicit_business_boundary"
-    assert reranker.query == ""
+    assert len(first_documents) == 3
+    assert len(embeddings.documents) == 3
