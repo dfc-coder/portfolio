@@ -32,9 +32,13 @@ def test_stream_guard_allows_capability_description() -> None:
 
 
 def test_stream_guard_allows_owner_identity_disclaimer() -> None:
-    guard = StreamGuard()
-    text = "Hola. No soy Diego; soy su representante conversacional."
-    assert guard.feed(text) + guard.finish() == text
+    guard = StreamGuard(holdback_chars=24)
+    chunks = ["Hola. No ", "soy Diego; soy su representante conversacional."]
+
+    emitted = [guard.feed(chunk) for chunk in chunks]
+    emitted.append(guard.finish())
+
+    assert "".join(emitted) == "".join(chunks)
 
 
 def test_stream_guard_allows_english_owner_identity_disclaimer() -> None:
