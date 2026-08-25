@@ -3,14 +3,19 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
 from app.domain.conversation import ChatTurn, SessionState
 from app.domain.profile import BusinessProfile
 from app.domain.routing import RouteDomain
 from app.ports.reranker import RerankerPort
+
+if TYPE_CHECKING:
+    from app.infrastructure.pockettrace import TurnTrace
 
 logger = logging.getLogger(__name__)
 _WORD_RE = re.compile(r"\w+", re.UNICODE)
@@ -220,10 +225,33 @@ class ContextAssembler:
             f"OWNER_POLICY:\n{policy}"
         )
 
-    async def build(self, state: SessionState) -> AgentContext:
+    async def build(
+        self,
+        state: SessionState,
+        trace: TurnTrace | None = None,
+    ) -> AgentContext:
+        started = time.perf_counter()
         retrieved: tuple[RetrievedDocument, ...] = ()
         if state.current_focus == RouteDomain.BUSINESS:
-            retrieved = await self._retriever.search(self._retrieval_query(state))
+            query = self._retrieval_query(state)
+            retrieval_started = time.perf_counter()
+            retrieved = await self._retriever.search(query)
+            if trace is not None:
+                trace.add_span(
+                    "profile_retrieval",
+                    (time.perf_counter() - retrieval_started) * 1000,
+                    input={"query": query},
+                    output={
+                        "documents": [
+                            {
+                                "id": item.document.document_id,
+                                "score": round(item.score, 6),
+                                "content": item.document.text,
+                            }
+                            for item in retrieved
+                        ]
+                    },
+                )
 
         dynamic_parts = [self._runtime_state(state)]
         if state.current_focus == RouteDomain.BUSINESS:
@@ -242,6 +270,20 @@ class ContextAssembler:
             knowledge_chars,
             len(history),
         )
+        if trace is not None:
+            trace.add_span(
+                "context_assembler",
+                (time.perf_counter() - started) * 1000,
+                input={
+                    "focus": state.current_focus.value,
+                    "available_history_turns": len(state.turns),
+                },
+                output={
+                    "selected_documents": list(document_ids),
+                    "knowledge_chars": knowledge_chars,
+                    "history_turns": len(history),
+                },
+            )
         return AgentContext(
             system_prompt=system_prompt,
             history=history,
