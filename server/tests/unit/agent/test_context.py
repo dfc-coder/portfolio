@@ -59,7 +59,7 @@ def test_profile_index_is_generated_from_structured_profile(profile: BusinessPro
 
 
 @pytest.mark.asyncio
-async def test_general_context_does_not_retrieve_business_profile(
+async def test_general_context_does_not_retrieve_or_expose_business_identity(
     profile: BusinessProfile,
 ) -> None:
     embeddings = RecordingEmbeddings(target="PocketTrace")
@@ -74,6 +74,12 @@ async def test_general_context_does_not_retrieve_business_profile(
     assert embeddings.query_calls == []
     assert context.document_ids == ()
     assert "\nRELEVANT_KNOWLEDGE:\n" not in context.system_prompt
+    assert profile.owner.name not in context.system_prompt
+    assert profile.representative.disclosure not in context.system_prompt
+    assert "PORTFOLIO_SUBJECT=" not in context.system_prompt
+    assert "AGENT_CAPABILITIES:" not in context.system_prompt
+    assert "OWNER_POLICY:" not in context.system_prompt
+    assert "website assistant speaking with a visitor" in context.system_prompt
     assert context.history[-1].content == "Hola"
 
 
@@ -98,6 +104,8 @@ async def test_business_context_contains_top_dense_retrieval_document(
     assert len(embeddings.query_calls) == 1
     assert len(context.document_ids) == 1
     assert context.document_ids[0].startswith("projects.")
+    assert f"PORTFOLIO_SUBJECT={profile.owner.name}" in context.system_prompt
+    assert "PORTFOLIO_SUBJECT is the professional being discussed, not you and not the visitor" in context.system_prompt
     assert "PocketTrace" in context.system_prompt
     assert "Xarlatan" not in context.system_prompt
     assert "System-G" not in context.system_prompt
