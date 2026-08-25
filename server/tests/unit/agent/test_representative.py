@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import pytest
 
 from app.agent.representative import BusinessRepresentative
 from app.agent.responder import Responder
-from app.agent.scheduler import SchedulerReply
+from app.agent.scheduler import SchedulerReply, SchedulerReplyKind, SlotOption
 from app.domain.conversation import ActiveWorkflow
 from app.domain.profile import BusinessProfile
 from app.domain.routing import RouteDomain
 from app.infrastructure.sessions.memory import MemorySessionStore
 from app.ports.llm import GenerationConfig
+from app.scheduling.presenter import SchedulingPresenter
 
 
 class NotApplicableScheduler:
@@ -19,7 +23,10 @@ class NotApplicableScheduler:
     async def handle(self, state, user_message, relation):  # type: ignore[no-untyped-def]
         del state, user_message, relation
         self.calls += 1
-        return SchedulerReply(not_applicable=True)
+        return SchedulerReply(
+            kind=SchedulerReplyKind.NOT_APPLICABLE,
+            not_applicable=True,
+        )
 
 
 class AvailableScheduler:
@@ -30,12 +37,21 @@ class AvailableScheduler:
         del user_message, relation
         self.calls += 1
         state.active_workflow = ActiveWorkflow.SCHEDULING
+        tz = ZoneInfo("America/Argentina/Buenos_Aires")
         return SchedulerReply(
-            text=(
-                "Estos son los próximos horarios disponibles:\n"
-                "- S1: miércoles 26/08 a las 09:00\n"
-                "- S2: miércoles 26/08 a las 09:30"
-            )
+            kind=SchedulerReplyKind.SLOTS,
+            slots=[
+                SlotOption(
+                    slot_id="S1",
+                    start=datetime(2026, 8, 26, 9, 0, tzinfo=tz),
+                    end=datetime(2026, 8, 26, 9, 30, tzinfo=tz),
+                ),
+                SlotOption(
+                    slot_id="S2",
+                    start=datetime(2026, 8, 26, 9, 30, tzinfo=tz),
+                    end=datetime(2026, 8, 26, 10, 0, tzinfo=tz),
+                ),
+            ],
         )
 
 
@@ -71,6 +87,10 @@ class ExperienceEmbeddings:
         return True
 
 
+def presenter(profile: BusinessProfile) -> SchedulingPresenter:
+    return SchedulingPresenter(profile.scheduling.timezone)
+
+
 @pytest.mark.asyncio
 async def test_business_question_uses_profile_retrieval_without_intent_router(
     profile: BusinessProfile,
@@ -88,6 +108,7 @@ async def test_business_question_uses_profile_retrieval_without_intent_router(
     agent = BusinessRepresentative(
         sessions,
         scheduler,  # type: ignore[arg-type]
+        presenter(profile),
         responder,
     )
 
@@ -97,6 +118,7 @@ async def test_business_question_uses_profile_retrieval_without_intent_router(
             async for chunk in agent.respond(
                 "session-experience",
                 "Quiero información sobre la experiencia de Diego",
+                "es-AR",
             )
         ]
     )
@@ -125,6 +147,7 @@ async def test_bare_availability_question_returns_slots_from_scheduler(
     agent = BusinessRepresentative(
         sessions,
         scheduler,  # type: ignore[arg-type]
+        presenter(profile),
         responder,
     )
 
@@ -134,6 +157,7 @@ async def test_bare_availability_question_returns_slots_from_scheduler(
             async for chunk in agent.respond(
                 "session-availability",
                 "sobre tu disponibilidad?",
+                "es-AR",
             )
         ]
     )
@@ -167,6 +191,7 @@ async def test_business_interrupt_preserves_active_scheduling_state(
     agent = BusinessRepresentative(
         sessions,
         scheduler,  # type: ignore[arg-type]
+        presenter(profile),
         responder,
     )
 
@@ -176,6 +201,7 @@ async def test_business_interrupt_preserves_active_scheduling_state(
             async for chunk in agent.respond(
                 "session-active",
                 "Antes, contame sobre la experiencia de Diego",
+                "es-AR",
             )
         ]
     )
