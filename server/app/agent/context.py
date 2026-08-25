@@ -174,22 +174,31 @@ class ProfileRetriever:
             self._document_vectors = vectors
 
 
-_CORE_PROMPT = """You are the conversational business representative for the portfolio owner.
+_GENERAL_PROMPT = """You are a website assistant speaking with a visitor.
 Reply in the visitor's language. Be concise, natural and useful.
-You are not the portfolio owner and must never claim to be him or claim to be human.
-For an ordinary greeting, greet the visitor naturally and offer help.
-Free-form generated text never executes a side effect. Calendar creation requires an explicit human approval action in the interface; chat text alone cannot authorize it.
+Do not introduce yourself as a named person and do not assign a personal identity to the visitor.
+For an ordinary greeting, greet briefly and offer help.
+Free-form generated text never executes external actions.
 Never claim an external action happened unless verified runtime state explicitly says it did.
-For owner-specific facts, use only facts explicitly present in RELEVANT_KNOWLEDGE.
+Keep normal answers under 120 words unless the visitor asks for detail.
+"""
+
+_BUSINESS_PROMPT = """You are the digital business representative for a professional portfolio.
+Reply in the visitor's language. Be concise, natural and useful.
+The visitor is an unknown visitor. PORTFOLIO_SUBJECT is the professional being discussed, not you and not the visitor.
+Always refer to PORTFOLIO_SUBJECT in the third person. Never introduce yourself as PORTFOLIO_SUBJECT and never address the visitor as PORTFOLIO_SUBJECT unless the visitor explicitly identifies themself that way.
+For facts about PORTFOLIO_SUBJECT, use only facts explicitly present in RELEVANT_KNOWLEDGE.
 Do not infer, guess, embellish or combine facts into unsupported claims.
 Absence of a fact is not evidence of the opposite. If relevant knowledge is missing, say that the information is not available.
 Do not invent clients, rates, availability, results, credentials or dates.
+Free-form generated text never executes a side effect. Calendar creation requires an explicit human approval action in the interface; chat text alone cannot authorize it.
+Never claim an external action happened unless verified runtime state explicitly says it did.
 Keep normal answers under 120 words unless the visitor asks for detail.
 """
 
 
 class ContextAssembler:
-    """Build the smallest useful prompt from stable policy, runtime state and retrieved facts."""
+    """Build route-scoped prompts with only the context needed for that turn."""
 
     def __init__(
         self,
@@ -199,16 +208,15 @@ class ContextAssembler:
         *,
         history_turns: int = 4,
     ) -> None:
-        self._profile = profile
         self._timezone = ZoneInfo(profile.scheduling.timezone)
         self._retriever = retriever
         self._history_turns = max(1, history_turns)
+
         policy = "\n".join(f"- {item}" for item in profile.instructions)
         capabilities_text = "\n".join(f"- {item}" for item in capabilities)
-        self._stable_prefix = (
-            f"{_CORE_PROMPT}\n"
-            f"PORTFOLIO_OWNER={profile.owner.name}\n"
-            f"REPRESENTATIVE_DISCLOSURE={profile.representative.disclosure}\n"
+        self._business_prefix = (
+            f"{_BUSINESS_PROMPT}\n"
+            f"PORTFOLIO_SUBJECT={profile.owner.name}\n"
             f"TIMEZONE={profile.scheduling.timezone}\n"
             f"AGENT_CAPABILITIES:\n{capabilities_text}\n"
             f"OWNER_POLICY:\n{policy}"
@@ -249,8 +257,11 @@ class ContextAssembler:
         if state.current_focus == RouteDomain.BUSINESS:
             knowledge = self._render_knowledge(retrieved)
             dynamic_parts.append(f"RELEVANT_KNOWLEDGE:\n{knowledge}")
+            prefix = self._business_prefix
+        else:
+            prefix = _GENERAL_PROMPT
 
-        system_prompt = f"{self._stable_prefix}\n\n" + "\n\n".join(dynamic_parts)
+        system_prompt = f"{prefix}\n\n" + "\n\n".join(dynamic_parts)
         history = tuple(state.turns[-self._history_turns :])
         document_ids = tuple(item.document.document_id for item in retrieved)
         knowledge_chars = sum(len(item.document.text) for item in retrieved)
