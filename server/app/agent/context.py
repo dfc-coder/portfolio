@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
-import re
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -12,13 +12,14 @@ from zoneinfo import ZoneInfo
 from app.domain.conversation import ChatTurn, SessionState
 from app.domain.profile import BusinessProfile
 from app.domain.routing import RouteDomain
-from app.ports.reranker import RerankerPort
+from app.ports.embeddings import EmbeddingPort
+
+from .similarity import cosine_similarity
 
 if TYPE_CHECKING:
     from app.infrastructure.pockettrace import TurnTrace
 
 logger = logging.getLogger(__name__)
-_WORD_RE = re.compile(r"\w+", re.UNICODE)
 
 
 @dataclass(frozen=True)
@@ -50,7 +51,7 @@ class AgentContext:
 
 
 class ProfileDocumentIndex:
-    """Flatten structured profile data into retrieval documents without semantic tags."""
+    """Flatten structured profile data into small retrievable units."""
 
     def __init__(self, profile: BusinessProfile) -> None:
         self.documents = tuple(self._build(profile))
@@ -63,7 +64,7 @@ class ProfileDocumentIndex:
             documents.append(
                 ProfileDocument(
                     document_id=document_id,
-                    text=json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+                    text=json.dumps(payload, ensure_ascii=False),
                 )
             )
 
@@ -99,53 +100,50 @@ class ProfileDocumentIndex:
 
 
 class ProfileRetriever:
-    """Semantic retrieval over the in-memory profile index with a generic lexical fallback."""
+    """Canonical dense retrieval: precomputed document vectors + cosine top-k."""
 
     def __init__(
         self,
         index: ProfileDocumentIndex,
-        reranker: RerankerPort | None,
+        embeddings: EmbeddingPort,
         *,
-        min_score: float = 0.10,
-        max_chars: int = 6000,
-        max_documents: int = 6,
+        max_chars: int = 4000,
+        max_documents: int = 4,
     ) -> None:
         self._index = index
-        self._reranker = reranker
-        self._min_score = min_score
+        self._embeddings = embeddings
         self._max_chars = max_chars
         self._max_documents = max_documents
+        self._document_vectors: list[list[float]] | None = None
+        self._index_lock = asyncio.Lock()
 
     async def search(self, query: str) -> tuple[RetrievedDocument, ...]:
         documents = self._index.documents
         if not documents or not query.strip():
             return ()
 
-        try:
-            if self._reranker is None:
-                raise RuntimeError("No semantic reranker configured")
-            scores = await self._reranker.rerank(
-                query,
-                [document.text for document in documents],
-            )
-            if len(scores) != len(documents):
-                raise ValueError("Reranker score count does not match profile documents")
-            ranked = sorted(
-                (
-                    RetrievedDocument(document=document, score=float(score))
-                    for document, score in zip(documents, scores, strict=True)
-                ),
-                key=lambda item: item.score,
-                reverse=True,
-            )
-            candidates = [item for item in ranked if item.score >= self._min_score]
-        except Exception as exc:  # noqa: BLE001 - retrieval must degrade safely
-            logger.warning("profile reranker unavailable; using lexical fallback: %s", exc)
-            candidates = self._lexical_candidates(query, documents)
+        await self._ensure_index()
+        assert self._document_vectors is not None
+        query_vector = await self._embeddings.embed_query(query)
+        ranked = sorted(
+            (
+                RetrievedDocument(
+                    document=document,
+                    score=cosine_similarity(query_vector, vector),
+                )
+                for document, vector in zip(
+                    documents,
+                    self._document_vectors,
+                    strict=True,
+                )
+            ),
+            key=lambda item: item.score,
+            reverse=True,
+        )
 
         selected: list[RetrievedDocument] = []
         used_chars = 0
-        for item in candidates:
+        for item in ranked:
             if len(selected) >= self._max_documents:
                 break
             size = len(item.document.text)
@@ -159,30 +157,18 @@ class ProfileRetriever:
                 break
         return tuple(selected)
 
-    @staticmethod
-    def _lexical_candidates(
-        query: str,
-        documents: tuple[ProfileDocument, ...],
-    ) -> list[RetrievedDocument]:
-        query_terms = {token.casefold() for token in _WORD_RE.findall(query)}
-        if not query_terms:
-            return []
-
-        ranked: list[RetrievedDocument] = []
-        for document in documents:
-            document_terms = {
-                token.casefold() for token in _WORD_RE.findall(document.text)
-            }
-            overlap = len(query_terms & document_terms)
-            if overlap:
-                ranked.append(
-                    RetrievedDocument(
-                        document=document,
-                        score=overlap / len(query_terms),
-                    )
-                )
-        ranked.sort(key=lambda item: item.score, reverse=True)
-        return ranked
+    async def _ensure_index(self) -> None:
+        if self._document_vectors is not None:
+            return
+        async with self._index_lock:
+            if self._document_vectors is not None:
+                return
+            vectors = await self._embeddings.embed_documents(
+                [document.text for document in self._index.documents]
+            )
+            if len(vectors) != len(self._index.documents):
+                raise ValueError("Embedding service returned an unexpected profile vector count")
+            self._document_vectors = vectors
 
 
 _CORE_PROMPT = """You are the conversational business representative for the portfolio owner.
