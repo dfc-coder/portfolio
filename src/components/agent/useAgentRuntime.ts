@@ -36,7 +36,10 @@ export interface BookingActionResult {
 }
 
 export interface AgentProvider {
-  ask(question: string, history: ReadonlyArray<AgentMessage>): AsyncIterable<AgentEvent | string>;
+  ask(
+    question: string,
+    history: ReadonlyArray<AgentMessage>,
+  ): AsyncIterable<AgentEvent | string>;
   confirmBooking?: (bookingId: string) => Promise<BookingActionResult>;
   cancelBooking?: (bookingId: string) => Promise<BookingActionResult>;
 }
@@ -44,15 +47,26 @@ export interface AgentProvider {
 export type RuntimeState = "idle" | "listening" | "thinking" | "speaking";
 
 const TZ = "America/Argentina/Buenos_Aires";
-const timeFormatter = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const timeFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: TZ,
+  hour12: false,
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
+
 export const stamp = (date = new Date()): string => timeFormatter.format(date);
 
 export interface RuntimeHooks {
   onMessage?: (message: AgentMessage) => void;
+  /** Called once per rendered stream batch, not once per transport chunk. */
   onToken?: () => void;
 }
 
-export function useAgentRuntime(provider: AgentProvider, hooks: RuntimeHooks = {}) {
+export function useAgentRuntime(
+  provider: AgentProvider,
+  hooks: RuntimeHooks = {},
+) {
   const messages = ref<AgentMessage[]>([]);
   const draft = ref("");
   const focused = ref(false);
@@ -72,64 +86,118 @@ export function useAgentRuntime(provider: AgentProvider, hooks: RuntimeHooks = {
     if (focused.value || draft.value.length > 0) return "listening";
     return "idle";
   });
-  const canSend = computed(() => draft.value.trim().length > 0 && !busy.value && !approvalBusy.value);
 
-  const push = (role: AgentRole, text: string, streaming = false): AgentMessage => {
-    const message: AgentMessage = { id: nextId.value++, role, text, time: stamp(), streaming };
+  const canSend = computed(
+    () => draft.value.trim().length > 0 && !busy.value && !approvalBusy.value,
+  );
+
+  const push = (
+    role: AgentRole,
+    text: string,
+    streaming = false,
+  ): AgentMessage => {
+    const message: AgentMessage = {
+      id: nextId.value++,
+      role,
+      text,
+      time: stamp(),
+      streaming,
+    };
     messages.value.push(message);
     if (messages.value.length > 10) messages.value.shift();
     hooks.onMessage?.(message);
     return message;
   };
+
   const reply = () => messages.value.find((message) => message.id === replyId);
+
   const flushStream = () => {
     streamFrame = 0;
     if (!pendingText) return;
     const target = reply();
-    if (!target) { pendingText = ""; return; }
+    if (!target) {
+      pendingText = "";
+      return;
+    }
+
     target.text += pendingText;
     pendingText = "";
     hooks.onToken?.();
   };
-  const scheduleStreamFlush = () => { if (!streamFrame) streamFrame = requestAnimationFrame(flushStream); };
-  const flushStreamNow = () => { if (streamFrame) cancelAnimationFrame(streamFrame); streamFrame = 0; flushStream(); };
+
+  const scheduleStreamFlush = () => {
+    if (streamFrame) return;
+    streamFrame = requestAnimationFrame(flushStream);
+  };
+
+  const flushStreamNow = () => {
+    if (streamFrame) cancelAnimationFrame(streamFrame);
+    streamFrame = 0;
+    flushStream();
+  };
 
   const handleEvent = (event: AgentEvent | string): void => {
-    if (typeof event === "string" || event.type === "token") {
-      const text = typeof event === "string" ? event : event.text;
-      if (!text) return;
-      if (replyId < 0) { busy.value = false; replyId = push("agent", "", true).id; }
-      pendingText += text;
+    if (typeof event === "string") {
+      if (!event) return;
+      if (replyId < 0) {
+        busy.value = false;
+        replyId = push("agent", "", true).id;
+      }
+      pendingText += event;
       scheduleStreamFlush();
       return;
     }
+
+    if (event.type === "token") {
+      if (!event.text) return;
+      if (replyId < 0) {
+        busy.value = false;
+        replyId = push("agent", "", true).id;
+      }
+      pendingText += event.text;
+      scheduleStreamFlush();
+      return;
+    }
+
     if (event.type === "action_required") {
       pendingAction.value = event.action;
       approvalResult.value = null;
       return;
     }
+
     pendingAction.value = null;
   };
 
   const send = async () => {
     const question = draft.value.trim();
     if (!question || busy.value || approvalBusy.value) return;
+
     draft.value = "";
     error.value = null;
     approvalResult.value = null;
     push("user", question);
     busy.value = true;
+
     const history = messages.value.slice(0, -1);
     replyId = -1;
     pendingText = "";
     let receivedContent = false;
+
     try {
       for await (const event of provider.ask(question, history)) {
-        if (typeof event === "string" || event.type === "token") receivedContent = true;
+        if (
+          typeof event === "string" ||
+          (typeof event === "object" && event.type === "token")
+        ) {
+          receivedContent = true;
+        }
         handleEvent(event);
       }
+
       flushStreamNow();
-      if (!receivedContent) throw new Error("Agent provider returned no conversational content");
+      if (!receivedContent) {
+        throw new Error("Agent provider returned no conversational content");
+      }
       const target = reply();
       if (target) target.streaming = false;
     } catch (cause) {
@@ -146,13 +214,18 @@ export function useAgentRuntime(provider: AgentProvider, hooks: RuntimeHooks = {
   const confirmPending = async () => {
     const action = pendingAction.value;
     if (!action || !provider.confirmBooking || approvalBusy.value) return;
+
     approvalBusy.value = true;
     error.value = null;
     try {
-      approvalResult.value = await provider.confirmBooking(action.bookingId);
+      const result = await provider.confirmBooking(action.bookingId);
+      approvalResult.value = result;
       pendingAction.value = null;
     } catch (cause) {
-      error.value = cause instanceof Error ? cause.message : "The meeting could not be confirmed.";
+      error.value =
+        cause instanceof Error
+          ? cause.message
+          : "The meeting could not be confirmed.";
       console.error("[agent-os] booking confirmation failed", cause);
     } finally {
       approvalBusy.value = false;
@@ -162,13 +235,18 @@ export function useAgentRuntime(provider: AgentProvider, hooks: RuntimeHooks = {
   const cancelPending = async () => {
     const action = pendingAction.value;
     if (!action || !provider.cancelBooking || approvalBusy.value) return;
+
     approvalBusy.value = true;
     error.value = null;
     try {
-      approvalResult.value = await provider.cancelBooking(action.bookingId);
+      const result = await provider.cancelBooking(action.bookingId);
+      approvalResult.value = result;
       pendingAction.value = null;
     } catch (cause) {
-      error.value = cause instanceof Error ? cause.message : "The meeting could not be cancelled.";
+      error.value =
+        cause instanceof Error
+          ? cause.message
+          : "The meeting could not be cancelled.";
       console.error("[agent-os] booking cancellation failed", cause);
     } finally {
       approvalBusy.value = false;
@@ -177,9 +255,31 @@ export function useAgentRuntime(provider: AgentProvider, hooks: RuntimeHooks = {
 
   const reset = () => {
     if (streamFrame) cancelAnimationFrame(streamFrame);
-    streamFrame = 0; pendingText = ""; replyId = -1; messages.value = []; draft.value = "";
-    error.value = null; pendingAction.value = null; approvalResult.value = null; approvalBusy.value = false;
+    streamFrame = 0;
+    pendingText = "";
+    replyId = -1;
+    messages.value = [];
+    draft.value = "";
+    error.value = null;
+    pendingAction.value = null;
+    approvalResult.value = null;
+    approvalBusy.value = false;
   };
 
-  return { messages, draft, focused, busy, approvalBusy, error, state, canSend, pendingAction, approvalResult, send, confirmPending, cancelPending, reset };
+  return {
+    messages,
+    draft,
+    focused,
+    busy,
+    approvalBusy,
+    error,
+    state,
+    canSend,
+    pendingAction,
+    approvalResult,
+    send,
+    confirmPending,
+    cancelPending,
+    reset,
+  };
 }

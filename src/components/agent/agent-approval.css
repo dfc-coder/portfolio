@@ -6,20 +6,108 @@
   border-top: 1px solid var(--os-line);
   border-bottom: 1px solid var(--os-line);
 }
-.agent-approval__head { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; font-family: var(--font-info); letter-spacing: 0.08em; }
-.agent-approval__head span { color: var(--os-gold); font-size: var(--t-meta); }
-.agent-approval__head b { color: var(--os-paper); font-size: var(--t-label); font-weight: 500; }
-.agent-approval__body { display: grid; gap: 6px; color: var(--os-paper); font-family: var(--font-info); }
-.agent-approval__body strong { font-size: 15px; font-weight: 500; }
-.agent-approval__body p, .agent-approval__body small { margin: 0; }
-.agent-approval__body p { color: rgba(236, 230, 213, 0.72); font-size: 13px; line-height: 1.45; }
-.agent-approval__body small { max-width: 560px; color: rgba(236, 230, 213, 0.5); font-size: 11px; line-height: 1.5; }
-.agent-approval__body a { width: fit-content; margin-top: 4px; color: var(--os-gold); font: 500 11px/1.4 var(--font-info); letter-spacing: 0.08em; text-decoration: none; }
-.agent-approval__actions { display: flex; flex-wrap: wrap; gap: 10px; }
-.agent-approval__actions button { min-height: 34px; padding: 0 14px; border: 1px solid var(--os-line); border-radius: 0; background: transparent; color: var(--os-paper); font: 500 11px/1 var(--font-info); letter-spacing: 0.08em; cursor: pointer; }
-.agent-approval__actions button:first-child { border-color: rgba(205, 182, 117, 0.58); color: var(--os-gold); }
-.agent-approval__actions button:hover:not(:disabled), .agent-approval__actions button:focus-visible:not(:disabled) { border-color: var(--os-gold); }
-.agent-approval__actions button:focus-visible { outline: 1px solid rgba(205, 182, 117, 0.55); outline-offset: 3px; }
-.agent-approval__actions button:disabled { cursor: default; opacity: 0.42; }
-.agent-approval--result { padding-bottom: 16px; }
-.agent-approval--result[data-result="confirmed"] .agent-approval__head b { color: var(--os-gold); }
+
+.agent-approval__head {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
+  font-family: var(--font-info);
+  letter-spacing: 0.08em;
+}
+
+.agent-approval__head span {
+  color: var(--os-gold);
+  font-size: var(--t-meta);
+}
+
+.agent-approval__head b {
+  color: var(--os-paper);
+  font-size: var(--t-label);
+  font-weight: 500;
+}
+
+.agent-approval__body {
+  display: grid;
+  gap: 6px;
+  color: var(--os-paper);
+  font-family: var(--font-info);
+}
+
+.agent-approval__body strong {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.agent-approval__body p,
+.agent-approval__body small {
+  margin: 0;
+}
+
+.agent-approval__body p {
+  color: rgba(236, 230, 213, 0.72);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.agent-approval__body small {
+  max-width: 560px;
+  color: rgba(236, 230, 213, 0.5);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.agent-approval__body a {
+  width: fit-content;
+  margin-top: 4px;
+  color: var(--os-gold);
+  font: 500 11px/1.4 var(--font-info);
+  letter-spacing: 0.08em;
+  text-decoration: none;
+}
+
+.agent-approval__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.agent-approval__actions button {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--os-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--os-paper);
+  font: 500 11px/1 var(--font-info);
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.agent-approval__actions button:first-child {
+  border-color: rgba(205, 182, 117, 0.58);
+  color: var(--os-gold);
+}
+
+.agent-approval__actions button:hover:not(:disabled),
+.agent-approval__actions button:focus-visible:not(:disabled) {
+  border-color: var(--os-gold);
+}
+
+.agent-approval__actions button:focus-visible {
+  outline: 1px solid rgba(205, 182, 117, 0.55);
+  outline-offset: 3px;
+}
+
+.agent-approval__actions button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.agent-approval--result {
+  padding-bottom: 16px;
+}
+
+.agent-approval--result[data-result="confirmed"] .agent-approval__head b {
+  color: var(--os-gold);
+}
