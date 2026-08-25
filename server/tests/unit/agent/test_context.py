@@ -80,7 +80,36 @@ async def test_general_context_does_not_retrieve_or_expose_business_identity(
     assert "AGENT_CAPABILITIES:" not in context.system_prompt
     assert "OWNER_POLICY:" not in context.system_prompt
     assert "website assistant speaking with a visitor" in context.system_prompt
+    assert "Always answer the most recent visitor message directly" in context.system_prompt
+    assert "Do not greet unless the most recent visitor message is itself a greeting" in context.system_prompt
+    assert "RUNTIME_STATE contains verified facts supplied by the application" in context.system_prompt
+    assert "RUNTIME_STATE (verified application facts):" in context.system_prompt
+    assert "CURRENT_TIME=" in context.system_prompt
     assert context.history[-1].content == "Hola"
+
+
+@pytest.mark.asyncio
+async def test_latest_visitor_turn_stays_last_when_history_contains_an_old_greeting(
+    profile: BusinessProfile,
+) -> None:
+    embeddings = RecordingEmbeddings()
+    assembler = make_assembler(profile, embeddings)
+    state = SessionState("latest-turn")
+    state.current_focus = RouteDomain.GENERAL
+    state.turns.extend(
+        [
+            ChatTurn(role="user", content="Hola"),
+            ChatTurn(role="assistant", content="Hola, ¿en qué puedo ayudarte?"),
+            ChatTurn(role="user", content="¿Qué hora es?"),
+        ]
+    )
+
+    context = await assembler.build(state)
+    messages = context.messages()
+
+    assert messages[-1] == {"role": "user", "content": "¿Qué hora es?"}
+    assert "Earlier conversation turns are context only" in messages[0]["content"]
+    assert "never claim that information is unavailable" in messages[0]["content"]
 
 
 @pytest.mark.asyncio
@@ -106,6 +135,7 @@ async def test_business_context_contains_top_dense_retrieval_document(
     assert context.document_ids[0].startswith("projects.")
     assert f"PORTFOLIO_SUBJECT={profile.owner.name}" in context.system_prompt
     assert "PORTFOLIO_SUBJECT is the professional being discussed, not you and not the visitor" in context.system_prompt
+    assert "Always answer the most recent visitor message directly" in context.system_prompt
     assert "PocketTrace" in context.system_prompt
     assert "Xarlatan" not in context.system_prompt
     assert "System-G" not in context.system_prompt
