@@ -8,8 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import create_router
 from app.bootstrap import build_runtime
 from app.infrastructure.config.settings import Settings
+from app.ports.embeddings import EmbeddingPort
 from app.ports.llm import LlmPort
-from app.ports.reranker import RerankerPort
 from app.scheduling.approval import BookingApproval
 
 
@@ -20,13 +20,13 @@ def create_app(
 ) -> FastAPI:
     resolved = settings or Settings.from_env()
     llm: LlmPort | None = None
-    reranker: RerankerPort | None = None
+    embeddings: EmbeddingPort | None = None
     if agent is None:
         runtime = build_runtime(resolved)
         agent = runtime.agent
         approvals = runtime.approvals
         llm = runtime.llm
-        reranker = runtime.reranker
+        embeddings = runtime.embeddings
 
     app = FastAPI(title="Portfolio Business Representative", version="0.4.0")
     app.add_middleware(
@@ -45,17 +45,17 @@ def create_app(
     @app.get("/ready")
     async def ready() -> dict[str, str]:
         llama_ready = llm is None or await llm.health()
-        reranker_ready = reranker is None or await reranker.health()
-        if not llama_ready or not reranker_ready:
+        embedding_ready = embeddings is None or await embeddings.health()
+        if not llama_ready or not embedding_ready:
             return {
                 "status": "degraded",
                 "llama": "ready" if llama_ready else "unavailable",
-                "reranker": "ready" if reranker_ready else "unavailable",
+                "embedding": "ready" if embedding_ready else "unavailable",
             }
         return {
             "status": "ok",
             "llama": "ready",
-            "reranker": "ready",
+            "embedding": "ready",
         }
 
     return app
