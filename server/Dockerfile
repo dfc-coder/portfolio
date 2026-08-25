@@ -14,11 +14,8 @@ WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
 
-# Resolve pyproject.toml during the feature-branch build so the newly pinned
-# semantic-router dependency is installed even before the repository lockfile is
-# refreshed. The direct runtime dependency itself is pinned in pyproject.toml.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --no-dev --no-install-project
+    uv sync --frozen --no-dev --no-install-project
 
 
 FROM ${PYTHON_IMAGE} AS runtime

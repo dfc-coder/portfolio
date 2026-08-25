@@ -36,10 +36,7 @@ class Settings:
     embedding_timeout_seconds: float = 30.0
     context_max_chars: int = 4000
     context_max_documents: int = 4
-    router_business_threshold: float = 0.55
-    router_scheduling_threshold: float = 0.58
-    router_continuation_threshold: float = 0.50
-    router_min_margin: float = 0.05
+    knowledge_relevance_threshold: float = 0.50
     pockettrace_enabled: bool = False
     pockettrace_url: str = "http://host.containers.internal:4319"
     pockettrace_timeout_seconds: float = 1.0
@@ -49,13 +46,25 @@ class Settings:
         root = Path(__file__).resolve().parents[3]
         return cls(
             profile_path=Path(
-                os.getenv("BUSINESS_PROFILE_PATH", root / "config" / "business-profile.json")
+                os.getenv(
+                    "BUSINESS_PROFILE_PATH",
+                    root / "config" / "business-profile.json",
+                )
             ),
-            llama_base_url=os.getenv("LLAMA_BASE_URL", "http://llama:8080").rstrip("/"),
+            llama_base_url=os.getenv(
+                "LLAMA_BASE_URL",
+                "http://llama:8080",
+            ).rstrip("/"),
             llama_model=os.getenv("LLAMA_MODEL", "Qwen3.5-2B"),
-            llama_timeout_seconds=float(os.getenv("LLAMA_TIMEOUT_SECONDS", "90")),
-            session_ttl_seconds=int(os.getenv("SESSION_TTL_SECONDS", "1800")),
-            session_max_turns=int(os.getenv("SESSION_MAX_TURNS", "8")),
+            llama_timeout_seconds=float(
+                os.getenv("LLAMA_TIMEOUT_SECONDS", "90")
+            ),
+            session_ttl_seconds=int(
+                os.getenv("SESSION_TTL_SECONDS", "1800")
+            ),
+            session_max_turns=int(
+                os.getenv("SESSION_MAX_TURNS", "8")
+            ),
             allowed_origins=_csv(
                 os.getenv(
                     "ALLOWED_ORIGINS",
@@ -63,36 +72,51 @@ class Settings:
                 )
             ),
             calendar_mode=os.getenv("CALENDAR_MODE", "mock").lower(),
-            google_calendar_id=os.getenv("GOOGLE_CALENDAR_ID", "primary"),
+            google_calendar_id=os.getenv(
+                "GOOGLE_CALENDAR_ID",
+                "primary",
+            ),
             google_client_id=os.getenv("GOOGLE_CLIENT_ID"),
             google_client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
             google_refresh_token=os.getenv("GOOGLE_REFRESH_TOKEN"),
-            planner_temperature=float(os.getenv("PLANNER_TEMPERATURE", "0.0")),
-            planner_max_tokens=int(os.getenv("PLANNER_MAX_TOKENS", "64")),
-            renderer_temperature=float(os.getenv("RENDERER_TEMPERATURE", "0.65")),
-            renderer_max_tokens=int(os.getenv("RENDERER_MAX_TOKENS", "180")),
+            planner_temperature=float(
+                os.getenv("PLANNER_TEMPERATURE", "0.0")
+            ),
+            planner_max_tokens=int(
+                os.getenv("PLANNER_MAX_TOKENS", "64")
+            ),
+            renderer_temperature=float(
+                os.getenv("RENDERER_TEMPERATURE", "0.65")
+            ),
+            renderer_max_tokens=int(
+                os.getenv("RENDERER_MAX_TOKENS", "180")
+            ),
             embedding_base_url=os.getenv(
-                "EMBEDDING_BASE_URL", "http://embedding:8081"
+                "EMBEDDING_BASE_URL",
+                "http://embedding:8081",
             ).rstrip("/"),
-            embedding_model=os.getenv("EMBEDDING_MODEL", "Qwen3-Embedding-0.6B"),
+            embedding_model=os.getenv(
+                "EMBEDDING_MODEL",
+                "Qwen3-Embedding-0.6B",
+            ),
             embedding_timeout_seconds=float(
                 os.getenv("EMBEDDING_TIMEOUT_SECONDS", "30")
             ),
-            context_max_chars=int(os.getenv("CONTEXT_MAX_CHARS", "4000")),
-            context_max_documents=int(os.getenv("CONTEXT_MAX_DOCUMENTS", "4")),
-            router_business_threshold=float(
-                os.getenv("ROUTER_BUSINESS_THRESHOLD", "0.55")
+            context_max_chars=int(
+                os.getenv("CONTEXT_MAX_CHARS", "4000")
             ),
-            router_scheduling_threshold=float(
-                os.getenv("ROUTER_SCHEDULING_THRESHOLD", "0.58")
+            context_max_documents=int(
+                os.getenv("CONTEXT_MAX_DOCUMENTS", "4")
             ),
-            router_continuation_threshold=float(
-                os.getenv("ROUTER_CONTINUATION_THRESHOLD", "0.50")
+            knowledge_relevance_threshold=float(
+                os.getenv("KNOWLEDGE_RELEVANCE_THRESHOLD", "0.50")
             ),
-            router_min_margin=float(os.getenv("ROUTER_MIN_MARGIN", "0.05")),
-            pockettrace_enabled=_bool(os.getenv("POCKETTRACE_ENABLED", "false")),
+            pockettrace_enabled=_bool(
+                os.getenv("POCKETTRACE_ENABLED", "false")
+            ),
             pockettrace_url=os.getenv(
-                "POCKETTRACE_URL", "http://host.containers.internal:4319"
+                "POCKETTRACE_URL",
+                "http://host.containers.internal:4319",
             ).rstrip("/"),
             pockettrace_timeout_seconds=float(
                 os.getenv("POCKETTRACE_TIMEOUT_SECONDS", "1.0")
@@ -112,4 +136,6 @@ class Settings:
             if not value
         ]
         if missing:
-            raise RuntimeError(f"Missing Google Calendar credentials: {', '.join(missing)}")
+            raise RuntimeError(
+                f"Missing Google Calendar credentials: {', '.join(missing)}"
+            )

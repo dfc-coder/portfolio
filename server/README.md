@@ -2,8 +2,8 @@
 
 Server-side business representative for a small local Qwen model. The browser never downloads model weights. Two llama.cpp services stay resident:
 
-- `llama`: the conversational Qwen model used for scheduling extraction and grounded response generation.
-- `embedding`: Qwen3-Embedding-0.6B used for semantic routing and business-profile retrieval.
+- `llama`: conversational Qwen used for grounded responses and ambiguous scheduling continuation.
+- `embedding`: Qwen3-Embedding-0.6B used for portfolio knowledge retrieval.
 
 ## Architecture
 
@@ -11,117 +11,131 @@ Server-side business representative for a small local Qwen model. The browser ne
 visitor
   |
   v
-Aurelio semantic-router
-positive routes: BUSINESS / SCHEDULING
-threshold miss or ambiguity -> GENERAL
+Scheduling admission
+  | explicit meeting request or active workflow
+  +---------------- yes ----------------> Scheduler
+  |                                      |
+  |                               SchedulingMemory
+  |                                      |
+  |                            explicit human approval
+  |                                      |
+  |                                 CalendarPort
   |
-  +---------------- BUSINESS --------------------------+
-  |                                                    |
-  |                                         dense profile retrieval
-  |                                     cached document embeddings
-  |                                                    |
-  |                                                Responder
-  |                                                    |
-  |                                                StreamGuard
-  |                                                    |
-  |                                                   SSE
-  |
-  +----------- SCHEDULING CANDIDATE ------------------+
-  |                      |                             |
-  |                  admission                         |
-  |            deterministic evidence?                 |
-  |               |              |                     |
-  |              yes             no -------------------+
-  |               |                                    |
-  |           Scheduler                               GENERAL
-  |               |
-  |        SchedulingMemory
-  |               |
-  |    explicit human approval
-  |               |
-  |          CalendarPort
-  |
-  +---------------- NO MATCH -------------------------> GENERAL
+  +---------------- no -----------------+
+                                           |
+                                           v
+                                  dense profile retrieval
+                                  cached document vectors
+                                           |
+                               score >= relevance threshold?
+                                  |                 |
+                                 yes                no
+                                  |                 |
+                             BUSINESS            GENERAL
+                                  \                 /
+                                   \               /
+                                      Responder
+                                         |
+                                     StreamGuard
+                                         |
+                                        SSE
 ```
 
-The semantic path intentionally has no cross-encoder reranker, LLM routing judge, topic regex whitelist, vector database, generic tool selector or ReAct loop.
+There is no semantic intent router for portfolio knowledge. The structured profile itself defines the knowledge domain. Every non-scheduling turn performs one query embedding against the cached profile-document vectors. Relevant chunks are injected into the prompt; if no chunk meets the global relevance threshold, the same responder answers without portfolio context.
 
-Static semantic data is embedded once during FastAPI startup:
+This follows the retrieval-first pattern used by production RAG assistants: retrieve the configured knowledge source, apply a similarity/relevance threshold, then give only the surviving context to the LLM. It avoids maintaining a second semantic taxonomy of sample user phrases.
+
+## Why BUSINESS has no utterance list
+
+`business-profile.json` is the source of truth for portfolio facts:
 
 ```text
-business route utterances     -> vectors in semantic-router LocalIndex
-scheduling route utterances   -> vectors in semantic-router LocalIndex
-business profile              -> document vectors, cached
+owner
+positioning
+experience.*
+professional_experience.*
+skills.*
+services.*
+projects.*
+education.*
+certifications.*
+languages.*
+business.*
+representative.capabilities
 ```
 
-The application does not finish startup until those vectors are ready. Each normal visitor turn then requires one query embedding plus local in-memory similarity scoring.
+Those records are transformed into small documents and embedded once during startup.
 
-`server/app/agent` contains:
+At runtime:
 
 ```text
-representative.py  thin orchestration
-router.py          open-set semantic-router adapter
-context.py         cached dense profile retrieval + prompt assembly
-scheduler.py       meeting workflow + hard write invariants
-responder.py       grounded knowledge streaming
-stream_guard.py    narrow rolling output safety boundary
+latest visitor message
+        |
+        v
+one query embedding
+        |
+        v
+cosine against cached portfolio vectors
+        |
+        +-- relevant documents --> grounded portfolio response
+        |
+        +-- no relevant documents --> general response
 ```
 
-`server/app/infrastructure/embeddings/semantic_router.py` adapts the existing llama.cpp `EmbeddingPort` to semantic-router's async asymmetric encoder interface. No second embedding model is loaded.
+Adding a project, skill or experience to the profile makes it retrievable automatically. No routing examples need to be added.
 
-## Open-set routing
-
-Only `business` and `scheduling` are positive routes on a new conversation. `GENERAL` is the abstention/default path; it is not an indexed semantic route.
-
-```text
-business match       -> BUSINESS
-scheduling match     -> SCHEDULING candidate
-no threshold match   -> GENERAL
-ambiguous top routes -> GENERAL
-```
-
-Routes contain multiple Spanish and English utterances. Aurelio semantic-router applies the per-route score threshold; the adapter also requires a minimum margin when more than one positive route passes.
-
-Thresholds are configuration, not runtime learning:
+The relevance boundary is one configuration value:
 
 ```env
-ROUTER_BUSINESS_THRESHOLD=0.55
-ROUTER_SCHEDULING_THRESHOLD=0.58
-ROUTER_CONTINUATION_THRESHOLD=0.50
-ROUTER_MIN_MARGIN=0.05
+KNOWLEDGE_RELEVANCE_THRESHOLD=0.50
 ```
 
-During an active meeting task a second static route layer distinguishes `scheduling_continue` from `business_interrupt`; a miss becomes a general interruption and the existing meeting state remains intact.
+`PocketTrace` records the top retrieval score, threshold and selected document IDs so this boundary is observable without adding routing logic.
 
-## Scheduling admission
+## Scheduling is a separate operational boundary
 
-Scheduling is represented by facts in `SchedulingMemory` rather than a conversational FSM. Free-form chat text never writes to Calendar. A prepared booking requires explicit approval through the UI before the deterministic booking boundary can run.
+Scheduling is not treated as portfolio knowledge. A new scheduling workflow is admitted only for an explicit meeting request. Once a scheduling workflow is active, the existing deterministic-first parser can interpret dates, slots, contact details and cancellation; its small semantic fallback is available only inside that already-active workflow.
 
-A semantic scheduling match is only a candidate. For a new conversation, the deterministic `SchedulingTurnParser` must find actual scheduling evidence before a workflow can start. Its small LLM semantic fallback is available only after `ActiveWorkflow.SCHEDULING` already exists, where it can interpret ambiguous continuations without gaining authority to create a workflow.
+Free-form chat never writes to Calendar. A prepared booking requires explicit human approval through the UI before the deterministic booking boundary can run.
 
-This makes the operational boundary fail closed: a routing false positive cannot by itself start scheduling.
+## Code ownership
 
-## Business retrieval
+```text
+representative.py  orchestration + scheduling admission
+knowledge.py       profile documents + dense relevance gate
+context.py         prompt + runtime facts
+scheduler.py       meeting workflow + hard write invariants
+responder.py       retrieval-driven response streaming
+stream_guard.py    narrow output safety boundary
+```
 
-Business questions continue to use the same embedding service against the structured business profile. Profile document embeddings are computed during startup and reused for the process lifetime. The query is compared locally with cosine similarity and only the top documents that fit the context budget are sent to the conversational model.
+There is no cross-encoder reranker, LLM routing judge, business-topic regex whitelist, vector database, ReAct loop or separate semantic-router dependency.
 
-Semantic-router is used only for intent selection; it does not replace profile retrieval.
+## Startup and latency
 
-## Safe real streaming
+Profile document embeddings are computed once during FastAPI startup and reused for the process lifetime.
 
-Business/general answers use llama.cpp streaming end-to-end. `StreamGuard` keeps a small rolling holdback and blocks narrow operational claims such as owner impersonation or claiming an external action completed when it was not verified.
+Each normal non-scheduling turn requires:
+
+```text
+1 query embedding
++ local cosine scoring
++ Qwen response generation
+```
+
+No second routing embedding is performed.
 
 ## Optional PocketTrace observability
 
-PocketTrace is strictly optional and never becomes a functional dependency of the agent.
+PocketTrace is opt-in:
 
 ```env
 POCKETTRACE_ENABLED=false
 ```
 
-With `POCKETTRACE_ENABLED=false` (the default), `PocketTraceRecorder` is not instantiated: the agent does not create trace snapshots and does not make HTTP calls to PocketTrace.
+With `false` (the default), `PocketTraceRecorder` is not instantiated and the agent makes no PocketTrace HTTP calls.
 
-Enable it explicitly for local development when trace-level diagnostics are needed:
+For local diagnostics:
 
 ```env
 POCKETTRACE_ENABLED=true
@@ -129,11 +143,9 @@ POCKETTRACE_URL=http://host.containers.internal:4319
 POCKETTRACE_TIMEOUT_SECONDS=1.0
 ```
 
-This can remain `false` in production or in any environment where trace payload capture is not desired.
-
 ## Required models
 
-Place both GGUF files in `LLAMA_MODELS_DIR` (defaults to `server/models`):
+Place both GGUF files in `LLAMA_MODELS_DIR`:
 
 ```text
 <your Qwen3.5 conversational GGUF>
@@ -145,8 +157,6 @@ The embedding server starts with:
 ```text
 --embedding --pooling last
 ```
-
-No Python ML runtime or vector database is required; both models run through llama.cpp.
 
 ## Run locally
 
@@ -161,15 +171,6 @@ Expected readiness:
 
 ```json
 {"status":"ok","llama":"ready","embedding":"ready"}
-```
-
-Useful commands:
-
-```bash
-make logs
-make logs-embedding
-make models
-make check
 ```
 
 ## Google Calendar
@@ -188,4 +189,4 @@ GOOGLE_REFRESH_TOKEN=...
 make check
 ```
 
-Regression coverage includes open-set routing/no-match, ambiguity fallback, scheduling interruption/resume, prevention of semantic-only scheduling startup, invalid slot rejection, explicit-approval Calendar writes, capability-aware answers, cached profile retrieval and guarded real streaming.
+Regression coverage includes cached profile embeddings, relevance threshold gating, experience retrieval, general no-match, scheduling interruption/resume, explicit admission for new scheduling workflows, invalid slot rejection, explicit-approval Calendar writes and guarded streaming.

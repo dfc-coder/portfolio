@@ -2,9 +2,7 @@
 
 ## Goal
 
-Run a useful server-side representative on a small local Qwen model with real streaming, reliable Calendar writes and a codebase small enough to reason about.
-
-The design intentionally avoids a conversational FSM, generic capability registry, generic ReAct loop, cross-encoder reranker and LLM routing judge.
+Run a useful server-side representative on a small local Qwen model with real streaming, grounded portfolio answers and reliable Calendar writes while keeping the runtime easy to reason about.
 
 ## Runtime
 
@@ -16,95 +14,93 @@ Vue / Netlify
 FastAPI
      |
      +-- BusinessRepresentative
-     |      +-- SemanticRouter ------> Qwen3-Embedding-0.6B
-     |      |                         cached route vectors + cosine
-     |      +-- Scheduler -----------> Qwen structured extraction
-     |      |                         + CalendarPort / HITL approval
-     |      +-- Responder -----------> cached profile vectors
-     |                                + Qwen real stream
-     |                                + StreamGuard
+     |      |
+     |      +-- scheduling admission
+     |      |       |
+     |      |       +-- Scheduler --> CalendarPort / HITL approval
+     |      |
+     |      +-- Responder
+     |              |
+     |              +-- ProfileRetriever --> Qwen3-Embedding-0.6B
+     |              |                     cached document vectors
+     |              +-- Qwen real stream
+     |              +-- StreamGuard
      |
      +-- SessionStore
      +-- SlotService
      +-- CalendarPort -------------> Google Calendar
 ```
 
-## Agent boundary
+## Knowledge boundary
 
-`BusinessRepresentative` only orchestrates: append the visitor turn, route, delegate, and persist the assistant turn. It contains no workflow rules and no tool execution logic.
+There is no semantic intent router for `BUSINESS`.
 
-## Semantic routing
-
-`SemanticRouter` keeps natural-language descriptions for business, scheduling and general intent. Their embeddings are computed once and cached. Each visitor turn requires one query embedding and local cosine similarity against those cached vectors.
-
-During an active scheduling task, the descriptions become business interruption, scheduling continuation and general interruption. Scheduling memory is preserved across interruptions.
-
-There is no topic regex whitelist, reranker threshold cascade or LLM judge.
-
-## Business-profile retrieval
-
-`business-profile.json` is flattened into small structural documents such as `projects.3`, `experience.0` and `skills`. Document embeddings are computed once on the first business retrieval and then cached for the process lifetime.
-
-For each business turn:
+`business-profile.json` is flattened into retrievable documents. Their embeddings are computed once at startup. Every non-scheduling visitor turn uses the latest message as a single retrieval query.
 
 ```text
-recent visitor context
-       |
-       v
+latest message
+    |
+    v
 query embedding
-       |
-       v
-cosine similarity against cached profile vectors
-       |
-       v
-top documents within context budget
-       |
-       v
-Responder
+    |
+    v
+cosine against cached profile documents
+    |
+    +-- score >= threshold --> BUSINESS + retrieved knowledge
+    |
+    +-- no qualifying document --> GENERAL
 ```
 
-The retrieval service never pairwise-scores every profile document with a cross-encoder on each request.
+This makes the data source itself define the portfolio domain. Adding a skill, project or experience changes the retrievable knowledge without requiring a second list of routing examples.
 
-## Scheduling
+The global boundary is `KNOWLEDGE_RELEVANCE_THRESHOLD`; PocketTrace records the top score and selected documents.
 
-Scheduling state is data, not a conversation stage:
+## Scheduling boundary
+
+Scheduling is operational, not a knowledge topic.
+
+A new workflow is admitted only by an explicit meeting request. A bare date, email or unrelated question cannot start scheduling. Once `ActiveWorkflow.SCHEDULING` exists, the deterministic-first parser handles dates, slots, contact details and cancellation; its semantic fallback is limited to ambiguous continuations inside that active workflow.
+
+Free-form text never writes to Calendar. A prepared booking crosses the write boundary only after explicit human approval in the UI.
+
+Business/general interruptions do not clear `SchedulingMemory`.
+
+## Prompt boundary
+
+`ContextAssembler` owns one base prompt. It always includes verified runtime state. Portfolio owner identity and portfolio facts are added only when retrieval produced qualifying documents.
+
+The model therefore receives:
 
 ```text
-SchedulingMemory
-- requested date range
-- offered slots
-- selected slot id
-- visitor name
-- visitor email
-- subject
-- pending booking
+base instructions
++ verified runtime facts
++ optional retrieved portfolio knowledge
++ short visible conversation history
 ```
 
-`Scheduler` performs structured interpretation of scheduling turns and updates this memory. Free-form text never writes to Calendar. A prepared booking crosses the write boundary only after explicit human approval in the UI.
-
-A business/general interruption does not clear `SchedulingMemory`.
-
-## False scheduling routes
-
-A message routed to scheduling is interpreted again inside the narrow scheduling context. If it is not applicable, `Scheduler` returns `not_applicable` and the representative reroutes only between business and general without destroying meeting memory.
-
-## Grounded real streaming
-
-`Responder` receives retrieved owner facts, agent capabilities, current time, focus and workflow summary and streams directly from llama.cpp.
-
-`StreamGuard` keeps a small rolling holdback and blocks narrow operational claims such as impersonating Diego or claiming an unverified completed Calendar action.
+There are no separate GENERAL/BUSINESS prompt copies.
 
 ## Observability
 
-PocketTrace is optional and fail-open. It records `router`, `profile_retrieval`, `context_assembler`, `qwen_generation`, `stream_guard` and scheduling spans without participating in decisions.
+PocketTrace is optional and fail-open. Useful spans are:
+
+```text
+scheduler
+profile_retrieval
+context_assembler
+qwen_generation
+stream_guard
+```
+
+`profile_retrieval` includes the query, threshold, top score and selected document IDs/content.
 
 ## Package boundaries
 
 ```text
 app/api             HTTP + SSE
-app/agent           representative, router, context, scheduler, responder, guard
+app/agent           representative, knowledge, context, scheduler, responder, guard
 app/domain          session/profile/routing/scheduling data
-app/scheduling      date policy + availability calculation
+app/scheduling      operational admission + date policy + availability calculation
 app/ports           LLM, embeddings, calendar, sessions
 app/infrastructure  llama.cpp, embeddings, PocketTrace, Calendar, config, sessions
 app/bootstrap.py    dependency composition

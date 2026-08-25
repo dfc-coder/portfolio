@@ -4,7 +4,6 @@ from dataclasses import dataclass
 
 from app.agent.representative import BusinessRepresentative
 from app.agent.responder import Responder
-from app.agent.router import SemanticRouter
 from app.agent.scheduler import Scheduler
 from app.infrastructure.calendar.google import GoogleCalendarGateway
 from app.infrastructure.calendar.memory import InMemoryCalendarGateway
@@ -66,13 +65,6 @@ def build_runtime(settings: Settings) -> AgentRuntime:
         top_k=20,
     )
 
-    router = SemanticRouter(
-        embeddings,
-        business_threshold=settings.router_business_threshold,
-        scheduling_threshold=settings.router_scheduling_threshold,
-        continuation_threshold=settings.router_continuation_threshold,
-        min_margin=settings.router_min_margin,
-    )
     scheduler = Scheduler(
         llm,
         slots,
@@ -83,10 +75,10 @@ def build_runtime(settings: Settings) -> AgentRuntime:
     responder = Responder(
         llm,
         profile,
-        policy,
         renderer_config,
         scheduler.public_capabilities,
         embeddings,
+        knowledge_min_score=settings.knowledge_relevance_threshold,
         context_max_chars=settings.context_max_chars,
         context_max_documents=settings.context_max_documents,
     )
@@ -101,7 +93,6 @@ def build_runtime(settings: Settings) -> AgentRuntime:
     )
     representative = BusinessRepresentative(
         sessions,
-        router,
         scheduler,
         responder,
         trace_recorder,

@@ -10,7 +10,7 @@ from app.agent.responder import Responder
 from app.agent.scheduler import Scheduler, SchedulingIntent, SchedulingTurn
 from app.domain.conversation import ActiveWorkflow
 from app.domain.profile import BusinessProfile
-from app.domain.routing import RouteDomain, RouteRelation, RoutingDecision
+from app.domain.routing import RouteDomain
 from app.domain.scheduling import OfferedSlot
 from app.infrastructure.calendar.memory import InMemoryCalendarGateway
 from app.infrastructure.sessions.memory import MemorySessionStore
@@ -20,17 +20,18 @@ from app.scheduling.policy import SchedulingPolicy
 
 
 class FakeLlm:
-    def __init__(self, scheduling_turns: list[SchedulingTurn]) -> None:
-        self._scheduling_turns = scheduling_turns
+    def __init__(self) -> None:
         self.stream_calls = 0
 
     async def complete(self, messages, config, response_schema=None):  # type: ignore[no-untyped-def]
         del messages, config, response_schema
-        return self._scheduling_turns.pop(0).model_dump_json()
+        return SchedulingTurn(intent=SchedulingIntent.OTHER).model_dump_json()
 
     async def stream(self, messages, config):  # type: ignore[no-untyped-def]
-        del messages, config
+        del config
         self.stream_calls += 1
+        system = messages[0]["content"]
+        assert "PORTFOLIO_KNOWLEDGE:" in system
         yield "Diego trabaja con arquitectura de "
         yield "integraciones y Applied AI."
 
@@ -38,9 +39,14 @@ class FakeLlm:
         return True
 
 
-class FakeEmbeddings:
+class BusinessEmbeddings:
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        return [[1.0, 0.0] for _ in texts]
+        return [
+            [1.0, 0.0]
+            if "skills" in text or "professional_experience" in text
+            else [0.0, 1.0]
+            for text in texts
+        ]
 
     async def embed_query(self, text: str) -> list[float]:
         del text
@@ -48,25 +54,6 @@ class FakeEmbeddings:
 
     async def health(self) -> bool:
         return True
-
-
-class SequenceRouter:
-    def __init__(self, decisions: list[RoutingDecision]) -> None:
-        self._decisions = decisions
-
-    async def route(self, state, user_message):  # type: ignore[no-untyped-def]
-        del state, user_message
-        return self._decisions.pop(0)
-
-    async def route_non_scheduling(self, state, user_message):  # type: ignore[no-untyped-def]
-        del state, user_message
-        return RoutingDecision(
-            domain=RouteDomain.BUSINESS,
-            relation=RouteRelation.INTERRUPT,
-            route_key="business_fallback",
-            confidence=1.0,
-            source="test",
-        )
 
 
 class FixedSlots:
@@ -83,28 +70,17 @@ class FixedSlots:
             ),
         ]
 
-    async def available_slots(self, start_date: date, end_date: date) -> list[OfferedSlot]:
+    async def available_slots(
+        self,
+        start_date: date,
+        end_date: date,
+    ) -> list[OfferedSlot]:
         del start_date, end_date
         return self._slots
 
 
 def build_agent(profile: BusinessProfile):
-    llm = FakeLlm(
-        [
-            SchedulingTurn(
-                intent=SchedulingIntent.INFORM,
-                start_date=date(2026, 8, 25),
-                end_date=date(2026, 8, 25),
-            ),
-            SchedulingTurn(
-                intent=SchedulingIntent.SELECT,
-                slot_id="S2",
-                visitor_name="Juan Perez",
-                visitor_email="juan@example.com",
-                subject="Architecture discussion",
-            ),
-        ]
-    )
+    llm = FakeLlm()
     policy = SchedulingPolicy(profile.scheduling)
     sessions = MemorySessionStore()
     calendar = InMemoryCalendarGateway()
@@ -113,73 +89,54 @@ def build_agent(profile: BusinessProfile):
         FixedSlots(),
         calendar,
         policy,
-        GenerationConfig(temperature=0.1, max_tokens=96),
+        GenerationConfig(temperature=0.0, max_tokens=64),
     )  # type: ignore[arg-type]
     responder = Responder(
         llm,
         profile,
-        policy,
         GenerationConfig(temperature=0.65, max_tokens=180),
         scheduler.public_capabilities,
-        FakeEmbeddings(),
+        BusinessEmbeddings(),
+        knowledge_min_score=0.50,
     )
-    router = SequenceRouter(
-        [
-            RoutingDecision(
-                domain=RouteDomain.SCHEDULING,
-                relation=RouteRelation.NEW,
-                route_key="scheduling",
-                confidence=1.0,
-                source="test",
-            ),
-            RoutingDecision(
-                domain=RouteDomain.BUSINESS,
-                relation=RouteRelation.INTERRUPT,
-                route_key="business_interrupt",
-                confidence=1.0,
-                source="test",
-            ),
-            RoutingDecision(
-                domain=RouteDomain.SCHEDULING,
-                relation=RouteRelation.CONTINUE,
-                route_key="scheduling_continue",
-                confidence=1.0,
-                source="test",
-            ),
-        ]
-    )
-    agent = BusinessRepresentative(sessions, router, scheduler, responder)  # type: ignore[arg-type]
+    agent = BusinessRepresentative(sessions, scheduler, responder)
     approvals = BookingApproval(sessions, calendar, policy)
     return agent, sessions, calendar, llm, approvals
 
 
 @pytest.mark.asyncio
-async def test_business_interrupt_preserves_scheduling_and_can_resume(
+async def test_scheduling_can_be_interrupted_by_retrieved_business_knowledge_and_resume(
     profile: BusinessProfile,
 ) -> None:
     agent, sessions, calendar, llm, approvals = build_agent(profile)
+
     first = "".join(
         [
             chunk
             async for chunk in agent.respond(
-                "session-123", "Quiero una reunión el 25 de agosto"
+                "session-123",
+                "Quiero una reunión el 25 de agosto",
             )
         ]
     )
     assert "S2" in first
+
     interrupted = "".join(
         [
             chunk
             async for chunk in agent.respond(
-                "session-123", "Antes, ¿en qué tecnologías trabaja Diego?"
+                "session-123",
+                "Antes, ¿en qué tecnologías trabaja Diego?",
             )
         ]
     )
     state = await sessions.get("session-123")
     assert llm.stream_calls == 1
     assert "integraciones" in interrupted.lower()
+    assert state.current_focus == RouteDomain.BUSINESS
     assert "S2" in state.scheduling.offered_slots
     assert state.active_workflow == ActiveWorkflow.SCHEDULING
+
     second = "".join(
         [
             chunk
@@ -195,6 +152,7 @@ async def test_business_interrupt_preserves_scheduling_and_can_resume(
     assert state.scheduling.selected_slot_id == "S2"
     assert "confirmar reunión" in second.lower()
     assert len(calendar.bookings) == 0
+
     result = await approvals.confirm("session-123", pending.booking_id)
     assert result is not None
     state = await sessions.get("session-123")
@@ -204,45 +162,21 @@ async def test_business_interrupt_preserves_scheduling_and_can_resume(
 
 
 @pytest.mark.asyncio
-async def test_false_scheduling_route_escapes_without_calendar_side_effect(
+async def test_date_without_meeting_intent_does_not_start_scheduling(
     profile: BusinessProfile,
 ) -> None:
-    llm = FakeLlm([SchedulingTurn(intent=SchedulingIntent.OTHER)])
-    policy = SchedulingPolicy(profile.scheduling)
-    sessions = MemorySessionStore()
-    calendar = InMemoryCalendarGateway()
-    scheduler = Scheduler(
-        llm,
-        FixedSlots(),
-        calendar,
-        policy,
-        GenerationConfig(temperature=0.1, max_tokens=96),
-    )  # type: ignore[arg-type]
-    responder = Responder(
-        llm,
-        profile,
-        policy,
-        GenerationConfig(temperature=0.65, max_tokens=180),
-        scheduler.public_capabilities,
-        FakeEmbeddings(),
-    )
-    router = SequenceRouter(
+    agent, sessions, calendar, _, _ = build_agent(profile)
+
+    "".join(
         [
-            RoutingDecision(
-                domain=RouteDomain.SCHEDULING,
-                relation=RouteRelation.NEW,
-                route_key="scheduling",
-                confidence=1.0,
-                source="test",
+            chunk
+            async for chunk in agent.respond(
+                "session-date",
+                "El 25 de agosto",
             )
         ]
     )
-    agent = BusinessRepresentative(sessions, router, scheduler, responder)  # type: ignore[arg-type]
-    answer = "".join(
-        [chunk async for chunk in agent.respond("session-tools", "¿Qué podés hacer?")]
-    )
-    state = await sessions.get("session-tools")
-    assert "integraciones" in answer.lower()
-    assert state.current_focus == RouteDomain.BUSINESS
+    state = await sessions.get("session-date")
+
     assert state.active_workflow is None
     assert len(calendar.bookings) == 0

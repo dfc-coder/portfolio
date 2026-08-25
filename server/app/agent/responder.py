@@ -5,13 +5,14 @@ import time
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING
 
-from app.domain.conversation import SessionState
+from app.domain.conversation import ActiveWorkflow, SessionState
 from app.domain.profile import BusinessProfile
+from app.domain.routing import RouteDomain, RouteRelation
 from app.ports.embeddings import EmbeddingPort
 from app.ports.llm import GenerationConfig, LlmPort
-from app.scheduling.policy import SchedulingPolicy
 
-from .context import ContextAssembler, ProfileDocumentIndex, ProfileRetriever
+from .context import ContextAssembler
+from .knowledge import ProfileDocumentIndex, ProfileRetriever
 from .stream_guard import StreamGuard, UnsafeStreamOutput
 
 if TYPE_CHECKING:
@@ -25,37 +26,77 @@ class Responder:
         self,
         llm: LlmPort,
         profile: BusinessProfile,
-        policy: SchedulingPolicy,
         config: GenerationConfig,
         capabilities: tuple[str, ...],
         embeddings: EmbeddingPort,
         *,
+        knowledge_min_score: float = 0.50,
         context_max_chars: int = 4000,
         context_max_documents: int = 4,
     ) -> None:
-        del policy  # Timezone/policy data is already represented in BusinessProfile.
         self._llm = llm
         self._config = config
-        index = ProfileDocumentIndex(profile)
-        retriever = ProfileRetriever(
-            index,
+        self._retriever = ProfileRetriever(
+            ProfileDocumentIndex(profile, capabilities),
             embeddings,
+            min_score=knowledge_min_score,
             max_chars=context_max_chars,
             max_documents=context_max_documents,
         )
-        self._context = ContextAssembler(profile, capabilities, retriever)
+        self._context = ContextAssembler(profile)
 
     async def warm(self) -> None:
-        await self._context.warm()
+        await self._retriever.warm()
 
     async def stream(
         self,
         state: SessionState,
         trace: TurnTrace | None = None,
     ) -> AsyncIterator[str]:
+        latest_message = state.turns[-1].content if state.turns else ""
+        retrieval_started = time.perf_counter()
+        knowledge = await self._retriever.search(latest_message)
+        retrieval_duration_ms = (time.perf_counter() - retrieval_started) * 1000
+
+        state.current_focus = (
+            RouteDomain.BUSINESS if knowledge.matched else RouteDomain.GENERAL
+        )
+        relation = (
+            RouteRelation.INTERRUPT
+            if state.active_workflow == ActiveWorkflow.SCHEDULING
+            else RouteRelation.NEW
+        )
+
+        if trace is not None:
+            trace.add_span(
+                "profile_retrieval",
+                retrieval_duration_ms,
+                input={"query": latest_message},
+                output={
+                    "threshold": knowledge.threshold,
+                    "top_score": round(knowledge.top_score, 6),
+                    "documents": [
+                        {
+                            "id": item.document.document_id,
+                            "score": round(item.score, 6),
+                            "content": item.document.text,
+                        }
+                        for item in knowledge.documents
+                    ],
+                },
+            )
+            trace.add_attributes(
+                route=state.current_focus.value,
+                route_relation=relation.value,
+                route_source=(
+                    "knowledge:match" if knowledge.matched else "knowledge:no-match"
+                ),
+                knowledge_top_score=round(knowledge.top_score, 6),
+            )
+
         guard = StreamGuard()
         emitted = False
-        context = await self._context.build(state, trace)
+        context = await self._context.build(state, knowledge.documents, trace)
         messages = context.messages()
         raw_chunks: list[str] = []
         visible_chunks: list[str] = []
@@ -90,7 +131,7 @@ class Responder:
             unsafe_reason = exc.reason
             fallback_reason = "unsafe_output"
             logger.warning("blocked unsafe streamed output reason=%s", exc.reason)
-            fallback = self._fallback(state)
+            fallback = self._fallback()
             visible = f" {fallback}" if emitted else fallback
             visible_chunks.append(visible)
             yield visible
@@ -114,13 +155,16 @@ class Responder:
                     input={"raw_text": "".join(raw_chunks)},
                     output={"accepted": None, "visible_text": "".join(visible_chunks)},
                     status="failed",
-                    error={"kind": "generation_error", "message": "generation did not complete"},
+                    error={
+                        "kind": "generation_error",
+                        "message": "generation did not complete",
+                    },
                 )
             raise
 
         if not emitted:
             fallback_reason = "empty_output"
-            fallback = self._fallback(state)
+            fallback = self._fallback()
             visible_chunks.append(fallback)
             yield fallback
 
@@ -161,24 +205,8 @@ class Responder:
         }
 
     @staticmethod
-    def _fallback(state: SessionState) -> str:
-        message = state.turns[-1].content.lower() if state.turns else ""
-        spanish_tokens = (
-            "¿",
-            "hola",
-            "qué",
-            "que ",
-            "por qué",
-            "porque",
-            "puedo",
-            "podés",
-            "podes",
-            "reunión",
-            "herramient",
+    def _fallback() -> str:
+        return (
+            "No pude generar una respuesta fiable. / "
+            "I couldn't generate a reliable answer."
         )
-        spanish = any(token in message for token in spanish_tokens) or any(
-            char in message for char in "áéíóúñ"
-        )
-        if spanish:
-            return "No pude generar una respuesta fiable. Probá reformulando la pregunta."
-        return "I couldn't generate a reliable answer. Try rephrasing the question."
