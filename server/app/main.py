@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any
+from contextlib import asynccontextmanager
+from typing import Any, AsyncIterator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,7 +29,18 @@ def create_app(
         llm = runtime.llm
         embeddings = runtime.embeddings
 
-    app = FastAPI(title="Portfolio Business Representative", version="0.4.0")
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        warm = getattr(agent, "warm", None)
+        if callable(warm):
+            await warm()
+        yield
+
+    app = FastAPI(
+        title="Portfolio Business Representative",
+        version="0.4.0",
+        lifespan=lifespan,
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(resolved.allowed_origins),
