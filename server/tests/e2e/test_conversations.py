@@ -38,6 +38,18 @@ class FakeLlm:
         return True
 
 
+class FakeEmbeddings:
+    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [[1.0, 0.0] for _ in texts]
+
+    async def embed_query(self, text: str) -> list[float]:
+        del text
+        return [1.0, 0.0]
+
+    async def health(self) -> bool:
+        return True
+
+
 class SequenceRouter:
     def __init__(self, decisions: list[RoutingDecision]) -> None:
         self._decisions = decisions
@@ -109,6 +121,7 @@ def build_agent(profile: BusinessProfile):
         policy,
         GenerationConfig(temperature=0.65, max_tokens=180),
         scheduler.public_capabilities,
+        FakeEmbeddings(),
     )
     router = SequenceRouter(
         [
@@ -211,6 +224,7 @@ async def test_false_scheduling_route_escapes_without_calendar_side_effect(
         policy,
         GenerationConfig(temperature=0.65, max_tokens=180),
         scheduler.public_capabilities,
+        FakeEmbeddings(),
     )
     router = SequenceRouter(
         [
