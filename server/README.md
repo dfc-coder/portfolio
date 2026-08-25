@@ -3,7 +3,7 @@
 Server-side business representative for a small local Qwen model. The browser never downloads model weights. Two llama.cpp services stay resident:
 
 - `llama`: the conversational Qwen model used for scheduling extraction and grounded response generation.
-- `embedding`: Qwen3-Embedding-0.6B used for dense semantic routing and business-profile retrieval.
+- `embedding`: Qwen3-Embedding-0.6B used for semantic routing and business-profile retrieval.
 
 ## Architecture
 
@@ -11,10 +11,11 @@ Server-side business representative for a small local Qwen model. The browser ne
 visitor
   |
   v
-SemanticRouter
-cached route embeddings + cosine similarity
+Aurelio semantic-router
+positive routes: BUSINESS / SCHEDULING
+threshold miss or ambiguity -> GENERAL
   |
-  +---------------- BUSINESS / GENERAL ----------------+
+  +---------------- BUSINESS --------------------------+
   |                                                    |
   |                                         dense profile retrieval
   |                                     cached document embeddings
@@ -25,16 +26,22 @@ cached route embeddings + cosine similarity
   |                                                    |
   |                                                   SSE
   |
-  +---------------- SCHEDULING ------------------------+
-                         |
-                      Scheduler
-                 structured turn extraction
-                         |
-                  SchedulingMemory
-                         |
-              explicit human approval
-                         |
-                    CalendarPort
+  +----------- SCHEDULING CANDIDATE ------------------+
+  |                      |                             |
+  |                  admission                         |
+  |            deterministic evidence?                 |
+  |               |              |                     |
+  |              yes             no -------------------+
+  |               |                                    |
+  |           Scheduler                               GENERAL
+  |               |
+  |        SchedulingMemory
+  |               |
+  |    explicit human approval
+  |               |
+  |          CalendarPort
+  |
+  +---------------- NO MATCH -------------------------> GENERAL
 ```
 
 The semantic path intentionally has no cross-encoder reranker, LLM routing judge, topic regex whitelist, vector database, generic tool selector or ReAct loop.
@@ -42,39 +49,63 @@ The semantic path intentionally has no cross-encoder reranker, LLM routing judge
 Static semantic data is embedded once during FastAPI startup:
 
 ```text
-route descriptions  -> embedding vectors, cached
-business profile    -> document vectors, cached
+business route utterances     -> vectors in semantic-router LocalIndex
+scheduling route utterances   -> vectors in semantic-router LocalIndex
+business profile              -> document vectors, cached
 ```
 
-The application does not finish startup until those vectors are ready. Each visitor turn then requires only a query embedding plus cosine similarity over the cached vectors.
+The application does not finish startup until those vectors are ready. Each normal visitor turn then requires one query embedding plus local in-memory similarity scoring.
 
 `server/app/agent` contains:
 
 ```text
 representative.py  thin orchestration
-router.py          BUSINESS / SCHEDULING / GENERAL dense routing
+router.py          open-set semantic-router adapter
 context.py         cached dense profile retrieval + prompt assembly
 scheduler.py       meeting workflow + hard write invariants
 responder.py       grounded knowledge streaming
 stream_guard.py    narrow rolling output safety boundary
-similarity.py      cosine similarity
 ```
 
-External boundaries remain separated under `ports/` and `infrastructure/`.
+`server/app/infrastructure/embeddings/semantic_router.py` adapts the existing llama.cpp `EmbeddingPort` to semantic-router's async asymmetric encoder interface. No second embedding model is loaded.
 
-## Scheduling model
+## Open-set routing
+
+Only `business` and `scheduling` are positive routes on a new conversation. `GENERAL` is the abstention/default path; it is not an indexed semantic route.
+
+```text
+business match       -> BUSINESS
+scheduling match     -> SCHEDULING candidate
+no threshold match   -> GENERAL
+ambiguous top routes -> GENERAL
+```
+
+Routes contain multiple Spanish and English utterances. Aurelio semantic-router applies the per-route score threshold; the adapter also requires a minimum margin when more than one positive route passes.
+
+Thresholds are configuration, not runtime learning:
+
+```env
+ROUTER_BUSINESS_THRESHOLD=0.55
+ROUTER_SCHEDULING_THRESHOLD=0.58
+ROUTER_CONTINUATION_THRESHOLD=0.50
+ROUTER_MIN_MARGIN=0.05
+```
+
+During an active meeting task a second static route layer distinguishes `scheduling_continue` from `business_interrupt`; a miss becomes a general interruption and the existing meeting state remains intact.
+
+## Scheduling admission
 
 Scheduling is represented by facts in `SchedulingMemory` rather than a conversational FSM. Free-form chat text never writes to Calendar. A prepared booking requires explicit approval through the UI before the deterministic booking boundary can run.
 
-A business/general interruption does not clear scheduling memory, so the visitor can resume the meeting later.
+A semantic scheduling match is only a candidate. For a new conversation, the deterministic `SchedulingTurnParser` must find actual scheduling evidence before a workflow can start. Its small LLM semantic fallback is available only after `ActiveWorkflow.SCHEDULING` already exists, where it can interpret ambiguous continuations without gaining authority to create a workflow.
 
-## Routing and retrieval
+This makes the operational boundary fail closed: a routing false positive cannot by itself start scheduling.
 
-`SemanticRouter` compares the latest visitor turn with cached semantic route descriptions. During an active meeting task the descriptions become scheduling continuation versus business/general interruption.
+## Business retrieval
 
-Business questions use the same embedding service against the structured business profile. Profile document embeddings are computed during startup and reused for the process lifetime. The query is compared locally with cosine similarity and only the top documents that fit the context budget are sent to the conversational model.
+Business questions continue to use the same embedding service against the structured business profile. Profile document embeddings are computed during startup and reused for the process lifetime. The query is compared locally with cosine similarity and only the top documents that fit the context budget are sent to the conversational model.
 
-No profile document is pairwise reranked by another language model on every turn.
+Semantic-router is used only for intent selection; it does not replace profile retrieval.
 
 ## Safe real streaming
 
@@ -157,4 +188,4 @@ GOOGLE_REFRESH_TOKEN=...
 make check
 ```
 
-Regression coverage includes semantic routing, scheduling interruption/resume, invalid slot rejection, explicit-approval Calendar writes, capability-aware answers, cached profile retrieval and guarded real streaming.
+Regression coverage includes open-set routing/no-match, ambiguity fallback, scheduling interruption/resume, prevention of semantic-only scheduling startup, invalid slot rejection, explicit-approval Calendar writes, capability-aware answers, cached profile retrieval and guarded real streaming.
