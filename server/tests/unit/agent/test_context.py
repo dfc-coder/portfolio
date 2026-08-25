@@ -8,16 +8,22 @@ from app.domain.profile import BusinessProfile
 from app.domain.routing import RouteDomain
 
 
-class RecordingReranker:
+class RecordingEmbeddings:
     def __init__(self, target: str | None = None) -> None:
         self.target = target
-        self.calls: list[tuple[str, list[str]]] = []
+        self.document_calls: list[list[str]] = []
+        self.query_calls: list[str] = []
 
-    async def rerank(self, query: str, documents: list[str]) -> list[float]:
-        self.calls.append((query, documents))
-        if self.target is None:
-            return [0.0 for _ in documents]
-        return [0.95 if self.target in document else 0.01 for document in documents]
+    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        self.document_calls.append(texts)
+        return [
+            [1.0, 0.0] if self.target and self.target in text else [0.0, 1.0]
+            for text in texts
+        ]
+
+    async def embed_query(self, text: str) -> list[float]:
+        self.query_calls.append(text)
+        return [1.0, 0.0]
 
     async def health(self) -> bool:
         return True
@@ -25,14 +31,13 @@ class RecordingReranker:
 
 def make_assembler(
     profile: BusinessProfile,
-    reranker: RecordingReranker,
+    embeddings: RecordingEmbeddings,
 ) -> ContextAssembler:
     retriever = ProfileRetriever(
         ProfileDocumentIndex(profile),
-        reranker,
-        min_score=0.10,
+        embeddings,
         max_chars=6000,
-        max_documents=6,
+        max_documents=1,
     )
     return ContextAssembler(
         profile,
@@ -57,28 +62,27 @@ def test_profile_index_is_generated_from_structured_profile(profile: BusinessPro
 async def test_general_context_does_not_retrieve_business_profile(
     profile: BusinessProfile,
 ) -> None:
-    reranker = RecordingReranker(target="PocketTrace")
-    assembler = make_assembler(profile, reranker)
+    embeddings = RecordingEmbeddings(target="PocketTrace")
+    assembler = make_assembler(profile, embeddings)
     state = SessionState("general-context")
     state.current_focus = RouteDomain.GENERAL
     state.turns.append(ChatTurn(role="user", content="Hola"))
 
     context = await assembler.build(state)
 
-    assert reranker.calls == []
+    assert embeddings.document_calls == []
+    assert embeddings.query_calls == []
     assert context.document_ids == ()
     assert "\nRELEVANT_KNOWLEDGE:\n" not in context.system_prompt
     assert context.history[-1].content == "Hola"
 
 
 @pytest.mark.asyncio
-async def test_business_context_contains_only_semantically_selected_documents(
+async def test_business_context_contains_top_dense_retrieval_document(
     profile: BusinessProfile,
 ) -> None:
-    # Use a value unique to the PocketTrace project document. "PocketTrace" also
-    # appears in an FAQ, which correctly makes that FAQ relevant to a real reranker.
-    reranker = RecordingReranker(target="https://github.com/dfc-coder/pockettrace")
-    assembler = make_assembler(profile, reranker)
+    embeddings = RecordingEmbeddings(target="https://github.com/dfc-coder/pockettrace")
+    assembler = make_assembler(profile, embeddings)
     state = SessionState("business-context")
     state.current_focus = RouteDomain.BUSINESS
     state.turns.append(
@@ -90,7 +94,8 @@ async def test_business_context_contains_only_semantically_selected_documents(
 
     context = await assembler.build(state)
 
-    assert len(reranker.calls) == 1
+    assert len(embeddings.document_calls) == 1
+    assert len(embeddings.query_calls) == 1
     assert len(context.document_ids) == 1
     assert context.document_ids[0].startswith("projects.")
     assert "PocketTrace" in context.system_prompt
@@ -99,11 +104,28 @@ async def test_business_context_contains_only_semantically_selected_documents(
 
 
 @pytest.mark.asyncio
+async def test_profile_document_embeddings_are_computed_once(
+    profile: BusinessProfile,
+) -> None:
+    embeddings = RecordingEmbeddings(target="PocketTrace")
+    assembler = make_assembler(profile, embeddings)
+    state = SessionState("cached-index")
+    state.current_focus = RouteDomain.BUSINESS
+    state.turns.append(ChatTurn(role="user", content="PocketTrace"))
+
+    await assembler.build(state)
+    await assembler.build(state)
+
+    assert len(embeddings.document_calls) == 1
+    assert len(embeddings.query_calls) == 2
+
+
+@pytest.mark.asyncio
 async def test_retrieval_query_keeps_small_recent_context_for_followups(
     profile: BusinessProfile,
 ) -> None:
-    reranker = RecordingReranker(target="Xarlatan")
-    assembler = make_assembler(profile, reranker)
+    embeddings = RecordingEmbeddings(target="Xarlatan")
+    assembler = make_assembler(profile, embeddings)
     state = SessionState("followup-context")
     state.current_focus = RouteDomain.BUSINESS
     state.turns.extend(
@@ -116,7 +138,7 @@ async def test_retrieval_query_keeps_small_recent_context_for_followups(
 
     context = await assembler.build(state)
 
-    query, _documents = reranker.calls[0]
+    query = embeddings.query_calls[0]
     assert "Contame sobre Xarlatan" in query
     assert "¿Y qué lenguaje usa ahí?" in query
     assert any(document_id.startswith("projects.") for document_id in context.document_ids)
