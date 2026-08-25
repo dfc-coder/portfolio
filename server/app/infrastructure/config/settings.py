@@ -34,6 +34,9 @@ class Settings:
     router_min_margin: float = 0.08
     router_judge_temperature: float = 0.0
     router_judge_max_tokens: int = 32
+    context_relevance_threshold: float = 0.10
+    context_max_chars: int = 6000
+    context_max_documents: int = 6
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -69,6 +72,11 @@ class Settings:
             router_min_margin=float(os.getenv("ROUTER_MIN_MARGIN", "0.08")),
             router_judge_temperature=float(os.getenv("ROUTER_JUDGE_TEMPERATURE", "0.0")),
             router_judge_max_tokens=int(os.getenv("ROUTER_JUDGE_MAX_TOKENS", "32")),
+            context_relevance_threshold=float(
+                os.getenv("CONTEXT_RELEVANCE_THRESHOLD", "0.10")
+            ),
+            context_max_chars=int(os.getenv("CONTEXT_MAX_CHARS", "6000")),
+            context_max_documents=int(os.getenv("CONTEXT_MAX_DOCUMENTS", "6")),
         )
 
     def validate_calendar(self) -> None:
