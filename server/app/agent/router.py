@@ -209,12 +209,15 @@ class SemanticRouter:
         )
 
     def _empty_router(self, dimensions: int) -> AurelioSemanticRouter:
+        # The portfolio has only a few dozen cached route utterances. Scoring all of
+        # them keeps both candidate routes visible to the ambiguity check and remains
+        # negligible compared with the single query embedding call.
         return AurelioSemanticRouter(
             encoder=self._encoder,
             routes=[],
             index=LocalIndex(dimensions=dimensions),
-            top_k=5,
-            aggregation="mean",
+            top_k=64,
+            aggregation="max",
             auto_sync=None,
             init_async_index=True,
         )
