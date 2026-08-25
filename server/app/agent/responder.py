@@ -45,6 +45,9 @@ class Responder:
         )
         self._context = ContextAssembler(profile, capabilities, retriever)
 
+    async def warm(self) -> None:
+        await self._context.warm()
+
     async def stream(
         self,
         state: SessionState,
