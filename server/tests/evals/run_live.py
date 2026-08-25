@@ -6,7 +6,6 @@ import json
 import statistics
 import time
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -16,29 +15,19 @@ from app.agent.representative import BusinessRepresentative
 from app.agent.responder import Responder
 from app.agent.router import SemanticRouter
 from app.agent.scheduler import Scheduler
-from app.domain.conversation import ActiveWorkflow, SessionState
-from app.domain.routing import RouteDomain
-from app.domain.scheduling import OfferedSlot, PendingBooking
 from app.infrastructure.calendar.memory import InMemoryCalendarGateway
 from app.infrastructure.config.profile_loader import load_business_profile
 from app.infrastructure.config.settings import Settings
+from app.infrastructure.embeddings.llama_cpp import LlamaCppEmbeddingClient
 from app.infrastructure.llm.llama_cpp import LlamaCppClient
-from app.infrastructure.reranker.llama_cpp import LlamaCppReranker
 from app.infrastructure.sessions.memory import MemorySessionStore
 from app.ports.llm import GenerationConfig
 from app.scheduling.policy import SchedulingPolicy
 from app.scheduling.slots import SlotService
 
 
-ROUTE_DOMAINS = {
-    "business": RouteDomain.BUSINESS,
-    "scheduling": RouteDomain.SCHEDULING,
-    "general": RouteDomain.GENERAL,
-}
-
-
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Evaluate the real reranker + SLM stack.")
+    parser = argparse.ArgumentParser(description="Evaluate the real embedding + SLM stack.")
     parser.add_argument(
         "--cases",
         type=Path,
@@ -71,75 +60,21 @@ def percentile(values: list[float], fraction: float) -> float:
     return ordered[index]
 
 
-def configure_scheduling_state(state: SessionState, stage: str | None) -> None:
-    if not stage:
-        return
-
-    start = datetime.now(timezone.utc) + timedelta(days=7)
-    first = OfferedSlot(start=start, end=start + timedelta(minutes=30))
-    second = OfferedSlot(
-        start=start + timedelta(minutes=45),
-        end=start + timedelta(minutes=75),
-    )
-
-    if stage in {"scheduling_slot", "scheduling_details", "scheduling_confirmation"}:
-        state.scheduling.offered_slots = {"S1": first, "S2": second}
-
-    if stage in {"scheduling_details", "scheduling_confirmation"}:
-        state.scheduling.selected_slot_id = "S1"
-
-    if stage == "scheduling_confirmation":
-        state.scheduling.visitor_name = "Ana"
-        state.scheduling.visitor_email = "ana@example.com"
-        state.scheduling.subject = "Architecture discussion"
-        state.scheduling.pending_booking = PendingBooking(
-            booking_id="eval-booking",
-            slot=first,
-            visitor_name="Ana",
-            visitor_email="ana@example.com",
-            subject="Architecture discussion",
-        )
-
-
-def state_for_case(case: dict[str, Any], repetition: int) -> SessionState:
-    state = SessionState(session_id=f"eval-{case.get('id', 'case')}-{repetition}")
-    raw_state = case.get("state") or {}
-    if raw_state.get("active_workflow") == "scheduling":
-        state.active_workflow = ActiveWorkflow.SCHEDULING
-        configure_scheduling_state(state, raw_state.get("stage"))
-    return state
-
-
-def build_router(
-    settings: Settings,
-    llm: LlamaCppClient,
-    reranker: LlamaCppReranker,
-) -> SemanticRouter:
-    return SemanticRouter(
-        reranker,
-        llm,
-        GenerationConfig(
-            temperature=settings.router_judge_temperature,
-            max_tokens=settings.router_judge_max_tokens,
-            top_p=0.8,
-            top_k=10,
-        ),
-        min_score=settings.router_min_score,
-        min_margin=settings.router_min_margin,
-    )
+def build_router(embeddings: LlamaCppEmbeddingClient) -> SemanticRouter:
+    return SemanticRouter(embeddings)
 
 
 def build_eval_agent(
     settings: Settings,
     llm: LlamaCppClient,
-    reranker: LlamaCppReranker,
+    embeddings: LlamaCppEmbeddingClient,
 ) -> tuple[BusinessRepresentative, MemorySessionStore, InMemoryCalendarGateway]:
     profile = load_business_profile(settings.profile_path)
     policy = SchedulingPolicy(profile.scheduling)
     sessions = MemorySessionStore(settings.session_ttl_seconds, settings.session_max_turns)
     calendar = InMemoryCalendarGateway()
     slots = SlotService(calendar, policy)
-    router = build_router(settings, llm, reranker)
+    router = build_router(embeddings)
     scheduler = Scheduler(
         llm,
         slots,
@@ -148,8 +83,8 @@ def build_eval_agent(
         GenerationConfig(
             temperature=settings.planner_temperature,
             max_tokens=settings.planner_max_tokens,
-            top_p=0.9,
-            top_k=20,
+            top_p=1.0,
+            top_k=1,
         ),
     )
     responder = Responder(
@@ -163,16 +98,11 @@ def build_eval_agent(
             top_k=20,
         ),
         scheduler.public_capabilities,
+        embeddings,
+        context_max_chars=settings.context_max_chars,
+        context_max_documents=settings.context_max_documents,
     )
     return BusinessRepresentative(sessions, router, scheduler, responder), sessions, calendar
-
-
-def route_key_domain(route_key: str) -> str:
-    if route_key.startswith("business"):
-        return "business"
-    if route_key.startswith("scheduling"):
-        return "scheduling"
-    return "general"
 
 
 async def evaluate_routing(
@@ -188,38 +118,39 @@ async def evaluate_routing(
             continue
         repetitions = critical_repetitions if case.get("critical") else 1
         for repetition in range(repetitions):
-            state = state_for_case(case, repetition)
+            from app.domain.conversation import ActiveWorkflow, SessionState
+
+            state = SessionState(session_id=f"eval-{case.get('id', 'case')}-{repetition}")
+            if (case.get("state") or {}).get("active_workflow") == "scheduling":
+                state.active_workflow = ActiveWorkflow.SCHEDULING
+
             started = time.perf_counter()
             decision = await router.route(state, case["message"])
             latency_ms = (time.perf_counter() - started) * 1000
-            expected_domain = case["domain"]
-            expected_relation = case["relation"]
             correct = (
-                decision.domain.value == expected_domain
-                and decision.relation.value == expected_relation
+                decision.domain.value == case["domain"]
+                and decision.relation.value == case["relation"]
             )
             case_id = case.get("id", case["message"])
             by_case[case_id].append(correct)
-
             ranked_scores = sorted(decision.scores.items(), key=lambda item: item[1], reverse=True)
-            top_score = ranked_scores[0][1] if ranked_scores else 0.0
-            second_score = ranked_scores[1][1] if len(ranked_scores) > 1 else 0.0
-            top_domain = route_key_domain(ranked_scores[0][0]) if ranked_scores else None
-
+            margin = (
+                ranked_scores[0][1] - ranked_scores[1][1]
+                if len(ranked_scores) > 1
+                else 0.0
+            )
             records.append(
                 {
                     "case_id": case_id,
                     "message": case["message"],
                     "critical": bool(case.get("critical")),
-                    "expected_domain": expected_domain,
-                    "expected_relation": expected_relation,
+                    "expected_domain": case["domain"],
+                    "expected_relation": case["relation"],
                     "actual_domain": decision.domain.value,
                     "actual_relation": decision.relation.value,
                     "source": decision.source,
                     "scores": decision.scores,
-                    "top_domain": top_domain,
-                    "top_score": top_score,
-                    "margin": top_score - second_score,
+                    "margin": round(margin, 6),
                     "latency_ms": round(latency_ms, 2),
                     "correct": correct,
                 }
@@ -231,19 +162,9 @@ async def evaluate_routing(
     for record in records:
         confusion[record["expected_domain"]][record["actual_domain"]] += 1
 
-    non_scheduling = [
-        record for record in records if record["expected_domain"] != "scheduling"
-    ]
+    non_scheduling = [record for record in records if record["expected_domain"] != "scheduling"]
     false_scheduling = [
         record for record in non_scheduling if record["actual_domain"] == "scheduling"
-    ]
-    judge_attempts = [
-        record
-        for record in records
-        if record["source"] in {"llm_judge", "reranker_fallback", "safe_fallback"}
-    ]
-    successful_judges = [
-        record for record in judge_attempts if record["source"] == "llm_judge"
     ]
     latencies = [record["latency_ms"] for record in records]
     critical_cases = {
@@ -254,7 +175,7 @@ async def evaluate_routing(
 
     return {
         "runs": total,
-        "accuracy": round(correct_count / total, 4) if total else 0.0,
+        "accuracy": round(correct_count / total, 4) if total else 1.0,
         "false_scheduling_rate": (
             round(len(false_scheduling) / len(non_scheduling), 4)
             if non_scheduling
@@ -264,11 +185,6 @@ async def evaluate_routing(
             expected: dict(counts) for expected, counts in sorted(confusion.items())
         },
         "source_counts": dict(Counter(record["source"] for record in records)),
-        "judge_schema_success_rate": (
-            round(len(successful_judges) / len(judge_attempts), 4)
-            if judge_attempts
-            else 1.0
-        ),
         "critical_pass_k": {
             "passed": sum(all(outcomes) for outcomes in critical_cases.values()),
             "total": len(critical_cases),
@@ -278,57 +194,15 @@ async def evaluate_routing(
             "p50": round(statistics.median(latencies), 2) if latencies else 0.0,
             "p95": round(percentile(latencies, 0.95), 2),
         },
-        "calibration": calibration_summary(records),
         "failures": [record for record in records if not record["correct"]],
     }
-
-
-def calibration_summary(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    candidates: list[dict[str, Any]] = []
-    for min_score in (0.0, 0.05, 0.10, 0.15, 0.20, 0.30, 0.40):
-        for min_margin in (0.0, 0.02, 0.05, 0.08, 0.10, 0.15, 0.20):
-            covered = [
-                record
-                for record in records
-                if record["scores"]
-                and record["top_score"] >= min_score
-                and record["margin"] >= min_margin
-            ]
-            if not covered:
-                continue
-            correct = sum(
-                record["top_domain"] == record["expected_domain"] for record in covered
-            )
-            false_scheduling = sum(
-                record["top_domain"] == "scheduling"
-                and record["expected_domain"] != "scheduling"
-                for record in covered
-            )
-            candidates.append(
-                {
-                    "min_score": min_score,
-                    "min_margin": min_margin,
-                    "coverage": round(len(covered) / len(records), 4),
-                    "covered_accuracy": round(correct / len(covered), 4),
-                    "false_scheduling": false_scheduling,
-                }
-            )
-
-    candidates.sort(
-        key=lambda item: (
-            item["false_scheduling"],
-            -item["covered_accuracy"],
-            -item["coverage"],
-        )
-    )
-    return candidates[:10]
 
 
 async def evaluate_conversations(
     cases: list[dict[str, Any]],
     settings: Settings,
     llm: LlamaCppClient,
-    reranker: LlamaCppReranker,
+    embeddings: LlamaCppEmbeddingClient,
     critical_repetitions: int,
 ) -> dict[str, Any]:
     records: list[dict[str, Any]] = []
@@ -339,7 +213,7 @@ async def evaluate_conversations(
             continue
         repetitions = critical_repetitions if case.get("critical") else 1
         for repetition in range(repetitions):
-            agent, sessions, calendar = build_eval_agent(settings, llm, reranker)
+            agent, sessions, calendar = build_eval_agent(settings, llm, embeddings)
             session_id = f"live-{case['id']}-{repetition}"
             started = time.perf_counter()
             error: str | None = None
@@ -348,7 +222,7 @@ async def evaluate_conversations(
                     _ = "".join(
                         [chunk async for chunk in agent.respond(session_id, user_message)]
                     )
-            except Exception as exc:  # noqa: BLE001 - eval must report model/runtime failures
+            except Exception as exc:  # noqa: BLE001 - eval reports runtime failures
                 error = f"{type(exc).__name__}: {exc}"
 
             state = await sessions.get(session_id)
@@ -420,7 +294,7 @@ async def main() -> int:
 
     async with (
         httpx.AsyncClient(timeout=settings.llama_timeout_seconds) as llm_http,
-        httpx.AsyncClient(timeout=settings.reranker_timeout_seconds) as reranker_http,
+        httpx.AsyncClient(timeout=settings.embedding_timeout_seconds) as embedding_http,
     ):
         llm = LlamaCppClient(
             settings.llama_base_url,
@@ -428,62 +302,39 @@ async def main() -> int:
             settings.llama_timeout_seconds,
             client=llm_http,
         )
-        reranker = LlamaCppReranker(
-            settings.reranker_base_url,
-            settings.reranker_model,
-            settings.reranker_timeout_seconds,
-            client=reranker_http,
+        embeddings = LlamaCppEmbeddingClient(
+            settings.embedding_base_url,
+            settings.embedding_model,
+            settings.embedding_timeout_seconds,
+            client=embedding_http,
         )
 
-        health = {
-            "llm": await llm.health(),
-            "reranker": await reranker.health(),
-        }
-        if not all(health.values()):
-            report = {"health": health, "error": "Required live model service is not ready."}
-            rendered = json.dumps(report, ensure_ascii=False, indent=2)
-            print(rendered)
-            return 2
-
-        router = build_router(settings, llm, reranker)
-        routing = await evaluate_routing(
-            cases,
-            router,
-            args.critical_repetitions,
-        )
+        router = build_router(embeddings)
+        routing = await evaluate_routing(cases, router, args.critical_repetitions)
         conversations = await evaluate_conversations(
             cases,
             settings,
             llm,
-            reranker,
+            embeddings,
             args.critical_repetitions,
         )
 
     report = {
-        "health": health,
-        "config": {
-            "router_min_score": settings.router_min_score,
-            "router_min_margin": settings.router_min_margin,
-            "critical_repetitions": args.critical_repetitions,
-        },
-        "dataset": {
-            "routing_cases": sum(case.get("kind") == "routing" for case in cases),
-            "conversation_cases": sum(case.get("kind") == "conversation" for case in cases),
-        },
         "routing": routing,
         "conversations": conversations,
     }
-    rendered = json.dumps(report, ensure_ascii=False, indent=2)
-    print(rendered)
+    text = json.dumps(report, ensure_ascii=False, indent=2)
     if args.output:
-        args.output.write_text(rendered + "\n", encoding="utf-8")
+        args.output.write_text(text + "\n", encoding="utf-8")
+    print(text)
 
-    failed = (
-        routing["accuracy"] < 1.0
-        or conversations["pass_rate"] < 1.0
-        or conversations["unexpected_calendar_writes"] > 0
+    passed = (
+        routing["accuracy"] == 1.0
+        and routing["false_scheduling_rate"] == 0.0
+        and conversations["pass_rate"] == 1.0
+        and conversations["unexpected_calendar_writes"] == 0
     )
-    return 1 if args.strict and failed else 0
+    return 0 if passed or not args.strict else 1
 
 
 if __name__ == "__main__":
