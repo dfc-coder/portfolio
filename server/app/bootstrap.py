@@ -16,6 +16,7 @@ from app.infrastructure.sessions.memory import MemorySessionStore
 from app.ports.llm import GenerationConfig
 from app.scheduling.approval import BookingApproval
 from app.scheduling.policy import SchedulingPolicy
+from app.scheduling.presenter import SchedulingPresenter
 from app.scheduling.slots import SlotService
 
 
@@ -72,6 +73,7 @@ def build_runtime(settings: Settings) -> AgentRuntime:
         policy,
         interpreter_config,
     )
+    scheduling_presenter = SchedulingPresenter(profile.scheduling.timezone)
     responder = Responder(
         llm,
         profile,
@@ -94,6 +96,7 @@ def build_runtime(settings: Settings) -> AgentRuntime:
     representative = BusinessRepresentative(
         sessions,
         scheduler,
+        scheduling_presenter,
         responder,
         trace_recorder,
     )
