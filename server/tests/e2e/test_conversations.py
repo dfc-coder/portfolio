@@ -17,6 +17,7 @@ from app.infrastructure.sessions.memory import MemorySessionStore
 from app.ports.llm import GenerationConfig
 from app.scheduling.approval import BookingApproval
 from app.scheduling.policy import SchedulingPolicy
+from app.scheduling.presenter import SchedulingPresenter
 
 
 class FakeLlm:
@@ -43,7 +44,7 @@ class BusinessEmbeddings:
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         return [
             [1.0, 0.0]
-            if "skills" in text or "professional_experience" in text
+            if "Skills." in text or "Professional experience." in text
             else [0.0, 1.0]
             for text in texts
         ]
@@ -99,7 +100,12 @@ def build_agent(profile: BusinessProfile):
         BusinessEmbeddings(),
         knowledge_min_score=0.50,
     )
-    agent = BusinessRepresentative(sessions, scheduler, responder)
+    agent = BusinessRepresentative(
+        sessions,
+        scheduler,
+        SchedulingPresenter(profile.scheduling.timezone),
+        responder,
+    )
     approvals = BookingApproval(sessions, calendar, policy)
     return agent, sessions, calendar, llm, approvals
 
@@ -116,6 +122,7 @@ async def test_scheduling_can_be_interrupted_by_retrieved_business_knowledge_and
             async for chunk in agent.respond(
                 "session-123",
                 "Quiero una reunión el 25 de agosto",
+                "es-AR",
             )
         ]
     )
@@ -127,6 +134,7 @@ async def test_scheduling_can_be_interrupted_by_retrieved_business_knowledge_and
             async for chunk in agent.respond(
                 "session-123",
                 "Antes, ¿en qué tecnologías trabaja Diego?",
+                "es-AR",
             )
         ]
     )
@@ -143,6 +151,7 @@ async def test_scheduling_can_be_interrupted_by_retrieved_business_knowledge_and
             async for chunk in agent.respond(
                 "session-123",
                 "El segundo. Soy Juan Perez, juan@example.com, para hablar de arquitectura",
+                "es-AR",
             )
         ]
     )
@@ -173,6 +182,7 @@ async def test_date_without_meeting_intent_does_not_start_scheduling(
             async for chunk in agent.respond(
                 "session-date",
                 "El 25 de agosto",
+                "es-AR",
             )
         ]
     )
