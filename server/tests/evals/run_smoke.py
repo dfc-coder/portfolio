@@ -9,30 +9,30 @@ import httpx
 import run_live
 import run_scheduling_turn_live as scheduling_eval
 from app.infrastructure.config.settings import Settings
+from app.infrastructure.embeddings.llama_cpp import LlamaCppEmbeddingClient
 from app.infrastructure.llm.llama_cpp import LlamaCppClient
-from app.infrastructure.reranker.llama_cpp import LlamaCppReranker
 
 
 ROUTING_CASE_IDS = {
-    "b03",  # business capability
-    "b09",  # owner skill
-    "s01",  # new scheduling request
-    "s12",  # availability request
-    "c01",  # scheduling continuation
-    "i02",  # business interruption during scheduling
-    "g02",  # general greeting
+    "b03",
+    "b09",
+    "s01",
+    "s12",
+    "c01",
+    "i02",
+    "g02",
 }
 CONVERSATION_CASE_IDS = {
-    "conv01",  # no scheduling side effect
-    "conv05",  # text confirmation must remain HITL-only
+    "conv01",
+    "conv05",
 }
 SCHEDULING_CASE_IDS = {
-    "st01",  # slot selection
-    "st06",  # visitor name
-    "st14",  # relative date
-    "st22",  # scheduling request
-    "st27",  # semantic interruption fallback
-    "st38",  # cancellation
+    "st01",
+    "st06",
+    "st14",
+    "st22",
+    "st27",
+    "st38",
 }
 
 
@@ -54,7 +54,7 @@ async def main() -> int:
 
     async with (
         httpx.AsyncClient(timeout=settings.llama_timeout_seconds) as llm_http,
-        httpx.AsyncClient(timeout=settings.reranker_timeout_seconds) as reranker_http,
+        httpx.AsyncClient(timeout=settings.embedding_timeout_seconds) as embedding_http,
     ):
         llm = LlamaCppClient(
             settings.llama_base_url,
@@ -62,24 +62,24 @@ async def main() -> int:
             settings.llama_timeout_seconds,
             client=llm_http,
         )
-        reranker = LlamaCppReranker(
-            settings.reranker_base_url,
-            settings.reranker_model,
-            settings.reranker_timeout_seconds,
-            client=reranker_http,
+        embeddings = LlamaCppEmbeddingClient(
+            settings.embedding_base_url,
+            settings.embedding_model,
+            settings.embedding_timeout_seconds,
+            client=embedding_http,
         )
 
         llm_ready = await llm.health()
-        reranker_ready = await reranker.health()
+        embedding_ready = await embeddings.health()
         print(
             f"[smoke] llama={'ready' if llm_ready else 'DOWN'} "
-            f"reranker={'ready' if reranker_ready else 'DOWN'}",
+            f"embedding={'ready' if embedding_ready else 'DOWN'}",
             flush=True,
         )
-        if not llm_ready or not reranker_ready:
+        if not llm_ready or not embedding_ready:
             return 2
 
-        router = run_live.build_router(settings, llm, reranker)
+        router = run_live.build_router(embeddings)
         routing_passed = 0
         print(f"[smoke] routing: {len(routing_cases)} cases", flush=True)
         for index, case in enumerate(routing_cases, start=1):
@@ -99,7 +99,7 @@ async def main() -> int:
                 [case],
                 settings,
                 llm,
-                reranker,
+                embeddings,
                 1,
             )
             passed = (
