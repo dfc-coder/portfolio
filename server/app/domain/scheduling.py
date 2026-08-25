@@ -23,6 +23,7 @@ class PendingBooking:
     visitor_name: str
     visitor_email: str
     subject: str
+    expires_at: datetime | None = None
 
 
 @dataclass(frozen=True)

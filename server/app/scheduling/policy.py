@@ -7,38 +7,6 @@ from zoneinfo import ZoneInfo
 
 from app.domain.profile import SchedulingProfile
 
-_EXPLICIT_CONFIRMATIONS = {
-    "yes",
-    "yes please",
-    "yes, please",
-    "yes, book it",
-    "yes book it",
-    "yes, schedule it",
-    "yes schedule it",
-    "confirm",
-    "confirmed",
-    "book it",
-    "schedule it",
-    "go ahead",
-    "si",
-    "sí",
-    "si por favor",
-    "sí por favor",
-    "si, por favor",
-    "sí, por favor",
-    "si, confirmo",
-    "sí, confirmo",
-    "confirmo",
-    "confirmado",
-    "agendalo",
-    "agéndalo",
-    "reservalo",
-    "resérvalo",
-    "dale",
-    "dale, agendalo",
-    "dale, agéndalo",
-}
-
 _REJECTION_PATTERNS = (
     r"^\s*(?:cancel|cancel it|cancel the meeting|don't book(?: it)?|do not book(?: it)?|another time)\s*[.!]?\s*$",
     r"^\s*(?:cancelá|cancela|cancelar|no agendes(?: nada)?|no lo agendes|otro horario|otra hora)\s*[.!]?\s*$",
@@ -53,16 +21,19 @@ class SchedulingPolicy:
     def timezone(self) -> ZoneInfo:
         return ZoneInfo(self.config.timezone)
 
-    def is_explicit_confirmation(self, text: str) -> bool:
-        normalized = re.sub(r"[.!]+$", "", text.strip().lower())
-        normalized = re.sub(r"\s+", " ", normalized)
-        return normalized in _EXPLICIT_CONFIRMATIONS
-
     def is_rejection(self, text: str) -> bool:
         normalized = text.strip().lower()
-        return any(re.search(pattern, normalized, re.IGNORECASE) for pattern in _REJECTION_PATTERNS)
+        return any(
+            re.search(pattern, normalized, re.IGNORECASE)
+            for pattern in _REJECTION_PATTERNS
+        )
 
-    def validate_date_window(self, start: datetime, end: datetime, now: datetime) -> None:
+    def validate_date_window(
+        self,
+        start: datetime,
+        end: datetime,
+        now: datetime,
+    ) -> None:
         local_now = now.astimezone(self.timezone)
         if end <= start:
             raise ValueError("The availability window must end after it starts.")
