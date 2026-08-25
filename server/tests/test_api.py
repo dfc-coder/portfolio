@@ -3,7 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import AsyncIterator
 
-from fastapi.testclient import TestClient
+import httpx
+import pytest
 
 from app.infrastructure.config.settings import Settings
 from app.main import create_app
@@ -17,7 +18,8 @@ class FakeAgent:
         yield " from server"
 
 
-def test_sse_contract_streams_tokens() -> None:
+@pytest.mark.asyncio
+async def test_sse_contract_streams_tokens() -> None:
     settings = Settings(
         profile_path=Path("unused.json"),
         llama_base_url="http://llama:8080",
@@ -33,9 +35,13 @@ def test_sse_contract_streams_tokens() -> None:
         google_refresh_token=None,
     )
     app = create_app(settings, agent=FakeAgent())  # type: ignore[arg-type]
+    transport = httpx.ASGITransport(app=app)
 
-    with TestClient(app) as client:
-        response = client.post(
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
             "/v1/chat/stream",
             json={"session_id": "browser-session-123", "message": "Hello"},
         )
