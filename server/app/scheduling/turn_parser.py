@@ -7,7 +7,7 @@ from typing import Final
 
 from pydantic import BaseModel
 
-from app.domain.conversation import SessionState
+from app.domain.conversation import ActiveWorkflow, SessionState
 from app.domain.routing import RouteRelation
 from app.ports.llm import GenerationConfig, LlmPort
 from app.scheduling.policy import SchedulingPolicy
@@ -171,7 +171,7 @@ class AmbiguousSchedulingTurn(BaseModel):
 
 
 class SchedulingTurnParser:
-    """Deterministic-first parser with a tiny LLM fallback for genuine ambiguity."""
+    """Deterministic-first parser with semantic fallback only inside an active workflow."""
 
     def __init__(
         self,
@@ -223,6 +223,11 @@ class SchedulingTurnParser:
         if _MEETING_RE.search(text) and _MEETING_REQUEST_RE.search(text):
             return SchedulingTurn(intent=SchedulingIntent.REQUEST)
 
+        # A semantic classifier may interpret an ambiguous continuation, but it must
+        # never have authority to create a new operational scheduling workflow.
+        if state.active_workflow != ActiveWorkflow.SCHEDULING:
+            return SchedulingTurn(intent=SchedulingIntent.OTHER)
+
         return await self._semantic_fallback(state, text, relation, now)
 
     async def _semantic_fallback(
@@ -243,8 +248,8 @@ class SchedulingTurnParser:
             {
                 "role": "system",
                 "content": (
-                    "Classify only the latest visitor message for a meeting workflow. "
-                    "request=asks to arrange/check a meeting; inform=provides meeting details; "
+                    "Classify only the latest visitor message for an already active meeting workflow. "
+                    "request=asks to arrange/check the active meeting; inform=provides meeting details; "
                     "select=chooses a previously offered slot; confirm=acknowledges a prepared "
                     "meeting but never authorizes a calendar write; cancel=cancels; "
                     "other=not scheduling. Professional questions about work, projects, "
@@ -265,11 +270,7 @@ class SchedulingTurnParser:
             parsed = AmbiguousSchedulingTurn.model_validate_json(raw)
             intent = parsed.intent
             if parsed.visitor_name or parsed.subject:
-                intent = (
-                    SchedulingIntent.INFORM
-                    if intent == SchedulingIntent.OTHER
-                    else intent
-                )
+                intent = SchedulingIntent.INFORM if intent == SchedulingIntent.OTHER else intent
             return SchedulingTurn(
                 intent=intent,
                 visitor_name=parsed.visitor_name,
