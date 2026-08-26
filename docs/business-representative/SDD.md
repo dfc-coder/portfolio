@@ -1,8 +1,8 @@
-# SDD — Portfolio Business Representative
+# SDD — Portfolio Knowledge Agent
 
 ## Goal
 
-Run a useful server-side representative on a small local Qwen model with real streaming, grounded portfolio answers and reliable Calendar writes while keeping the runtime easy to reason about.
+Run a useful server-side portfolio assistant on a small local Qwen model with real streaming and grounded professional answers while keeping the runtime easy to reason about.
 
 ## Runtime
 
@@ -15,10 +15,6 @@ FastAPI
      |
      +-- BusinessRepresentative
      |      |
-     |      +-- scheduling admission
-     |      |       |
-     |      |       +-- Scheduler --> CalendarPort / HITL approval
-     |      |
      |      +-- Responder
      |              |
      |              +-- ProfileRetriever --> Qwen3-Embedding-0.6B
@@ -27,15 +23,13 @@ FastAPI
      |              +-- StreamGuard
      |
      +-- SessionStore
-     +-- SlotService
-     +-- CalendarPort -------------> Google Calendar
 ```
 
 ## Knowledge boundary
 
 There is no semantic intent router for `BUSINESS`.
 
-`business-profile.json` is flattened into retrievable documents. Their embeddings are computed once at startup. Every non-scheduling visitor turn uses the latest message as a single retrieval query.
+`business-profile.json` is flattened into retrievable natural-language documents. Their embeddings are computed once at startup. Every visitor turn uses the latest message as a single retrieval query.
 
 ```text
 latest message
@@ -55,21 +49,11 @@ This makes the data source itself define the portfolio domain. Adding a skill, p
 
 The global boundary is `KNOWLEDGE_RELEVANCE_THRESHOLD`; PocketTrace records the top score and selected documents.
 
-## Scheduling boundary
-
-Scheduling is operational, not a knowledge topic.
-
-A new workflow is admitted only by an explicit meeting request. A bare date, email or unrelated question cannot start scheduling. Once `ActiveWorkflow.SCHEDULING` exists, the deterministic-first parser handles dates, slots, contact details and cancellation; its semantic fallback is limited to ambiguous continuations inside that active workflow.
-
-Free-form text never writes to Calendar. A prepared booking crosses the write boundary only after explicit human approval in the UI.
-
-Business/general interruptions do not clear `SchedulingMemory`.
-
 ## Prompt boundary
 
-`ContextAssembler` owns one base prompt. It always includes verified runtime state. Portfolio owner identity and portfolio facts are added only when retrieval produced qualifying documents.
+`ContextAssembler` owns one base prompt. Portfolio owner facts are added only when retrieval produced qualifying documents.
 
-The model therefore receives:
+The model receives:
 
 ```text
 base instructions
@@ -78,14 +62,11 @@ base instructions
 + short visible conversation history
 ```
 
-There are no separate GENERAL/BUSINESS prompt copies.
-
 ## Observability
 
 PocketTrace is optional and fail-open. Useful spans are:
 
 ```text
-scheduler
 profile_retrieval
 context_assembler
 qwen_generation
@@ -98,10 +79,9 @@ stream_guard
 
 ```text
 app/api             HTTP + SSE
-app/agent           representative, knowledge, context, scheduler, responder, guard
-app/domain          session/profile/routing/scheduling data
-app/scheduling      operational admission + date policy + availability calculation
-app/ports           LLM, embeddings, calendar, sessions
-app/infrastructure  llama.cpp, embeddings, PocketTrace, Calendar, config, sessions
+app/agent           representative, knowledge, context, responder, guard
+app/domain          session/profile/routing data
+app/ports           LLM, embeddings, sessions
+app/infrastructure  llama.cpp, embeddings, PocketTrace, config, sessions
 app/bootstrap.py    dependency composition
 ```
