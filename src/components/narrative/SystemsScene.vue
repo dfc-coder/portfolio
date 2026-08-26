@@ -64,6 +64,7 @@ const systemRailItems = projects.map((project) => ({
 
     <NarrativeProgressRail
       class="systems-progress-rail"
+      variant="systems"
       :items="systemRailItems"
     />
 
