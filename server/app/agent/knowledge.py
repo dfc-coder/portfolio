@@ -35,15 +35,7 @@ class KnowledgeSearch:
 class ProfileDocumentIndex:
     """Static portfolio knowledge transformed into natural-language retrieval chunks."""
 
-    def __init__(
-        self,
-        profile: BusinessProfile,
-        capabilities: tuple[str, ...] = (),
-    ) -> None:
-        # Operational capabilities are deliberately not indexed as portfolio knowledge.
-        # Tool/scheduling admission happens before RAG, matching production assistants
-        # that keep agent/tool dispatch separate from document retrieval.
-        del capabilities
+    def __init__(self, profile: BusinessProfile) -> None:
         self.documents = tuple(self._build(profile))
 
     @staticmethod
