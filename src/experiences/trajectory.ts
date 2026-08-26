@@ -9,8 +9,8 @@ import { narrativeModel } from "./narrative-model";
 import { narrativeRuntime, type NarrativeState } from "./narrative-runtime";
 import { experiences } from "./trajectory-data";
 
-const COLLECTION_HOLD_END = 0.26;
-const COLLECTION_TRAVEL_END = 0.74;
+const COLLECTION_HOLD_END = 0.16;
+const COLLECTION_TRAVEL_END = 0.90;
 const PARALLAX_SETTLE_EPSILON = 0.0004;
 const VELOCITY_SETTLE_EPSILON = 0.0015;
 
@@ -67,8 +67,11 @@ const collectionPosition = (nodePosition: number, startNode: number, count: numb
   );
 };
 
+// Start revealing the next role earlier and let it acquire authority over a
+// wider distance. The spring controls the inertia; this controls how abruptly
+// the typography itself appears/disappears.
 const entryPresence = (distance: number) =>
-  smoother(clamp01((0.5 - distance) / 0.2));
+  smoother(clamp01((0.78 - distance) / 0.54));
 
 const layerTravel = (offset: number, distance: number) =>
   offset * distance * (offset < 0 ? 0.82 : 1);
@@ -117,7 +120,7 @@ export const mountTrajectoryExperience = () => {
     motionFrame = 0;
     const dt = frameDeltaSeconds(time, motionLastTime);
     motionLastTime = time;
-    driveVelocity = damp(driveVelocity, 0, 7.2, dt);
+    driveVelocity = damp(driveVelocity, 0, 5.8, dt);
 
     let maxLag = 0;
     let maxVelocity = 0;
@@ -236,8 +239,8 @@ export const mountTrajectoryExperience = () => {
     const now = performance.now();
     const inputDt = frameDeltaSeconds(now, inputLastTime);
     const nextPosition = collectionPosition(node, careerStartNode, experiences.length);
-    const rawVelocity = clamp((nextPosition - targetPosition) / inputDt, -7, 7);
-    driveVelocity = damp(driveVelocity, rawVelocity, 18, inputDt);
+    const rawVelocity = clamp((nextPosition - targetPosition) / inputDt, -5, 5);
+    driveVelocity = damp(driveVelocity, rawVelocity, 14, inputDt);
     targetPosition = nextPosition;
     inputLastTime = now;
     latestContentReveal = contentReveal;
