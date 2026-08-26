@@ -68,7 +68,7 @@ export const galleryItems: GalleryItem[] = [
     alt: "Mint upholstered lounge chair with a visible tubular frame.",
   },
   {
-    src: "/studio/interior-shadow.jpg",
+    src: "/studio/interior-shadow-v3.webp",
     title: "Shadow Interior",
     type: "Interior / Spatial Study",
     description:
