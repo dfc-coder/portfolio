@@ -9,9 +9,15 @@ from app.domain.conversation import ChatTurn, SessionState
 
 
 class MemorySessionStore:
-    def __init__(self, ttl_seconds: int = 1800, max_turns: int = 8) -> None:
+    def __init__(
+        self,
+        ttl_seconds: int = 1800,
+        max_turns: int = 8,
+        max_sessions: int = 256,
+    ) -> None:
         self._ttl = timedelta(seconds=ttl_seconds)
         self._max_turns = max_turns
+        self._max_sessions = max(1, max_sessions)
         self._sessions: dict[str, SessionState] = {}
         self._session_locks: dict[str, asyncio.Lock] = {}
         self._active_counts: dict[str, int] = {}
@@ -55,10 +61,28 @@ class MemorySessionStore:
     def _get_or_create(self, session_id: str, now: datetime) -> SessionState:
         state = self._sessions.get(session_id)
         if state is None:
+            self._ensure_capacity()
             state = SessionState(session_id=session_id)
             self._sessions[session_id] = state
         state.last_activity = now
         return state
+
+    def _ensure_capacity(self) -> None:
+        if len(self._sessions) < self._max_sessions:
+            return
+
+        inactive = (
+            (session_id, state)
+            for session_id, state in self._sessions.items()
+            if self._active_counts.get(session_id, 0) == 0
+        )
+        oldest = min(inactive, key=lambda item: item[1].last_activity, default=None)
+        if oldest is None:
+            raise RuntimeError("Session capacity reached")
+
+        session_id, _ = oldest
+        self._sessions.pop(session_id, None)
+        self._session_locks.pop(session_id, None)
 
     def _purge_expired(self, now: datetime) -> None:
         expired = [

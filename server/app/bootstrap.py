@@ -34,6 +34,7 @@ def build_runtime(settings: Settings) -> AgentRuntime:
     sessions = MemorySessionStore(
         settings.session_ttl_seconds,
         settings.session_max_turns,
+        settings.session_max_sessions,
     )
     calendar = (
         GoogleCalendarGateway(settings)
