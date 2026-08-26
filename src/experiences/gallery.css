@@ -101,15 +101,14 @@
   height: 100% !important;
   max-width: none !important;
   max-height: none !important;
-  object-fit: cover !important;
+  object-fit: contain !important;
+  object-position: center !important;
   border-radius: 0 !important;
   -webkit-box-reflect: unset !important;
   box-shadow: none !important;
   filter: saturate(.82) brightness(.88) contrast(1.02);
-  transform: scale(1.015);
-  transition:
-    filter .52s ease,
-    transform .72s cubic-bezier(.22, 1, .36, 1);
+  transform: none;
+  transition: filter .52s ease;
 }
 
 .ref-scene--gallery.ref-gallery-gel-ready .ref-art-card:hover,
@@ -134,7 +133,7 @@
 .ref-scene--gallery.ref-gallery-gel-ready .ref-art-card:focus-visible img,
 .ref-scene--gallery.ref-gallery-gel-ready .ref-art-card.is-key-active img {
   filter: saturate(1) brightness(1) contrast(1.03);
-  transform: scale(1.035);
+  transform: none;
 }
 
 .ref-art-card__label {

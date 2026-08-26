@@ -6,6 +6,11 @@
   NODE_VERSION = "22"
 
 [[headers]]
+  for = "/studio/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
   for = "/*"
   [headers.values]
     X-Content-Type-Options = "nosniff"
