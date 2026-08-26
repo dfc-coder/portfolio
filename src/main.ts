@@ -23,16 +23,10 @@ import "./styles/chapter-bridges.css";
 import "./experiences/gallery.css";
 import "./styles/mobile.css";
 
-const MOBILE_QUERY = "(max-width: 820px)";
-const mobileExperience = window.matchMedia(MOBILE_QUERY).matches;
+const mobileExperience = window.matchMedia("(max-width: 820px)").matches;
+document.documentElement.classList.add(mobileExperience ? "mobile-experience" : "desktop-experience");
 
-document.documentElement.classList.add(
-  mobileExperience ? "mobile-experience" : "desktop-experience",
-);
-
-if (!mobileExperience) {
-  document.documentElement.classList.add("creative-hero-pending");
-}
+if (!mobileExperience) document.documentElement.classList.add("creative-hero-pending");
 
 createApp(App).mount("#app");
 
