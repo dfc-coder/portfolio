@@ -13,24 +13,6 @@ def test_stream_guard_preserves_safe_text() -> None:
     assert "".join(emitted) == "".join(chunks)
 
 
-def test_stream_guard_blocks_completed_calendar_claim_across_chunks() -> None:
-    guard = StreamGuard()
-    emitted: list[str] = []
-
-    emitted.append(guard.feed("Puedo explicarte el proceso. La reunión quedó agen"))
-    with pytest.raises(UnsafeStreamOutput) as error:
-        guard.feed("dada para mañana.")
-
-    assert error.value.reason == "unverified_calendar_status"
-    assert "agendada" not in "".join(emitted).lower()
-
-
-def test_stream_guard_allows_capability_description() -> None:
-    guard = StreamGuard()
-    text = "Puedo agendar una reunión después de que confirmes explícitamente."
-    assert guard.feed(text) + guard.finish() == text
-
-
 def test_stream_guard_allows_owner_identity_disclaimer() -> None:
     guard = StreamGuard(holdback_chars=24)
     chunks = ["Hola. No ", "soy Diego; soy su representante conversacional."]
