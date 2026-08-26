@@ -1,0 +1,18 @@
+.ref-scene--gallery.ref-gallery-gel-ready .ref-art-card {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.ref-scene--gallery.ref-gallery-gel-ready .ref-art-card::before {
+  display: none !important;
+}
+
+.ref-scene--gallery.ref-gallery-gel-ready .ref-art-card:hover,
+.ref-scene--gallery.ref-gallery-gel-ready .ref-art-card:focus-visible,
+.ref-scene--gallery.ref-gallery-gel-ready .ref-art-card.is-key-active {
+  box-shadow: none !important;
+}
+
+.ref-gallery-focus__image {
+  box-shadow: none !important;
+}
