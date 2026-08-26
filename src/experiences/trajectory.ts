@@ -1,11 +1,18 @@
-import { damp, frameDeltaSeconds } from "../motion/inertia";
+import {
+  damp,
+  frameDeltaSeconds,
+  springStep,
+  type SpringConfig,
+  type SpringState,
+} from "../motion/inertia";
 import { narrativeModel } from "./narrative-model";
 import { narrativeRuntime, type NarrativeState } from "./narrative-runtime";
 import { experiences } from "./trajectory-data";
 
 const COLLECTION_HOLD_END = 0.26;
 const COLLECTION_TRAVEL_END = 0.74;
-const PARALLAX_SETTLE_EPSILON = 0.00045;
+const PARALLAX_SETTLE_EPSILON = 0.0004;
+const VELOCITY_SETTLE_EPSILON = 0.0015;
 
 const PARALLAX_LAYERS = [
   "years",
@@ -19,17 +26,23 @@ const PARALLAX_LAYERS = [
 
 type ParallaxLayer = (typeof PARALLAX_LAYERS)[number];
 
-const PARALLAX_RESPONSE: Record<ParallaxLayer, number> = {
-  years: 5.2,
-  eyebrow: 13.4,
-  role: 11.2,
-  context: 8.6,
-  summary: 6.8,
-  tags: 5.5,
-  counter: 9.6,
+type LayerConfig = SpringConfig & {
+  lead: number;
+};
+
+const PARALLAX_CONFIG: Record<ParallaxLayer, LayerConfig> = {
+  years: { frequency: 1.15, damping: 0.88, lead: -0.038, maxVelocity: 5.0 },
+  eyebrow: { frequency: 2.65, damping: 0.78, lead: 0.018, maxVelocity: 7.0 },
+  role: { frequency: 3.15, damping: 0.70, lead: 0.034, maxVelocity: 8.0 },
+  context: { frequency: 2.15, damping: 0.80, lead: 0.004, maxVelocity: 6.0 },
+  summary: { frequency: 1.72, damping: 0.84, lead: -0.010, maxVelocity: 5.5 },
+  tags: { frequency: 1.38, damping: 0.88, lead: -0.022, maxVelocity: 5.0 },
+  counter: { frequency: 1.92, damping: 0.82, lead: -0.008, maxVelocity: 6.0 },
 };
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
 
 const smoother = (value: number) => {
   const x = clamp01(value);
@@ -87,44 +100,58 @@ export const mountTrajectoryExperience = () => {
   );
 
   let targetPosition = initialPosition;
+  let driveVelocity = 0;
+  let inputLastTime = performance.now();
   let latestContentReveal = 0;
   let motionFrame = 0;
   let motionLastTime = performance.now();
 
-  const layerPositions: Record<ParallaxLayer, number> = {
-    years: initialPosition,
-    eyebrow: initialPosition,
-    role: initialPosition,
-    context: initialPosition,
-    summary: initialPosition,
-    tags: initialPosition,
-    counter: initialPosition,
-  };
+  const layerStates = Object.fromEntries(
+    PARALLAX_LAYERS.map((layer) => [
+      layer,
+      { value: initialPosition, velocity: 0 } satisfies SpringState,
+    ]),
+  ) as Record<ParallaxLayer, SpringState>;
 
   const renderParallax = (time: number) => {
     motionFrame = 0;
     const dt = frameDeltaSeconds(time, motionLastTime);
     motionLastTime = time;
+    driveVelocity = damp(driveVelocity, 0, 7.2, dt);
+
     let maxLag = 0;
+    let maxVelocity = 0;
 
     PARALLAX_LAYERS.forEach((layer) => {
-      layerPositions[layer] = damp(
-        layerPositions[layer],
-        targetPosition,
-        PARALLAX_RESPONSE[layer],
-        dt,
-      );
-      maxLag = Math.max(maxLag, Math.abs(targetPosition - layerPositions[layer]));
+      const config = PARALLAX_CONFIG[layer];
+      const drivenTarget = targetPosition + driveVelocity * config.lead;
+      const next = springStep(layerStates[layer], drivenTarget, config, dt);
+      layerStates[layer] = next;
+      maxLag = Math.max(maxLag, Math.abs(drivenTarget - next.value));
+      maxVelocity = Math.max(maxVelocity, Math.abs(next.velocity));
     });
+
+    const settled =
+      Math.abs(driveVelocity) < VELOCITY_SETTLE_EPSILON &&
+      maxLag < PARALLAX_SETTLE_EPSILON &&
+      maxVelocity < VELOCITY_SETTLE_EPSILON;
+
+    if (settled) {
+      PARALLAX_LAYERS.forEach((layer) => {
+        layerStates[layer].value = targetPosition;
+        layerStates[layer].velocity = 0;
+      });
+      driveVelocity = 0;
+    }
 
     const timelineProgress =
       experiences.length > 1
-        ? layerPositions.years / (experiences.length - 1)
+        ? layerStates.years.value / (experiences.length - 1)
         : 0;
     stage.style.setProperty("--trajectory-timeline-progress", timelineProgress.toFixed(5));
 
     yearNodes.forEach((element, index) => {
-      const offset = index - layerPositions.years;
+      const offset = index - layerStates.years.value;
       const focus = Math.exp(-(offset * offset) * 3.45);
       const y = offset * 14.2;
       element.style.transform = `translate3d(0, calc(-50% + ${y.toFixed(3)}vh), 0)`;
@@ -133,12 +160,13 @@ export const mountTrajectoryExperience = () => {
     });
 
     entries.forEach((element, index) => {
-      const roleOffset = index - layerPositions.role;
-      const eyebrowOffset = index - layerPositions.eyebrow;
-      const contextOffset = index - layerPositions.context;
-      const summaryOffset = index - layerPositions.summary;
-      const tagsOffset = index - layerPositions.tags;
+      const roleOffset = index - layerStates.role.value;
+      const eyebrowOffset = index - layerStates.eyebrow.value;
+      const contextOffset = index - layerStates.context.value;
+      const summaryOffset = index - layerStates.summary.value;
+      const tagsOffset = index - layerStates.tags.value;
       const presence = entryPresence(Math.abs(roleOffset));
+      const roleVelocity = layerStates.role.velocity;
 
       element.style.visibility = presence > 0.001 ? "visible" : "hidden";
       element.style.opacity = (latestContentReveal * presence).toFixed(5);
@@ -146,33 +174,36 @@ export const mountTrajectoryExperience = () => {
       element.style.setProperty("--entry-offset", roleOffset.toFixed(5));
       element.style.setProperty(
         "--role-y",
-        `${layerTravel(roleOffset, 5.8).toFixed(3)}vh`,
+        `${(layerTravel(roleOffset, 6.25) - roleVelocity * 0.11).toFixed(3)}vh`,
       );
       element.style.setProperty(
         "--eyebrow-y",
-        `${layerTravel(eyebrowOffset, 4.1).toFixed(3)}vh`,
+        `${(layerTravel(eyebrowOffset, 4.45) - layerStates.eyebrow.velocity * 0.07).toFixed(3)}vh`,
       );
       element.style.setProperty(
         "--context-y",
-        `${layerTravel(contextOffset, 2.8).toFixed(3)}vh`,
+        `${(layerTravel(contextOffset, 3.0) - layerStates.context.velocity * 0.045).toFixed(3)}vh`,
       );
       element.style.setProperty(
         "--summary-y",
-        `${layerTravel(summaryOffset, 2.1).toFixed(3)}vh`,
+        `${(layerTravel(summaryOffset, 2.25) - layerStates.summary.velocity * 0.032).toFixed(3)}vh`,
       );
       element.style.setProperty(
         "--tags-y",
-        `${layerTravel(tagsOffset, 1.55).toFixed(3)}vh`,
+        `${(layerTravel(tagsOffset, 1.7) - layerStates.tags.velocity * 0.024).toFixed(3)}vh`,
       );
       element.style.setProperty(
         "--entry-x",
-        `${(roleOffset < 0 ? roleOffset * 0.18 : roleOffset * -0.24).toFixed(3)}vw`,
+        `${(
+          (roleOffset < 0 ? roleOffset * 0.22 : roleOffset * -0.28) -
+          roleVelocity * 0.018
+        ).toFixed(3)}vw`,
       );
     });
 
-    counterTrack.style.transform = `translate3d(0, ${(-layerPositions.counter).toFixed(5)}em, 0)`;
+    counterTrack.style.transform = `translate3d(0, ${(-layerStates.counter.value).toFixed(5)}em, 0)`;
 
-    if (maxLag > PARALLAX_SETTLE_EPSILON) {
+    if (!settled) {
       motionFrame = requestAnimationFrame(renderParallax);
     }
   };
@@ -202,7 +233,13 @@ export const mountTrajectoryExperience = () => {
     const contentReveal = range(node, 1.34, 1.74);
     const heroShell = 1 - range(node, chapterSystemsNode - 0.62, chapterSystemsNode + 0.12);
 
-    targetPosition = collectionPosition(node, careerStartNode, experiences.length);
+    const now = performance.now();
+    const inputDt = frameDeltaSeconds(now, inputLastTime);
+    const nextPosition = collectionPosition(node, careerStartNode, experiences.length);
+    const rawVelocity = clamp((nextPosition - targetPosition) / inputDt, -7, 7);
+    driveVelocity = damp(driveVelocity, rawVelocity, 18, inputDt);
+    targetPosition = nextPosition;
+    inputLastTime = now;
     latestContentReveal = contentReveal;
 
     stage.dataset.trajectory = node > 0.12 && node < chapterSystemsNode + 0.18 ? "true" : "false";
