@@ -21,12 +21,12 @@ export const SYSTEMS_TIMING = {
   galleryHandoff: [0.02, 0.30] as const,
 } as const;
 
-/* Every project receives the same hold/travel interval. The first project no
-   longer gets a longer implicit viewport than the rest of the collection. */
+/* Spend more of each project interval travelling and less time snapping between
+   fixed positions. This makes the handoff legible even on a quick wheel pass. */
 export const SYSTEMS_COLLECTION = {
-  firstHoldEnd: 0.26,
-  holdEnd: 0.26,
-  travelEnd: 0.74,
+  firstHoldEnd: 0.16,
+  holdEnd: 0.16,
+  travelEnd: 0.90,
 } as const;
 
 export const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
@@ -62,25 +62,30 @@ export const motionForOffset = (offset: number): MotionState => {
   if (offset < 0) {
     const t = clamp01(-offset);
     return {
-      title: 1 - range(t, 0.18, 0.46),
-      graph: 1 - range(t, 0.30, 0.48),
-      support: 1 - range(t, 0.28, 0.52),
-      titleY: -30 * range(t, 0.06, 0.68),
-      supportY: -10 * range(t, 0.12, 0.72),
-      graphX: -1.1 * range(t, 0.18, 0.90),
+      // Outgoing content now spends longer fading and travelling out.
+      title: 1 - range(t, 0.18, 0.58),
+      graph: 1 - range(t, 0.24, 0.60),
+      support: 1 - range(t, 0.24, 0.66),
+      titleY: -32 * range(t, 0.05, 0.82),
+      supportY: -11 * range(t, 0.08, 0.86),
+      // Graph exits to the left, opposite to its incoming direction.
+      graphX: -5.5 * range(t, 0.10, 0.92),
       build: 1,
     };
   }
 
   const t = clamp01(1 - offset);
   return {
-    title: range(t, 0.54, 0.82),
-    graph: range(t, 0.52, 0.70),
-    support: range(t, 0.62, 0.90),
-    titleY: 30 * (1 - range(t, 0.34, 0.82)),
-    supportY: 10 * (1 - range(t, 0.48, 0.90)),
-    graphX: 1.8 * (1 - range(t, 0.14, 0.62)),
-    build: range(t, 0.18, 0.88),
+    // Incoming content starts earlier but reaches full authority more slowly.
+    title: range(t, 0.58, 0.90),
+    graph: range(t, 0.60, 0.88),
+    support: range(t, 0.56, 0.94),
+    titleY: 32 * (1 - range(t, 0.26, 0.90)),
+    supportY: 11 * (1 - range(t, 0.34, 0.94)),
+    // Architecture enters clearly from the right instead of shadowing the
+    // title's vertical travel. The longer range avoids a lateral snap.
+    graphX: 10.5 * (1 - range(t, 0.10, 0.94)),
+    build: range(t, 0.10, 0.96),
   };
 };
 
