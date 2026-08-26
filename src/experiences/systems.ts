@@ -22,6 +22,13 @@ const PARALLAX_LAYERS = [
 
 type ParallaxLayer = (typeof PARALLAX_LAYERS)[number];
 
+type ProjectParts = {
+  architecture: HTMLElement;
+  detail: HTMLElement;
+  evidence: HTMLElement;
+  implementation: HTMLElement;
+};
+
 const PARALLAX_RESPONSE: Record<ParallaxLayer, number> = {
   axis: 5.0,
   implementation: 5.8,
@@ -30,6 +37,20 @@ const PARALLAX_RESPONSE: Record<ParallaxLayer, number> = {
   build: 7.2,
   graph: 9.4,
   title: 12.4,
+};
+
+const projectPartsFor = (element: HTMLElement): ProjectParts | null => {
+  const architecture = element.querySelector<HTMLElement>(
+    ".systems-project__architecture",
+  );
+  const detail = element.querySelector<HTMLElement>(".systems-project__detail");
+  const evidence = element.querySelector<HTMLElement>(".systems-project__evidence");
+  const implementation = element.querySelector<HTMLElement>(
+    ".systems-project__implementation",
+  );
+
+  if (!architecture || !detail || !evidence || !implementation) return null;
+  return { architecture, detail, evidence, implementation };
 };
 
 export const mountSystemsExperience = () => {
@@ -49,11 +70,20 @@ export const mountSystemsExperience = () => {
   const entries = Array.from(
     systemsScene.querySelectorAll<HTMLElement>(".systems-project"),
   );
+  const projectParts = entries.map(projectPartsFor);
 
-  if (!root || !intro || !header || !axis || entries.length !== projects.length) {
+  if (
+    !root ||
+    !intro ||
+    !header ||
+    !axis ||
+    entries.length !== projects.length ||
+    projectParts.some((parts) => parts === null)
+  ) {
     return () => undefined;
   }
 
+  const resolvedProjectParts = projectParts as ProjectParts[];
   document.documentElement.classList.add("systems-refined-ready");
 
   const {
@@ -158,6 +188,9 @@ export const mountSystemsExperience = () => {
     });
 
     entries.forEach((element, index) => {
+      const parts = resolvedProjectParts[index];
+      if (!parts) return;
+
       const titleOffset = index - layerPositions.title;
       const graphOffset = index - layerPositions.graph;
       const detailOffset = index - layerPositions.detail;
@@ -203,12 +236,6 @@ export const mountSystemsExperience = () => {
       element.style.setProperty("--title-presence", titlePresence.toFixed(5));
       element.style.setProperty("--graph-presence", graphPresence.toFixed(5));
       element.style.setProperty("--support-presence", supportPresence.toFixed(5));
-      element.style.setProperty("--detail-presence", detailPresence.toFixed(5));
-      element.style.setProperty("--evidence-presence", evidencePresence.toFixed(5));
-      element.style.setProperty(
-        "--implementation-presence",
-        implementationPresence.toFixed(5),
-      );
       element.style.setProperty("--title-focus", titleMotion.title.toFixed(5));
       element.style.setProperty("--graph-focus", graphMotion.graph.toFixed(5));
       element.style.setProperty("--support-focus", supportPresence.toFixed(5));
@@ -218,20 +245,29 @@ export const mountSystemsExperience = () => {
         "--title-y",
         `${(titleMotion.titleY + extraTailY).toFixed(3)}vh`,
       );
-      element.style.setProperty(
-        "--detail-y",
-        `${(detailMotion.supportY + extraTailY * 0.22).toFixed(3)}vh`,
-      );
-      element.style.setProperty(
-        "--evidence-y",
-        `${(evidenceMotion.supportY + extraTailY * 0.18).toFixed(3)}vh`,
-      );
-      element.style.setProperty(
-        "--implementation-y",
-        `${(implementationMotion.supportY + extraTailY * 0.13).toFixed(3)}vh`,
-      );
-      element.style.setProperty("--graph-x", `${graphMotion.graphX.toFixed(3)}vw`);
-      element.style.setProperty("--graph-y", `${graphY.toFixed(3)}vh`);
+
+      parts.architecture.style.transform = `translate3d(${graphMotion.graphX.toFixed(3)}vw, ${graphY.toFixed(3)}vh, 0)`;
+      parts.detail.style.opacity = (
+        latestChapterState.contentReveal * detailPresence
+      ).toFixed(5);
+      parts.detail.style.transform = `translate3d(0, ${(
+        detailMotion.supportY * 0.42 +
+        extraTailY * 0.22
+      ).toFixed(3)}vh, 0)`;
+      parts.evidence.style.opacity = (
+        latestChapterState.contentReveal * evidencePresence
+      ).toFixed(5);
+      parts.evidence.style.transform = `translate3d(0, ${(
+        evidenceMotion.supportY * 0.68 +
+        extraTailY * 0.18
+      ).toFixed(3)}vh, 0)`;
+      parts.implementation.style.opacity = (
+        latestChapterState.contentReveal * implementationPresence
+      ).toFixed(5);
+      parts.implementation.style.transform = `translate3d(0, ${(
+        implementationMotion.supportY * 0.30 +
+        extraTailY * 0.13
+      ).toFixed(3)}vh, 0)`;
     });
 
     if (maxLag > PARALLAX_SETTLE_EPSILON) {
@@ -326,6 +362,15 @@ export const mountSystemsExperience = () => {
     if (parallaxFrame) cancelAnimationFrame(parallaxFrame);
     if (pointerFrame) cancelAnimationFrame(pointerFrame);
     removeEventListener("pointermove", onPointerMove);
+    resolvedProjectParts.forEach((parts) => {
+      parts.architecture.style.removeProperty("transform");
+      parts.detail.style.removeProperty("opacity");
+      parts.detail.style.removeProperty("transform");
+      parts.evidence.style.removeProperty("opacity");
+      parts.evidence.style.removeProperty("transform");
+      parts.implementation.style.removeProperty("opacity");
+      parts.implementation.style.removeProperty("transform");
+    });
     delete stage.dataset.systemsRefined;
     [
       "--systems-editorial-visibility",
