@@ -22,13 +22,6 @@ class Settings:
     session_ttl_seconds: int
     session_max_turns: int
     allowed_origins: tuple[str, ...]
-    calendar_mode: str
-    google_calendar_id: str
-    google_client_id: str | None
-    google_client_secret: str | None
-    google_refresh_token: str | None
-    planner_temperature: float = 0.0
-    planner_max_tokens: int = 64
     renderer_temperature: float = 0.65
     renderer_max_tokens: int = 180
     embedding_base_url: str = "http://embedding:8081"
@@ -71,20 +64,6 @@ class Settings:
                     "http://localhost:5173,http://127.0.0.1:5173",
                 )
             ),
-            calendar_mode=os.getenv("CALENDAR_MODE", "mock").lower(),
-            google_calendar_id=os.getenv(
-                "GOOGLE_CALENDAR_ID",
-                "primary",
-            ),
-            google_client_id=os.getenv("GOOGLE_CLIENT_ID"),
-            google_client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
-            google_refresh_token=os.getenv("GOOGLE_REFRESH_TOKEN"),
-            planner_temperature=float(
-                os.getenv("PLANNER_TEMPERATURE", "0.0")
-            ),
-            planner_max_tokens=int(
-                os.getenv("PLANNER_MAX_TOKENS", "64")
-            ),
             renderer_temperature=float(
                 os.getenv("RENDERER_TEMPERATURE", "0.65")
             ),
@@ -122,20 +101,3 @@ class Settings:
                 os.getenv("POCKETTRACE_TIMEOUT_SECONDS", "1.0")
             ),
         )
-
-    def validate_calendar(self) -> None:
-        if self.calendar_mode != "google":
-            return
-        missing = [
-            name
-            for name, value in (
-                ("GOOGLE_CLIENT_ID", self.google_client_id),
-                ("GOOGLE_CLIENT_SECRET", self.google_client_secret),
-                ("GOOGLE_REFRESH_TOKEN", self.google_refresh_token),
-            )
-            if not value
-        ]
-        if missing:
-            raise RuntimeError(
-                f"Missing Google Calendar credentials: {', '.join(missing)}"
-            )
