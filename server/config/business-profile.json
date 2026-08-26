@@ -6,7 +6,8 @@
     "email": "diegocanomera@gmail.com",
     "phone": "+54 9 11 5996-5231",
     "github": "https://github.com/dfc-coder",
-    "portfolio": "https://portfolio-diego-cano.netlify.app"
+    "portfolio": "https://portfolio-diego-cano.netlify.app",
+    "timezone": "America/Argentina/Buenos_Aires"
   },
   "representative": {
     "label": "Business Representative",
@@ -342,15 +343,13 @@
     ],
     "boundaries": [
       "Rates are not published in this profile.",
-      "Client names are not provided unless explicitly present in the configured context.",
-      "Real availability must be checked through the calendar capability.",
-      "The representative cannot claim a result or external action that has not been verified."
+      "Client names are not provided unless explicitly present in the configured context."
     ]
   },
   "faq": [
     {
       "question": "What can the representative do?",
-      "answer": "It can answer grounded questions about Diego's work, projects, skills and services, check calendar availability and prepare a meeting that is created only after explicit confirmation."
+      "answer": "It can answer grounded questions about Diego's professional experience, work, projects, skills, services, education and certifications."
     },
     {
       "question": "Has Diego built projects in Rust?",
@@ -375,50 +374,13 @@
     {
       "question": "What is Diego's hourly rate?",
       "answer": "The configured business profile does not publish rates, so the representative must not invent one."
-    },
-    {
-      "question": "Is Diego available at a specific time?",
-      "answer": "Availability is not a static fact. The representative must check the calendar for the requested date or range."
     }
   ],
-  "scheduling": {
-    "timezone": "America/Argentina/Buenos_Aires",
-    "meeting_minutes": 30,
-    "buffer_minutes": 15,
-    "min_notice_hours": 4,
-    "max_days_ahead": 30,
-    "max_slots": 6,
-    "business_hours": {
-      "monday": [
-        "09:00",
-        "18:00"
-      ],
-      "tuesday": [
-        "09:00",
-        "18:00"
-      ],
-      "wednesday": [
-        "09:00",
-        "18:00"
-      ],
-      "thursday": [
-        "09:00",
-        "18:00"
-      ],
-      "friday": [
-        "09:00",
-        "18:00"
-      ]
-    }
-  },
   "instructions": [
-    "Answer the visitor's question before trying to advance the conversation.",
+    "Answer the visitor's question directly.",
     "Use the configured professional experience, skills, projects, education and certifications as grounded facts.",
     "Absence of a fact is not evidence that the opposite is true. If a fact is not present, say it is not available rather than answering no.",
-    "Do not turn capability questions into meeting requests.",
-    "Do not invent rates, client names, availability, results, credentials or dates.",
-    "Prefer a short answer and at most one useful next question.",
-    "When a visitor shows plausible business intent, ask one useful qualifying question or offer to coordinate a meeting without pressure.",
-    "Only describe external actions as completed after verified state confirms success."
+    "Do not invent rates, client names, results, credentials or dates.",
+    "Prefer a short answer and at most one useful next question."
   ]
 }
