@@ -1,65 +1,113 @@
-export const galleryItems = [
+export type GalleryItem = {
+  src: string;
+  title: string;
+  type: string;
+  description: string;
+  alt: string;
+};
+
+const DEFAULT_IMAGE_WIDTHS = [320, 480, 640, 800, 960] as const;
+
+export const galleryImageUrl = (src: string, width: number, quality = 80) => {
+  if (import.meta.env.DEV) return src;
+
+  const params = new URLSearchParams({
+    url: src,
+    w: String(width),
+    q: String(quality),
+  });
+
+  return `/.netlify/images?${params.toString()}`;
+};
+
+export const galleryImageSrcSet = (
+  src: string,
+  widths: readonly number[] = DEFAULT_IMAGE_WIDTHS,
+  quality = 80,
+) => widths.map((width) => `${galleryImageUrl(src, width, quality)} ${width}w`).join(", ");
+
+export const galleryItems: GalleryItem[] = [
   {
     src: "/studio/bench-detail.png",
-    title: "Quiet Joinery",
-    type: "Furniture system",
-    meta: "Oak · leather · structural detail",
+    title: "Bench Detail",
+    type: "Furniture / Detail Study",
+    description:
+      "Close study of the bench construction, focusing on joinery, material transitions and the relationship between the timber frame and leather surface.",
+    alt: "Close-up of a timber bench showing joinery and leather seating detail.",
   },
   {
     src: "/studio/mortar.png",
-    title: "Domestic Ritual",
-    type: "Object design",
-    meta: "Stone · timber · material contrast",
+    title: "Mortar & Pestle",
+    type: "Object / Material Study",
+    description:
+      "Material study pairing stone and timber in a compact domestic object, with emphasis on weight, grip and tactile contrast.",
+    alt: "Stone mortar and timber pestle presented as a material study.",
   },
   {
     src: "/studio/radios.png",
-    title: "Portable Frequency",
-    type: "Product language",
-    meta: "CMF · retro-futurism · series",
+    title: "Portable Radio Series",
+    type: "Product / CMF Study",
+    description:
+      "A portable radio family exploring repeated product geometry, physical controls and variations in colour, material and finish.",
+    alt: "Series of portable radios with varied colours, materials and physical controls.",
   },
   {
     src: "/studio/bench.png",
-    title: "Linear Rest",
-    type: "Furniture design",
-    meta: "Structure · proportion · restraint",
+    title: "Timber Bench",
+    type: "Furniture / Seating Study",
+    description:
+      "Minimal bench study built around a clear structural frame, restrained proportions and a continuous upholstered seat.",
+    alt: "Minimal timber bench with a continuous upholstered seat.",
   },
   {
     src: "/studio/lounge-mint.png",
-    title: "Soft Landscape",
-    type: "Seating concept",
-    meta: "Textile · tubular steel · comfort",
+    title: "Mint Lounge Chair",
+    type: "Furniture / Seating Study",
+    description:
+      "Lounge seating concept combining soft upholstery with a visible tubular frame and an intentionally light visual profile.",
+    alt: "Mint upholstered lounge chair with a visible tubular frame.",
   },
   {
-    src: "/studio/interior-shadow.png",
-    title: "Shadow Room",
-    type: "Spatial direction",
-    meta: "Light · texture · atmosphere",
+    src: "/studio/interior-shadow-v3.webp",
+    title: "Shadow Interior",
+    type: "Interior / Spatial Study",
+    description:
+      "Interior composition centred on contrast, shadow and surface texture to create depth with a restrained material palette.",
+    alt: "Interior scene with two lounge chairs under a dark arch, warm framed artwork and strong leaf shadows across textured green walls.",
   },
   {
     src: "/studio/interior-blue.png",
-    title: "Blue Alcove",
-    type: "Interior visualisation",
-    meta: "Materiality · composition · mood",
+    title: "Blue Interior",
+    type: "Interior / Spatial Study",
+    description:
+      "Interior study using saturated blue surfaces, furniture placement and controlled lighting to shape a compact spatial composition.",
+    alt: "Blue interior study with furniture and controlled architectural lighting.",
   },
   {
     src: "/studio/chairs.png",
-    title: "Primary Structure",
-    type: "Furniture family",
-    meta: "Modularity · colour · assembly",
+    title: "Chair Series",
+    type: "Furniture / Product Family",
+    description:
+      "A family of chairs developed around repeatable structural logic, colour variation and a consistent approach to assembly.",
+    alt: "Series of chairs sharing a common structural language with colour variations.",
   },
   {
     src: "/studio/kempu.png",
     title: "Kempu",
-    type: "Art direction",
-    meta: "Campaign · typography · image",
+    type: "Brand / Art Direction",
+    description:
+      "Brand direction study combining campaign imagery, typography and a controlled graphic system into a single visual language.",
+    alt: "Kempu brand composition combining campaign imagery and typography.",
   },
   {
     src: "/studio/magnolias.png",
     title: "Magnolias",
-    type: "Visual identity",
-    meta: "Editorial · type system · artwork",
+    type: "Brand / Editorial Identity",
+    description:
+      "Identity and editorial composition combining typography with botanical artwork to create a flexible visual system.",
+    alt: "Magnolias identity composition combining typography and botanical artwork.",
   },
-] as const;
+];
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
@@ -102,7 +150,7 @@ export const mountGalleryGel = () => {
   focus.innerHTML = `
     <button class="ref-gallery-focus__close" type="button" aria-label="Close artwork">CLOSE</button>
     <figure class="ref-gallery-focus__figure">
-      <div class="ref-gallery-focus__image-wrap"><img class="ref-gallery-focus__image" alt="" /></div>
+      <div class="ref-gallery-focus__image-wrap"><img class="ref-gallery-focus__image" alt="" decoding="async" /></div>
       <figcaption class="ref-gallery-focus__caption">
         <div class="ref-gallery-focus__signal"><span></span><i></i><span class="ref-gallery-focus__signal-label">VISUAL ARCHIVE</span></div>
         <h3></h3>
@@ -116,7 +164,7 @@ export const mountGalleryGel = () => {
   const focusImage = focus.querySelector<HTMLImageElement>(".ref-gallery-focus__image");
   const focusTitle = focus.querySelector<HTMLElement>(".ref-gallery-focus__caption h3");
   const focusType = focus.querySelector<HTMLElement>(".ref-gallery-focus__type");
-  const focusMeta = focus.querySelector<HTMLElement>(".ref-gallery-focus__meta");
+  const focusDescription = focus.querySelector<HTMLElement>(".ref-gallery-focus__meta");
   const focusIndex = focus.querySelector<HTMLElement>(".ref-gallery-focus__signal span");
   const closeButton = focus.querySelector<HTMLButtonElement>(".ref-gallery-focus__close");
 
@@ -138,13 +186,22 @@ export const mountGalleryGel = () => {
 
   const renderFocus = () => {
     const item = galleryItems[selectedIndex];
-    if (!item || !focusImage || !focusTitle || !focusType || !focusMeta || !focusIndex) return;
+    if (
+      !item ||
+      !focusImage ||
+      !focusTitle ||
+      !focusType ||
+      !focusDescription ||
+      !focusIndex
+    ) return;
 
-    focusImage.src = item.src;
-    focusImage.alt = item.title;
+    focusImage.src = galleryImageUrl(item.src, 1600, 82);
+    focusImage.srcset = galleryImageSrcSet(item.src, [960, 1280, 1600, 2048], 82);
+    focusImage.sizes = "(max-width: 980px) 90vw, 72vw";
+    focusImage.alt = item.alt;
     focusTitle.textContent = item.title;
     focusType.textContent = item.type;
-    focusMeta.textContent = item.meta;
+    focusDescription.textContent = item.description;
     focusIndex.textContent = String(selectedIndex + 1).padStart(2, "0");
   };
 

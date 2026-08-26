@@ -4,9 +4,16 @@ import AgentOS from "./agent/AgentOS.vue";
 import ChapterSignal from "./narrative/ChapterSignal.vue";
 import SystemsScene from "./narrative/SystemsScene.vue";
 import TrajectoryScene from "./narrative/TrajectoryScene.vue";
-import { galleryItems as artworks } from "../experiences/gallery";
+import {
+  galleryItems as artworks,
+  galleryImageSrcSet,
+  galleryImageUrl,
+} from "../experiences/gallery";
 import { systemsProjects as projects } from "../experiences/systems-projects";
 import { experiences } from "../experiences/trajectory-data";
+
+const galleryCardWidths = [320, 480, 640, 800, 960] as const;
+const galleryFallbackWidths = [480, 720, 960, 1280] as const;
 
 const chapters = [
   {
@@ -103,7 +110,15 @@ const menuOpen = ref(false);
               type="button"
               :aria-label="`Open ${artwork.title}`"
             >
-              <img :src="artwork.src" :alt="artwork.title" draggable="false" />
+              <img
+                :src="galleryImageUrl(artwork.src, 640, 80)"
+                :srcset="galleryImageSrcSet(artwork.src, galleryCardWidths, 80)"
+                sizes="(max-width: 680px) 29vw, (max-width: 980px) 24vw, 18vw"
+                :alt="artwork.alt"
+                loading="lazy"
+                decoding="async"
+                draggable="false"
+              />
             </button>
           </div>
         </article>
@@ -163,8 +178,15 @@ const menuOpen = ref(false);
       <div class="ref-fallback-art">
         <h2>Visual archive</h2>
         <figure v-for="item in artworks" :key="item.src">
-          <img :src="item.src" :alt="item.title" />
-          <figcaption>{{ item.title }} · {{ item.type }}</figcaption>
+          <img
+            :src="galleryImageUrl(item.src, 960, 80)"
+            :srcset="galleryImageSrcSet(item.src, galleryFallbackWidths, 80)"
+            sizes="(max-width: 820px) 100vw, 50vw"
+            :alt="item.alt"
+            loading="lazy"
+            decoding="async"
+          />
+          <figcaption>{{ item.title }} · {{ item.type }} — {{ item.description }}</figcaption>
         </figure>
       </div>
     </section>
