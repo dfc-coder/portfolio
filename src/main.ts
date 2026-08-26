@@ -21,22 +21,34 @@ import "./experiences/systems.css";
 import "./experiences/continuity.css";
 import "./styles/chapter-bridges.css";
 import "./experiences/gallery.css";
+import "./styles/mobile.css";
 
-document.documentElement.classList.add("creative-hero-pending");
+const MOBILE_QUERY = "(max-width: 820px)";
+const mobileExperience = window.matchMedia(MOBILE_QUERY).matches;
+
+document.documentElement.classList.add(
+  mobileExperience ? "mobile-experience" : "desktop-experience",
+);
+
+if (!mobileExperience) {
+  document.documentElement.classList.add("creative-hero-pending");
+}
 
 createApp(App).mount("#app");
 
-void document.fonts.ready.then(() => {
-  requestAnimationFrame(() => {
+if (!mobileExperience) {
+  void document.fonts.ready.then(() => {
     requestAnimationFrame(() => {
-      document.documentElement.classList.remove("creative-hero-pending");
-      mountStageGraphics();
-      mountScrollSyncController();
-      mountVisualContinuity();
-      mountHeroExperience();
-      mountTrajectoryExperience();
-      mountSystemsExperience();
-      mountGalleryGel();
+      requestAnimationFrame(() => {
+        document.documentElement.classList.remove("creative-hero-pending");
+        mountStageGraphics();
+        mountScrollSyncController();
+        mountVisualContinuity();
+        mountHeroExperience();
+        mountTrajectoryExperience();
+        mountSystemsExperience();
+        mountGalleryGel();
+      });
     });
   });
-});
+}
