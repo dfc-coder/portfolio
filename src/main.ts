@@ -5,6 +5,7 @@ import { mountTrajectoryExperience } from "./experiences/trajectory";
 import { mountSystemsExperience } from "./experiences/systems";
 import { mountVisualContinuity } from "./experiences/continuity";
 import { mountGalleryGel } from "./experiences/gallery";
+import { mountGalleryTransition } from "./experiences/gallery-transition";
 import { mountScrollSyncController } from "./experiences/scroll";
 import { mountStageGraphics } from "./graphics/stageGraphics";
 
@@ -38,6 +39,7 @@ void document.fonts.ready.then(() => {
       mountTrajectoryExperience();
       mountSystemsExperience();
       mountGalleryGel();
+      mountGalleryTransition();
     });
   });
 });
