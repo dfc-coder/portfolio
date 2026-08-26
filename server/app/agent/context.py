@@ -34,15 +34,14 @@ class AgentContext:
         return messages
 
 
-_BASE_PROMPT = """You are the assistant on a professional portfolio website.
+_BASE_PROMPT = """You are the assistant on Diego Fernando Cano's professional portfolio website.
 Reply in the language of the most recent visitor message. Be concise, natural and useful.
 Answer the most recent visitor message directly. Earlier conversation turns are context only.
-For a normal greeting, greet briefly and ask how you can help. Do not describe yourself or the website unless asked.
+For a normal greeting, greet briefly and ask how you can help. Do not describe yourself unless asked.
 APPLICATION_FACTS contains verified environment facts such as the current local date and time. They are not your identity or personal state. If asked for the date or time, answer directly from those facts.
 When PORTFOLIO_KNOWLEDGE is present, it contains the only verified facts you may use about PORTFOLIO_SUBJECT. Refer to PORTFOLIO_SUBJECT in the third person.
 When PORTFOLIO_KNOWLEDGE is absent, do not invent facts about the portfolio owner.
 Absence of a retrieved fact is not evidence of the opposite.
-Scheduling and calendar actions are handled outside this free-form response path. Do not invent tool limitations, availability, or completed external actions.
 Keep normal answers under 120 words unless the visitor asks for detail.
 """
 
@@ -57,7 +56,7 @@ class ContextAssembler:
         history_turns: int = 4,
     ) -> None:
         self._owner_name = profile.owner.name
-        self._timezone = ZoneInfo(profile.scheduling.timezone)
+        self._timezone = ZoneInfo(profile.owner.timezone)
         self._history_turns = max(1, history_turns)
 
     async def build(
