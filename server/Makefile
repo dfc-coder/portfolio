@@ -7,7 +7,6 @@ ENV_EXAMPLE ?= $(ROOT)/.env.example
 COMPOSE_FILE ?= $(ROOT)/compose.yaml
 API_URL ?= http://localhost:8000
 UV ?= uv
-CRITICAL_REPETITIONS ?= 5
 
 CONTAINER_ENGINE ?= $(shell if command -v podman >/dev/null 2>&1; then echo podman; elif command -v docker >/dev/null 2>&1; then echo docker; fi)
 COMPOSE = $(CONTAINER_ENGINE) compose -f $(COMPOSE_FILE) --env-file $(ENV_FILE)
@@ -16,20 +15,19 @@ COMPOSE = $(CONTAINER_ENGINE) compose -f $(COMPOSE_FILE) --env-file $(ENV_FILE)
 	up dev down stop restart reset build rebuild pull ps status \
 	logs logs-api logs-llama logs-embedding shell-api \
 	health ready wait-ready \
-	compile test test-unit test-e2e check \
-	eval-routing eval-scheduling eval-live eval-smoke clean model models
+	compile test test-unit test-e2e check clean model models
 
 help: ## Show available targets
-	@printf "\nPortfolio Business Representative\n\n"
+	@printf "\nPortfolio Knowledge Agent\n\n"
 	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\nTargets:\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-16s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-	@printf "\nOverrides: CONTAINER_ENGINE=podman|docker API_URL=http://... ENV_FILE=/path/.env CRITICAL_REPETITIONS=5\n\n"
+	@printf "\nOverrides: CONTAINER_ENGINE=podman|docker API_URL=http://... ENV_FILE=/path/.env\n\n"
 
 env: ## Create .env from .env.example when missing
 	@if [ -f "$(ENV_FILE)" ]; then \
 		echo ".env already exists: $(ENV_FILE)"; \
 	elif [ -f "$(ENV_EXAMPLE)" ]; then \
 		cp "$(ENV_EXAMPLE)" "$(ENV_FILE)"; \
-		echo "Created $(ENV_FILE). Review model, embedding and Calendar settings before starting."; \
+		echo "Created $(ENV_FILE). Review model and embedding settings before starting."; \
 	else \
 		echo "Missing $(ENV_EXAMPLE)" >&2; \
 		exit 1; \
@@ -159,26 +157,6 @@ test-e2e: ## Run end-to-end agent tests
 	@cd "$(ROOT)" && PYTHONPATH=. $(UV) run pytest -q tests/e2e
 
 check: compile test ## Run compile + complete test suite
-
-eval-routing: up ## Run the complete live embedding routing/conversation evaluation
-	@echo "Full routing/conversation eval: all cases run; CRITICAL_REPETITIONS only changes repeated critical cases."
-	@cd "$(ROOT)" && $(COMPOSE) run --rm --no-deps \
-		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
-		api python tests/evals/run_live.py --critical-repetitions $(CRITICAL_REPETITIONS)
-
-eval-scheduling: up ## Run the complete SchedulingTurn structured semantic evaluation
-	@echo "Full scheduling eval: all SchedulingTurn cases run; CRITICAL_REPETITIONS only changes repeated critical cases."
-	@cd "$(ROOT)" && $(COMPOSE) run --rm --no-deps \
-		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
-		api python tests/evals/run_scheduling_turn_live.py --critical-repetitions $(CRITICAL_REPETITIONS)
-
-eval-live: eval-routing eval-scheduling ## Run all complete live-model evaluations
-
-eval-smoke: up ## Run a small live-model regression sample with visible per-case progress
-	@echo "Running fast live-model smoke evaluation with per-case progress."
-	@cd "$(ROOT)" && $(COMPOSE) run --rm --no-deps \
-		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
-		api python -u tests/evals/run_smoke.py
 
 clean: ## Remove Python/test caches only; keeps models and containers
 	@find "$(ROOT)" -type d -name __pycache__ -prune -exec rm -rf {} +
