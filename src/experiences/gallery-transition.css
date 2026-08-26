@@ -1,0 +1,17 @@
+/* Bidirectional gallery handoff. The scroll director still owns scene opacity;
+   this layer only keeps the gallery renderable while cards travel across the
+   scene boundary before/after data-scene="gallery" becomes active. */
+.ref-stage[data-gallery-motion="true"] .ref-scene--gallery.ref-gallery-gel-ready {
+  opacity: var(--gallery, 0) !important;
+  visibility: visible !important;
+}
+
+.ref-stage[data-gallery-motion="true"]
+  .ref-scene--gallery.ref-gallery-gel-ready
+  .ref-art-card {
+  visibility: visible !important;
+}
+
+.ref-scene--gallery.ref-gallery-gel-ready .ref-art-card {
+  will-change: translate, transform;
+}
