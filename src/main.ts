@@ -23,6 +23,7 @@ import "./experiences/continuity.css";
 import "./styles/chapter-bridges.css";
 import "./experiences/gallery.css";
 import "./experiences/gallery-clean.css";
+import "./experiences/gallery-transition.css";
 
 document.documentElement.classList.add("creative-hero-pending");
 
