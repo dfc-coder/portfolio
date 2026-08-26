@@ -1,9 +1,33 @@
+import { damp, frameDeltaSeconds } from "../motion/inertia";
 import { narrativeModel } from "./narrative-model";
 import { narrativeRuntime, type NarrativeState } from "./narrative-runtime";
 import { experiences } from "./trajectory-data";
 
 const COLLECTION_HOLD_END = 0.26;
 const COLLECTION_TRAVEL_END = 0.74;
+const PARALLAX_SETTLE_EPSILON = 0.00045;
+
+const PARALLAX_LAYERS = [
+  "years",
+  "eyebrow",
+  "role",
+  "context",
+  "summary",
+  "tags",
+  "counter",
+] as const;
+
+type ParallaxLayer = (typeof PARALLAX_LAYERS)[number];
+
+const PARALLAX_RESPONSE: Record<ParallaxLayer, number> = {
+  years: 5.2,
+  eyebrow: 13.4,
+  role: 11.2,
+  context: 8.6,
+  summary: 6.8,
+  tags: 5.5,
+  counter: 9.6,
+};
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
@@ -33,6 +57,9 @@ const collectionPosition = (nodePosition: number, startNode: number, count: numb
 const entryPresence = (distance: number) =>
   smoother(clamp01((0.5 - distance) / 0.2));
 
+const layerTravel = (offset: number, distance: number) =>
+  offset * distance * (offset < 0 ? 0.82 : 1);
+
 export const mountTrajectoryExperience = () => {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return () => undefined;
 
@@ -53,8 +80,110 @@ export const mountTrajectoryExperience = () => {
   }
 
   const { careerStartNode, chapterSystemsNode } = narrativeModel;
+  const initialPosition = collectionPosition(
+    narrativeRuntime.getState().node,
+    careerStartNode,
+    experiences.length,
+  );
 
-  const render = (state: NarrativeState) => {
+  let targetPosition = initialPosition;
+  let latestContentReveal = 0;
+  let motionFrame = 0;
+  let motionLastTime = performance.now();
+
+  const layerPositions: Record<ParallaxLayer, number> = {
+    years: initialPosition,
+    eyebrow: initialPosition,
+    role: initialPosition,
+    context: initialPosition,
+    summary: initialPosition,
+    tags: initialPosition,
+    counter: initialPosition,
+  };
+
+  const renderParallax = (time: number) => {
+    motionFrame = 0;
+    const dt = frameDeltaSeconds(time, motionLastTime);
+    motionLastTime = time;
+    let maxLag = 0;
+
+    PARALLAX_LAYERS.forEach((layer) => {
+      layerPositions[layer] = damp(
+        layerPositions[layer],
+        targetPosition,
+        PARALLAX_RESPONSE[layer],
+        dt,
+      );
+      maxLag = Math.max(maxLag, Math.abs(targetPosition - layerPositions[layer]));
+    });
+
+    const timelineProgress =
+      experiences.length > 1
+        ? layerPositions.years / (experiences.length - 1)
+        : 0;
+    stage.style.setProperty("--trajectory-timeline-progress", timelineProgress.toFixed(5));
+
+    yearNodes.forEach((element, index) => {
+      const offset = index - layerPositions.years;
+      const focus = Math.exp(-(offset * offset) * 3.45);
+      const y = offset * 14.2;
+      element.style.transform = `translate3d(0, calc(-50% + ${y.toFixed(3)}vh), 0)`;
+      element.style.opacity = (latestContentReveal * Math.max(0.09, focus)).toFixed(5);
+      element.style.setProperty("--year-focus", focus.toFixed(5));
+    });
+
+    entries.forEach((element, index) => {
+      const roleOffset = index - layerPositions.role;
+      const eyebrowOffset = index - layerPositions.eyebrow;
+      const contextOffset = index - layerPositions.context;
+      const summaryOffset = index - layerPositions.summary;
+      const tagsOffset = index - layerPositions.tags;
+      const presence = entryPresence(Math.abs(roleOffset));
+
+      element.style.visibility = presence > 0.001 ? "visible" : "hidden";
+      element.style.opacity = (latestContentReveal * presence).toFixed(5);
+      element.style.setProperty("--entry-focus", presence.toFixed(5));
+      element.style.setProperty("--entry-offset", roleOffset.toFixed(5));
+      element.style.setProperty(
+        "--role-y",
+        `${layerTravel(roleOffset, 5.8).toFixed(3)}vh`,
+      );
+      element.style.setProperty(
+        "--eyebrow-y",
+        `${layerTravel(eyebrowOffset, 4.1).toFixed(3)}vh`,
+      );
+      element.style.setProperty(
+        "--context-y",
+        `${layerTravel(contextOffset, 2.8).toFixed(3)}vh`,
+      );
+      element.style.setProperty(
+        "--summary-y",
+        `${layerTravel(summaryOffset, 2.1).toFixed(3)}vh`,
+      );
+      element.style.setProperty(
+        "--tags-y",
+        `${layerTravel(tagsOffset, 1.55).toFixed(3)}vh`,
+      );
+      element.style.setProperty(
+        "--entry-x",
+        `${(roleOffset < 0 ? roleOffset * 0.18 : roleOffset * -0.24).toFixed(3)}vw`,
+      );
+    });
+
+    counterTrack.style.transform = `translate3d(0, ${(-layerPositions.counter).toFixed(5)}em, 0)`;
+
+    if (maxLag > PARALLAX_SETTLE_EPSILON) {
+      motionFrame = requestAnimationFrame(renderParallax);
+    }
+  };
+
+  const requestParallaxRender = () => {
+    if (motionFrame) return;
+    motionLastTime = performance.now();
+    motionFrame = requestAnimationFrame(renderParallax);
+  };
+
+  const renderNarrative = (state: NarrativeState) => {
     const node = state.node;
 
     const heroExit = range(node, 0.10, 0.86);
@@ -72,8 +201,9 @@ export const mountTrajectoryExperience = () => {
     const axisReveal = range(node, 1.18, 1.52);
     const contentReveal = range(node, 1.34, 1.74);
     const heroShell = 1 - range(node, chapterSystemsNode - 0.62, chapterSystemsNode + 0.12);
-    const experiencePosition = collectionPosition(node, careerStartNode, experiences.length);
-    const timelineProgress = experiences.length > 1 ? experiencePosition / (experiences.length - 1) : 0;
+
+    targetPosition = collectionPosition(node, careerStartNode, experiences.length);
+    latestContentReveal = contentReveal;
 
     stage.dataset.trajectory = node > 0.12 && node < chapterSystemsNode + 0.18 ? "true" : "false";
     stage.style.setProperty("--trajectory-hero-exit", heroExit.toFixed(5));
@@ -89,7 +219,6 @@ export const mountTrajectoryExperience = () => {
     stage.style.setProperty("--trajectory-axis-reveal", axisReveal.toFixed(5));
     stage.style.setProperty("--trajectory-content", contentReveal.toFixed(5));
     stage.style.setProperty("--trajectory-hero-shell", heroShell.toFixed(5));
-    stage.style.setProperty("--trajectory-timeline-progress", timelineProgress.toFixed(5));
 
     root.style.opacity = trajectoryVisibility.toFixed(5);
     intro.style.opacity = introVisibility.toFixed(5);
@@ -99,40 +228,14 @@ export const mountTrajectoryExperience = () => {
     header.style.transform = `translate3d(0, ${(10 * (1 - contentReveal)).toFixed(2)}px, 0)`;
     axis.style.opacity = (axisReveal * trajectoryVisibility).toFixed(5);
 
-    yearNodes.forEach((element, index) => {
-      const offset = index - experiencePosition;
-      const focus = Math.exp(-(offset * offset) * 3.45);
-      const y = offset * 14.2;
-      element.style.transform = `translate3d(0, calc(-50% + ${y.toFixed(3)}vh), 0)`;
-      element.style.opacity = (contentReveal * Math.max(0.09, focus)).toFixed(5);
-      element.style.setProperty("--year-focus", focus.toFixed(5));
-    });
-
-    entries.forEach((element, index) => {
-      const offset = index - experiencePosition;
-      const distance = Math.abs(offset);
-      const presence = entryPresence(distance);
-      const directionScale = offset < 0 ? 0.82 : 1;
-
-      element.style.visibility = presence > 0.001 ? "visible" : "hidden";
-      element.style.opacity = (contentReveal * presence).toFixed(5);
-      element.style.setProperty("--entry-focus", presence.toFixed(5));
-      element.style.setProperty("--entry-offset", offset.toFixed(5));
-      element.style.setProperty("--role-y", `${(offset * 5.2 * directionScale).toFixed(3)}vh`);
-      element.style.setProperty("--eyebrow-y", `${(offset * 3.4 * directionScale).toFixed(3)}vh`);
-      element.style.setProperty("--context-y", `${(offset * 2.2 * directionScale).toFixed(3)}vh`);
-      element.style.setProperty("--summary-y", `${(offset * 1.8 * directionScale).toFixed(3)}vh`);
-      element.style.setProperty("--tags-y", `${(offset * 1.4 * directionScale).toFixed(3)}vh`);
-      element.style.setProperty("--entry-x", `${(offset < 0 ? offset * 0.18 : offset * -0.24).toFixed(3)}vw`);
-    });
-
-    counterTrack.style.transform = `translate3d(0, ${(-experiencePosition).toFixed(5)}em, 0)`;
+    requestParallaxRender();
   };
 
-  const unsubscribe = narrativeRuntime.subscribe(render);
+  const unsubscribe = narrativeRuntime.subscribe(renderNarrative);
 
   return () => {
     unsubscribe();
+    if (motionFrame) cancelAnimationFrame(motionFrame);
     delete stage.dataset.trajectory;
     [
       "--trajectory-hero-exit",
