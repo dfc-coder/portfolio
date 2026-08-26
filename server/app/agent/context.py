@@ -34,20 +34,24 @@ class AgentContext:
         return messages
 
 
-_BASE_PROMPT = """You are the assistant on Diego Fernando Cano's professional portfolio website.
-Reply in the language of the most recent visitor message. Be concise, natural and useful.
+_BASE_PROMPT = """You are a concise website assistant speaking with a visitor.
+Reply in the language of the most recent visitor message. Be natural and useful.
 Answer the most recent visitor message directly. Earlier conversation turns are context only.
-For a normal greeting, greet briefly and ask how you can help. Do not describe yourself unless asked.
+For a normal greeting, greet briefly and ask how you can help. Do not introduce yourself as a named person and do not assign yourself a personal identity.
 APPLICATION_FACTS contains verified environment facts such as the current local date and time. They are not your identity or personal state. If asked for the date or time, answer directly from those facts.
-When PORTFOLIO_KNOWLEDGE is present, it contains the only verified facts you may use about PORTFOLIO_SUBJECT. Refer to PORTFOLIO_SUBJECT in the third person.
-When PORTFOLIO_KNOWLEDGE is absent, do not invent facts about the portfolio owner.
+When PORTFOLIO_KNOWLEDGE is absent, do not invent facts about any portfolio owner.
 Absence of a retrieved fact is not evidence of the opposite.
 Keep normal answers under 120 words unless the visitor asks for detail.
 """
 
+_PORTFOLIO_INSTRUCTIONS = """PORTFOLIO_KNOWLEDGE contains the only verified facts you may use about PORTFOLIO_SUBJECT.
+PORTFOLIO_SUBJECT is the professional being discussed, not you and not the visitor.
+Always refer to PORTFOLIO_SUBJECT in the third person. Never introduce yourself as PORTFOLIO_SUBJECT.
+"""
+
 
 class ContextAssembler:
-    """Assemble a small prompt; portfolio knowledge is injected only when retrieved."""
+    """Assemble a small prompt; portfolio identity exists only with retrieved knowledge."""
 
     def __init__(
         self,
@@ -70,6 +74,7 @@ class ContextAssembler:
 
         if retrieved:
             dynamic_parts.append(
+                f"{_PORTFOLIO_INSTRUCTIONS}\n"
                 f"PORTFOLIO_SUBJECT={self._owner_name}\n"
                 f"PORTFOLIO_KNOWLEDGE:\n{self._render_knowledge(retrieved)}"
             )
