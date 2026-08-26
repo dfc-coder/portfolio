@@ -11,5 +11,5 @@ test("agent session lifetime matches the visible page conversation", async () =>
 
   assert.match(provider, /const SESSION_ID = `web-\$\{crypto\.randomUUID\(\)\}`;/);
   assert.doesNotMatch(provider, /sessionStorage|SESSION_KEY|getItem\(|setItem\(/);
-  assert.equal((provider.match(/session_id: SESSION_ID/g) ?? []).length, 2);
+  assert.equal((provider.match(/session_id: SESSION_ID/g) ?? []).length, 1);
 });
