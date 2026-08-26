@@ -1,8 +1,8 @@
-# Portfolio Business Representative
+# Portfolio Knowledge Agent
 
-Server-side business representative for a small local Qwen model. The browser never downloads model weights. Two llama.cpp services stay resident:
+Server-side portfolio assistant for a small local Qwen model. The browser never downloads model weights. Two llama.cpp services stay resident:
 
-- `llama`: conversational Qwen used for grounded responses and ambiguous scheduling continuation.
+- `llama`: conversational Qwen used for grounded responses.
 - `embedding`: Qwen3-Embedding-0.6B used for portfolio knowledge retrieval.
 
 ## Architecture
@@ -11,41 +11,26 @@ Server-side business representative for a small local Qwen model. The browser ne
 visitor
   |
   v
-Scheduling admission
-  | explicit meeting request or active workflow
-  +---------------- yes ----------------> Scheduler
-  |                                      |
-  |                               SchedulingMemory
-  |                                      |
-  |                            explicit human approval
-  |                                      |
-  |                                 CalendarPort
+dense profile retrieval
+cached document vectors
   |
-  +---------------- no -----------------+
-                                           |
-                                           v
-                                  dense profile retrieval
-                                  cached document vectors
-                                           |
-                               score >= relevance threshold?
-                                  |                 |
-                                 yes                no
-                                  |                 |
-                             BUSINESS            GENERAL
-                                  \                 /
-                                   \               /
-                                      Responder
-                                         |
-                                     StreamGuard
-                                         |
-                                        SSE
+score >= relevance threshold?
+  |                 |
+ yes                no
+  |                 |
+BUSINESS          GENERAL
+  \                 /
+   \               /
+      Responder
+         |
+     StreamGuard
+         |
+        SSE
 ```
 
-There is no semantic intent router for portfolio knowledge. The structured profile itself defines the knowledge domain. Every non-scheduling turn performs one query embedding against the cached profile-document vectors. Relevant chunks are injected into the prompt; if no chunk meets the global relevance threshold, the same responder answers without portfolio context.
+There is no semantic intent router for portfolio knowledge. The structured profile itself defines the knowledge domain. Every turn performs one query embedding against the cached profile-document vectors. Relevant chunks are injected into the prompt; if no chunk meets the relevance threshold, the same responder answers without portfolio context.
 
-This follows the retrieval-first pattern used by production RAG assistants: retrieve the configured knowledge source, apply a similarity/relevance threshold, then give only the surviving context to the LLM. It avoids maintaining a second semantic taxonomy of sample user phrases.
-
-## Why BUSINESS has no utterance list
+## Knowledge source
 
 `business-profile.json` is the source of truth for portfolio facts:
 
@@ -61,10 +46,10 @@ education.*
 certifications.*
 languages.*
 business.*
-representative.capabilities
+faq.*
 ```
 
-Those records are transformed into small documents and embedded once during startup.
+Those records are transformed into small natural-language documents and embedded once during startup.
 
 At runtime:
 
@@ -87,43 +72,34 @@ Adding a project, skill or experience to the profile makes it retrievable automa
 The relevance boundary is one configuration value:
 
 ```env
-KNOWLEDGE_RELEVANCE_THRESHOLD=0.50
+KNOWLEDGE_RELEVANCE_THRESHOLD=0.25
 ```
 
-`PocketTrace` records the top retrieval score, threshold and selected document IDs so this boundary is observable without adding routing logic.
-
-## Scheduling is a separate operational boundary
-
-Scheduling is not treated as portfolio knowledge. A new scheduling workflow is admitted only for an explicit meeting request. Once a scheduling workflow is active, the existing deterministic-first parser can interpret dates, slots, contact details and cancellation; its small semantic fallback is available only inside that already-active workflow.
-
-Free-form chat never writes to Calendar. A prepared booking requires explicit human approval through the UI before the deterministic booking boundary can run.
+`PocketTrace` records the top retrieval score, threshold and selected documents so the boundary is observable without adding routing logic.
 
 ## Code ownership
 
 ```text
-representative.py  orchestration + scheduling admission
+representative.py  thin conversation orchestration
 knowledge.py       profile documents + dense relevance gate
-context.py         prompt + runtime facts
-scheduler.py       meeting workflow + hard write invariants
+context.py         prompt + verified runtime facts
 responder.py       retrieval-driven response streaming
 stream_guard.py    narrow output safety boundary
 ```
 
-There is no cross-encoder reranker, LLM routing judge, business-topic regex whitelist, vector database, ReAct loop or separate semantic-router dependency.
+There is no cross-encoder reranker, LLM routing judge, business-topic regex whitelist, vector database, ReAct loop, scheduling workflow or Calendar integration.
 
 ## Startup and latency
 
 Profile document embeddings are computed once during FastAPI startup and reused for the process lifetime.
 
-Each normal non-scheduling turn requires:
+Each turn requires:
 
 ```text
 1 query embedding
 + local cosine scoring
 + Qwen response generation
 ```
-
-No second routing embedding is performed.
 
 ## Optional PocketTrace observability
 
@@ -173,20 +149,10 @@ Expected readiness:
 {"status":"ok","llama":"ready","embedding":"ready"}
 ```
 
-## Google Calendar
-
-```text
-CALENDAR_MODE=google
-GOOGLE_CALENDAR_ID=primary
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
-GOOGLE_REFRESH_TOKEN=...
-```
-
 ## Tests
 
 ```bash
 make check
 ```
 
-Regression coverage includes cached profile embeddings, relevance threshold gating, experience retrieval, general no-match, scheduling interruption/resume, explicit admission for new scheduling workflows, invalid slot rejection, explicit-approval Calendar writes and guarded streaming.
+Regression coverage includes cached profile embeddings, relevance threshold gating, experience retrieval, general no-match, knowledge-only architecture and guarded streaming.
