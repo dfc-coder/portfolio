@@ -123,3 +123,5 @@ const edgePath = (project: SystemProject, edge: GraphEdge) => {
     <footer class="m-footer"><span>DC · BUENOS AIRES</span><a href="#top">BACK TO TOP ↑</a></footer>
   </div>
 </template>
+
+<style src="./mobile-hero.css"></style>
