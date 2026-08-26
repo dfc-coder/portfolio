@@ -34,6 +34,7 @@ const trajectoryRailItems = experiences.map((experience, index) => ({
 
     <NarrativeProgressRail
       class="trajectory-progress-rail"
+      variant="trajectory"
       :items="trajectoryRailItems"
     />
 
