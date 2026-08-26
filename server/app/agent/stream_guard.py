@@ -15,35 +15,6 @@ _RESTRICTED_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
         ),
         "owner_impersonation",
     ),
-    (
-        re.compile(
-            r"\b(?:the meeting|it|la reuni[oó]n|la cita)\s+(?:is|was|est[aá]|qued[oó]|fue)\s+"
-            r"(?:already\s+|ya\s+)?(?:booked|scheduled|agendad[oa]|reservad[oa])\b",
-            re.IGNORECASE,
-        ),
-        "unverified_calendar_status",
-    ),
-    (
-        re.compile(
-            r"\b(?:i|we|yo)\s+(?:booked|scheduled|agend[eé]|reserv[eé])\b",
-            re.IGNORECASE,
-        ),
-        "unverified_calendar_status",
-    ),
-    (
-        re.compile(
-            r"\b(?:calendar event (?:was )?created|created (?:a )?calendar event)\b",
-            re.IGNORECASE,
-        ),
-        "unverified_calendar_status",
-    ),
-    (
-        re.compile(
-            r"\b(?:invitation (?:was )?sent|invitaci[oó]n (?:fue )?enviada)\b",
-            re.IGNORECASE,
-        ),
-        "unverified_calendar_status",
-    ),
 )
 
 
