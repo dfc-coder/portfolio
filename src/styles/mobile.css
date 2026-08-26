@@ -16,6 +16,13 @@ html.mobile-experience .ref-portfolio {
 
 html.mobile-experience * {
   min-width: 0;
+  max-width: 100%;
+}
+
+html.mobile-experience svg,
+html.mobile-experience img,
+html.mobile-experience canvas {
+  max-width: 100%;
 }
 
 html.mobile-experience .ref-skip,
@@ -123,7 +130,6 @@ html.mobile-experience .ref-marker {
   margin: 0 0 34px;
 }
 
-/* HERO — same visual language, mobile geometry. */
 html.mobile-experience .ref-scene--hero {
   min-height: calc(100svh - 58px);
   padding-top: 22px;
@@ -199,7 +205,6 @@ html.mobile-experience .ref-scroll-cue i {
   height: 30px;
 }
 
-/* TRAJECTORY — original component, static editorial flow. */
 html.mobile-experience .ref-scene--career {
   padding-top: 76px;
   padding-bottom: 48px;
@@ -312,7 +317,6 @@ html.mobile-experience .trajectory-entry__focus ul {
   line-height: 1.4;
 }
 
-/* SYSTEMS — original architecture cards, one after another. */
 html.mobile-experience .ref-scene--systems {
   padding-top: 76px;
   padding-bottom: 48px;
@@ -472,7 +476,6 @@ html.mobile-experience .systems-project__implementation li {
   line-height: 1.35;
 }
 
-/* GALLERY — compact grid, no floating desktop geometry. */
 html.mobile-experience .ref-scene--gallery {
   padding-top: 76px;
   padding-bottom: 72px;
@@ -527,7 +530,6 @@ html.mobile-experience .ref-scene--gallery.ref-gallery-gel-ready .ref-art-card i
   filter: saturate(.86) brightness(.92) !important;
 }
 
-/* AGENT — same component, static responsive composition. */
 html.mobile-experience .ref-scene--agent {
   min-height: 100svh;
   padding: 72px var(--mobile-gutter) max(34px, env(safe-area-inset-bottom));
@@ -565,14 +567,8 @@ html.mobile-experience .agent-lane {
   mask-image: none;
 }
 
-html.mobile-experience .agent-empty__intro {
-  max-width: 100%;
-}
-
-html.mobile-experience .agent-empty__starter {
-  min-width: 0;
-}
-
+html.mobile-experience .agent-empty__intro,
+html.mobile-experience .agent-empty__starter,
 html.mobile-experience .agent-msg,
 html.mobile-experience .agent-msg__body,
 html.mobile-experience .agent-msg__body p {
