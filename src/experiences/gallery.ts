@@ -68,12 +68,12 @@ export const galleryItems: GalleryItem[] = [
     alt: "Mint upholstered lounge chair with a visible tubular frame.",
   },
   {
-    src: "/studio/interior-shadow.png",
+    src: "/studio/interior-shadow.jpg",
     title: "Shadow Interior",
     type: "Interior / Spatial Study",
     description:
       "Interior composition centred on contrast, shadow and surface texture to create depth with a restrained material palette.",
-    alt: "Interior composition defined by strong shadows, texture and a restrained material palette.",
+    alt: "Interior scene with two lounge chairs under a dark arch, warm framed artwork and strong leaf shadows across textured green walls.",
   },
   {
     src: "/studio/interior-blue.png",
