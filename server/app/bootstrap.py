@@ -4,9 +4,6 @@ from dataclasses import dataclass
 
 from app.agent.representative import BusinessRepresentative
 from app.agent.responder import Responder
-from app.agent.scheduler import Scheduler
-from app.infrastructure.calendar.google import GoogleCalendarGateway
-from app.infrastructure.calendar.memory import InMemoryCalendarGateway
 from app.infrastructure.config.profile_loader import load_business_profile
 from app.infrastructure.config.settings import Settings
 from app.infrastructure.embeddings.llama_cpp import LlamaCppEmbeddingClient
@@ -14,33 +11,21 @@ from app.infrastructure.llm.llama_cpp import LlamaCppClient
 from app.infrastructure.pockettrace import PocketTraceRecorder
 from app.infrastructure.sessions.memory import MemorySessionStore
 from app.ports.llm import GenerationConfig
-from app.scheduling.approval import BookingApproval
-from app.scheduling.policy import SchedulingPolicy
-from app.scheduling.presenter import SchedulingPresenter
-from app.scheduling.slots import SlotService
 
 
 @dataclass(frozen=True)
 class AgentRuntime:
     agent: BusinessRepresentative
-    approvals: BookingApproval
     llm: LlamaCppClient
     embeddings: LlamaCppEmbeddingClient
 
 
 def build_runtime(settings: Settings) -> AgentRuntime:
     profile = load_business_profile(settings.profile_path)
-    policy = SchedulingPolicy(profile.scheduling)
     sessions = MemorySessionStore(
         settings.session_ttl_seconds,
         settings.session_max_turns,
     )
-    calendar = (
-        GoogleCalendarGateway(settings)
-        if settings.calendar_mode == "google"
-        else InMemoryCalendarGateway()
-    )
-    slots = SlotService(calendar, policy)
 
     llm = LlamaCppClient(
         settings.llama_base_url,
@@ -53,12 +38,6 @@ def build_runtime(settings: Settings) -> AgentRuntime:
         settings.embedding_timeout_seconds,
     )
 
-    interpreter_config = GenerationConfig(
-        temperature=0.0,
-        max_tokens=min(settings.planner_max_tokens, 64),
-        top_p=1.0,
-        top_k=1,
-    )
     renderer_config = GenerationConfig(
         temperature=settings.renderer_temperature,
         max_tokens=settings.renderer_max_tokens,
@@ -66,19 +45,10 @@ def build_runtime(settings: Settings) -> AgentRuntime:
         top_k=20,
     )
 
-    scheduler = Scheduler(
-        llm,
-        slots,
-        calendar,
-        policy,
-        interpreter_config,
-    )
-    scheduling_presenter = SchedulingPresenter(profile.scheduling.timezone)
     responder = Responder(
         llm,
         profile,
         renderer_config,
-        scheduler.public_capabilities,
         embeddings,
         knowledge_min_score=settings.knowledge_relevance_threshold,
         context_max_chars=settings.context_max_chars,
@@ -95,15 +65,11 @@ def build_runtime(settings: Settings) -> AgentRuntime:
     )
     representative = BusinessRepresentative(
         sessions,
-        scheduler,
-        scheduling_presenter,
         responder,
         trace_recorder,
     )
-    approvals = BookingApproval(sessions, calendar, policy)
     return AgentRuntime(
         agent=representative,
-        approvals=approvals,
         llm=llm,
         embeddings=embeddings,
     )
@@ -112,6 +78,5 @@ def build_runtime(settings: Settings) -> AgentRuntime:
 def build_agent(
     settings: Settings,
 ) -> tuple[BusinessRepresentative, LlamaCppClient, LlamaCppEmbeddingClient]:
-    """Compatibility helper for callers that only need the conversational agent."""
     runtime = build_runtime(settings)
     return runtime.agent, runtime.llm, runtime.embeddings
