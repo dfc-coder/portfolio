@@ -128,31 +128,57 @@ const menuOpen = ref(false);
     </main>
 
     <section id="ref-fallback" class="ref-fallback">
-      <header>
-        <span>DIEGO CANO / ACCESSIBLE INDEX</span>
-        <p class="ref-fallback__title">Software, AI and material practice.</p>
+      <header id="mobile-top" class="ref-fallback-hero">
+        <div class="ref-fallback-hero__topline">
+          <strong>DC</strong>
+          <span>SOFTWARE ENGINEER + CREATIVE TECHNOLOGIST</span>
+        </div>
+        <p class="ref-fallback__title"><span>DIEGO</span><span>CANO</span></p>
+        <p class="ref-fallback-hero__thesis">
+          I design software systems, intelligent products and physical ideas with one principle:
+          <em>complexity must become legible.</em>
+        </p>
+        <nav class="ref-fallback-nav" aria-label="Portfolio sections">
+          <a href="#mobile-experience">Experience</a>
+          <a href="#mobile-systems">Systems</a>
+          <a href="#mobile-archive">Archive</a>
+          <a href="#mobile-agent">Ask</a>
+        </nav>
       </header>
 
-      <div>
-        <h2>Experience</h2>
-        <article v-for="item in experiences" :key="item.period">
+      <div id="mobile-experience" class="ref-fallback-section ref-fallback-experience">
+        <div class="ref-fallback-section__head"><span>02</span><h2>Experience</h2></div>
+        <article v-for="item in experiences" :key="item.period" class="ref-fallback-role">
           <span>{{ item.period }} · {{ item.company }}</span>
           <h3>{{ item.role }}</h3>
           <p>{{ item.summary }}</p>
+          <ul>
+            <li v-for="focus in item.focus" :key="focus">{{ focus }}</li>
+          </ul>
         </article>
       </div>
 
-      <div>
-        <h2>Technical systems</h2>
-        <article v-for="item in projects" :key="item.id">
-          <span>{{ item.id }} · {{ item.field }}</span>
-          <h3>{{ item.title }}</h3>
-          <p>{{ item.premise }}</p>
-        </article>
+      <div id="mobile-systems" class="ref-fallback-section ref-fallback-systems">
+        <div class="ref-fallback-section__head"><span>03</span><h2>Technical systems</h2></div>
+        <details v-for="item in projects" :key="item.id" class="ref-fallback-system">
+          <summary>
+            <span>{{ item.id }} · {{ item.field }}</span>
+            <h3>{{ item.title }}</h3>
+            <p>{{ item.premise }}</p>
+            <b aria-hidden="true">+</b>
+          </summary>
+          <div class="ref-fallback-system__body">
+            <p>{{ item.detail }}</p>
+            <dl>
+              <div><dt>Outcome</dt><dd>{{ item.outcome }}</dd></div>
+              <div><dt>Stack</dt><dd>{{ item.stack.join(" · ") }}</dd></div>
+            </dl>
+          </div>
+        </details>
       </div>
 
-      <div>
-        <h2>A note on origin</h2>
+      <div class="ref-fallback-section ref-fallback-origin">
+        <div class="ref-fallback-section__head"><span>04</span><h2>A note on origin</h2></div>
         <p>
           My first language was design — objects, proportion, material honesty. That eye never left the
           engineering; it only changed medium. What follows is the other half of the practice, where the
@@ -160,13 +186,22 @@ const menuOpen = ref(false);
         </p>
       </div>
 
-      <div class="ref-fallback-art">
+      <div id="mobile-archive" class="ref-fallback-section ref-fallback-art">
         <h2>Visual archive</h2>
         <figure v-for="item in artworks" :key="item.src">
-          <img :src="item.src" :alt="item.title" />
+          <img :src="item.src" :alt="item.title" loading="lazy" decoding="async" />
           <figcaption>{{ item.title }} · {{ item.type }}</figcaption>
         </figure>
       </div>
+
+      <div id="mobile-agent" class="ref-fallback-section ref-fallback-agent">
+        <AgentOS />
+      </div>
+
+      <footer class="ref-fallback-footer">
+        <span>DC · BUENOS AIRES</span>
+        <a href="#mobile-top">Back to top ↑</a>
+      </footer>
     </section>
   </div>
 </template>
