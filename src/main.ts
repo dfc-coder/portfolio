@@ -5,6 +5,7 @@ import { mountTrajectoryExperience } from "./experiences/trajectory";
 import { mountSystemsExperience } from "./experiences/systems";
 import { mountVisualContinuity } from "./experiences/continuity";
 import { mountGalleryGel } from "./experiences/gallery";
+import { mountGalleryTransition } from "./experiences/gallery-transition";
 import { mountScrollSyncController } from "./experiences/scroll";
 import { mountStageGraphics } from "./graphics/stageGraphics";
 
@@ -22,6 +23,7 @@ import "./experiences/continuity.css";
 import "./styles/chapter-bridges.css";
 import "./experiences/gallery.css";
 import "./experiences/gallery-clean.css";
+import "./experiences/gallery-transition.css";
 
 document.documentElement.classList.add("creative-hero-pending");
 
@@ -38,6 +40,7 @@ void document.fonts.ready.then(() => {
       mountTrajectoryExperience();
       mountSystemsExperience();
       mountGalleryGel();
+      mountGalleryTransition();
     });
   });
 });
