@@ -10,9 +10,16 @@ import { narrativeRuntime, type NarrativeState } from "./narrative-runtime";
 
 const ENTRY_START_OFFSET = -0.76;
 const ENTRY_END_OFFSET = 0.08;
-const EXIT_START_OFFSET = 0.62;
-const EXIT_END_OFFSET = 1.06;
-const VISIBILITY_MARGIN = 0.10;
+
+// The outgoing archive needs materially more scroll distance than the incoming
+// handoff. Cards begin leaving while Gallery still owns the scene, then keep
+// travelling above the viewport while the Agent chapter comes in underneath.
+const EXIT_START_OFFSET = 0.48;
+const EXIT_END_OFFSET = 1.30;
+const EXIT_VISIBILITY_HOLD_OFFSET = 1.12;
+const EXIT_VISIBILITY_END_OFFSET = 1.38;
+
+const VISIBILITY_MARGIN = 0.12;
 const POSITION_EPSILON = 0.03;
 const VELOCITY_EPSILON = 0.08;
 
@@ -76,8 +83,8 @@ export const mountGalleryTransition = () => {
   }
 
   const { galleryStartNode, physicalLastNode } = narrativeModel;
-  let latestState = narrativeRuntime.getState();
-  let latestPhysicalNode = latestState.physicalProgress * physicalLastNode;
+  let latestPhysicalNode =
+    narrativeRuntime.getState().physicalProgress * physicalLastNode;
   let previousPhysicalNode = latestPhysicalNode;
   let inputLastTime = performance.now();
   let motionLastTime = inputLastTime;
@@ -116,7 +123,7 @@ export const mountGalleryTransition = () => {
 
   const targetFor = (motion: CardMotion, physicalNode: number, velocity: number) => {
     const entryShift = motion.profile.entryPhase * 0.16;
-    const exitShift = motion.profile.exitPhase * 0.14;
+    const exitShift = motion.profile.exitPhase * 0.24;
     const enter = range(
       physicalNode,
       galleryStartNode + ENTRY_START_OFFSET + entryShift,
@@ -135,6 +142,22 @@ export const mountGalleryTransition = () => {
     );
   };
 
+  const transitionOpacityFor = (physicalNode: number) => {
+    const entryOpacity = range(
+      physicalNode,
+      galleryStartNode + ENTRY_START_OFFSET - 0.04,
+      galleryStartNode - 0.22,
+    );
+    const exitOpacity =
+      1 -
+      range(
+        physicalNode,
+        galleryStartNode + EXIT_VISIBILITY_HOLD_OFFSET,
+        galleryStartNode + EXIT_VISIBILITY_END_OFFSET,
+      );
+    return entryOpacity * exitOpacity;
+  };
+
   measureDistances();
   motions.forEach((motion) => {
     const target = targetFor(motion, latestPhysicalNode, 0);
@@ -144,12 +167,18 @@ export const mountGalleryTransition = () => {
 
   const updateVisibilityOwnership = (physicalNode: number) => {
     const transitionStart = galleryStartNode + ENTRY_START_OFFSET - VISIBILITY_MARGIN;
-    const transitionEnd = galleryStartNode + EXIT_END_OFFSET + VISIBILITY_MARGIN;
+    const transitionEnd =
+      galleryStartNode + EXIT_VISIBILITY_END_OFFSET + VISIBILITY_MARGIN;
 
     if (physicalNode >= transitionStart && physicalNode <= transitionEnd) {
       stage.dataset.galleryMotion = "true";
+      stage.style.setProperty(
+        "--gallery-motion-opacity",
+        transitionOpacityFor(physicalNode).toFixed(5),
+      );
     } else {
       delete stage.dataset.galleryMotion;
+      stage.style.removeProperty("--gallery-motion-opacity");
     }
   };
 
@@ -157,7 +186,7 @@ export const mountGalleryTransition = () => {
     motionFrame = 0;
     const dt = frameDeltaSeconds(time, motionLastTime);
     motionLastTime = time;
-    driveVelocity = damp(driveVelocity, 0, 5.6, dt);
+    driveVelocity = damp(driveVelocity, 0, 5.2, dt);
 
     let maxPositionError = 0;
     let maxVelocity = 0;
@@ -188,7 +217,6 @@ export const mountGalleryTransition = () => {
   };
 
   const renderNarrative = (state: NarrativeState) => {
-    latestState = state;
     const now = performance.now();
     const inputDt = frameDeltaSeconds(now, inputLastTime);
     const physicalNode = state.physicalProgress * physicalLastNode;
@@ -219,6 +247,7 @@ export const mountGalleryTransition = () => {
     if (motionFrame) cancelAnimationFrame(motionFrame);
     removeEventListener("resize", onResize);
     delete stage.dataset.galleryMotion;
+    stage.style.removeProperty("--gallery-motion-opacity");
     motions.forEach((motion) => {
       motion.card.style.removeProperty("translate");
     });
