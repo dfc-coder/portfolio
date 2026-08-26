@@ -21,6 +21,7 @@ import "./experiences/trajectory-layout.css";
 import "./experiences/systems.css";
 import "./experiences/continuity.css";
 import "./styles/chapter-bridges.css";
+import "./components/narrative/narrative-progress-rail.css";
 import "./experiences/gallery.css";
 import "./experiences/gallery-clean.css";
 import "./experiences/gallery-transition.css";
