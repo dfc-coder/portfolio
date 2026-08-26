@@ -1,0 +1,66 @@
+/* The shared Three.js canvas is the agent identity. This layer only carries
+   a minimal state label so the point field can own the space. */
+
+.agent-core--three {
+  width: min(35vw, 540px);
+  max-width: 94%;
+  background: none;
+}
+
+.agent-core--three::before,
+.agent-core--three::after {
+  display: none;
+}
+
+.agent-core__status {
+  position: absolute;
+  left: 50%;
+  bottom: 6%;
+  translate: -50% 0;
+  color: rgba(205, 182, 117, 0.58);
+  font: 500 var(--t-meta)/1 var(--font-info);
+  letter-spacing: 0.14em;
+  opacity: 0.72;
+  transition:
+    color 0.55s ease,
+    opacity 0.55s ease,
+    transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.agent-os[data-state="idle"] .agent-core__status,
+.agent-os[data-state="listening"] .agent-core__status {
+  opacity: 0.42;
+}
+
+.agent-os[data-state="thinking"] .agent-core__status,
+.agent-os[data-state="speaking"] .agent-core__status {
+  opacity: 0.82;
+  transform: translateY(-2px);
+}
+
+.agent-os[data-state="error"] .agent-core__status {
+  color: rgba(208, 138, 106, 0.78);
+}
+
+@media (max-width: 920px) {
+  .agent-core--three {
+    width: min(40vw, 440px);
+  }
+}
+
+@media (max-width: 820px) {
+  .agent-core--three {
+    width: min(80vw, 460px);
+    opacity: 0.42;
+  }
+
+  .agent-core__status {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-core__status {
+    transition: none;
+  }
+}

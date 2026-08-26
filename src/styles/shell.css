@@ -1,0 +1,386 @@
+/* Global portfolio shell. Chapter internals belong to their feature stylesheet. */
+.ref-portfolio {
+  position: relative;
+  min-height: 100vh;
+  background: var(--color-ink);
+}
+
+.ref-skip {
+  position: fixed;
+  z-index: 1000;
+  left: 16px;
+  top: 12px;
+  padding: 10px 14px;
+  color: var(--color-ink);
+  background: var(--color-paper);
+  transform: translateY(-160%);
+  transition: transform .2s ease;
+}
+
+.ref-skip:focus {
+  transform: translateY(0);
+}
+
+.ref-header {
+  position: fixed;
+  z-index: 300;
+  inset: 0 0 auto;
+  height: 70px;
+  padding: 0 22px;
+  display: grid;
+  grid-template-columns: 1fr minmax(220px, 28vw) 1fr;
+  align-items: center;
+  border-bottom: 1px solid var(--line-light);
+  background: rgba(9, 9, 8, .68);
+  backdrop-filter: blur(16px) saturate(1.1);
+}
+
+.ref-brand {
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  text-align: left;
+  background: transparent;
+}
+
+.ref-brand strong {
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: -.06em;
+  font-weight: 700;
+}
+
+.ref-brand span {
+  color: #b4aea4;
+  font: var(--t-meta)/1.3 var(--font-info);
+  letter-spacing: .08em;
+}
+
+.ref-progress {
+  display: grid;
+  grid-template-columns: 27px 1fr 27px;
+  align-items: center;
+  gap: 9px;
+  color: #aaa49a;
+  font-size: var(--t-telemetry);
+}
+
+.ref-progress i {
+  height: 1px;
+  overflow: hidden;
+  background: rgba(238, 234, 226, .17);
+}
+
+.ref-progress b {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: left;
+  background: var(--color-paper);
+}
+
+.ref-index-toggle {
+  justify-self: end;
+  padding: 10px 0;
+  background: transparent;
+  font: var(--t-label)/1 var(--font-info);
+  letter-spacing: .08em;
+}
+
+.ref-index {
+  position: fixed;
+  z-index: 290;
+  inset: 70px 0 auto;
+  padding: 14px 22px 20px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1px;
+  color: var(--color-ink);
+  background: var(--color-paper);
+  transform: translateY(calc(-100% - 70px));
+  transition: transform .52s cubic-bezier(.72, 0, .2, 1);
+}
+
+.ref-index.is-open {
+  transform: translateY(0);
+}
+
+.ref-index button {
+  min-height: 92px;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  border: 1px solid var(--line-dark);
+  background: #ded9cf;
+  transition: color .2s ease, background .2s ease;
+}
+
+.ref-index button:hover,
+.ref-index button:focus-visible {
+  color: var(--color-paper);
+  background: var(--color-ink);
+  outline: none;
+}
+
+.ref-index span {
+  font: var(--t-telemetry)/1 var(--font-info);
+}
+
+.ref-index strong {
+  font-family: var(--font-title);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -.03em;
+}
+
+.ref-track {
+  position: relative;
+}
+
+.ref-stage {
+  --hero: 1;
+  --career: 0;
+  --systems: 0;
+  --gallery: 0;
+  --agent: 0;
+  --chapter-career: 0;
+  --chapter-systems: 0;
+  --chapter-gallery: 0;
+  --chapter-agent: 0;
+  --shell-gutter: clamp(24px, 3vw, 56px);
+  --narrative-rail-x: 11.5%;
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--color-ink);
+}
+
+/* One material surface for the complete narrative. Individual chapters stay
+   transparent so crossfades cannot make the site progressively darker. */
+.ref-stage::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 78% 68% at 36% 43%, rgba(238, 234, 226, .050), transparent 68%),
+    radial-gradient(ellipse 58% 52% at 78% 68%, rgba(197, 103, 72, .018), transparent 72%),
+    linear-gradient(90deg, rgba(238, 234, 226, .010), transparent 24%, transparent 80%, rgba(238, 234, 226, .008));
+}
+
+.ref-grain {
+  position: absolute;
+  z-index: 80;
+  inset: 0;
+  opacity: .045;
+  pointer-events: none;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.ref-scene {
+  position: absolute;
+  z-index: 10;
+  inset: 70px 0 0;
+  padding: var(--shell-gutter);
+  pointer-events: none;
+  background: transparent !important;
+  will-change: opacity, transform, filter;
+}
+
+/* Gallery historically owned an opaque material. The shell now owns the only
+   surface, including the gel-ready state. */
+.ref-stage > .ref-scene--gallery.ref-gallery-gel-ready {
+  background: transparent !important;
+}
+
+.ref-marker {
+  position: absolute;
+  z-index: 30;
+  left: var(--shell-gutter);
+  top: 22px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--line-light);
+  background: rgba(9, 9, 8, .48);
+  color: var(--color-paper);
+  font: 500 var(--t-label)/1 var(--font-info);
+  letter-spacing: .09em;
+}
+
+.ref-marker > span:first-child {
+  color: var(--color-accent);
+}
+
+.ref-marker i {
+  width: 34px;
+  height: 1px;
+  background: currentColor;
+  opacity: .55;
+}
+
+/* Scene-level composition belongs to the global narrative, not feature internals. */
+.ref-scene--gallery {
+  opacity: var(--gallery);
+}
+
+.ref-scene--agent {
+  z-index: 70;
+  opacity: var(--agent);
+  transform: translate3d(0, calc((1 - var(--agent)) * 5vh), 0);
+}
+
+.ref-fallback {
+  display: none;
+  padding: 100px 22px;
+  color: var(--color-ink);
+  background: var(--color-paper);
+}
+
+.ref-fallback > header,
+.ref-fallback > div {
+  max-width: 1160px;
+  margin: 0 auto 90px;
+}
+
+.ref-fallback > header span,
+.ref-fallback article > span {
+  font: var(--t-meta)/1 var(--font-info);
+}
+
+.ref-fallback__title {
+  margin: 18px 0 0;
+  font-family: var(--font-title);
+  font-size: clamp(4rem, 10vw, 10rem);
+  line-height: .84;
+  letter-spacing: -.04em;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.ref-fallback h2 {
+  font-family: var(--font-title);
+  font-size: 3rem;
+}
+
+.ref-fallback article {
+  padding: 24px 0;
+  border-top: 1px solid var(--line-dark);
+}
+
+.ref-fallback h3 {
+  margin: 10px 0;
+  font-family: var(--font-title);
+  font-size: 2rem;
+}
+
+.ref-fallback p {
+  max-width: 700px;
+  color: #57534d;
+  line-height: 1.55;
+}
+
+.ref-fallback-art {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.ref-fallback-art h2 {
+  grid-column: 1 / -1;
+}
+
+.ref-fallback-art figure {
+  margin: 0;
+}
+
+.ref-fallback-art img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  background: #171613;
+}
+
+.ref-fallback-art figcaption {
+  padding: 8px 0;
+  font: var(--t-meta)/1.2 var(--font-info);
+}
+
+@media (max-width: 980px) {
+  .ref-header {
+    grid-template-columns: 1fr auto;
+  }
+
+  .ref-progress {
+    display: none;
+  }
+
+  .ref-index {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 680px) {
+  .ref-header {
+    height: 62px;
+    padding: 0 14px;
+  }
+
+  .ref-brand span {
+    display: none;
+  }
+
+  .ref-index {
+    inset: 62px 0 auto;
+    grid-template-columns: 1fr;
+    padding: 8px 14px 14px;
+  }
+
+  .ref-index button {
+    min-height: 62px;
+  }
+
+  .ref-stage {
+    --shell-gutter: 14px;
+    --narrative-rail-x: 11.5%;
+  }
+
+  .ref-scene {
+    inset: 62px 0 0;
+  }
+
+  .ref-marker {
+    top: 14px;
+  }
+
+  .ref-fallback-art {
+    grid-template-columns: 1fr;
+  }
+
+  .ref-fallback-art h2 {
+    grid-column: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ref-header,
+  .ref-track,
+  .ref-index {
+    display: none;
+  }
+
+  .ref-fallback {
+    display: block;
+  }
+}

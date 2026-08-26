@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import CinematicPortfolioRefined from "./components/CinematicPortfolioRefined.vue";
+import PortfolioExperience from "./components/PortfolioExperience.vue";
 </script>
 
 <template>
-  <CinematicPortfolioRefined />
+  <PortfolioExperience />
 </template>

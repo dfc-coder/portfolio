@@ -1,0 +1,687 @@
+/* ==========================================================================
+   HERO -> TRAJECTORY
+   The opening and resting Hero stay untouched. Once scrolling begins, the Hero
+   exits by depth. The central cue keeps its vertical motion and disappears;
+   Career introduces its own editorial chronology independently.
+   ========================================================================== */
+
+.ref-scene--chapter[data-chapter="career"] {
+  display: none !important;
+}
+
+.ref-scene--career > :not(.trajectory-experience) {
+  display: none !important;
+}
+
+.ref-scene--career {
+  opacity: var(--trajectory-visibility, 0) !important;
+  transform: none !important;
+  filter: none !important;
+  background: transparent !important;
+  overflow: hidden;
+}
+
+.ref-stage[data-trajectory="true"]::after {
+  opacity: 0 !important;
+}
+
+html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scene--hero {
+  opacity: var(--trajectory-hero-shell, 1) !important;
+  transform: none !important;
+  filter: none !important;
+}
+
+html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-hero__title {
+  translate: 0 calc(var(--trajectory-hero-exit, 0) * -16vh);
+  opacity: calc(1 - var(--trajectory-hero-exit, 0));
+}
+
+html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-hero__thesis {
+  translate: 0 calc(var(--trajectory-hero-exit, 0) * -8vh);
+  opacity: calc(1 - var(--trajectory-hero-exit, 0)) !important;
+}
+
+html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-hero__meta {
+  translate: 0 calc(var(--trajectory-hero-exit, 0) * -3.5vh);
+  opacity: calc(1 - var(--trajectory-hero-exit, 0)) !important;
+}
+
+html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue {
+  translate: -50% calc(var(--trajectory-cue-exit, 0) * -10vh);
+  opacity: calc(1 - var(--trajectory-cue-exit, 0)) !important;
+}
+
+html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue span {
+  opacity: calc(1 - var(--trajectory-cue-exit, 0) * 1.9);
+}
+
+html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i {
+  transform: scaleY(calc(1 - var(--trajectory-cue-exit, 0) * .55));
+}
+
+/* --------------------------------------------------------------------------
+   Trajectory composition
+   -------------------------------------------------------------------------- */
+
+.trajectory-experience {
+  --trajectory-paper: rgba(238, 234, 226, .94);
+  --trajectory-muted: rgba(238, 234, 226, .68);
+  --trajectory-dim: rgba(238, 234, 226, .24);
+  position: absolute;
+  z-index: 14;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--trajectory-paper);
+}
+
+.trajectory-experience::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(238, 234, 226, .014), transparent 25%, transparent 79%, rgba(238, 234, 226, .009)),
+    radial-gradient(circle at 18% 49%, rgba(197, 103, 72, .018), transparent 32%);
+}
+
+.trajectory-intro {
+  position: absolute;
+  z-index: 8;
+  will-change: transform, opacity;
+}
+
+/* Persistent chapter identity. The h2 remains visually restrained while
+   establishing the semantic section level above individual roles. */
+.trajectory-header {
+  position: absolute;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--trajectory-muted);
+  font: 500 var(--t-label)/1 var(--font-info);
+  letter-spacing: var(--track-label);
+  will-change: transform, opacity;
+}
+
+.trajectory-header__label,
+.trajectory-header__meta {
+  display: flex;
+  align-items: center;
+}
+
+.trajectory-header__label {
+  gap: 10px;
+}
+
+.trajectory-header__label .narrative-signal__index {
+  color: var(--color-accent);
+}
+
+.trajectory-header__label i {
+  width: 42px;
+  height: 1px;
+  background: currentColor;
+  opacity: .46;
+}
+
+.trajectory-header__label .narrative-signal__label {
+  color: inherit;
+  font-weight: 500;
+}
+
+.trajectory-header__meta {
+  gap: 18px;
+  color: rgba(238, 234, 226, .52);
+  font-size: var(--t-meta);
+}
+
+.trajectory-header__meta span + span::before {
+  content: "·";
+  margin-right: 18px;
+  color: rgba(238, 234, 226, .28);
+}
+
+.trajectory-axis {
+  position: absolute;
+  z-index: 7;
+  left: 15.5%;
+  top: 30%;
+  width: 1px;
+  height: 43vh;
+  opacity: 0;
+  background: rgba(238, 234, 226, .11);
+  transform: scaleY(var(--trajectory-axis-reveal, 0));
+  transform-origin: top center;
+  will-change: transform, opacity;
+}
+
+.trajectory-axis > i {
+  display: block;
+  width: 1px;
+  height: calc(var(--trajectory-timeline-progress, 0) * 100%);
+  min-height: 1px;
+  background: linear-gradient(to bottom, rgba(238, 234, 226, .62), rgba(197, 103, 72, .54));
+  transition: height .08s linear;
+}
+
+.trajectory-years {
+  position: absolute;
+  z-index: 11;
+  left: 15.5%;
+  top: 47%;
+  width: 1px;
+  height: 1px;
+}
+
+.trajectory-year {
+  --year-focus: 0;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 112px;
+  color: rgba(238, 234, 226, calc(.22 + var(--year-focus) * .68));
+  font: 500 var(--t-telemetry)/1 var(--font-info);
+  letter-spacing: .11em;
+  will-change: transform, opacity;
+}
+
+.trajectory-year span {
+  position: absolute;
+  right: 22px;
+  top: 0;
+  transform: translateY(-50%);
+}
+
+.trajectory-year b {
+  position: absolute;
+  left: 18px;
+  top: 0;
+  transform: translateY(-50%);
+  color: rgba(238, 234, 226, calc(.14 + var(--year-focus) * .30));
+  font-weight: 500;
+  font-size: var(--t-telemetry);
+}
+
+.trajectory-year i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: calc(6px + var(--year-focus) * 3px);
+  height: calc(6px + var(--year-focus) * 3px);
+  border: 1px solid rgba(238, 234, 226, calc(.18 + var(--year-focus) * .62));
+  border-radius: 50%;
+  background: #090908;
+  transform: translate(-50%, -50%);
+}
+
+.trajectory-year i::before,
+.trajectory-year i::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+}
+
+.trajectory-year i::before {
+  inset: -7px;
+  border: 1px solid rgba(197, 103, 72, calc(var(--year-focus) * .22));
+  transform: scale(calc(.72 + var(--year-focus) * .28));
+}
+
+.trajectory-year i::after {
+  inset: 2px;
+  background: var(--color-accent);
+  opacity: var(--year-focus);
+}
+
+.trajectory-year::after {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 0;
+  width: calc(18px + var(--year-focus) * 54px);
+  height: 1px;
+  background: rgba(238, 234, 226, calc(.04 + var(--year-focus) * .30));
+  transform-origin: left center;
+}
+
+/* --------------------------------------------------------------------------
+   Experience parallax stack
+   -------------------------------------------------------------------------- */
+
+.trajectory-entries {
+  position: absolute;
+  z-index: 10;
+  inset: 0;
+}
+
+.trajectory-entry {
+  --entry-focus: 0;
+  --entry-x: 0vw;
+  --role-y: 0vh;
+  --eyebrow-y: 0vh;
+  --context-y: 0vh;
+  --summary-y: 0vh;
+  --tags-y: 0vh;
+  position: absolute;
+  left: 29%;
+  right: 7vw;
+  top: 47%;
+  width: auto;
+  translate: var(--entry-x) -50%;
+  will-change: opacity;
+}
+
+.trajectory-entry__eyebrow,
+.trajectory-entry h3,
+.trajectory-entry__context,
+.trajectory-entry__statement,
+.trajectory-entry__focus {
+  will-change: translate, opacity;
+}
+
+.trajectory-entry__eyebrow {
+  translate: 0 var(--eyebrow-y);
+  margin-bottom: 16px;
+  display: grid;
+  width: max-content;
+  grid-template-columns: auto minmax(28px, 58px) auto;
+  align-items: center;
+  gap: 9px;
+  color: rgba(238, 234, 226, calc(.24 + var(--entry-focus) * .48));
+  font: 500 var(--t-meta)/1 var(--font-info);
+  letter-spacing: .10em;
+}
+
+.trajectory-entry__eyebrow span {
+  color: rgba(197, 103, 72, calc(.38 + var(--entry-focus) * .62));
+}
+
+.trajectory-entry__eyebrow i {
+  height: 1px;
+  background: rgba(238, 234, 226, calc(.10 + var(--entry-focus) * .38));
+  transform: scaleX(calc(.18 + var(--entry-focus) * .82));
+  transform-origin: left center;
+}
+
+.trajectory-entry__eyebrow time {
+  font: inherit;
+}
+
+/* Roles remain protagonists, but no longer overpower the shipped systems that
+   follow in Chapter 03. */
+.trajectory-entry h3 {
+  max-width: min(62vw, 820px);
+  margin: 0;
+  translate: 0 var(--role-y);
+  color: rgba(238, 234, 226, calc(.10 + var(--entry-focus) * .90));
+  font-family: var(--font-title);
+  font-size: var(--t-role);
+  font-weight: var(--w-bold);
+  line-height: .89;
+  letter-spacing: -.038em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.trajectory-entry__context {
+  translate: 0 var(--context-y);
+  margin: 24px 0 0;
+  width: min(560px, 48vw);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 30px;
+}
+
+.trajectory-entry__context > div {
+  position: relative;
+  padding-bottom: 9px;
+  border-bottom: 1px solid rgba(238, 234, 226, calc(.05 + var(--entry-focus) * .13));
+}
+
+.trajectory-entry__context > div::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 42%;
+  height: 1px;
+  background: rgba(238, 234, 226, .42);
+  transform: scaleX(var(--entry-focus));
+  transform-origin: left center;
+}
+
+.trajectory-entry__context dt,
+.trajectory-entry__context dd {
+  display: block;
+  margin: 0;
+}
+
+.trajectory-entry__context dt {
+  margin-bottom: 6px;
+  color: rgba(238, 234, 226, calc(.30 + var(--entry-focus) * .35));
+  font: 500 var(--t-label)/1 var(--font-info);
+  letter-spacing: var(--track-label);
+}
+
+.trajectory-entry__context dd {
+  color: rgba(238, 234, 226, calc(.32 + var(--entry-focus) * .54));
+  font-size: clamp(.86rem, .98vw, 1.04rem);
+  font-weight: 500;
+  letter-spacing: -.01em;
+}
+
+.trajectory-entry__statement {
+  translate: 0 var(--summary-y);
+  margin-top: 22px;
+  width: min(590px, 50vw);
+  display: grid;
+  grid-template-columns: 1px minmax(0, 1fr);
+  gap: 13px;
+}
+
+.trajectory-entry__statement > i {
+  width: 1px;
+  min-height: 100%;
+  background: rgba(238, 234, 226, calc(.10 + var(--entry-focus) * .32));
+  transform: scaleY(var(--entry-focus));
+  transform-origin: top center;
+}
+
+.trajectory-entry__statement p {
+  margin: 0;
+  color: rgba(238, 234, 226, calc(.16 + var(--entry-focus) * .62));
+  font-size: clamp(.96rem, 1.08vw, 1.12rem);
+  line-height: 1.47;
+  letter-spacing: -.014em;
+}
+
+.trajectory-entry__focus {
+  translate: 0 var(--tags-y);
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  align-items: start;
+  gap: 12px;
+}
+
+.trajectory-entry__focus > h4 {
+  margin: 0;
+  padding-top: 2px;
+  color: rgba(238, 234, 226, calc(.28 + var(--entry-focus) * .34));
+  font: 500 var(--t-label)/1 var(--font-info);
+  letter-spacing: var(--track-label);
+}
+
+.trajectory-entry__focus ul {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 13px;
+  list-style: none;
+  color: rgba(238, 234, 226, calc(.22 + var(--entry-focus) * .50));
+  font: 500 var(--t-meta)/1 var(--font-info);
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.trajectory-entry__focus li {
+  translate: calc((1 - var(--entry-focus)) * (6px + var(--tag-index) * 2px)) 0;
+}
+
+.trajectory-entry__focus li::before {
+  content: "—";
+  margin-right: 6px;
+  color: rgba(197, 103, 72, calc(.28 + var(--entry-focus) * .66));
+}
+
+.trajectory-counter {
+  position: absolute;
+  z-index: 9;
+  right: 4vw;
+  bottom: 6vh;
+  opacity: calc(var(--trajectory-content, 0) * .62);
+  color: rgba(238, 234, 226, .16);
+}
+
+.trajectory-counter > span {
+  display: block;
+  margin: 0 0 7px 2px;
+  color: rgba(238, 234, 226, .34);
+  font: 500 var(--t-telemetry)/1 var(--font-info);
+  letter-spacing: var(--track-micro);
+}
+
+.trajectory-counter__row {
+  display: grid;
+  grid-template-columns: auto 24px auto;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--font-title);
+  font-size: clamp(2.7rem, 4.1vw, 4.7rem);
+  font-weight: var(--w-black);
+  line-height: 1;
+  letter-spacing: -.05em;
+}
+
+.trajectory-counter__viewport {
+  height: 1em;
+  overflow: hidden;
+}
+
+.trajectory-counter__track {
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+}
+
+.trajectory-counter__track span {
+  display: block;
+  height: 1em;
+  line-height: 1;
+}
+
+.trajectory-counter__row > i {
+  width: 100%;
+  height: 1px;
+  background: rgba(238, 234, 226, .16);
+}
+
+.trajectory-counter__row > span {
+  align-self: center;
+  color: rgba(238, 234, 226, .36);
+  font: 500 var(--t-telemetry)/1 var(--font-info);
+  letter-spacing: .10em;
+}
+
+/* Repeated template chrome stays fixed while role-specific values translate. */
+.trajectory-static-chrome {
+  position: absolute;
+  z-index: 11;
+  inset: 0;
+  opacity: var(--trajectory-content, 0);
+  pointer-events: none;
+  color: rgba(238, 234, 226, .64);
+  font: 500 var(--t-label)/1 var(--font-info);
+  letter-spacing: var(--track-label);
+}
+
+.trajectory-static-chrome__context {
+  position: absolute;
+  left: 29%;
+  top: 57.5%;
+  width: min(560px, 48vw);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 30px;
+}
+
+.trajectory-static-chrome__context span {
+  position: relative;
+  display: block;
+  padding-bottom: 30px;
+}
+
+.trajectory-static-chrome__context span::after,
+.trajectory-static-chrome__context span::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 1px;
+}
+
+.trajectory-static-chrome__context span::after {
+  right: 0;
+  background: rgba(238, 234, 226, .18);
+}
+
+.trajectory-static-chrome__context span::before {
+  z-index: 1;
+  width: 42%;
+  background: rgba(238, 234, 226, .42);
+}
+
+.trajectory-static-chrome__focus {
+  position: absolute;
+  left: 29%;
+  top: 75.5%;
+}
+
+.trajectory-entry__context > div {
+  border-bottom-color: transparent;
+}
+
+.trajectory-entry__context > div::after,
+.trajectory-entry__context dt,
+.trajectory-entry__focus > h4 {
+  opacity: 0;
+}
+
+@media (max-width: 900px) {
+  .trajectory-axis,
+  .trajectory-years {
+    left: 11.5%;
+  }
+
+  .trajectory-entry {
+    left: 24%;
+    right: 4vw;
+  }
+
+  .trajectory-static-chrome__context {
+    left: 24%;
+    width: min(62vw, 560px);
+  }
+
+  .trajectory-static-chrome__focus {
+    left: 24%;
+  }
+
+  .trajectory-entry h3 {
+    max-width: 69vw;
+    font-size: clamp(3rem, 7.2vw, 5.6rem);
+  }
+
+  .trajectory-entry__context,
+  .trajectory-entry__statement {
+    width: min(62vw, 560px);
+  }
+
+  .trajectory-counter {
+    right: 2.5vw;
+  }
+}
+
+@media (max-width: 680px) {
+  .trajectory-intro {
+    width: 86vw;
+  }
+
+  .trajectory-header__meta {
+    display: none;
+  }
+
+  .trajectory-axis,
+  .trajectory-years {
+    left: 13%;
+  }
+
+  .trajectory-year span,
+  .trajectory-year b {
+    display: none;
+  }
+
+  .trajectory-static-chrome {
+    display: none;
+  }
+
+  .trajectory-entry {
+    left: 20%;
+    right: 4vw;
+    top: 45%;
+  }
+
+  .trajectory-entry h3 {
+    max-width: 76vw;
+    font-size: 9.6vw;
+  }
+
+  .trajectory-entry__context {
+    width: 72vw;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .trajectory-entry__context > div {
+    border-bottom-color: rgba(238, 234, 226, calc(.05 + var(--entry-focus) * .13));
+  }
+
+  .trajectory-entry__context > div::after,
+  .trajectory-entry__context dt,
+  .trajectory-entry__focus > h4 {
+    opacity: 1;
+  }
+
+  .trajectory-entry__statement {
+    width: 72vw;
+    margin-top: 16px;
+  }
+
+  .trajectory-entry__statement p {
+    font-size: .9rem;
+  }
+
+  .trajectory-entry__focus {
+    grid-template-columns: 48px 1fr;
+  }
+
+  .trajectory-entry__focus ul {
+    gap: 7px 9px;
+  }
+
+  .trajectory-counter {
+    right: 12px;
+    bottom: 4vh;
+  }
+
+  .trajectory-counter__row {
+    font-size: 10vw;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ref-scene--chapter[data-chapter="career"] {
+    display: grid !important;
+  }
+
+  .ref-scene--career > :not(.trajectory-experience) {
+    display: initial !important;
+  }
+
+  .trajectory-experience {
+    display: none;
+  }
+}

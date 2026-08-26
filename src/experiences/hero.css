@@ -1,0 +1,337 @@
+/* ==========================================================================
+   CREATIVE HERO EXPERIENCE
+   One owner for Hero structure, typography, entrance and interactive field.
+   ========================================================================== */
+
+.ref-scene--hero {
+  overflow: hidden;
+  background: #090908;
+}
+
+.ref-hero__meta {
+  position: relative;
+  z-index: 6;
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  color: rgba(238, 234, 226, .52);
+  font-size: var(--t-meta);
+  letter-spacing: .08em;
+}
+
+.ref-hero__title {
+  position: absolute;
+  z-index: 6;
+  left: 1.7vw;
+  right: 1.7vw;
+  top: 49%;
+  margin: 0;
+  transform: translateY(-50%);
+  font-size: var(--t-display);
+  line-height: .82;
+  letter-spacing: -.03em;
+}
+
+.ref-hero__title > span {
+  display: block;
+  overflow: visible;
+  padding-block: 0;
+  white-space: nowrap;
+}
+
+.ref-hero__title > span > i {
+  display: block;
+  font-style: normal;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  will-change: transform;
+}
+
+.ref-hero__title > span:first-child > i {
+  text-align: left;
+}
+
+.ref-hero__title > span:last-child > i {
+  text-align: right;
+}
+
+.ref-hero__initial,
+.ref-hero__tail {
+  display: inline-block;
+  font: inherit;
+  font-style: normal;
+  font-weight: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  vertical-align: baseline;
+  will-change: opacity, clip-path;
+}
+
+.ref-hero__thesis {
+  position: absolute;
+  z-index: 6;
+  left: 22px;
+  bottom: 24px;
+  width: min(560px, 46vw);
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1px minmax(0, 1fr);
+  align-items: stretch;
+  column-gap: 14px;
+  color: rgba(238, 234, 226, .76);
+}
+
+.ref-hero__thesis-accent {
+  display: block;
+  width: 1px;
+  min-height: 100%;
+  background: rgba(238, 234, 226, .42);
+  transform: scaleY(0);
+  transform-origin: top center;
+}
+
+.ref-hero__thesis-copy {
+  display: block;
+}
+
+.ref-hero__thesis em {
+  color: rgba(238, 234, 226, .98);
+}
+
+.ref-scroll-cue {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  right: auto;
+  top: auto;
+  bottom: 18px;
+  translate: -50% 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: rgba(238, 234, 226, .62);
+  pointer-events: none;
+}
+
+.ref-scroll-cue span {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  font-size: var(--t-telemetry);
+  letter-spacing: .16em;
+  line-height: 1;
+}
+
+.ref-scroll-cue i {
+  width: 1px;
+  height: 44px;
+  background: currentColor;
+  transform-origin: top center;
+  animation: creative-scroll-cue 1.8s cubic-bezier(.65, 0, .35, 1) infinite;
+}
+
+@keyframes creative-scroll-cue {
+  0%, 100% {
+    transform: scaleY(.22);
+    opacity: .28;
+  }
+  52% {
+    transform: scaleY(1);
+    opacity: .9;
+  }
+}
+
+.ref-intro {
+  display: none !important;
+}
+
+html.creative-hero-pending .ref-scene--hero .ref-hero__meta,
+html.creative-hero-pending .ref-scene--hero .ref-hero__title,
+html.creative-hero-pending .ref-scene--hero .ref-hero__thesis,
+html.creative-hero-pending .ref-scene--hero .ref-scroll-cue,
+html.creative-hero-pending .ref-header {
+  opacity: 0 !important;
+}
+
+.ref-scene--hero::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 72% 34%, rgba(238, 234, 226, .055), transparent 30%),
+    radial-gradient(circle at 28% 76%, rgba(196, 161, 92, .035), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, .012), transparent 28%, rgba(0, 0, 0, .14));
+}
+
+.ref-hero-field {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: .86;
+}
+
+/* --------------------------------------------------------------------------
+   Opening
+   -------------------------------------------------------------------------- */
+.creative-opening {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
+  overflow: hidden;
+  color: #eeeae2;
+  background: #090908;
+  clip-path: inset(0 0 0 0);
+  will-change: clip-path;
+}
+
+.creative-opening::before,
+.creative-opening::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.creative-opening::before {
+  inset: 0;
+  opacity: .2;
+  background:
+    linear-gradient(90deg, transparent calc(50% - .5px), rgba(238, 234, 226, .16) 50%, transparent calc(50% + .5px)),
+    linear-gradient(transparent calc(50% - .5px), rgba(238, 234, 226, .12) 50%, transparent calc(50% + .5px));
+}
+
+.creative-opening::after {
+  inset: 22px;
+  border: 1px solid rgba(238, 234, 226, .09);
+}
+
+.creative-opening__meta {
+  position: absolute;
+  z-index: 2;
+  top: 22px;
+  left: 22px;
+  right: 22px;
+  display: flex;
+  justify-content: space-between;
+  color: rgba(238, 234, 226, .48);
+  font: 500 var(--t-meta)/1 var(--font-info);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.creative-opening__center {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 50%;
+  width: min(520px, 72vw);
+  display: grid;
+  grid-template-columns: auto minmax(72px, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  transform: translate(-50%, -50%);
+}
+
+.creative-opening__mark {
+  font-family: var(--font-title);
+  font-size: clamp(3.4rem, 5vw, 5.8rem);
+  font-weight: var(--w-black);
+  line-height: .78;
+  letter-spacing: -.065em;
+}
+
+.creative-opening__rule {
+  height: 1px;
+  background: rgba(238, 234, 226, .58);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+.creative-opening__label {
+  max-width: 150px;
+  color: rgba(238, 234, 226, .58);
+  font: 500 var(--t-meta)/1.45 var(--font-info);
+  letter-spacing: .10em;
+  text-transform: uppercase;
+}
+
+.creative-opening__progress {
+  position: absolute;
+  z-index: 2;
+  left: 22px;
+  right: 22px;
+  bottom: 22px;
+  height: 1px;
+  overflow: hidden;
+  background: rgba(238, 234, 226, .08);
+}
+
+.creative-opening__progress > i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: rgba(238, 234, 226, .68);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+.ref-scene--hero[data-hero-hover="true"] .ref-hero__meta {
+  color: rgba(238, 234, 226, .62);
+}
+
+@media (max-width: 800px) {
+  .creative-opening__center {
+    width: calc(100% - 44px);
+    grid-template-columns: auto 1fr;
+  }
+
+  .creative-opening__label {
+    display: none;
+  }
+
+  .ref-hero__meta span:last-child {
+    display: none;
+  }
+
+  .ref-hero__title {
+    left: 3vw;
+    right: 3vw;
+    top: 47%;
+  }
+
+  .ref-hero__thesis {
+    left: 14px;
+    bottom: 64px;
+    width: min(84vw, 520px);
+    column-gap: 10px;
+  }
+
+  .ref-scroll-cue {
+    bottom: 14px;
+  }
+
+  .ref-scroll-cue i {
+    height: 34px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .creative-opening {
+    display: none !important;
+  }
+
+  .ref-hero-field {
+    display: none;
+  }
+
+  .ref-scroll-cue i {
+    animation: none;
+    transform: scaleY(1);
+  }
+}

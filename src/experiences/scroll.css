@@ -1,0 +1,89 @@
+/* Physical scroll geometry and scene exclusivity. scroll.ts is the only runtime owner. */
+html {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.ref-track {
+  min-height: 100vh;
+}
+
+.ref-progress b {
+  transform: scaleX(var(--physical-scroll-progress, 0)) !important;
+}
+
+.ref-progress > span:first-child {
+  position: relative;
+  color: transparent;
+}
+
+.ref-progress > span:first-child::after {
+  content: attr(data-scroll-progress);
+  position: absolute;
+  inset: 0;
+  color: #aaa49a;
+}
+
+.ref-scene--hero,
+.ref-scene--career,
+.ref-scene--systems,
+.ref-scene--gallery,
+.ref-scene--agent {
+  animation: none !important;
+  animation-timeline: auto !important;
+  animation-range: normal !important;
+}
+
+.ref-scene--hero {
+  opacity: var(--hero) !important;
+  transform: scale(calc(.986 + var(--hero) * .014)) !important;
+  filter: blur(calc((1 - var(--hero)) * 2px)) !important;
+}
+
+.ref-scene--career {
+  opacity: var(--career) !important;
+  transform: translate3d(calc((1 - var(--career)) * 1.2vw), 0, 0) !important;
+  filter: blur(calc((1 - var(--career)) * 2px)) !important;
+}
+
+/* Gallery exists and can receive input only while the scroll director owns it. */
+.ref-stage:not([data-scene="gallery"]) .ref-scene--gallery {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.ref-stage:not([data-scene="gallery"]) .ref-scene--gallery .ref-art-card,
+.ref-stage:not([data-scene="gallery"]) .ref-scene--gallery .ref-gallery-focus {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Gallery -> THE INTERFACE -> Agent is an exclusive state boundary. */
+.ref-stage[data-scene="gallery"] .ref-scene--chapter[data-chapter="agent"] {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+.ref-stage[data-scene="agent"] .ref-scene--chapter[data-chapter="agent"] {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+.ref-scene {
+  pointer-events: none !important;
+}
+
+.ref-stage[data-scene="career"] .ref-scene--career,
+.ref-stage[data-scene="systems"] .ref-scene--systems,
+.ref-stage[data-scene="gallery"] .ref-scene--gallery,
+.ref-stage[data-scene="agent"] .ref-scene--agent {
+  pointer-events: auto !important;
+}

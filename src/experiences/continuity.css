@@ -1,0 +1,137 @@
+/* Cross-chapter interaction: isolated WebGL menu transition + custom cursor. */
+.ref-navigation-transition {
+  position: fixed;
+  z-index: 4000;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  touch-action: none;
+}
+
+.ref-navigation-transition.is-active {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+html.is-section-transitioning {
+  overscroll-behavior: none;
+}
+
+html.is-section-transitioning .ref-cursor,
+html.is-section-transitioning .ref-cursor-ring {
+  opacity: 0 !important;
+}
+
+.ref-portfolio.has-cursor,
+.ref-portfolio.has-cursor * {
+  cursor: none !important;
+}
+
+.ref-cursor,
+.ref-cursor-ring {
+  position: fixed;
+  z-index: 2000;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  opacity: 0;
+  border-radius: 50%;
+}
+
+.ref-cursor.is-on,
+.ref-cursor-ring.is-on {
+  opacity: 1;
+}
+
+.ref-cursor {
+  width: 0;
+  height: 0;
+  transition: opacity .25s linear;
+}
+
+.ref-cursor::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: inherit;
+  background: #fff;
+  color: #fff;
+  mix-blend-mode: difference;
+  transform: translate(-50%, -50%);
+  transition:
+    width .28s cubic-bezier(.2, .8, .2, 1),
+    height .28s cubic-bezier(.2, .8, .2, 1),
+    border-radius .28s cubic-bezier(.2, .8, .2, 1);
+}
+
+.ref-cursor[data-state="hover"]::after {
+  width: 10px;
+  height: 10px;
+}
+
+.ref-cursor[data-state="press"]::after {
+  width: 5px;
+  height: 5px;
+}
+
+.ref-cursor[data-state="text"]::after {
+  width: 2px;
+  height: 16px;
+  border-radius: 1px;
+}
+
+.ref-cursor-ring {
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
+  border: 1px solid rgba(238, 234, 226, .55);
+  mix-blend-mode: difference;
+  will-change: transform;
+  transition:
+    transform .075s linear,
+    opacity .25s linear,
+    width .3s cubic-bezier(.2, .8, .2, 1),
+    height .3s cubic-bezier(.2, .8, .2, 1),
+    margin .3s cubic-bezier(.2, .8, .2, 1),
+    border-color .3s linear,
+    background-color .3s linear;
+}
+
+.ref-cursor-ring[data-state="hover"] {
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  border-color: rgba(255, 255, 255, .88);
+  background: rgba(255, 255, 255, .04);
+}
+
+.ref-cursor-ring[data-state="press"] {
+  width: 26px;
+  height: 26px;
+  margin: -13px 0 0 -13px;
+  border-color: rgba(255, 255, 255, .88);
+}
+
+.ref-cursor-ring[data-state="text"] {
+  width: 22px;
+  height: 26px;
+  margin: -13px 0 0 -11px;
+  border-radius: 4px;
+  border-color: rgba(238, 234, 226, .4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ref-navigation-transition,
+  .ref-cursor,
+  .ref-cursor-ring {
+    display: none;
+  }
+}

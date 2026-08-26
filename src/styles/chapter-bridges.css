@@ -1,0 +1,336 @@
+/* Shared chapter transitions and editorial bridge grammar. */
+.ref-scene--chapter {
+  --ch: 0;
+  display: grid;
+  place-items: center start;
+  padding-left: 18vw;
+  opacity: var(--ch);
+  transform: translate3d(0, calc((1 - var(--ch)) * 1.2vh), 0);
+  filter: blur(calc((1 - var(--ch)) * 2px));
+  background: transparent !important;
+}
+
+.ref-scene--chapter[data-chapter="career"] { --ch: var(--chapter-career, 0); }
+.ref-scene--chapter[data-chapter="systems"] { --ch: var(--chapter-systems, 0); }
+.ref-scene--chapter[data-chapter="gallery"] { --ch: var(--chapter-gallery, 0); }
+.ref-scene--chapter[data-chapter="agent"] { --ch: var(--chapter-agent, 0); }
+
+.ref-chapter {
+  width: min(760px, 66vw);
+  max-width: none;
+  text-align: left;
+}
+
+.ref-chapter > p {
+  margin: 0;
+  color: var(--color-paper);
+  font-style: italic;
+  text-align: left;
+  text-wrap: balance;
+}
+
+/* Shared number / rule / label primitive. The component owns structure; each
+   context remains responsible for placement and motion. */
+.trajectory-intro .narrative-signal,
+.systems-intro .narrative-signal,
+.ref-chapter > .narrative-signal {
+  width: max-content;
+  display: grid;
+  grid-template-columns: auto 52px auto;
+  align-items: center;
+  gap: 10px;
+  color: rgba(238, 234, 226, .70);
+  font: 500 var(--t-label)/1 var(--font-info);
+  letter-spacing: var(--track-label);
+}
+
+.trajectory-intro .narrative-signal,
+.systems-intro .narrative-signal {
+  margin: 0 0 22px;
+}
+
+.trajectory-intro .narrative-signal__index,
+.systems-intro .narrative-signal__index,
+.ref-chapter > .narrative-signal > .narrative-signal__index {
+  color: var(--color-accent);
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.trajectory-intro .narrative-signal > i,
+.systems-intro .narrative-signal > i,
+.ref-chapter > .narrative-signal > i {
+  width: 52px;
+  height: 1px;
+  background: rgba(238, 234, 226, .44);
+}
+
+.trajectory-intro .narrative-signal__label,
+.systems-intro .narrative-signal__label,
+.ref-chapter > .narrative-signal > .narrative-signal__label {
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+}
+
+/* Shared physical register. The rail moves toward the edge so content can use
+   the full viewport instead of collapsing around the center. */
+.narrative-rail {
+  position: absolute;
+  left: var(--narrative-rail-x, 11.5%);
+  top: 28%;
+  width: 1px;
+  height: 48vh;
+}
+
+.trajectory-years {
+  left: var(--narrative-rail-x, 11.5%);
+}
+
+/* Persistent section chrome. Keep each section's existing semantic owner so
+   Trajectory and Systems runtimes retain their header nodes; only the visual
+   register is shared across 02 / 03 / 04 / 05. */
+.narrative-header,
+.ref-scene--gallery > .ref-marker,
+.ref-scene--agent .ref-marker {
+  position: absolute;
+  z-index: 35;
+  left: var(--shell-gutter, 22px) !important;
+  top: 22px !important;
+}
+
+.narrative-header {
+  right: var(--shell-gutter, 22px) !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: rgba(238, 234, 226, .70);
+  font: 500 var(--t-label)/1 var(--font-info);
+  letter-spacing: var(--track-label);
+}
+
+.narrative-header__heading {
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.narrative-header__label,
+.ref-scene--gallery > .ref-marker,
+.ref-scene--agent .ref-marker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: rgba(238, 234, 226, .70) !important;
+  font: 500 var(--t-label)/1 var(--font-info) !important;
+  letter-spacing: var(--track-label) !important;
+}
+
+.narrative-header__label .narrative-signal__index,
+.ref-scene--gallery > .ref-marker > span:first-child,
+.ref-scene--agent .ref-marker > span:first-child {
+  color: var(--color-accent) !important;
+}
+
+.narrative-header__label > i,
+.ref-scene--gallery > .ref-marker > i,
+.ref-scene--agent .ref-marker > i {
+  width: 42px !important;
+  height: 1px;
+  flex: 0 0 42px;
+  background: currentColor;
+  opacity: .46;
+}
+
+.narrative-header__label .narrative-signal__label,
+.ref-scene--gallery > .ref-marker > span:last-child,
+.ref-scene--agent .ref-marker > span:last-child {
+  color: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.narrative-header__meta {
+  display: flex !important;
+  align-items: center;
+  gap: 18px;
+  color: rgba(238, 234, 226, .52);
+  font-size: var(--t-meta);
+}
+
+.narrative-header__meta span + span::before {
+  content: "·";
+  margin-right: 18px;
+  color: rgba(238, 234, 226, .28);
+}
+
+/* Record and Evidence use one editorial introduction grammar, deliberately
+   offset from the viewport center to create more negative space. */
+.trajectory-intro,
+.systems-intro {
+  left: 18vw;
+  top: 47%;
+  width: min(720px, 58vw);
+  translate: 0 -50%;
+  text-align: left;
+  isolation: isolate;
+}
+
+.trajectory-intro p,
+.systems-intro p {
+  max-width: 720px;
+  margin: 0;
+  text-align: left;
+  color: rgba(238, 234, 226, .985);
+  font-family: var(--font-highlight);
+  font-size: var(--t-beat);
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.03;
+  letter-spacing: -.03em;
+  text-wrap: balance;
+}
+
+.systems-intro p em {
+  color: rgba(238, 234, 226, .90);
+  font-style: inherit;
+}
+
+/* Hero cue -> Trajectory register. One continuous ownership handoff. */
+html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i {
+  animation: none;
+}
+
+html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue {
+  translate: -50% 0 !important;
+  opacity: calc(
+    (1 - var(--trajectory-axis-reveal, 0)) *
+    (1 - var(--trajectory-cue-exit, 0) * .35)
+  ) !important;
+}
+
+html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue span {
+  opacity: calc(1 - var(--trajectory-cue-exit, 0) * 1.9) !important;
+}
+
+html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i {
+  translate: 0 calc(var(--trajectory-cue-exit, 0) * 18px);
+  transform: scaleY(calc(1 + var(--trajectory-cue-exit, 0) * .28)) !important;
+  transform-origin: top center !important;
+}
+
+.trajectory-axis {
+  transform: scaleY(var(--trajectory-axis-reveal, 0)) !important;
+  transform-origin: top center !important;
+  will-change: transform, opacity;
+}
+
+.trajectory-intro .narrative-signal {
+  translate: 0 calc(
+    (1 - var(--trajectory-intro-in, 0)) * 8px -
+    var(--trajectory-intro-out, 0) * 12px
+  );
+}
+
+.trajectory-intro p {
+  translate: 0 calc(
+    (1 - var(--trajectory-intro-in, 0)) * 15px -
+    var(--trajectory-intro-out, 0) * 22px
+  );
+}
+
+/* Systems -> Gallery handoff belongs to the chapter boundary, not Systems CSS. */
+html.systems-refined-ready
+  .ref-stage[data-systems-refined="true"]
+  .ref-scene--chapter[data-chapter="gallery"] {
+  --ch: var(--systems-gallery-handoff, 0);
+  opacity: var(--systems-gallery-handoff, 0);
+  transform: translate3d(0, calc((1 - var(--systems-gallery-handoff, 0)) * 5vh), 0);
+  filter: none;
+  background: transparent !important;
+}
+
+html.systems-refined-ready
+  .ref-stage[data-systems-refined="true"]
+  .ref-scene--chapter[data-chapter="gallery"]
+  .ref-chapter {
+  transform: translate3d(0, calc((1 - var(--systems-gallery-handoff, 0)) * 2vh), 0);
+}
+
+.ref-scene--gallery {
+  opacity: var(--gallery, 0);
+  filter: none;
+  transform: translate3d(0, calc(var(--chapter-agent, 0) * -1vh), 0) scale(calc(1 - var(--chapter-agent, 0) * .008));
+}
+
+.ref-scene--chapter[data-chapter="agent"] {
+  background: transparent !important;
+}
+
+.ref-scene--chapter[data-chapter="agent"] .ref-chapter {
+  position: relative;
+  z-index: 4;
+}
+
+/* Chapters 04 and 05 share the same ChapterSignal component and bridge layout. */
+.ref-scene--chapter[data-chapter="gallery"] .ref-chapter,
+.ref-scene--chapter[data-chapter="agent"] .ref-chapter {
+  width: min(760px, 66vw);
+  max-width: none;
+  display: grid;
+  justify-items: start;
+  row-gap: 22px;
+  text-align: left;
+}
+
+.ref-scene--chapter[data-chapter="gallery"] .ref-chapter > p,
+.ref-scene--chapter[data-chapter="agent"] .ref-chapter > p {
+  width: min(760px, 66vw);
+  max-width: 760px;
+  margin: 0;
+  color: rgba(238, 234, 226, .985);
+  font-size: var(--t-beat);
+  line-height: 1.03;
+  letter-spacing: -.03em;
+  text-align: left;
+}
+
+@media (max-width: 680px) {
+  .ref-scene--chapter {
+    padding-left: 12vw;
+  }
+
+  .trajectory-intro,
+  .systems-intro {
+    left: 12vw;
+    width: 76vw;
+  }
+
+  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter,
+  .ref-scene--chapter[data-chapter="agent"] .ref-chapter {
+    width: 76vw;
+    row-gap: 18px;
+  }
+
+  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter > .narrative-signal,
+  .ref-scene--chapter[data-chapter="agent"] .ref-chapter > .narrative-signal {
+    grid-template-columns: auto 42px auto;
+    gap: 8px;
+  }
+
+  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter > .narrative-signal > i,
+  .ref-scene--chapter[data-chapter="agent"] .ref-chapter > .narrative-signal > i {
+    width: 42px;
+  }
+
+  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter > p,
+  .ref-scene--chapter[data-chapter="agent"] .ref-chapter > p {
+    width: 76vw;
+    font-size: clamp(2rem, 8vw, 3.4rem);
+  }
+}
