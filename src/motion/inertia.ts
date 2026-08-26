@@ -9,6 +9,9 @@ export type SpringConfig = {
   maxVelocity?: number;
 };
 
+const PARALLAX_TIME_SCALE = 0.72;
+const PARALLAX_VELOCITY_SCALE = 0.78;
+
 export const damp = (
   current: number,
   target: number,
@@ -22,11 +25,16 @@ export const springStep = (
   config: SpringConfig,
   dt: number,
 ): SpringState => {
-  const omega = Math.max(0.01, config.frequency) * Math.PI * 2;
+  // Run the scroll-linked springs deliberately slower than physical time.
+  // The lower natural frequency preserves the small overshoot while giving
+  // foreground/background layers enough time to separate perceptually.
+  const omega =
+    Math.max(0.01, config.frequency) * Math.PI * 2 * PARALLAX_TIME_SCALE;
   const damping = Math.max(0.05, config.damping);
   const steps = Math.max(1, Math.ceil(dt / 0.008));
   const h = dt / steps;
-  const maxVelocity = config.maxVelocity ?? Number.POSITIVE_INFINITY;
+  const maxVelocity =
+    (config.maxVelocity ?? Number.POSITIVE_INFINITY) * PARALLAX_VELOCITY_SCALE;
 
   let value = state.value;
   let velocity = state.velocity;
