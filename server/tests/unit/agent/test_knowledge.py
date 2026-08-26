@@ -34,16 +34,12 @@ class ControlledEmbeddings:
 def test_profile_index_is_generated_as_natural_language_chunks(
     profile: BusinessProfile,
 ) -> None:
-    index = ProfileDocumentIndex(
-        profile,
-        ("Check calendar availability.",),
-    )
+    index = ProfileDocumentIndex(profile)
     ids = {document.document_id for document in index.documents}
 
     assert "owner" in ids
     assert "positioning" in ids
     assert "skills.programming_languages" in ids
-    assert "representative.capabilities" not in ids
     assert any(value.startswith("experience.") for value in ids)
     assert any(value.startswith("professional_experience.") for value in ids)
     assert any(value.startswith("projects.") for value in ids)
