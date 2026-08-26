@@ -1,4 +1,10 @@
-import { damp, frameDeltaSeconds } from "../motion/inertia";
+import {
+  damp,
+  frameDeltaSeconds,
+  springStep,
+  type SpringConfig,
+  type SpringState,
+} from "../motion/inertia";
 import {
   chapterState,
   collectionPosition,
@@ -8,7 +14,8 @@ import { narrativeModel } from "./narrative-model";
 import { narrativeRuntime, type NarrativeState } from "./narrative-runtime";
 import { systemsProjects as projects } from "./systems-projects";
 
-const PARALLAX_SETTLE_EPSILON = 0.00045;
+const PARALLAX_SETTLE_EPSILON = 0.0004;
+const VELOCITY_SETTLE_EPSILON = 0.0015;
 
 const PARALLAX_LAYERS = [
   "axis",
@@ -29,15 +36,22 @@ type ProjectParts = {
   implementation: HTMLElement;
 };
 
-const PARALLAX_RESPONSE: Record<ParallaxLayer, number> = {
-  axis: 5.0,
-  implementation: 5.8,
-  detail: 6.8,
-  evidence: 7.8,
-  build: 7.2,
-  graph: 9.4,
-  title: 12.4,
+type LayerConfig = SpringConfig & {
+  lead: number;
 };
+
+const PARALLAX_CONFIG: Record<ParallaxLayer, LayerConfig> = {
+  axis: { frequency: 1.05, damping: 0.90, lead: -0.046, maxVelocity: 4.5 },
+  implementation: { frequency: 1.32, damping: 0.88, lead: -0.034, maxVelocity: 5.0 },
+  detail: { frequency: 1.58, damping: 0.86, lead: -0.020, maxVelocity: 5.5 },
+  evidence: { frequency: 1.90, damping: 0.82, lead: -0.006, maxVelocity: 6.0 },
+  build: { frequency: 2.04, damping: 0.84, lead: 0.002, maxVelocity: 6.0 },
+  graph: { frequency: 2.42, damping: 0.76, lead: 0.020, maxVelocity: 7.0 },
+  title: { frequency: 2.92, damping: 0.68, lead: 0.038, maxVelocity: 8.0 },
+};
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
 
 const projectPartsFor = (element: HTMLElement): ProjectParts | null => {
   const architecture = element.querySelector<HTMLElement>(
@@ -106,16 +120,15 @@ export const mountSystemsExperience = () => {
     chapterGalleryNode,
   );
   let targetProjectPosition = initialProjectPosition;
+  let driveVelocity = 0;
+  let inputLastTime = performance.now();
 
-  const layerPositions: Record<ParallaxLayer, number> = {
-    axis: initialProjectPosition,
-    implementation: initialProjectPosition,
-    detail: initialProjectPosition,
-    evidence: initialProjectPosition,
-    build: initialProjectPosition,
-    graph: initialProjectPosition,
-    title: initialProjectPosition,
-  };
+  const layerStates = Object.fromEntries(
+    PARALLAX_LAYERS.map((layer) => [
+      layer,
+      { value: initialProjectPosition, velocity: 0 } satisfies SpringState,
+    ]),
+  ) as Record<ParallaxLayer, SpringState>;
 
   let parallaxFrame = 0;
   let parallaxLastTime = performance.now();
@@ -155,35 +168,48 @@ export const mountSystemsExperience = () => {
     parallaxFrame = 0;
     const dt = frameDeltaSeconds(time, parallaxLastTime);
     parallaxLastTime = time;
+    driveVelocity = damp(driveVelocity, 0, 6.8, dt);
+
     let maxLag = 0;
+    let maxVelocity = 0;
 
     PARALLAX_LAYERS.forEach((layer) => {
-      layerPositions[layer] = damp(
-        layerPositions[layer],
-        targetProjectPosition,
-        PARALLAX_RESPONSE[layer],
-        dt,
-      );
-      maxLag = Math.max(
-        maxLag,
-        Math.abs(targetProjectPosition - layerPositions[layer]),
-      );
+      const config = PARALLAX_CONFIG[layer];
+      const drivenTarget = targetProjectPosition + driveVelocity * config.lead;
+      const next = springStep(layerStates[layer], drivenTarget, config, dt);
+      layerStates[layer] = next;
+      maxLag = Math.max(maxLag, Math.abs(drivenTarget - next.value));
+      maxVelocity = Math.max(maxVelocity, Math.abs(next.velocity));
     });
 
+    const settled =
+      Math.abs(driveVelocity) < VELOCITY_SETTLE_EPSILON &&
+      maxLag < PARALLAX_SETTLE_EPSILON &&
+      maxVelocity < VELOCITY_SETTLE_EPSILON;
+
+    if (settled) {
+      PARALLAX_LAYERS.forEach((layer) => {
+        layerStates[layer].value = targetProjectPosition;
+        layerStates[layer].velocity = 0;
+      });
+      driveVelocity = 0;
+    }
+
     const projectProgress =
-      projectCount > 1 ? layerPositions.axis / (projectCount - 1) : 0;
+      projectCount > 1 ? layerStates.axis.value / (projectCount - 1) : 0;
     stage.style.setProperty("--systems-progress", projectProgress.toFixed(5));
 
     axisItems.forEach((element, index) => {
-      const offset = index - layerPositions.axis;
+      const offset = index - layerStates.axis.value;
       const focus = Math.exp(-(offset * offset) * 5.2);
+      const inertialY = clamp(-layerStates.axis.velocity * 2.4, -6, 6);
       element.style.visibility = "visible";
       element.style.opacity = (
         latestChapterState.contentReveal *
         (0.34 + focus * 0.66) *
         (1 - latestChapterState.tailOut * 0.72)
       ).toFixed(5);
-      element.style.transform = "translate3d(0, -50%, 0)";
+      element.style.transform = `translate3d(0, calc(-50% + ${inertialY.toFixed(2)}px), 0)`;
       element.style.setProperty("--axis-focus", focus.toFixed(5));
     });
 
@@ -191,12 +217,12 @@ export const mountSystemsExperience = () => {
       const parts = resolvedProjectParts[index];
       if (!parts) return;
 
-      const titleOffset = index - layerPositions.title;
-      const graphOffset = index - layerPositions.graph;
-      const detailOffset = index - layerPositions.detail;
-      const evidenceOffset = index - layerPositions.evidence;
-      const implementationOffset = index - layerPositions.implementation;
-      const buildOffset = index - layerPositions.build;
+      const titleOffset = index - layerStates.title.value;
+      const graphOffset = index - layerStates.graph.value;
+      const detailOffset = index - layerStates.detail.value;
+      const evidenceOffset = index - layerStates.evidence.value;
+      const implementationOffset = index - layerStates.implementation.value;
+      const buildOffset = index - layerStates.build.value;
 
       const titleMotion = motionForOffset(titleOffset);
       const graphMotion = motionForOffset(graphOffset);
@@ -222,7 +248,11 @@ export const mountSystemsExperience = () => {
       );
       const graphBuild = Math.min(buildMotion.build, firstProjectBuild);
       const extraTailY = isLast ? -30 * tail : 0;
-      const graphY = Math.max(-1, Math.min(1, graphOffset)) * 1.7;
+      const graphY =
+        clamp(graphOffset, -1, 1) * 2.15 -
+        layerStates.graph.velocity * 0.16;
+      const graphX =
+        graphMotion.graphX - layerStates.graph.velocity * 0.026;
       const visibleDistance = Math.min(
         Math.abs(titleOffset),
         Math.abs(graphOffset),
@@ -232,7 +262,7 @@ export const mountSystemsExperience = () => {
       );
 
       element.style.visibility =
-        visibleDistance < 1.12 || (isLast && tail < 1) ? "visible" : "hidden";
+        visibleDistance < 1.15 || (isLast && tail < 1) ? "visible" : "hidden";
       element.style.setProperty("--title-presence", titlePresence.toFixed(5));
       element.style.setProperty("--graph-presence", graphPresence.toFixed(5));
       element.style.setProperty("--support-presence", supportPresence.toFixed(5));
@@ -243,34 +273,41 @@ export const mountSystemsExperience = () => {
       element.style.setProperty("--system-offset", titleOffset.toFixed(5));
       element.style.setProperty(
         "--title-y",
-        `${(titleMotion.titleY + extraTailY).toFixed(3)}vh`,
+        `${(
+          titleMotion.titleY +
+          extraTailY -
+          layerStates.title.velocity * 0.18
+        ).toFixed(3)}vh`,
       );
 
-      parts.architecture.style.transform = `translate3d(${graphMotion.graphX.toFixed(3)}vw, ${graphY.toFixed(3)}vh, 0)`;
+      parts.architecture.style.transform = `translate3d(${graphX.toFixed(3)}vw, ${graphY.toFixed(3)}vh, 0)`;
       parts.detail.style.opacity = (
         latestChapterState.contentReveal * detailPresence
       ).toFixed(5);
       parts.detail.style.transform = `translate3d(0, ${(
-        detailMotion.supportY * 0.42 +
-        extraTailY * 0.22
+        detailMotion.supportY * 0.46 +
+        extraTailY * 0.22 -
+        layerStates.detail.velocity * 0.09
       ).toFixed(3)}vh, 0)`;
       parts.evidence.style.opacity = (
         latestChapterState.contentReveal * evidencePresence
       ).toFixed(5);
       parts.evidence.style.transform = `translate3d(0, ${(
-        evidenceMotion.supportY * 0.68 +
-        extraTailY * 0.18
+        evidenceMotion.supportY * 0.72 +
+        extraTailY * 0.18 -
+        layerStates.evidence.velocity * 0.075
       ).toFixed(3)}vh, 0)`;
       parts.implementation.style.opacity = (
         latestChapterState.contentReveal * implementationPresence
       ).toFixed(5);
       parts.implementation.style.transform = `translate3d(0, ${(
-        implementationMotion.supportY * 0.30 +
-        extraTailY * 0.13
+        implementationMotion.supportY * 0.34 +
+        extraTailY * 0.13 -
+        layerStates.implementation.velocity * 0.055
       ).toFixed(3)}vh, 0)`;
     });
 
-    if (maxLag > PARALLAX_SETTLE_EPSILON) {
+    if (!settled) {
       parallaxFrame = requestAnimationFrame(renderParallax);
     }
   };
@@ -296,11 +333,18 @@ export const mountSystemsExperience = () => {
       chapterSystemsNode,
       chapterGalleryNode,
     );
-    targetProjectPosition = collectionPosition(
-      node,
-      systemsStartNode,
-      projectCount,
+
+    const now = performance.now();
+    const inputDt = frameDeltaSeconds(now, inputLastTime);
+    const nextPosition = collectionPosition(node, systemsStartNode, projectCount);
+    const rawVelocity = clamp(
+      (nextPosition - targetProjectPosition) / inputDt,
+      -7,
+      7,
     );
+    driveVelocity = damp(driveVelocity, rawVelocity, 18, inputDt);
+    targetProjectPosition = nextPosition;
+    inputLastTime = now;
 
     stage.dataset.systemsRefined =
       node > chapterSystemsNode - 0.36 && node < chapterGalleryNode + 0.34
