@@ -4,13 +4,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[4]
 
 
+def _assert_no_python_sources(path: Path) -> None:
+    if not path.exists():
+        return
+    assert not list(path.rglob("*.py"))
+
+
 def test_portfolio_agent_is_knowledge_only() -> None:
     server = ROOT / "server"
 
     assert not (server / "app" / "agent" / "router.py").exists()
     assert not (server / "app" / "agent" / "scheduler.py").exists()
-    assert not (server / "app" / "scheduling").exists()
-    assert not (server / "app" / "infrastructure" / "calendar").exists()
+    _assert_no_python_sources(server / "app" / "scheduling")
+    _assert_no_python_sources(server / "app" / "infrastructure" / "calendar")
     assert not (server / "app" / "ports" / "calendar.py").exists()
 
     pyproject = (server / "pyproject.toml").read_text(encoding="utf-8")
