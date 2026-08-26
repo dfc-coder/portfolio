@@ -15,11 +15,9 @@ class FakeAgent:
         self,
         session_id: str,
         user_message: str,
-        locale: str = "en",
     ) -> AsyncIterator[str]:
         assert session_id == "browser-session-123"
         assert user_message == "Hello"
-        assert locale == "es-AR"
         yield "Hello"
         yield " from server"
 
@@ -41,11 +39,6 @@ def test_settings() -> Settings:
         session_ttl_seconds=60,
         session_max_turns=4,
         allowed_origins=("http://localhost:5173",),
-        calendar_mode="mock",
-        google_calendar_id="primary",
-        google_client_id=None,
-        google_client_secret=None,
-        google_refresh_token=None,
     )
 
 
@@ -73,7 +66,6 @@ async def test_sse_contract_streams_tokens() -> None:
             json={
                 "session_id": "browser-session-123",
                 "message": "Hello",
-                "locale": "es-AR",
             },
         )
 
