@@ -5,9 +5,9 @@ import time
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING
 
-from app.domain.conversation import ActiveWorkflow, SessionState
+from app.domain.conversation import SessionState
 from app.domain.profile import BusinessProfile
-from app.domain.routing import RouteDomain, RouteRelation
+from app.domain.routing import RouteDomain
 from app.ports.embeddings import EmbeddingPort
 from app.ports.llm import GenerationConfig, LlmPort
 
@@ -27,7 +27,6 @@ class Responder:
         llm: LlmPort,
         profile: BusinessProfile,
         config: GenerationConfig,
-        capabilities: tuple[str, ...],
         embeddings: EmbeddingPort,
         *,
         knowledge_min_score: float = 0.25,
@@ -37,7 +36,7 @@ class Responder:
         self._llm = llm
         self._config = config
         self._retriever = ProfileRetriever(
-            ProfileDocumentIndex(profile, capabilities),
+            ProfileDocumentIndex(profile),
             embeddings,
             min_score=knowledge_min_score,
             max_chars=context_max_chars,
@@ -61,11 +60,6 @@ class Responder:
         state.current_focus = (
             RouteDomain.BUSINESS if knowledge.matched else RouteDomain.GENERAL
         )
-        relation = (
-            RouteRelation.INTERRUPT
-            if state.active_workflow == ActiveWorkflow.SCHEDULING
-            else RouteRelation.NEW
-        )
 
         if trace is not None:
             trace.add_span(
@@ -87,7 +81,7 @@ class Responder:
             )
             trace.add_attributes(
                 route=state.current_focus.value,
-                route_relation=relation.value,
+                route_relation="new",
                 route_source=(
                     "knowledge:match" if knowledge.matched else "knowledge:no-match"
                 ),
