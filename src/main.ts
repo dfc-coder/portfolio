@@ -21,28 +21,22 @@ import "./experiences/systems.css";
 import "./experiences/continuity.css";
 import "./styles/chapter-bridges.css";
 import "./experiences/gallery.css";
-import "./styles/mobile.css";
 
-const mobileExperience = window.matchMedia("(max-width: 820px)").matches;
-document.documentElement.classList.add(mobileExperience ? "mobile-experience" : "desktop-experience");
-
-if (!mobileExperience) document.documentElement.classList.add("creative-hero-pending");
+document.documentElement.classList.add("creative-hero-pending");
 
 createApp(App).mount("#app");
 
-if (!mobileExperience) {
-  void document.fonts.ready.then(() => {
+void document.fonts.ready.then(() => {
+  requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        document.documentElement.classList.remove("creative-hero-pending");
-        mountStageGraphics();
-        mountScrollSyncController();
-        mountVisualContinuity();
-        mountHeroExperience();
-        mountTrajectoryExperience();
-        mountSystemsExperience();
-        mountGalleryGel();
-      });
+      document.documentElement.classList.remove("creative-hero-pending");
+      mountStageGraphics();
+      mountScrollSyncController();
+      mountVisualContinuity();
+      mountHeroExperience();
+      mountTrajectoryExperience();
+      mountSystemsExperience();
+      mountGalleryGel();
     });
   });
-}
+});
