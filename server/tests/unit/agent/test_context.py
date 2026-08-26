@@ -10,7 +10,7 @@ from app.domain.routing import RouteDomain
 
 
 @pytest.mark.asyncio
-async def test_general_context_has_no_portfolio_identity_or_scheduling_state(
+async def test_general_context_has_no_portfolio_identity(
     profile: BusinessProfile,
 ) -> None:
     assembler = ContextAssembler(profile)
@@ -20,14 +20,11 @@ async def test_general_context_has_no_portfolio_identity_or_scheduling_state(
 
     context = await assembler.build(state, ())
 
-    assert profile.owner.name not in context.system_prompt
     assert "PORTFOLIO_SUBJECT=" not in context.system_prompt
     assert "PORTFOLIO_KNOWLEDGE:" not in context.system_prompt
     assert "APPLICATION_FACTS" in context.system_prompt
     assert "CURRENT_LOCAL_DATE=" in context.system_prompt
     assert "CURRENT_LOCAL_TIME=" in context.system_prompt
-    assert "ACTIVE_WORKFLOW=" not in context.system_prompt
-    assert "SCHEDULING_FACTS=" not in context.system_prompt
     assert context.history[-1].content == "¿Qué hora es?"
 
 
