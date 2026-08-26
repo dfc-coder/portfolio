@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   pulseAgentVisual,
   setAgentVisualPhase,
@@ -47,15 +47,10 @@ const {
   draft,
   focused,
   busy,
-  approvalBusy,
   error,
   state,
   canSend,
-  pendingAction,
-  approvalResult,
   send,
-  confirmPending,
-  cancelPending,
 } = runtime;
 
 const starters = [
@@ -68,8 +63,8 @@ const starters = [
     prompt: "Tell me about Diego's agent, RAG, and NL-to-SQL work.",
   },
   {
-    label: "AVAILABILITY",
-    prompt: "I want to schedule a meeting with Diego.",
+    label: "EXPERIENCE",
+    prompt: "Tell me about Diego's professional experience.",
   },
 ] as const;
 
@@ -85,25 +80,12 @@ const linesOf = (text: string): Line[] =>
       : { kind: "text", value: line };
   });
 
-const approvalTimeFormatter = new Intl.DateTimeFormat("en-GB", {
-  timeZone: "America/Argentina/Buenos_Aires",
-  weekday: "short",
-  day: "2-digit",
-  month: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
-
-const formatApprovalTime = (value: string): string =>
-  approvalTimeFormatter.format(new Date(value));
-
-const statusLabel = computed(() => {
+const statusLabel = () => {
   if (error.value) return "FAULT";
   if (state.value === "thinking") return "THINKING";
   if (state.value === "speaking") return "RESPONDING";
   return "READY";
-});
+};
 
 const syncVisualPhase = () => {
   const phase: AgentVisualPhase = error.value ? "error" : state.value;
@@ -116,15 +98,13 @@ const submit = () => {
 };
 
 const startPrompt = (prompt: string) => {
-  if (busy.value || approvalBusy.value) return;
+  if (busy.value) return;
   draft.value = prompt;
   submit();
 };
 
 watch(state, syncVisualPhase, { immediate: true });
 watch(error, syncVisualPhase);
-watch(pendingAction, scheduleScrollToBottom);
-watch(approvalResult, scheduleScrollToBottom);
 
 onMounted(() => {
   void nextTick(scheduleScrollToBottom);
@@ -146,7 +126,7 @@ onBeforeUnmount(() => {
 
     <aside class="agent-presence" aria-hidden="true">
       <div class="agent-core agent-core--three">
-        <span class="agent-core__status">{{ statusLabel }}</span>
+        <span class="agent-core__status">{{ statusLabel() }}</span>
       </div>
     </aside>
 
@@ -157,7 +137,7 @@ onBeforeUnmount(() => {
           class="agent-empty"
           aria-label="Suggested questions"
         >
-          <p class="agent-empty__intro">Ask about projects, AI systems, or availability.</p>
+          <p class="agent-empty__intro">Ask about Diego's projects, systems, skills, or experience.</p>
           <div class="agent-empty__starters">
             <button
               v-for="(starter, index) in starters"
@@ -195,68 +175,6 @@ onBeforeUnmount(() => {
           </div>
         </article>
 
-        <section
-          v-if="pendingAction"
-          class="agent-approval"
-          aria-label="Meeting approval required"
-        >
-          <div class="agent-approval__head">
-            <span>HUMAN APPROVAL</span>
-            <b>MEETING READY</b>
-          </div>
-          <div class="agent-approval__body">
-            <strong>{{ pendingAction.subject }}</strong>
-            <p>{{ formatApprovalTime(pendingAction.start) }}</p>
-            <p>{{ pendingAction.visitorName }} · {{ pendingAction.visitorEmail }}</p>
-            <small>
-              Confirming creates a calendar event and sends an invitation.
-              No chat message can perform this action.
-            </small>
-          </div>
-          <div class="agent-approval__actions">
-            <button
-              type="button"
-              :disabled="approvalBusy"
-              @click="confirmPending"
-            >
-              {{ approvalBusy ? "PROCESSING" : "CONFIRM MEETING" }}
-            </button>
-            <button
-              type="button"
-              :disabled="approvalBusy"
-              @click="cancelPending"
-            >
-              CANCEL
-            </button>
-          </div>
-        </section>
-
-        <section
-          v-else-if="approvalResult"
-          class="agent-approval agent-approval--result"
-          :data-result="approvalResult.status"
-          aria-live="polite"
-        >
-          <div class="agent-approval__head">
-            <span>HUMAN APPROVAL</span>
-            <b>{{ approvalResult.status === "confirmed" ? "MEETING CONFIRMED" : "CANCELLED" }}</b>
-          </div>
-          <div class="agent-approval__body">
-            <p v-if="approvalResult.status === 'confirmed'">
-              The calendar action completed successfully.
-            </p>
-            <p v-else>No meeting was created.</p>
-            <a
-              v-if="approvalResult.htmlLink"
-              :href="approvalResult.htmlLink"
-              target="_blank"
-              rel="noreferrer"
-            >
-              OPEN CALENDAR EVENT ↗
-            </a>
-          </div>
-        </section>
-
         <div v-if="busy" class="agent-msg agent-msg--agent agent-msg--pending">
           <div class="agent-msg__meta"><span>AGENT</span><i /><time>processing</time></div>
           <div class="agent-dots"><i /><i /><i /></div>
@@ -273,7 +191,7 @@ onBeforeUnmount(() => {
           type="text"
           autocomplete="off"
           spellcheck="false"
-          placeholder="Ask about the work, a project, or availability..."
+          placeholder="Ask about Diego's work, projects, skills, or experience..."
           @focus="focused = true"
           @blur="focused = false"
         />
@@ -287,4 +205,3 @@ onBeforeUnmount(() => {
 
 <style src="./agent-three-core.css"></style>
 <style src="./agent-empty.css"></style>
-<style src="./agent-approval.css"></style>
