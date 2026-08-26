@@ -11,13 +11,11 @@ from app.bootstrap import build_runtime
 from app.infrastructure.config.settings import Settings
 from app.ports.embeddings import EmbeddingPort
 from app.ports.llm import LlmPort
-from app.scheduling.approval import BookingApproval
 
 
 def create_app(
     settings: Settings | None = None,
     agent: Any | None = None,
-    approvals: BookingApproval | None = None,
 ) -> FastAPI:
     resolved = settings or Settings.from_env()
     llm: LlmPort | None = None
@@ -25,7 +23,6 @@ def create_app(
     if agent is None:
         runtime = build_runtime(resolved)
         agent = runtime.agent
-        approvals = runtime.approvals
         llm = runtime.llm
         embeddings = runtime.embeddings
 
@@ -37,8 +34,8 @@ def create_app(
         yield
 
     app = FastAPI(
-        title="Portfolio Business Representative",
-        version="0.4.0",
+        title="Portfolio Knowledge Agent",
+        version="0.5.0",
         lifespan=lifespan,
     )
     app.add_middleware(
@@ -48,7 +45,7 @@ def create_app(
         allow_methods=["POST", "GET", "OPTIONS"],
         allow_headers=["Content-Type"],
     )
-    app.include_router(create_router(agent, approvals))
+    app.include_router(create_router(agent))
 
     @app.get("/health")
     async def health() -> dict[str, str]:
