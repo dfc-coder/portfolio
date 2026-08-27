@@ -83,6 +83,7 @@ const systemRailItems = projects.map((project) => ({
         :key="project.id"
         class="systems-project"
         :data-index="index"
+        :data-project="project.id"
       >
         <div class="systems-project__identity">
           <h3>{{ project.title }}</h3>
