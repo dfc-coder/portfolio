@@ -13,6 +13,7 @@ const COLLECTION_HOLD_END = 0.16;
 const COLLECTION_TRAVEL_END = 0.90;
 const PARALLAX_SETTLE_EPSILON = 0.0004;
 const VELOCITY_SETTLE_EPSILON = 0.0015;
+const MOBILE_BREAKPOINT = "(max-width: 680px)";
 
 const PARALLAX_LAYERS = [
   "years",
@@ -67,11 +68,13 @@ const collectionPosition = (nodePosition: number, startNode: number, count: numb
   );
 };
 
-// Start revealing the next role earlier and let it acquire authority over a
-// wider distance. The spring controls the inertia; this controls how abruptly
-// the typography itself appears/disappears.
-const entryPresence = (distance: number) =>
-  smoother(clamp01((0.78 - distance) / 0.54));
+// Desktop keeps the broad, layered handoff. On mobile the viewport cannot carry
+// two large role titles at equal authority, so the visibility envelope narrows
+// while the underlying spring/inertia remains intact.
+const entryPresence = (distance: number, compact: boolean) =>
+  compact
+    ? smoother(clamp01((0.60 - distance) / 0.30))
+    : smoother(clamp01((0.78 - distance) / 0.54));
 
 const layerTravel = (offset: number, distance: number) =>
   offset * distance * (offset < 0 ? 0.82 : 1);
@@ -79,6 +82,7 @@ const layerTravel = (offset: number, distance: number) =>
 export const mountTrajectoryExperience = () => {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return () => undefined;
 
+  const compactQuery = matchMedia(MOBILE_BREAKPOINT);
   const stage = document.querySelector<HTMLElement>(".ref-stage");
   const career = document.querySelector<HTMLElement>(".ref-scene--career");
   if (!stage || !career) return () => undefined;
@@ -122,12 +126,17 @@ export const mountTrajectoryExperience = () => {
     motionLastTime = time;
     driveVelocity = damp(driveVelocity, 0, 5.8, dt);
 
+    const compact = compactQuery.matches;
+    const travelScale = compact ? 0.62 : 1;
+    const velocityScale = compact ? 0.52 : 1;
+
     let maxLag = 0;
     let maxVelocity = 0;
 
     PARALLAX_LAYERS.forEach((layer) => {
       const config = PARALLAX_CONFIG[layer];
-      const drivenTarget = targetPosition + driveVelocity * config.lead;
+      const lead = compact ? config.lead * 0.66 : config.lead;
+      const drivenTarget = targetPosition + driveVelocity * lead;
       const next = springStep(layerStates[layer], drivenTarget, config, dt);
       layerStates[layer] = next;
       maxLag = Math.max(maxLag, Math.abs(drivenTarget - next.value));
@@ -156,7 +165,7 @@ export const mountTrajectoryExperience = () => {
     yearNodes.forEach((element, index) => {
       const offset = index - layerStates.years.value;
       const focus = Math.exp(-(offset * offset) * 3.45);
-      const y = offset * 14.2;
+      const y = offset * (compact ? 10.2 : 14.2);
       element.style.transform = `translate3d(0, calc(-50% + ${y.toFixed(3)}vh), 0)`;
       element.style.opacity = (latestContentReveal * Math.max(0.09, focus)).toFixed(5);
       element.style.setProperty("--year-focus", focus.toFixed(5));
@@ -168,7 +177,7 @@ export const mountTrajectoryExperience = () => {
       const contextOffset = index - layerStates.context.value;
       const summaryOffset = index - layerStates.summary.value;
       const tagsOffset = index - layerStates.tags.value;
-      const presence = entryPresence(Math.abs(roleOffset));
+      const presence = entryPresence(Math.abs(roleOffset), compact);
       const roleVelocity = layerStates.role.velocity;
 
       element.style.visibility = presence > 0.001 ? "visible" : "hidden";
@@ -177,29 +186,45 @@ export const mountTrajectoryExperience = () => {
       element.style.setProperty("--entry-offset", roleOffset.toFixed(5));
       element.style.setProperty(
         "--role-y",
-        `${(layerTravel(roleOffset, 6.25) - roleVelocity * 0.11).toFixed(3)}vh`,
+        `${(
+          layerTravel(roleOffset, 6.25 * travelScale) -
+          roleVelocity * 0.11 * velocityScale
+        ).toFixed(3)}vh`,
       );
       element.style.setProperty(
         "--eyebrow-y",
-        `${(layerTravel(eyebrowOffset, 4.45) - layerStates.eyebrow.velocity * 0.07).toFixed(3)}vh`,
+        `${(
+          layerTravel(eyebrowOffset, 4.45 * travelScale) -
+          layerStates.eyebrow.velocity * 0.07 * velocityScale
+        ).toFixed(3)}vh`,
       );
       element.style.setProperty(
         "--context-y",
-        `${(layerTravel(contextOffset, 3.0) - layerStates.context.velocity * 0.045).toFixed(3)}vh`,
+        `${(
+          layerTravel(contextOffset, 3.0 * travelScale) -
+          layerStates.context.velocity * 0.045 * velocityScale
+        ).toFixed(3)}vh`,
       );
       element.style.setProperty(
         "--summary-y",
-        `${(layerTravel(summaryOffset, 2.25) - layerStates.summary.velocity * 0.032).toFixed(3)}vh`,
+        `${(
+          layerTravel(summaryOffset, 2.25 * travelScale) -
+          layerStates.summary.velocity * 0.032 * velocityScale
+        ).toFixed(3)}vh`,
       );
       element.style.setProperty(
         "--tags-y",
-        `${(layerTravel(tagsOffset, 1.7) - layerStates.tags.velocity * 0.024).toFixed(3)}vh`,
+        `${(
+          layerTravel(tagsOffset, 1.7 * travelScale) -
+          layerStates.tags.velocity * 0.024 * velocityScale
+        ).toFixed(3)}vh`,
       );
       element.style.setProperty(
         "--entry-x",
         `${(
-          (roleOffset < 0 ? roleOffset * 0.22 : roleOffset * -0.28) -
-          roleVelocity * 0.018
+          ((roleOffset < 0 ? roleOffset * 0.22 : roleOffset * -0.28) -
+            roleVelocity * 0.018) *
+          (compact ? 0.44 : 1)
         ).toFixed(3)}vw`,
       );
     });
@@ -271,10 +296,13 @@ export const mountTrajectoryExperience = () => {
     requestParallaxRender();
   };
 
+  const onCompactChange = () => requestParallaxRender();
+  compactQuery.addEventListener("change", onCompactChange);
   const unsubscribe = narrativeRuntime.subscribe(renderNarrative);
 
   return () => {
     unsubscribe();
+    compactQuery.removeEventListener("change", onCompactChange);
     if (motionFrame) cancelAnimationFrame(motionFrame);
     delete stage.dataset.trajectory;
     [
