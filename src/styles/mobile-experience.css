@@ -64,7 +64,7 @@
     padding-left: calc(12px + var(--rail-focus) * 22px) !important;
     overflow: hidden;
     text-overflow: ellipsis;
-    opacity: clamp(0, calc((var(--rail-focus) - .52) * 3.6), 1);
+    opacity: clamp(0, calc(var(--rail-focus) * 3.6 - 1.872), 1);
     font-size: 9px !important;
     letter-spacing: .055em !important;
   }
