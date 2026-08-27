@@ -67,26 +67,26 @@
   align-items: center;
   gap: 9px;
   visibility: visible !important;
-  opacity: calc(var(--rail-content) * (.12 + var(--rail-focus) * .88)) !important;
-  transform: translate3d(0, -50%, 0) !important;
   color: rgba(238, 234, 226, .38);
   font: 500 var(--t-meta)/1 var(--font-info) !important;
   letter-spacing: .07em !important;
   transition: opacity .08s linear;
-  will-change: opacity;
+  will-change: transform, opacity;
 }
 
+/* 02 used to move each year around the center of the rail. Keep its existing
+   focus spring, but lock the checkpoints to the same physical slots used by
+   Systems so the rail reads as one component across both chapters. */
 .trajectory-progress-rail .narrative-progress-rail__item {
   --rail-focus: var(--year-focus, 0);
+  opacity: calc(var(--rail-content) * (.12 + var(--rail-focus) * .88)) !important;
+  transform: translate3d(0, -50%, 0) !important;
 }
 
+/* 03 remains the canonical motion behavior. Its runtime owns the tiny inertial
+   Y shift and opacity/tail handling through inline styles. */
 .systems-progress-rail .narrative-progress-rail__item {
   --rail-focus: var(--axis-focus, 0);
-  opacity: calc(
-    var(--rail-content) *
-    (.12 + var(--rail-focus) * .88) *
-    (1 - var(--rail-tail) * .72)
-  ) !important;
 }
 
 .narrative-progress-rail__item::after {
