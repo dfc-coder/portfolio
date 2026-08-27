@@ -11,7 +11,11 @@ from app.main import create_app
 
 
 class FakeAgent:
-    async def respond(self, session_id: str, user_message: str) -> AsyncIterator[str]:
+    async def respond(
+        self,
+        session_id: str,
+        user_message: str,
+    ) -> AsyncIterator[str]:
         assert session_id == "browser-session-123"
         assert user_message == "Hello"
         yield "Hello"
@@ -35,11 +39,6 @@ def test_settings() -> Settings:
         session_ttl_seconds=60,
         session_max_turns=4,
         allowed_origins=("http://localhost:5173",),
-        calendar_mode="mock",
-        google_calendar_id="primary",
-        google_client_id=None,
-        google_client_secret=None,
-        google_refresh_token=None,
     )
 
 
@@ -64,7 +63,10 @@ async def test_sse_contract_streams_tokens() -> None:
     ) as client:
         response = await client.post(
             "/v1/chat/stream",
-            json={"session_id": "browser-session-123", "message": "Hello"},
+            json={
+                "session_id": "browser-session-123",
+                "message": "Hello",
+            },
         )
 
     assert response.status_code == 200

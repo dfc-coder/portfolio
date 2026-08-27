@@ -1,9 +1,9 @@
-# Portfolio Business Representative
+# Portfolio Knowledge Agent
 
-Server-side business representative for a small local Qwen model. The browser never downloads model weights. Two llama.cpp services stay resident:
+Server-side portfolio assistant for a small local Qwen model. The browser never downloads model weights. Two llama.cpp services stay resident:
 
-- `llama`: the conversational Qwen model used for scheduling extraction and grounded response generation.
-- `embedding`: Qwen3-Embedding-0.6B used for dense semantic routing and business-profile retrieval.
+- `llama`: conversational Qwen used for grounded responses.
+- `embedding`: Qwen3-Embedding-0.6B used for portfolio knowledge retrieval.
 
 ## Architecture
 
@@ -11,86 +11,107 @@ Server-side business representative for a small local Qwen model. The browser ne
 visitor
   |
   v
-SemanticRouter
-cached route embeddings + cosine similarity
+dense profile retrieval
+cached document vectors
   |
-  +---------------- BUSINESS / GENERAL ----------------+
-  |                                                    |
-  |                                         dense profile retrieval
-  |                                     cached document embeddings
-  |                                                    |
-  |                                                Responder
-  |                                                    |
-  |                                                StreamGuard
-  |                                                    |
-  |                                                   SSE
-  |
-  +---------------- SCHEDULING ------------------------+
-                         |
-                      Scheduler
-                 structured turn extraction
-                         |
-                  SchedulingMemory
-                         |
-              explicit human approval
-                         |
-                    CalendarPort
+score >= relevance threshold?
+  |                 |
+ yes                no
+  |                 |
+BUSINESS          GENERAL
+  \                 /
+   \               /
+      Responder
+         |
+     StreamGuard
+         |
+        SSE
 ```
 
-The semantic path intentionally has no cross-encoder reranker, LLM routing judge, topic regex whitelist, vector database, generic tool selector or ReAct loop.
+There is no semantic intent router for portfolio knowledge. The structured profile itself defines the knowledge domain. Every turn performs one query embedding against the cached profile-document vectors. Relevant chunks are injected into the prompt; if no chunk meets the relevance threshold, the same responder answers without portfolio context.
 
-Static semantic data is embedded once during FastAPI startup:
+## Knowledge source
+
+`business-profile.json` is the source of truth for portfolio facts:
 
 ```text
-route descriptions  -> embedding vectors, cached
-business profile    -> document vectors, cached
+owner
+positioning
+experience.*
+professional_experience.*
+skills.*
+services.*
+projects.*
+education.*
+certifications.*
+languages.*
+business.*
+faq.*
 ```
 
-The application does not finish startup until those vectors are ready. Each visitor turn then requires only a query embedding plus cosine similarity over the cached vectors.
+Those records are transformed into small natural-language documents and embedded once during startup.
 
-`server/app/agent` contains:
+At runtime:
 
 ```text
-representative.py  thin orchestration
-router.py          BUSINESS / SCHEDULING / GENERAL dense routing
-context.py         cached dense profile retrieval + prompt assembly
-scheduler.py       meeting workflow + hard write invariants
-responder.py       grounded knowledge streaming
-stream_guard.py    narrow rolling output safety boundary
-similarity.py      cosine similarity
+latest visitor message
+        |
+        v
+one query embedding
+        |
+        v
+cosine against cached portfolio vectors
+        |
+        +-- relevant documents --> grounded portfolio response
+        |
+        +-- no relevant documents --> general response
 ```
 
-External boundaries remain separated under `ports/` and `infrastructure/`.
+Adding a project, skill or experience to the profile makes it retrievable automatically. No routing examples need to be added.
 
-## Scheduling model
+The relevance boundary is one configuration value:
 
-Scheduling is represented by facts in `SchedulingMemory` rather than a conversational FSM. Free-form chat text never writes to Calendar. A prepared booking requires explicit approval through the UI before the deterministic booking boundary can run.
+```env
+KNOWLEDGE_RELEVANCE_THRESHOLD=0.25
+```
 
-A business/general interruption does not clear scheduling memory, so the visitor can resume the meeting later.
+`PocketTrace` records the top retrieval score, threshold and selected documents so the boundary is observable without adding routing logic.
 
-## Routing and retrieval
+## Code ownership
 
-`SemanticRouter` compares the latest visitor turn with cached semantic route descriptions. During an active meeting task the descriptions become scheduling continuation versus business/general interruption.
+```text
+representative.py  thin conversation orchestration
+knowledge.py       profile documents + dense relevance gate
+context.py         prompt + verified runtime facts
+responder.py       retrieval-driven response streaming
+stream_guard.py    narrow output safety boundary
+```
 
-Business questions use the same embedding service against the structured business profile. Profile document embeddings are computed during startup and reused for the process lifetime. The query is compared locally with cosine similarity and only the top documents that fit the context budget are sent to the conversational model.
+There is no cross-encoder reranker, LLM routing judge, business-topic regex whitelist, vector database, ReAct loop, scheduling workflow or Calendar integration.
 
-No profile document is pairwise reranked by another language model on every turn.
+## Startup and latency
 
-## Safe real streaming
+Profile document embeddings are computed once during FastAPI startup and reused for the process lifetime.
 
-Business/general answers use llama.cpp streaming end-to-end. `StreamGuard` keeps a small rolling holdback and blocks narrow operational claims such as owner impersonation or claiming an external action completed when it was not verified.
+Each turn requires:
+
+```text
+1 query embedding
++ local cosine scoring
++ Qwen response generation
+```
 
 ## Optional PocketTrace observability
 
-PocketTrace is strictly optional and never becomes a functional dependency of the agent.
+PocketTrace is opt-in:
 
 ```env
 POCKETTRACE_ENABLED=false
 ```
 
-With `POCKETTRACE_ENABLED=false` (the default), `PocketTraceRecorder` is not instantiated: the agent does not create trace snapshots and does not make HTTP calls to PocketTrace.
+With `false` (the default), `PocketTraceRecorder` is not instantiated and the agent makes no PocketTrace HTTP calls.
 
-Enable it explicitly for local development when trace-level diagnostics are needed:
+For local diagnostics:
 
 ```env
 POCKETTRACE_ENABLED=true
@@ -98,11 +119,9 @@ POCKETTRACE_URL=http://host.containers.internal:4319
 POCKETTRACE_TIMEOUT_SECONDS=1.0
 ```
 
-This can remain `false` in production or in any environment where trace payload capture is not desired.
-
 ## Required models
 
-Place both GGUF files in `LLAMA_MODELS_DIR` (defaults to `server/models`):
+Place both GGUF files in `LLAMA_MODELS_DIR`:
 
 ```text
 <your Qwen3.5 conversational GGUF>
@@ -114,8 +133,6 @@ The embedding server starts with:
 ```text
 --embedding --pooling last
 ```
-
-No Python ML runtime or vector database is required; both models run through llama.cpp.
 
 ## Run locally
 
@@ -132,29 +149,10 @@ Expected readiness:
 {"status":"ok","llama":"ready","embedding":"ready"}
 ```
 
-Useful commands:
-
-```bash
-make logs
-make logs-embedding
-make models
-make check
-```
-
-## Google Calendar
-
-```text
-CALENDAR_MODE=google
-GOOGLE_CALENDAR_ID=primary
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
-GOOGLE_REFRESH_TOKEN=...
-```
-
 ## Tests
 
 ```bash
 make check
 ```
 
-Regression coverage includes semantic routing, scheduling interruption/resume, invalid slot rejection, explicit-approval Calendar writes, capability-aware answers, cached profile retrieval and guarded real streaming.
+Regression coverage includes cached profile embeddings, relevance threshold gating, experience retrieval, general no-match, knowledge-only architecture and guarded streaming.
