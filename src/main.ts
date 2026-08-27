@@ -19,6 +19,7 @@ import "./experiences/hero.css";
 import "./experiences/trajectory.css";
 import "./experiences/trajectory-layout.css";
 import "./experiences/systems.css";
+import "./experiences/systems-project-balance.css";
 import "./experiences/continuity.css";
 import "./styles/chapter-bridges.css";
 import "./components/narrative/narrative-progress-rail.css";
