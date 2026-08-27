@@ -1,0 +1,76 @@
+/* Chapter 03 mobile content layout. Progress geometry belongs to the shared
+   NarrativeProgressRail component; this file only arranges system content. */
+@media (max-width: 680px) {
+  .systems-project__identity {
+    left: 8vw !important;
+    top: 15.5% !important;
+    width: 86vw !important;
+  }
+
+  .systems-project h3 {
+    max-width: 86vw !important;
+    font-size: clamp(2.35rem, 9.3vw, 4rem) !important;
+  }
+
+  .systems-project__premise {
+    width: 84vw !important;
+    max-width: none !important;
+    margin-top: 12px !important;
+    font-size: .90rem !important;
+    line-height: 1.32 !important;
+  }
+
+  .systems-project__architecture,
+  .systems-static-chrome__architecture {
+    left: 8vw !important;
+    right: 5vw !important;
+    top: 40.5% !important;
+    height: 31vh !important;
+  }
+
+  .systems-graph-field {
+    inset: 28px 0 0 !important;
+  }
+
+  .systems-graph {
+    left: 0 !important;
+    top: 3% !important;
+    width: 100% !important;
+    height: 94% !important;
+  }
+
+  .systems-project__evidence,
+  .systems-static-chrome__evidence {
+    left: 8vw !important;
+    top: 77% !important;
+    width: 86vw !important;
+  }
+
+  .systems-project__evidence {
+    padding-top: 25px !important;
+  }
+
+  .systems-project__evidence p {
+    max-width: 84vw !important;
+    font-size: .88rem !important;
+    line-height: 1.28 !important;
+  }
+
+  .systems-project__implementation,
+  .systems-static-chrome__implementation {
+    left: 8vw !important;
+    right: auto !important;
+    top: 87.5% !important;
+    width: 86vw !important;
+  }
+
+  .systems-project__implementation ul {
+    margin-top: 13px !important;
+    gap: 5px 10px !important;
+  }
+
+  .systems-project__implementation li {
+    font-size: 8.5px !important;
+    line-height: 1.16 !important;
+  }
+}
