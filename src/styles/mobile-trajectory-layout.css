@@ -1,0 +1,79 @@
+/* Chapter 02 mobile composition mirrors Chapter 03: persistent header, shared
+   horizontal progress register, then one clean content column. */
+@media (max-width: 680px) {
+  .trajectory-static-chrome {
+    display: none !important;
+  }
+
+  .trajectory-entry {
+    left: 8vw !important;
+    right: 6vw !important;
+    top: 16.5% !important;
+    width: auto !important;
+    translate: var(--entry-x) 0 !important;
+  }
+
+  .trajectory-entry__eyebrow {
+    margin-bottom: 10px !important;
+  }
+
+  .trajectory-entry h3 {
+    max-width: 86vw !important;
+    font-size: clamp(2.35rem, 9.3vw, 4rem) !important;
+    line-height: .89 !important;
+    letter-spacing: -.047em !important;
+  }
+
+  .trajectory-entry__context {
+    width: 86vw !important;
+    margin-top: 16px !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px 14px !important;
+  }
+
+  .trajectory-entry__context > div {
+    padding-bottom: 8px !important;
+  }
+
+  .trajectory-entry__context dt {
+    margin-bottom: 4px !important;
+    font-size: 8.5px !important;
+  }
+
+  .trajectory-entry__context dd {
+    font-size: .82rem !important;
+    line-height: 1.22 !important;
+  }
+
+  .trajectory-entry__statement {
+    width: 86vw !important;
+    margin-top: 15px !important;
+    gap: 10px !important;
+  }
+
+  .trajectory-entry__statement p {
+    font-size: .88rem !important;
+    line-height: 1.36 !important;
+  }
+
+  .trajectory-entry__focus {
+    width: 86vw !important;
+    margin-top: 15px !important;
+    grid-template-columns: 42px minmax(0, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .trajectory-entry__focus h4 {
+    font-size: 8.5px !important;
+  }
+
+  .trajectory-entry__focus ul {
+    gap: 6px 9px !important;
+    font-size: 8.5px !important;
+    line-height: 1.18 !important;
+  }
+
+  .trajectory-counter {
+    display: none !important;
+  }
+}
