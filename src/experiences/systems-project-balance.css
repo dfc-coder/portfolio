@@ -1,0 +1,28 @@
+/* PocketTrace and Xarlatan have compact one-line identities. Keep the global
+   Systems grid unchanged and bottom-align only these compact identity blocks
+   with the visual baseline established by the existing multiline projects. */
+@media (min-width: 761px) {
+  .systems-project[data-project="05"] .systems-project__identity,
+  .systems-project[data-project="06"] .systems-project__identity {
+    top: 38.5%;
+  }
+
+  .systems-project[data-project="05"] h3 {
+    font-size: clamp(3.35rem, 4.85vw, 5.9rem);
+    letter-spacing: -.058em;
+  }
+
+  .systems-project[data-project="05"] .systems-project__premise,
+  .systems-project[data-project="06"] .systems-project__premise {
+    margin-top: 17px;
+  }
+
+  /* Use the complete architecture field for the two new graphs instead of
+     inheriting the small inner inset. This keeps their visual register closer
+     to the older, denser system diagrams without changing graph semantics. */
+  .systems-project[data-project="05"] .systems-graph,
+  .systems-project[data-project="06"] .systems-graph {
+    left: 0;
+    width: 100%;
+  }
+}
