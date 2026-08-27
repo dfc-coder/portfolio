@@ -1,5 +1,7 @@
 /* Chapter 02 mobile composition mirrors Chapter 03: persistent header, shared
-   horizontal progress register, then one clean content column. */
+   horizontal progress register, then one clean content field. The blocks keep
+   their current scale; only their vertical register changes so the chapter uses
+   the viewport instead of collapsing into its upper half. */
 @media (max-width: 680px) {
   .trajectory-static-chrome {
     display: none !important;
@@ -8,25 +10,41 @@
   .trajectory-entry {
     left: 8vw !important;
     right: 6vw !important;
-    top: 16.5% !important;
+    top: 0 !important;
+    bottom: 0 !important;
     width: auto !important;
     translate: var(--entry-x) 0 !important;
   }
 
+  .trajectory-entry__eyebrow,
+  .trajectory-entry h3,
+  .trajectory-entry__context,
+  .trajectory-entry__statement,
+  .trajectory-entry__focus {
+    position: absolute !important;
+    left: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Identity stays close to the shared progress register. */
   .trajectory-entry__eyebrow {
-    margin-bottom: 10px !important;
+    top: 16.5% !important;
   }
 
   .trajectory-entry h3 {
+    top: 20% !important;
     max-width: 86vw !important;
     font-size: clamp(2.35rem, 9.3vw, 4rem) !important;
     line-height: .89 !important;
     letter-spacing: -.047em !important;
   }
 
+  /* Context, statement and focus are deliberately separated into successive
+     vertical bands. This matches the editorial rhythm of Systems without
+     enlarging any of the content. */
   .trajectory-entry__context {
+    top: 38% !important;
     width: 86vw !important;
-    margin-top: 16px !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     gap: 10px 14px !important;
   }
@@ -46,8 +64,8 @@
   }
 
   .trajectory-entry__statement {
+    top: 52.5% !important;
     width: 86vw !important;
-    margin-top: 15px !important;
     gap: 10px !important;
   }
 
@@ -57,8 +75,8 @@
   }
 
   .trajectory-entry__focus {
+    top: 72.5% !important;
     width: 86vw !important;
-    margin-top: 15px !important;
     grid-template-columns: 42px minmax(0, 1fr) !important;
     gap: 8px !important;
   }
