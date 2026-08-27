@@ -27,6 +27,7 @@ import "./experiences/gallery-clean.css";
 import "./experiences/gallery-transition.css";
 import "./styles/mobile-experience.css";
 import "./components/narrative/narrative-progress-rail.css";
+import "./styles/mobile-hero-layout.css";
 import "./styles/mobile-trajectory-layout.css";
 import "./styles/mobile-systems-layout.css";
 
