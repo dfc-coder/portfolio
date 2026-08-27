@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import ChapterSignal from "./ChapterSignal.vue";
 import NarrativeHeader from "./NarrativeHeader.vue";
+import NarrativeProgressRail from "./NarrativeProgressRail.vue";
 import {
   systemsProjects as projects,
   type GraphEdge,
@@ -40,6 +41,10 @@ const architectureDescription = (project: SystemProject) => {
 };
 
 const systemCount = String(projects.length).padStart(2, "0");
+const systemRailItems = projects.map((project) => ({
+  key: project.id,
+  label: project.code,
+}));
 </script>
 
 <template>
@@ -57,21 +62,11 @@ const systemCount = String(projects.length).padStart(2, "0");
       :meta="[`${systemCount} SYSTEMS`, 'BUILT / SHIPPED']"
     />
 
-    <div class="systems-axis narrative-rail" aria-hidden="true">
-      <i class="systems-axis__progress" />
-    </div>
-
-    <div class="systems-axis-items narrative-rail" aria-hidden="true">
-      <div
-        v-for="(project, index) in projects"
-        :key="project.id"
-        class="systems-axis-item"
-        :data-index="index"
-        :style="{ '--axis-slot': projects.length > 1 ? index / (projects.length - 1) : 0 }"
-      >
-        <i /><b>{{ project.code }}</b>
-      </div>
-    </div>
+    <NarrativeProgressRail
+      class="systems-progress-rail"
+      variant="systems"
+      :items="systemRailItems"
+    />
 
     <div class="systems-static-chrome" aria-hidden="true">
       <div class="systems-static-chrome__architecture">

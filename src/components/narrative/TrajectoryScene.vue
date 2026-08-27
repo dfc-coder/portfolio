@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import ChapterSignal from "./ChapterSignal.vue";
 import NarrativeHeader from "./NarrativeHeader.vue";
+import NarrativeProgressRail from "./NarrativeProgressRail.vue";
 import { experiences } from "../../experiences/trajectory-data";
 
 const splitCompany = (company: string) => {
@@ -9,6 +10,11 @@ const splitCompany = (company: string) => {
 };
 
 const roleCount = String(experiences.length).padStart(2, "0");
+const trajectoryRailItems = experiences.map((experience, index) => ({
+  key: experience.period,
+  label: experience.period.slice(0, 4),
+  meta: String(index + 1).padStart(2, "0"),
+}));
 </script>
 
 <template>
@@ -26,18 +32,11 @@ const roleCount = String(experiences.length).padStart(2, "0");
       :meta="['2023 — NOW', `${roleCount} ROLES`]"
     />
 
-    <div class="trajectory-axis narrative-rail" aria-hidden="true"><i /></div>
-
-    <div class="trajectory-years" aria-hidden="true">
-      <div
-        v-for="(experience, index) in experiences"
-        :key="experience.period"
-        class="trajectory-year"
-        :data-index="index"
-      >
-        <span>{{ experience.period.slice(0, 4) }}</span><i /><b>{{ String(index + 1).padStart(2, "0") }}</b>
-      </div>
-    </div>
+    <NarrativeProgressRail
+      class="trajectory-progress-rail"
+      variant="trajectory"
+      :items="trajectoryRailItems"
+    />
 
     <div class="trajectory-static-chrome" aria-hidden="true">
       <div class="trajectory-static-chrome__context">
