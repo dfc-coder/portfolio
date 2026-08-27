@@ -26,6 +26,7 @@ import "./components/narrative/narrative-progress-rail.css";
 import "./experiences/gallery.css";
 import "./experiences/gallery-clean.css";
 import "./experiences/gallery-transition.css";
+import "./styles/mobile-experience.css";
 
 document.documentElement.classList.add("creative-hero-pending");
 
