@@ -5,6 +5,8 @@ import { narrativeRuntime, type NarrativeScene } from "./narrative-runtime";
 
 const SCROLL_STEP_VH = 56;
 const SCENE_CROSSFADE_WIDTH = 0.34;
+const MOBILE_SCENE_CROSSFADE_WIDTH = 0.22;
+const MOBILE_BREAKPOINT = "(max-width: 680px)";
 const GALLERY_EXIT_START = 0.72;
 const GALLERY_EXIT_VIRTUAL_LEAD = 0.8;
 const WHEEL_GAIN = 1.08;
@@ -69,22 +71,29 @@ const sceneForNode = (node: number, model: NarrativeModel): NarrativeScene => {
   return "agent";
 };
 
-const crossfadeAt = (node: number, boundary: number) =>
+const crossfadeAt = (node: number, boundary: number, width: number) =>
   range(
     node,
-    boundary - SCENE_CROSSFADE_WIDTH / 2,
-    boundary + SCENE_CROSSFADE_WIDTH / 2,
+    boundary - width / 2,
+    boundary + width / 2,
   );
 
-const sceneOpacities = (node: number, model: NarrativeModel) => {
-  const heroToChapter = crossfadeAt(node, 0.5);
-  const chapterToCareer = crossfadeAt(node, model.careerStartNode - 0.5);
-  const careerToChapter = crossfadeAt(node, model.chapterSystemsNode - 0.5);
-  const chapterToSystems = crossfadeAt(node, model.systemsStartNode - 0.5);
-  const systemsToChapter = crossfadeAt(node, model.chapterGalleryNode - 0.5);
-  const chapterToGallery = crossfadeAt(node, model.galleryStartNode - 0.5);
-  const galleryToChapter = crossfadeAt(node, model.virtualChapterAgentNode - 0.5);
-  const chapterToAgent = crossfadeAt(node, model.virtualLastNode - 0.5);
+const sceneOpacities = (
+  node: number,
+  model: NarrativeModel,
+  compact = false,
+) => {
+  const width = compact
+    ? MOBILE_SCENE_CROSSFADE_WIDTH
+    : SCENE_CROSSFADE_WIDTH;
+  const heroToChapter = crossfadeAt(node, 0.5, width);
+  const chapterToCareer = crossfadeAt(node, model.careerStartNode - 0.5, width);
+  const careerToChapter = crossfadeAt(node, model.chapterSystemsNode - 0.5, width);
+  const chapterToSystems = crossfadeAt(node, model.systemsStartNode - 0.5, width);
+  const systemsToChapter = crossfadeAt(node, model.chapterGalleryNode - 0.5, width);
+  const chapterToGallery = crossfadeAt(node, model.galleryStartNode - 0.5, width);
+  const galleryToChapter = crossfadeAt(node, model.virtualChapterAgentNode - 0.5, width);
+  const chapterToAgent = crossfadeAt(node, model.virtualLastNode - 0.5, width);
 
   return {
     hero: 1 - heroToChapter,
@@ -119,6 +128,7 @@ export const mountScrollSyncController = () => {
     return () => undefined;
   }
 
+  const compactQuery = matchMedia(MOBILE_BREAKPOINT);
   const track = document.querySelector<HTMLElement>(".ref-track");
   const stage = document.querySelector<HTMLElement>(".ref-stage");
   const portfolio = document.querySelector<HTMLElement>(".ref-portfolio");
@@ -140,7 +150,7 @@ export const mountScrollSyncController = () => {
     const progress = mapPhysicalProgressToVirtualProgress(physical, model);
     const node = progress * model.virtualLastNode;
     const scene = sceneForNode(node, model);
-    const opacity = sceneOpacities(node, model);
+    const opacity = sceneOpacities(node, model, compactQuery.matches);
 
     portfolio.style.setProperty("--physical-scroll-progress", physical.toFixed(5));
     progressCurrent?.setAttribute(
@@ -311,6 +321,12 @@ export const mountScrollSyncController = () => {
     onRefresh: (self) => applyState(self.progress),
   });
 
+  const onCompactChange = () => {
+    applyState(trigger.progress);
+    ScrollTrigger.refresh();
+  };
+
+  compactQuery.addEventListener("change", onCompactChange);
   addEventListener("click", onNavigationClick, true);
   addEventListener("wheel", onWheel, { capture: true, passive: false });
   addEventListener("scroll", onNativeScroll, { passive: true });
@@ -323,6 +339,7 @@ export const mountScrollSyncController = () => {
   return () => {
     trigger.kill();
     stopSmoothScroll();
+    compactQuery.removeEventListener("change", onCompactChange);
     removeEventListener("click", onNavigationClick, true);
     removeEventListener("wheel", onWheel, true);
     removeEventListener("scroll", onNativeScroll);

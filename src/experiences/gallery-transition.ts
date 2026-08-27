@@ -10,15 +10,22 @@ import { narrativeRuntime, type NarrativeState } from "./narrative-runtime";
 
 const ENTRY_START_OFFSET = -0.76;
 const ENTRY_END_OFFSET = 0.08;
+const MOBILE_ENTRY_START_OFFSET = -1.04;
+const MOBILE_ENTRY_END_OFFSET = -0.06;
 
 // The outgoing archive needs materially more scroll distance than the incoming
-// handoff. Cards begin leaving while Gallery still owns the scene, then keep
-// travelling above the viewport while the Agent chapter comes in underneath.
+// handoff. Mobile starts the exit slightly earlier so the Agent chapter never
+// competes with a dense wall of artwork.
 const EXIT_START_OFFSET = 0.48;
 const EXIT_END_OFFSET = 1.30;
 const EXIT_VISIBILITY_HOLD_OFFSET = 1.12;
 const EXIT_VISIBILITY_END_OFFSET = 1.38;
+const MOBILE_EXIT_START_OFFSET = 0.40;
+const MOBILE_EXIT_END_OFFSET = 1.16;
+const MOBILE_EXIT_VISIBILITY_HOLD_OFFSET = 0.98;
+const MOBILE_EXIT_VISIBILITY_END_OFFSET = 1.24;
 
+const MOBILE_BREAKPOINT = "(max-width: 680px)";
 const VISIBILITY_MARGIN = 0.12;
 const POSITION_EPSILON = 0.03;
 const VELOCITY_EPSILON = 0.08;
@@ -71,6 +78,7 @@ export const mountGalleryTransition = () => {
     return () => undefined;
   }
 
+  const compactQuery = matchMedia(MOBILE_BREAKPOINT);
   const stage = document.querySelector<HTMLElement>(".ref-stage");
   const gallery = document.querySelector<HTMLElement>(".ref-scene--gallery");
   const galleryStage = gallery?.querySelector<HTMLElement>(".ref-gallery-stage");
@@ -121,18 +129,37 @@ export const mountGalleryTransition = () => {
     });
   };
 
+  const timing = () => {
+    const compact = compactQuery.matches;
+    return {
+      entryStart: compact ? MOBILE_ENTRY_START_OFFSET : ENTRY_START_OFFSET,
+      entryEnd: compact ? MOBILE_ENTRY_END_OFFSET : ENTRY_END_OFFSET,
+      exitStart: compact ? MOBILE_EXIT_START_OFFSET : EXIT_START_OFFSET,
+      exitEnd: compact ? MOBILE_EXIT_END_OFFSET : EXIT_END_OFFSET,
+      exitHold: compact
+        ? MOBILE_EXIT_VISIBILITY_HOLD_OFFSET
+        : EXIT_VISIBILITY_HOLD_OFFSET,
+      exitVisibilityEnd: compact
+        ? MOBILE_EXIT_VISIBILITY_END_OFFSET
+        : EXIT_VISIBILITY_END_OFFSET,
+      entryPhaseScale: compact ? 0.12 : 0.16,
+      exitPhaseScale: compact ? 0.18 : 0.24,
+    };
+  };
+
   const targetFor = (motion: CardMotion, physicalNode: number, velocity: number) => {
-    const entryShift = motion.profile.entryPhase * 0.16;
-    const exitShift = motion.profile.exitPhase * 0.24;
+    const values = timing();
+    const entryShift = motion.profile.entryPhase * values.entryPhaseScale;
+    const exitShift = motion.profile.exitPhase * values.exitPhaseScale;
     const enter = range(
       physicalNode,
-      galleryStartNode + ENTRY_START_OFFSET + entryShift,
-      galleryStartNode + ENTRY_END_OFFSET + entryShift,
+      galleryStartNode + values.entryStart + entryShift,
+      galleryStartNode + values.entryEnd + entryShift,
     );
     const exit = range(
       physicalNode,
-      galleryStartNode + EXIT_START_OFFSET + exitShift,
-      galleryStartNode + EXIT_END_OFFSET + exitShift,
+      galleryStartNode + values.exitStart + exitShift,
+      galleryStartNode + values.exitEnd + exitShift,
     );
 
     return (
@@ -143,17 +170,19 @@ export const mountGalleryTransition = () => {
   };
 
   const transitionOpacityFor = (physicalNode: number) => {
+    const values = timing();
+    const compact = compactQuery.matches;
     const entryOpacity = range(
       physicalNode,
-      galleryStartNode + ENTRY_START_OFFSET - 0.04,
-      galleryStartNode - 0.22,
+      galleryStartNode + values.entryStart - 0.04,
+      galleryStartNode + (compact ? -0.42 : -0.22),
     );
     const exitOpacity =
       1 -
       range(
         physicalNode,
-        galleryStartNode + EXIT_VISIBILITY_HOLD_OFFSET,
-        galleryStartNode + EXIT_VISIBILITY_END_OFFSET,
+        galleryStartNode + values.exitHold,
+        galleryStartNode + values.exitVisibilityEnd,
       );
     return entryOpacity * exitOpacity;
   };
@@ -166,9 +195,11 @@ export const mountGalleryTransition = () => {
   });
 
   const updateVisibilityOwnership = (physicalNode: number) => {
-    const transitionStart = galleryStartNode + ENTRY_START_OFFSET - VISIBILITY_MARGIN;
+    const values = timing();
+    const transitionStart =
+      galleryStartNode + values.entryStart - VISIBILITY_MARGIN;
     const transitionEnd =
-      galleryStartNode + EXIT_VISIBILITY_END_OFFSET + VISIBILITY_MARGIN;
+      galleryStartNode + values.exitVisibilityEnd + VISIBILITY_MARGIN;
 
     if (physicalNode >= transitionStart && physicalNode <= transitionEnd) {
       stage.dataset.galleryMotion = "true";
@@ -236,15 +267,18 @@ export const mountGalleryTransition = () => {
 
   const onResize = () => {
     measureDistances();
+    updateVisibilityOwnership(latestPhysicalNode);
     requestMotionRender();
   };
 
+  compactQuery.addEventListener("change", onResize);
   addEventListener("resize", onResize, { passive: true });
   const unsubscribe = narrativeRuntime.subscribe(renderNarrative);
 
   return () => {
     unsubscribe();
     if (motionFrame) cancelAnimationFrame(motionFrame);
+    compactQuery.removeEventListener("change", onResize);
     removeEventListener("resize", onResize);
     delete stage.dataset.galleryMotion;
     stage.style.removeProperty("--gallery-motion-opacity");

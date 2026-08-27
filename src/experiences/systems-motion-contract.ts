@@ -21,6 +21,19 @@ export const SYSTEMS_TIMING = {
   galleryHandoff: [0.02, 0.30] as const,
 } as const;
 
+export const MOBILE_SYSTEMS_TIMING = {
+  priorChapterOut: [-0.42, 0.12] as const,
+  sectionIn: [-0.26, 0.02] as const,
+  introIn: [0.01, 0.17] as const,
+  introOut: [0.24, 0.38] as const,
+  axisReveal: [0.32, 0.50] as const,
+  headerReveal: [0.34, 0.52] as const,
+  contentReveal: [0.40, 0.66] as const,
+  initialGraphBuild: [0.50, 0.82] as const,
+  tailOut: [-0.32, -0.02] as const,
+  galleryHandoff: [0.00, 0.22] as const,
+} as const;
+
 /* Spend more of each project interval travelling and less time snapping between
    fixed positions. This makes the handoff legible even on a quick wheel pass. */
 export const SYSTEMS_COLLECTION = {
@@ -58,7 +71,36 @@ export const collectionPosition = (
   return index + smoother((local - holdEnd) / (travelEnd - holdEnd));
 };
 
-export const motionForOffset = (offset: number): MotionState => {
+export const motionForOffset = (
+  offset: number,
+  compact = false,
+): MotionState => {
+  if (compact) {
+    if (offset < 0) {
+      const t = clamp01(-offset);
+      return {
+        title: 1 - range(t, 0.20, 0.68),
+        graph: 1 - range(t, 0.24, 0.70),
+        support: 1 - range(t, 0.24, 0.72),
+        titleY: -18 * range(t, 0.06, 0.82),
+        supportY: -7 * range(t, 0.10, 0.86),
+        graphX: -4 * range(t, 0.12, 0.90),
+        build: 1,
+      };
+    }
+
+    const t = clamp01(1 - offset);
+    return {
+      title: range(t, 0.40, 0.80),
+      graph: range(t, 0.44, 0.82),
+      support: range(t, 0.42, 0.84),
+      titleY: 18 * (1 - range(t, 0.24, 0.82)),
+      supportY: 7 * (1 - range(t, 0.30, 0.86)),
+      graphX: 7 * (1 - range(t, 0.12, 0.90)),
+      build: range(t, 0.08, 0.90),
+    };
+  }
+
   if (offset < 0) {
     const t = clamp01(-offset);
     return {
@@ -93,25 +135,27 @@ export const chapterState = (
   node: number,
   chapterSystemsNode: number,
   chapterGalleryNode: number,
+  compact = false,
 ) => {
+  const timing = compact ? MOBILE_SYSTEMS_TIMING : SYSTEMS_TIMING;
   const systemsDelta = node - chapterSystemsNode;
   const galleryDelta = node - chapterGalleryNode;
 
   const sectionIn = range(
     systemsDelta,
-    SYSTEMS_TIMING.sectionIn[0],
-    SYSTEMS_TIMING.sectionIn[1],
+    timing.sectionIn[0],
+    timing.sectionIn[1],
   );
   const sectionOut = range(galleryDelta, -0.08, 0.28);
   const introIn = range(
     systemsDelta,
-    SYSTEMS_TIMING.introIn[0],
-    SYSTEMS_TIMING.introIn[1],
+    timing.introIn[0],
+    timing.introIn[1],
   );
   const introOut = range(
     systemsDelta,
-    SYSTEMS_TIMING.introOut[0],
-    SYSTEMS_TIMING.introOut[1],
+    timing.introOut[0],
+    timing.introOut[1],
   );
 
   return {
@@ -121,33 +165,33 @@ export const chapterState = (
     introVisibility: introIn * (1 - introOut),
     axisReveal: range(
       systemsDelta,
-      SYSTEMS_TIMING.axisReveal[0],
-      SYSTEMS_TIMING.axisReveal[1],
+      timing.axisReveal[0],
+      timing.axisReveal[1],
     ),
     headerReveal: range(
       systemsDelta,
-      SYSTEMS_TIMING.headerReveal[0],
-      SYSTEMS_TIMING.headerReveal[1],
+      timing.headerReveal[0],
+      timing.headerReveal[1],
     ),
     contentReveal: range(
       systemsDelta,
-      SYSTEMS_TIMING.contentReveal[0],
-      SYSTEMS_TIMING.contentReveal[1],
+      timing.contentReveal[0],
+      timing.contentReveal[1],
     ),
     initialGraphBuild: range(
       systemsDelta,
-      SYSTEMS_TIMING.initialGraphBuild[0],
-      SYSTEMS_TIMING.initialGraphBuild[1],
+      timing.initialGraphBuild[0],
+      timing.initialGraphBuild[1],
     ),
     tailOut: range(
       galleryDelta,
-      SYSTEMS_TIMING.tailOut[0],
-      SYSTEMS_TIMING.tailOut[1],
+      timing.tailOut[0],
+      timing.tailOut[1],
     ),
     galleryHandoff: range(
       galleryDelta,
-      SYSTEMS_TIMING.galleryHandoff[0],
-      SYSTEMS_TIMING.galleryHandoff[1],
+      timing.galleryHandoff[0],
+      timing.galleryHandoff[1],
     ),
   };
 };

@@ -148,3 +148,75 @@
   letter-spacing: .09em;
   transform: none !important;
 }
+
+/* Mobile uses one horizontal register for both Chapters 02 and 03. Variant
+   classes supply focus/progress only; geometry is intentionally identical. */
+@media (max-width: 680px) {
+  .trajectory-progress-rail,
+  .systems-progress-rail {
+    left: 8vw !important;
+    right: 6vw !important;
+    top: 10.5% !important;
+    width: auto !important;
+    height: 1px !important;
+    transform: scaleX(var(--rail-reveal)) !important;
+    transform-origin: left center !important;
+  }
+
+  .narrative-progress-rail__progress {
+    width: calc(var(--rail-progress) * 100%) !important;
+    height: 1px !important;
+    min-height: 0 !important;
+  }
+
+  .narrative-progress-rail__items,
+  .narrative-progress-rail__items.trajectory-years,
+  .narrative-progress-rail__items.systems-axis-items {
+    inset: 0 !important;
+    width: 100% !important;
+    height: 1px !important;
+  }
+
+  .narrative-progress-rail__item,
+  .narrative-progress-rail__item.trajectory-year,
+  .narrative-progress-rail__item.systems-axis-item {
+    left: calc(var(--rail-slot, 0) * 100%) !important;
+    top: 0 !important;
+    width: 1px !important;
+    height: 1px !important;
+    display: block !important;
+    transform: translate3d(-50%, 0, 0) !important;
+    opacity: calc(var(--rail-content) * (.24 + var(--rail-focus) * .76)) !important;
+  }
+
+  .narrative-progress-rail__item > i {
+    left: 50% !important;
+    top: 50% !important;
+    width: 6px !important;
+    height: 6px !important;
+    transform: translate(-50%, -50%) scale(calc(.96 + var(--rail-focus) * .18)) !important;
+  }
+
+  .narrative-progress-rail__item > b {
+    position: absolute !important;
+    left: 50% !important;
+    top: 11px !important;
+    width: max-content !important;
+    min-width: 0 !important;
+    max-width: 76px !important;
+    padding: 0 !important;
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+    opacity: clamp(0, calc(var(--rail-focus) * 4 - 3), 1) !important;
+    transform: translateX(-50%) !important;
+    font-size: 8px !important;
+    line-height: 1 !important;
+    letter-spacing: .055em !important;
+  }
+
+  .narrative-progress-rail__item > b::before,
+  .narrative-progress-rail__meta {
+    display: none !important;
+  }
+}
