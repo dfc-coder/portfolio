@@ -1,0 +1,178 @@
+/* Mobile composition for Section 05. Keep the existing agent language and
+   interaction model; only redistribute hierarchy and density on narrow screens. */
+@media (max-width: 680px) {
+  .agent-os {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    padding: 0 !important;
+  }
+
+  /* The visual identity is atmospheric on mobile, never the main content. */
+  .agent-presence {
+    position: absolute !important;
+    inset: auto 7vw auto auto !important;
+    top: 17.5% !important;
+    width: 38vw !important;
+    height: 38vw !important;
+    min-height: 0 !important;
+    display: block !important;
+    place-items: initial !important;
+    align-self: auto !important;
+  }
+
+  .agent-core,
+  .agent-core--three {
+    width: 100% !important;
+    max-width: none !important;
+    opacity: .28 !important;
+  }
+
+  .agent-chat {
+    position: absolute !important;
+    z-index: 3;
+    inset: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+  }
+
+  /* Landing state: intro, compact starters and ASK control occupy separate
+     vertical registers instead of stacking in the middle of the screen. */
+  .agent-os[data-has-messages="false"] .agent-lane {
+    position: absolute !important;
+    inset: 0 !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    -webkit-mask-image: none !important;
+    mask-image: none !important;
+  }
+
+  .agent-os[data-has-messages="false"] .agent-empty {
+    position: absolute !important;
+    inset: 0 !important;
+    width: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+
+  .agent-os[data-has-messages="false"] .agent-empty__intro {
+    position: absolute !important;
+    left: 8vw !important;
+    top: 21% !important;
+    width: 52vw !important;
+    margin: 0 !important;
+    color: rgba(236, 230, 213, .68) !important;
+    font-size: 14px !important;
+    line-height: 1.48 !important;
+  }
+
+  .agent-os[data-has-messages="false"] .agent-empty__starters {
+    position: absolute !important;
+    left: 8vw !important;
+    right: 6vw !important;
+    top: 47% !important;
+    display: grid !important;
+    border-top: 1px solid var(--os-line) !important;
+  }
+
+  .agent-os[data-has-messages="false"] .agent-empty__starter {
+    min-height: 54px !important;
+    grid-template-columns: 30px minmax(0, 1fr) auto !important;
+    gap: 10px !important;
+    align-items: center !important;
+    padding: 0 !important;
+  }
+
+  .agent-os[data-has-messages="false"] .agent-empty__starter span {
+    font-size: 9px !important;
+  }
+
+  .agent-os[data-has-messages="false"] .agent-empty__starter b {
+    font-size: 10px !important;
+    letter-spacing: .10em !important;
+  }
+
+  .agent-os[data-has-messages="false"] .agent-empty__starter small {
+    display: none !important;
+  }
+
+  .agent-os[data-has-messages="false"] .agent-ask {
+    position: absolute !important;
+    left: 8vw !important;
+    right: 6vw !important;
+    bottom: 11.5% !important;
+    width: auto !important;
+    min-height: 50px !important;
+    margin: 0 !important;
+  }
+
+  .agent-os[data-has-messages="false"] .agent-ask input {
+    font-size: 12px !important;
+  }
+
+  /* Once a conversation exists, dedicate the section to the exchange. The
+     same orb remains as a small status signature in the upper-right corner. */
+  .agent-os[data-has-messages="true"] .agent-presence {
+    top: 10.5% !important;
+    right: 6vw !important;
+    width: 20vw !important;
+    height: 20vw !important;
+  }
+
+  .agent-os[data-has-messages="true"] .agent-core,
+  .agent-os[data-has-messages="true"] .agent-core--three {
+    opacity: .14 !important;
+  }
+
+  .agent-os[data-has-messages="true"] .agent-chat {
+    left: 6vw !important;
+    right: 6vw !important;
+    top: 12.5% !important;
+    bottom: 4.5% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .agent-os[data-has-messages="true"] .agent-lane {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    padding: 38px 0 12px !important;
+    overflow-y: auto !important;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 4%, #000 100%) !important;
+    mask-image: linear-gradient(to bottom, transparent 0, #000 4%, #000 100%) !important;
+  }
+
+  .agent-os[data-has-messages="true"] .agent-msg {
+    max-width: 90% !important;
+  }
+
+  .agent-os[data-has-messages="true"] .agent-msg__body p {
+    font-size: 13px !important;
+    line-height: 1.52 !important;
+  }
+
+  .agent-os[data-has-messages="true"] .agent-ask {
+    position: relative !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    min-height: 50px !important;
+  }
+
+  .agent-os__error {
+    position: absolute !important;
+    left: 8vw !important;
+    right: 6vw !important;
+    bottom: 5.5% !important;
+  }
+}
