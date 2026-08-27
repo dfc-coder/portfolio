@@ -113,7 +113,7 @@ const menuOpen = ref(false);
               <img
                 :src="galleryImageUrl(artwork.src, 640, 80)"
                 :srcset="galleryImageSrcSet(artwork.src, galleryCardWidths, 80)"
-                sizes="(max-width: 680px) 29vw, (max-width: 980px) 24vw, 18vw"
+                sizes="(max-width: 680px) 50vw, (max-width: 980px) 24vw, 18vw"
                 :alt="artwork.alt"
                 loading="lazy"
                 decoding="async"
