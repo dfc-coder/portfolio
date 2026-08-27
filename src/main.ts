@@ -22,12 +22,13 @@ import "./experiences/systems.css";
 import "./experiences/systems-project-balance.css";
 import "./experiences/continuity.css";
 import "./styles/chapter-bridges.css";
-import "./components/narrative/narrative-progress-rail.css";
 import "./experiences/gallery.css";
 import "./experiences/gallery-clean.css";
 import "./experiences/gallery-transition.css";
 import "./styles/mobile-experience.css";
-import "./styles/mobile-systems-register.css";
+import "./components/narrative/narrative-progress-rail.css";
+import "./styles/mobile-trajectory-layout.css";
+import "./styles/mobile-systems-layout.css";
 
 document.documentElement.classList.add("creative-hero-pending");
 
