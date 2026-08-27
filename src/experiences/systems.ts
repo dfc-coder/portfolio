@@ -16,6 +16,7 @@ import { systemsProjects as projects } from "./systems-projects";
 
 const PARALLAX_SETTLE_EPSILON = 0.0004;
 const VELOCITY_SETTLE_EPSILON = 0.0015;
+const MOBILE_BREAKPOINT = "(max-width: 680px)";
 
 const PARALLAX_LAYERS = [
   "axis",
@@ -70,6 +71,7 @@ const projectPartsFor = (element: HTMLElement): ProjectParts | null => {
 export const mountSystemsExperience = () => {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return () => undefined;
 
+  const compactQuery = matchMedia(MOBILE_BREAKPOINT);
   const stage = document.querySelector<HTMLElement>(".ref-stage");
   const systemsScene = document.querySelector<HTMLElement>(".ref-scene--systems");
   if (!stage || !systemsScene) return () => undefined;
@@ -118,6 +120,7 @@ export const mountSystemsExperience = () => {
     initialRuntimeState.node,
     chapterSystemsNode,
     chapterGalleryNode,
+    compactQuery.matches,
   );
   let targetProjectPosition = initialProjectPosition;
   let driveVelocity = 0;
@@ -170,12 +173,17 @@ export const mountSystemsExperience = () => {
     parallaxLastTime = time;
     driveVelocity = damp(driveVelocity, 0, 6.8, dt);
 
+    const compact = compactQuery.matches;
+    const leadScale = compact ? 0.70 : 1;
+    const motionScale = compact ? 0.66 : 1;
+
     let maxLag = 0;
     let maxVelocity = 0;
 
     PARALLAX_LAYERS.forEach((layer) => {
       const config = PARALLAX_CONFIG[layer];
-      const drivenTarget = targetProjectPosition + driveVelocity * config.lead;
+      const drivenTarget =
+        targetProjectPosition + driveVelocity * config.lead * leadScale;
       const next = springStep(layerStates[layer], drivenTarget, config, dt);
       layerStates[layer] = next;
       maxLag = Math.max(maxLag, Math.abs(drivenTarget - next.value));
@@ -202,7 +210,11 @@ export const mountSystemsExperience = () => {
     axisItems.forEach((element, index) => {
       const offset = index - layerStates.axis.value;
       const focus = Math.exp(-(offset * offset) * 5.2);
-      const inertialY = clamp(-layerStates.axis.velocity * 2.4, -6, 6);
+      const inertialY = clamp(
+        -layerStates.axis.velocity * (compact ? 1.35 : 2.4),
+        compact ? -3.5 : -6,
+        compact ? 3.5 : 6,
+      );
       element.style.visibility = "visible";
       element.style.opacity = (
         latestChapterState.contentReveal *
@@ -224,12 +236,12 @@ export const mountSystemsExperience = () => {
       const implementationOffset = index - layerStates.implementation.value;
       const buildOffset = index - layerStates.build.value;
 
-      const titleMotion = motionForOffset(titleOffset);
-      const graphMotion = motionForOffset(graphOffset);
-      const detailMotion = motionForOffset(detailOffset);
-      const evidenceMotion = motionForOffset(evidenceOffset);
-      const implementationMotion = motionForOffset(implementationOffset);
-      const buildMotion = motionForOffset(buildOffset);
+      const titleMotion = motionForOffset(titleOffset, compact);
+      const graphMotion = motionForOffset(graphOffset, compact);
+      const detailMotion = motionForOffset(detailOffset, compact);
+      const evidenceMotion = motionForOffset(evidenceOffset, compact);
+      const implementationMotion = motionForOffset(implementationOffset, compact);
+      const buildMotion = motionForOffset(buildOffset, compact);
 
       const isLast = index === projectCount - 1;
       const tail = isLast ? latestChapterState.tailOut : 0;
@@ -247,12 +259,13 @@ export const mountSystemsExperience = () => {
         implementationPresence,
       );
       const graphBuild = Math.min(buildMotion.build, firstProjectBuild);
-      const extraTailY = isLast ? -30 * tail : 0;
+      const extraTailY = isLast ? (compact ? -20 : -30) * tail : 0;
       const graphY =
-        clamp(graphOffset, -1, 1) * 2.15 -
-        layerStates.graph.velocity * 0.16;
+        clamp(graphOffset, -1, 1) * (compact ? 1.35 : 2.15) -
+        layerStates.graph.velocity * (compact ? 0.10 : 0.16);
       const graphX =
-        graphMotion.graphX - layerStates.graph.velocity * 0.026;
+        graphMotion.graphX -
+        layerStates.graph.velocity * (compact ? 0.016 : 0.026);
       const visibleDistance = Math.min(
         Math.abs(titleOffset),
         Math.abs(graphOffset),
@@ -276,7 +289,7 @@ export const mountSystemsExperience = () => {
         `${(
           titleMotion.titleY +
           extraTailY -
-          layerStates.title.velocity * 0.18
+          layerStates.title.velocity * 0.18 * motionScale
         ).toFixed(3)}vh`,
       );
 
@@ -287,7 +300,7 @@ export const mountSystemsExperience = () => {
       parts.detail.style.transform = `translate3d(0, ${(
         detailMotion.supportY * 0.46 +
         extraTailY * 0.22 -
-        layerStates.detail.velocity * 0.09
+        layerStates.detail.velocity * 0.09 * motionScale
       ).toFixed(3)}vh, 0)`;
       parts.evidence.style.opacity = (
         latestChapterState.contentReveal * evidencePresence
@@ -295,7 +308,7 @@ export const mountSystemsExperience = () => {
       parts.evidence.style.transform = `translate3d(0, ${(
         evidenceMotion.supportY * 0.72 +
         extraTailY * 0.18 -
-        layerStates.evidence.velocity * 0.075
+        layerStates.evidence.velocity * 0.075 * motionScale
       ).toFixed(3)}vh, 0)`;
       parts.implementation.style.opacity = (
         latestChapterState.contentReveal * implementationPresence
@@ -303,7 +316,7 @@ export const mountSystemsExperience = () => {
       parts.implementation.style.transform = `translate3d(0, ${(
         implementationMotion.supportY * 0.34 +
         extraTailY * 0.13 -
-        layerStates.implementation.velocity * 0.055
+        layerStates.implementation.velocity * 0.055 * motionScale
       ).toFixed(3)}vh, 0)`;
     });
 
@@ -332,6 +345,7 @@ export const mountSystemsExperience = () => {
       node,
       chapterSystemsNode,
       chapterGalleryNode,
+      compactQuery.matches,
     );
 
     const now = performance.now();
@@ -398,11 +412,23 @@ export const mountSystemsExperience = () => {
     requestParallaxRender();
   };
 
+  const onCompactChange = () => {
+    latestChapterState = chapterState(
+      latestState.node,
+      chapterSystemsNode,
+      chapterGalleryNode,
+      compactQuery.matches,
+    );
+    requestParallaxRender();
+  };
+
+  compactQuery.addEventListener("change", onCompactChange);
   addEventListener("pointermove", onPointerMove, { passive: true });
   const unsubscribe = narrativeRuntime.subscribe(renderNarrative);
 
   return () => {
     unsubscribe();
+    compactQuery.removeEventListener("change", onCompactChange);
     if (parallaxFrame) cancelAnimationFrame(parallaxFrame);
     if (pointerFrame) cancelAnimationFrame(pointerFrame);
     removeEventListener("pointermove", onPointerMove);
