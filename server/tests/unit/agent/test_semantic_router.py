@@ -7,6 +7,7 @@ import pytest
 from app.agent.router import SemanticRouter
 from app.domain.conversation import ActiveWorkflow, ChatTurn, SessionState
 from app.domain.routing import RouteDomain, RouteRelation
+from app.ports.embeddings import EmbeddingTask
 
 
 class FixedEmbeddings:
@@ -14,13 +15,15 @@ class FixedEmbeddings:
         self.scores = scores
         self.documents: list[str] = []
         self.query = ""
+        self.query_task: EmbeddingTask | None = None
 
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         self.documents = texts
         return [self._vector(score) for score in self.scores[: len(texts)]]
 
-    async def embed_query(self, text: str) -> list[float]:
+    async def embed_query(self, text: str, task: EmbeddingTask) -> list[float]:
         self.query = text
+        self.query_task = task
         return [1.0, 0.0]
 
     async def health(self) -> bool:
@@ -42,6 +45,7 @@ async def test_embedding_router_selects_highest_business_similarity() -> None:
     assert decision.domain == RouteDomain.BUSINESS
     assert decision.relation == RouteRelation.NEW
     assert decision.source == "embedding"
+    assert embeddings.query_task == EmbeddingTask.ROUTING
 
 
 @pytest.mark.asyncio
@@ -53,6 +57,7 @@ async def test_embedding_router_selects_scheduling_without_llm_judge() -> None:
 
     assert decision.domain == RouteDomain.SCHEDULING
     assert decision.source == "embedding"
+    assert embeddings.query_task == EmbeddingTask.ROUTING
 
 
 @pytest.mark.asyncio
@@ -71,6 +76,7 @@ async def test_new_turn_routing_uses_latest_visitor_text_only() -> None:
 
     assert decision.domain == RouteDomain.BUSINESS
     assert embeddings.query == "¿Qué podés hacer?"
+    assert embeddings.query_task == EmbeddingTask.ROUTING
     assert "LAST_ASSISTANT" not in embeddings.query
     assert "CURRENT_FOCUS" not in embeddings.query
 
@@ -93,6 +99,7 @@ async def test_active_scheduling_routes_latest_turn_without_workflow_text_in_que
 
     assert decision.domain == RouteDomain.SCHEDULING
     assert embeddings.query == "Mi email es ana@example.com"
+    assert embeddings.query_task == EmbeddingTask.ROUTING
     assert "ACTIVE_WORKFLOW" not in embeddings.query
     assert "SCHEDULING_FACTS" not in embeddings.query
     assert "visitor_name" not in embeddings.query
@@ -111,6 +118,7 @@ async def test_active_scheduling_business_interrupt_preserves_memory() -> None:
 
     assert decision.domain == RouteDomain.BUSINESS
     assert decision.relation == RouteRelation.INTERRUPT
+    assert embeddings.query_task == EmbeddingTask.ROUTING
     assert state.active_workflow == ActiveWorkflow.SCHEDULING
     assert state.scheduling.visitor_name == "Ana"
 
@@ -127,3 +135,4 @@ async def test_route_document_embeddings_are_cached() -> None:
 
     assert len(first_documents) == 3
     assert len(embeddings.documents) == 3
+    assert embeddings.query_task == EmbeddingTask.ROUTING
