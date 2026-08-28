@@ -50,8 +50,8 @@ class FakeEmbeddings:
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         return [[1.0, 0.0] for _ in texts]
 
-    async def embed_query(self, text: str) -> list[float]:
-        del text
+    async def embed_query(self, text, task):  # type: ignore[no-untyped-def]
+        del text, task
         return [1.0, 0.0]
 
     async def health(self) -> bool:

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from app.domain.conversation import ActiveWorkflow, SessionState
 from app.domain.routing import RouteDomain, RouteRelation, RoutingDecision
-from app.ports.embeddings import EmbeddingPort
+from app.ports.embeddings import EmbeddingPort, EmbeddingTask
 
 from .similarity import cosine_similarity
 
@@ -133,7 +133,10 @@ class SemanticRouter:
         routes: tuple[Route, ...],
     ) -> RoutingDecision:
         await self._ensure_route_vectors(routes)
-        query_vector = await self._embeddings.embed_query(user_message)
+        query_vector = await self._embeddings.embed_query(
+            user_message,
+            EmbeddingTask.ROUTING,
+        )
         scores = [
             cosine_similarity(query_vector, self._route_vectors[route.key])
             for route in routes

@@ -6,6 +6,7 @@ from app.agent.context import ContextAssembler, ProfileDocumentIndex, ProfileRet
 from app.domain.conversation import ChatTurn, SessionState
 from app.domain.profile import BusinessProfile
 from app.domain.routing import RouteDomain
+from app.ports.embeddings import EmbeddingTask
 
 
 class RecordingEmbeddings:
@@ -13,6 +14,7 @@ class RecordingEmbeddings:
         self.target = target
         self.document_calls: list[list[str]] = []
         self.query_calls: list[str] = []
+        self.query_tasks: list[EmbeddingTask] = []
 
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         self.document_calls.append(texts)
@@ -21,8 +23,9 @@ class RecordingEmbeddings:
             for text in texts
         ]
 
-    async def embed_query(self, text: str) -> list[float]:
+    async def embed_query(self, text: str, task: EmbeddingTask) -> list[float]:
         self.query_calls.append(text)
+        self.query_tasks.append(task)
         return [1.0, 0.0]
 
     async def health(self) -> bool:
@@ -72,6 +75,7 @@ async def test_general_context_does_not_retrieve_or_expose_business_identity(
 
     assert embeddings.document_calls == []
     assert embeddings.query_calls == []
+    assert embeddings.query_tasks == []
     assert context.document_ids == ()
     assert "\nRELEVANT_KNOWLEDGE:\n" not in context.system_prompt
     assert profile.owner.name not in context.system_prompt
@@ -102,6 +106,7 @@ async def test_business_context_contains_top_dense_retrieval_document(
 
     assert len(embeddings.document_calls) == 1
     assert len(embeddings.query_calls) == 1
+    assert embeddings.query_tasks == [EmbeddingTask.RETRIEVAL]
     assert len(context.document_ids) == 1
     assert context.document_ids[0].startswith("projects.")
     assert f"PORTFOLIO_SUBJECT={profile.owner.name}" in context.system_prompt
@@ -126,6 +131,7 @@ async def test_profile_document_embeddings_are_computed_once(
 
     assert len(embeddings.document_calls) == 1
     assert len(embeddings.query_calls) == 2
+    assert embeddings.query_tasks == [EmbeddingTask.RETRIEVAL, EmbeddingTask.RETRIEVAL]
 
 
 @pytest.mark.asyncio
@@ -147,6 +153,7 @@ async def test_retrieval_query_keeps_small_recent_context_for_followups(
     context = await assembler.build(state)
 
     query = embeddings.query_calls[0]
+    assert embeddings.query_tasks == [EmbeddingTask.RETRIEVAL]
     assert "Contame sobre Xarlatan" in query
     assert "¿Y qué lenguaje usa ahí?" in query
     assert any(document_id.startswith("projects.") for document_id in context.document_ids)

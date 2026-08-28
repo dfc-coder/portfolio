@@ -4,6 +4,20 @@ import asyncio
 
 import httpx
 
+from app.ports.embeddings import EmbeddingTask
+
+
+_QUERY_INSTRUCTIONS = {
+    EmbeddingTask.ROUTING: (
+        "Given a visitor message, retrieve the intent description that best matches "
+        "what the visitor wants to do."
+    ),
+    EmbeddingTask.RETRIEVAL: (
+        "Given a visitor question about a professional portfolio, retrieve profile passages "
+        "containing the facts needed to answer it."
+    ),
+}
+
 
 class LlamaCppEmbeddingClient:
     """OpenAI-compatible embedding client backed by llama.cpp."""
@@ -14,20 +28,23 @@ class LlamaCppEmbeddingClient:
         model: str,
         timeout_seconds: float = 30.0,
         *,
-        query_instruction: str = "Retrieve the text that best matches the visitor's intent.",
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._model = model
-        self._query_instruction = query_instruction
         self._client = client or httpx.AsyncClient(timeout=timeout_seconds)
         self._slot = asyncio.Semaphore(1)
 
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         return await self._embed(texts)
 
-    async def embed_query(self, text: str) -> list[float]:
-        query = f"Instruct: {self._query_instruction}\nQuery: {text.strip()}"
+    async def embed_query(
+        self,
+        text: str,
+        task: EmbeddingTask,
+    ) -> list[float]:
+        instruction = _QUERY_INSTRUCTIONS[task]
+        query = f"Instruct: {instruction}\nQuery: {text.strip()}"
         vectors = await self._embed([query])
         return vectors[0]
 
