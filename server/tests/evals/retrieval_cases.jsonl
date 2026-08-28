@@ -1,0 +1,40 @@
+{"id":"aws_experience","query":"¿Tiene experiencia con AWS?","answerable":true,"expected":["skills","professional_experience.0","experience.4"]}
+{"id":"s3_experience","query":"¿Trabajó con Amazon S3?","answerable":true,"expected":["skills","professional_experience.0"]}
+{"id":"rag_experience","query":"¿Tiene experiencia construyendo sistemas RAG?","answerable":true,"expected":["experience.0","professional_experience.0","professional_experience.2","skills","faq.4"]}
+{"id":"langgraph_experience","query":"¿Trabajó con LangGraph?","answerable":true,"expected":["experience.0","skills","certifications.0","certifications.1","faq.3"]}
+{"id":"nl_to_sql","query":"¿Construyó sistemas NL-to-SQL?","answerable":true,"expected":["experience.1","professional_experience.1","projects.0","skills"]}
+{"id":"mcp_finance","query":"¿Desarrolló herramientas financieras con MCP?","answerable":true,"expected":["professional_experience.0","projects.1","skills"]}
+{"id":"private_ai","query":"¿Tiene experiencia procesando documentos sensibles sin APIs externas?","answerable":true,"expected":["experience.2","professional_experience.1","services.3","faq.5"]}
+{"id":"fastapi","query":"¿Tiene experiencia con FastAPI?","answerable":true,"expected":["skills","experience.3","professional_experience.0","services.1"]}
+{"id":"rust_projects","query":"¿Tiene proyectos desarrollados en Rust?","answerable":true,"expected":["skills","projects.3","projects.4","projects.5","faq.1"]}
+{"id":"go_experience","query":"¿Tiene experiencia desarrollando en Go?","answerable":true,"expected":["skills","projects.2","faq.2"]}
+{"id":"xarlatan","query":"¿Qué proyecto suyo trabaja con voz para agentes de IA?","answerable":true,"expected":["projects.2"]}
+{"id":"pockettrace","query":"¿Qué proyecto desarrolló para inspeccionar trazas localmente?","answerable":true,"expected":["projects.3"]}
+{"id":"ectask","query":"¿Tiene algún proyecto para reproducir tareas de captura de IA?","answerable":true,"expected":["projects.4"]}
+{"id":"system_g","query":"¿Desarrolló algún sistema para ESP32?","answerable":true,"expected":["projects.5"]}
+{"id":"cicd","query":"¿Tiene experiencia automatizando pipelines CI/CD?","answerable":true,"expected":["professional_experience.2","skills","experience.4"]}
+{"id":"education_fullstack","query":"¿Dónde estudió desarrollo Full Stack?","answerable":true,"expected":["education.0"]}
+{"id":"systems_degree","query":"¿Terminó la carrera de Ingeniería de Sistemas?","answerable":true,"expected":["education.2"]}
+{"id":"owasp_cert","query":"¿Tiene alguna certificación relacionada con OWASP?","answerable":true,"expected":["certifications.4"]}
+{"id":"english_level","query":"¿Qué nivel de inglés figura en su perfil?","answerable":true,"expected":["languages.1"]}
+{"id":"hourly_rate","query":"¿El portfolio publica su tarifa por hora?","answerable":true,"expected":["business","faq.6"]}
+{"id":"azure","query":"¿Tiene experiencia con Microsoft Azure?","answerable":false}
+{"id":"gcp","query":"¿Tiene experiencia con Google Cloud Platform?","answerable":false}
+{"id":"kubernetes","query":"¿Trabajó con Kubernetes?","answerable":false}
+{"id":"terraform","query":"¿Tiene experiencia usando Terraform?","answerable":false}
+{"id":"kafka","query":"¿Trabajó con Apache Kafka?","answerable":false}
+{"id":"rabbitmq","query":"¿Tiene experiencia con RabbitMQ?","answerable":false}
+{"id":"snowflake","query":"¿Trabajó con Snowflake?","answerable":false}
+{"id":"databricks","query":"¿Tiene experiencia con Databricks?","answerable":false}
+{"id":"dotnet","query":"¿Desarrolló sistemas con .NET?","answerable":false}
+{"id":"csharp","query":"¿Programa en C#?","answerable":false}
+{"id":"swift","query":"¿Tiene experiencia desarrollando aplicaciones en Swift?","answerable":false}
+{"id":"kotlin","query":"¿Trabajó con Kotlin?","answerable":false}
+{"id":"google_employer","query":"¿Trabajó profesionalmente para Google?","answerable":false}
+{"id":"microsoft_employer","query":"¿Trabajó profesionalmente para Microsoft?","answerable":false}
+{"id":"aws_cert","query":"¿Tiene la certificación AWS Solutions Architect?","answerable":false}
+{"id":"kubernetes_cert","query":"¿Tiene alguna certificación oficial de Kubernetes?","answerable":false}
+{"id":"masters_ai","query":"¿Tiene una maestría en inteligencia artificial?","answerable":false}
+{"id":"french","query":"¿Habla francés?","answerable":false}
+{"id":"sap","query":"¿Tiene experiencia profesional con SAP?","answerable":false}
+{"id":"elasticsearch","query":"¿Trabajó con Elasticsearch?","answerable":false}
