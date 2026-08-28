@@ -224,6 +224,17 @@ def summarize(results: list[CaseResult], strategy: str) -> dict[str, Any]:
     }
 
 
+def format_scores(decision: RoutingDecision) -> str:
+    return ", ".join(
+        f"{name}={score:.6f}"
+        for name, score in sorted(
+            decision.scores.items(),
+            key=lambda item: item[1],
+            reverse=True,
+        )
+    )
+
+
 def print_report(results: list[CaseResult], *, verbose: bool) -> None:
     summaries = {strategy: summarize(results, strategy) for strategy in STRATEGIES}
     total_cases = summaries["current-only"]["total"]
@@ -255,14 +266,30 @@ def print_report(results: list[CaseResult], *, verbose: bool) -> None:
             )
         )
 
-    current = summaries["current-only"]
+    current_by_id = {
+        result.case.case_id: result
+        for result in results
+        if result.strategy == "current-only"
+    }
+
+    print("\nCURRENT-ONLY FAILURES")
+    current_failures = [
+        result
+        for result in current_by_id.values()
+        if not result.correct
+    ]
+    print(f"count: {len(current_failures)}")
+    for result in current_failures:
+        print(
+            f"- {result.case.case_id} [{result.case.category}] "
+            f"message={result.case.message!r} "
+            f"expected={result.case.expected_domain}/{result.case.expected_relation} "
+            f"actual={result.decision.domain.value}/{result.decision.relation.value} "
+            f"margin={result.margin:.6f} scores=[{format_scores(result.decision)}]"
+        )
+
     print("\nCHANGES VS CURRENT-ONLY")
     for strategy in ("previous+current", "adaptive"):
-        current_by_id = {
-            result.case.case_id: result
-            for result in results
-            if result.strategy == "current-only"
-        }
         candidate = [result for result in results if result.strategy == strategy]
         improvements = [
             result.case.case_id
@@ -283,6 +310,7 @@ def print_report(results: list[CaseResult], *, verbose: bool) -> None:
         if regressions:
             print("  regressed: " + ", ".join(regressions))
 
+    current = summaries["current-only"]
     eligible = [
         summaries[strategy]
         for strategy in ("previous+current", "adaptive")
@@ -306,7 +334,7 @@ def print_report(results: list[CaseResult], *, verbose: bool) -> None:
         print("Evaluation result only; production router is unchanged.")
 
     if verbose:
-        print("\nFAILURES")
+        print("\nALL STRATEGY FAILURES")
         for strategy in STRATEGIES:
             failures = [
                 result for result in results
@@ -318,7 +346,7 @@ def print_report(results: list[CaseResult], *, verbose: bool) -> None:
                     f"- {result.case.case_id}: expected="
                     f"{result.case.expected_domain}/{result.case.expected_relation} "
                     f"actual={result.decision.domain.value}/{result.decision.relation.value} "
-                    f"margin={result.margin:.6f}"
+                    f"margin={result.margin:.6f} scores=[{format_scores(result.decision)}]"
                 )
 
 
