@@ -3,12 +3,13 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING
+from dataclasses import asdict
+from typing import TYPE_CHECKING, Any
 
 from app.domain.conversation import SessionState
 from app.domain.profile import BusinessProfile
 from app.ports.embeddings import EmbeddingPort
-from app.ports.llm import GenerationConfig, LlmPort
+from app.ports.llm import GenerationConfig, GenerationMetadata, GenerationStream, LlmPort
 from app.scheduling.policy import SchedulingPolicy
 
 from .context import ContextAssembler, ProfileDocumentIndex, ProfileRetriever
@@ -18,6 +19,18 @@ if TYPE_CHECKING:
     from app.infrastructure.pockettrace import TurnTrace
 
 logger = logging.getLogger(__name__)
+
+
+def _without_none(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _without_none(item)
+            for key, item in value.items()
+            if item is not None
+        }
+    if isinstance(value, list):
+        return [_without_none(item) for item in value if item is not None]
+    return value
 
 
 class Responder:
@@ -63,9 +76,11 @@ class Responder:
         fallback_reason: str | None = None
         guard_duration_ms = 0.0
         generation_started = time.perf_counter()
+        generation: GenerationStream | None = None
 
         try:
-            async for chunk in self._llm.stream(messages, self._config):
+            generation = self._llm.stream(messages, self._config)
+            async for chunk in generation:
                 raw_chunks.append(chunk)
                 guard_started = time.perf_counter()
                 try:
@@ -104,7 +119,7 @@ class Responder:
                         "messages": messages,
                         "config": self._generation_config_payload(),
                     },
-                    output={"raw_text": "".join(raw_chunks)},
+                    output=self._generation_output(raw_chunks, generation),
                     status="failed",
                     error={"kind": type(exc).__name__, "message": str(exc)[:2000]},
                 )
@@ -132,7 +147,7 @@ class Responder:
                     "messages": messages,
                     "config": self._generation_config_payload(),
                 },
-                output={"raw_text": "".join(raw_chunks)},
+                output=self._generation_output(raw_chunks, generation),
             )
             trace.add_span(
                 "stream_guard",
@@ -150,6 +165,19 @@ class Responder:
                     else None
                 ),
             )
+
+    @staticmethod
+    def _generation_output(
+        raw_chunks: list[str],
+        generation: GenerationStream | None,
+    ) -> dict[str, Any]:
+        output: dict[str, Any] = {"raw_text": "".join(raw_chunks)}
+        metadata = getattr(generation, "metadata", None) if generation is not None else None
+        if isinstance(metadata, GenerationMetadata):
+            payload = _without_none(asdict(metadata))
+            if payload:
+                output["metadata"] = payload
+        return output
 
     def _generation_config_payload(self) -> dict[str, float | int | None]:
         return {
