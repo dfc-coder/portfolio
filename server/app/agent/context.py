@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 from app.domain.conversation import ChatTurn, SessionState
 from app.domain.profile import BusinessProfile
 from app.domain.routing import RouteDomain
-from app.ports.embeddings import EmbeddingPort
+from app.ports.embeddings import EmbeddingPort, EmbeddingTask
 
 from .similarity import cosine_similarity
 
@@ -127,7 +127,10 @@ class ProfileRetriever:
 
         await self._ensure_index()
         assert self._document_vectors is not None
-        query_vector = await self._embeddings.embed_query(query)
+        query_vector = await self._embeddings.embed_query(
+            query,
+            EmbeddingTask.RETRIEVAL,
+        )
         ranked = sorted(
             (
                 RetrievedDocument(
