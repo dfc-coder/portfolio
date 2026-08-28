@@ -2,13 +2,159 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from typing import Any
 
 import httpx
 from pydantic import BaseModel
 
-from app.ports.llm import GenerationConfig
+from app.ports.llm import (
+    GenerationConfig,
+    GenerationMetadata,
+    GenerationStream,
+    GenerationTimings,
+    TokenUsage,
+)
+
+
+def _optional_int(value: object) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_float(value: object) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+class _MetadataAccumulator:
+    def __init__(self) -> None:
+        self.finish_reason: str | None = None
+        self.usage: TokenUsage | None = None
+        self.timings: GenerationTimings | None = None
+        self.system_fingerprint: str | None = None
+
+    def update(self, payload: Mapping[str, Any]) -> None:
+        fingerprint = payload.get("system_fingerprint")
+        if isinstance(fingerprint, str):
+            self.system_fingerprint = fingerprint
+
+        usage = payload.get("usage")
+        if isinstance(usage, Mapping):
+            prompt_details = usage.get("prompt_tokens_details")
+            cached_tokens = usage.get("cached_tokens")
+            if cached_tokens is None and isinstance(prompt_details, Mapping):
+                cached_tokens = prompt_details.get("cached_tokens")
+            parsed_usage = TokenUsage(
+                prompt_tokens=_optional_int(usage.get("prompt_tokens")),
+                completion_tokens=_optional_int(usage.get("completion_tokens")),
+                total_tokens=_optional_int(usage.get("total_tokens")),
+                cached_tokens=_optional_int(cached_tokens),
+            )
+            if any(value is not None for value in vars(parsed_usage).values()):
+                self.usage = parsed_usage
+
+        timings = payload.get("timings")
+        if isinstance(timings, Mapping):
+            parsed_timings = GenerationTimings(
+                cache_n=_optional_int(timings.get("cache_n")),
+                prompt_n=_optional_int(timings.get("prompt_n")),
+                prompt_ms=_optional_float(timings.get("prompt_ms")),
+                prompt_per_token_ms=_optional_float(timings.get("prompt_per_token_ms")),
+                prompt_per_second=_optional_float(timings.get("prompt_per_second")),
+                predicted_n=_optional_int(timings.get("predicted_n")),
+                predicted_ms=_optional_float(timings.get("predicted_ms")),
+                predicted_per_token_ms=_optional_float(
+                    timings.get("predicted_per_token_ms")
+                ),
+                predicted_per_second=_optional_float(timings.get("predicted_per_second")),
+            )
+            if any(value is not None for value in vars(parsed_timings).values()):
+                self.timings = parsed_timings
+
+        for choice in payload.get("choices") or []:
+            if not isinstance(choice, Mapping):
+                continue
+            delta = choice.get("delta")
+            finish_reason = choice.get("finish_reason")
+            if finish_reason is None and isinstance(delta, Mapping):
+                finish_reason = delta.get("finish_reason")
+            if isinstance(finish_reason, str):
+                self.finish_reason = finish_reason
+
+    def snapshot(self) -> GenerationMetadata:
+        return GenerationMetadata(
+            finish_reason=self.finish_reason,
+            usage=self.usage,
+            timings=self.timings,
+            system_fingerprint=self.system_fingerprint,
+        )
+
+
+class _LlamaCppGenerationStream(GenerationStream):
+    def __init__(
+        self,
+        client: httpx.AsyncClient,
+        slot: asyncio.Semaphore,
+        endpoint: str,
+        payload: dict[str, Any],
+    ) -> None:
+        self._client = client
+        self._slot = slot
+        self._endpoint = endpoint
+        self._payload = payload
+        self._metadata = _MetadataAccumulator()
+        self._started = False
+
+    @property
+    def metadata(self) -> GenerationMetadata:
+        return self._metadata.snapshot()
+
+    def __aiter__(self) -> AsyncIterator[str]:
+        if self._started:
+            raise RuntimeError("Generation stream can only be consumed once")
+        self._started = True
+        return self._iterate()
+
+    async def _iterate(self) -> AsyncIterator[str]:
+        async with self._slot:
+            async with self._client.stream(
+                "POST",
+                self._endpoint,
+                json=self._payload,
+            ) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if not data:
+                        continue
+                    if data == "[DONE]":
+                        break
+
+                    payload = json.loads(data)
+                    if not isinstance(payload, dict):
+                        continue
+                    self._metadata.update(payload)
+
+                    for choice in payload.get("choices") or []:
+                        if not isinstance(choice, Mapping):
+                            continue
+                        delta = choice.get("delta")
+                        if not isinstance(delta, Mapping):
+                            continue
+                        content = delta.get("content")
+                        if isinstance(content, str) and content:
+                            yield content
 
 
 class LlamaCppClient:
@@ -42,6 +188,8 @@ class LlamaCppClient:
             "id_slot": 0,
             "chat_template_kwargs": {"enable_thinking": False},
         }
+        if stream:
+            payload["stream_options"] = {"include_usage": True}
         if config.top_p is not None:
             payload["top_p"] = config.top_p
         if config.top_k is not None:
@@ -94,28 +242,14 @@ class LlamaCppClient:
             message = response.json()["choices"][0]["message"]
             return message.get("content") or ""
 
-    async def stream(
+    def stream(
         self,
         messages: list[dict[str, Any]],
         config: GenerationConfig,
-    ) -> AsyncIterator[str]:
-        async with self._slot:
-            async with self._client.stream(
-                "POST",
-                f"{self._base_url}/v1/chat/completions",
-                json=self._payload(messages, config, stream=True),
-            ) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if not line.startswith("data:"):
-                        continue
-                    data = line[5:].strip()
-                    if not data or data == "[DONE]":
-                        continue
-                    payload = json.loads(data)
-                    choices = payload.get("choices") or []
-                    if not choices:
-                        continue
-                    content = choices[0].get("delta", {}).get("content")
-                    if content:
-                        yield content
+    ) -> GenerationStream:
+        return _LlamaCppGenerationStream(
+            self._client,
+            self._slot,
+            f"{self._base_url}/v1/chat/completions",
+            self._payload(messages, config, stream=True),
+        )
