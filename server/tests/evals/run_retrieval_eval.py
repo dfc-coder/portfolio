@@ -39,10 +39,14 @@ class GateResult:
     false_accepts: int
     false_rejects: int
 
+    @property
+    def viable(self) -> bool:
+        return self.false_accepts == 0 and self.false_rejects == 0
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Evaluate profile retrieval and suggest a relevance gate."
+        description="Evaluate profile retrieval and whether a fixed cosine relevance gate is viable."
     )
     parser.add_argument(
         "--cases",
@@ -116,7 +120,7 @@ def validate_expected_documents(
             )
 
 
-def find_gate(results: list[CaseResult]) -> GateResult:
+def find_best_fixed_gate(results: list[CaseResult]) -> GateResult:
     positive_scores = [
         result.relevant_score
         for result in results
@@ -126,7 +130,7 @@ def find_gate(results: list[CaseResult]) -> GateResult:
         result.top1_score for result in results if not result.case.answerable
     ]
     if not positive_scores or not negative_scores:
-        raise ValueError("Gate calibration requires answerable and unanswerable cases")
+        raise ValueError("Gate evaluation requires answerable and unanswerable cases")
 
     observed = sorted(set([*positive_scores, *negative_scores]))
     candidates = [observed[0] - 1e-6]
@@ -224,10 +228,15 @@ def print_report(results: list[CaseResult], gate: GateResult, *, verbose: bool) 
         f"{min(negative_scores):.6f} - {max(negative_scores):.6f}"
     )
 
-    print("\nCALIBRATION")
-    print(f"SUGGESTED GATE: {gate.threshold:.6f}")
+    print("\nFIXED COSINE GATE CHECK")
+    print(f"best candidate threshold: {gate.threshold:.6f}")
     print(f"false accepts: {gate.false_accepts}/{len(unanswerable)}")
     print(f"false rejects: {gate.false_rejects}/{len(answerable)}")
+    if gate.viable:
+        print("RESULT: VIABLE on this dataset")
+    else:
+        print("RESULT: NOT VIABLE")
+        print("RECOMMENDATION: do not add a fixed cosine relevance gate")
 
     false_rejects = [
         result
@@ -308,7 +317,7 @@ async def main() -> int:
             for case in cases
         ]
 
-    gate = find_gate(results)
+    gate = find_best_fixed_gate(results)
     print_report(results, gate, verbose=args.verbose)
     return 0
 
