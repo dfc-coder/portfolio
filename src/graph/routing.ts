@@ -111,7 +111,7 @@ const feedbackRoute = (
   bounds: ComponentBounds,
   index: number,
   profile: LayoutProfile
-): { points: readonly Point[]; label: Point } => {
+): readonly Point[] => {
   const useLeft = index % 2 === 0;
   const laneGap = Math.max(profile.nodeGap, profile.rankGap * 0.35);
   const minX = profile.nodeGap / 2;
@@ -128,14 +128,13 @@ const feedbackRoute = (
   const end = useLeft
     ? { x: toBox.x, y: to.y }
     : { x: toBox.x + toBox.width, y: to.y };
-  const bend = Math.max(profile.nodeGap * 1.5, Math.abs(start.y - end.y) * 0.18);
-  const c1 = { x: laneX, y: start.y + (start.y <= end.y ? -bend : bend) };
-  const c2 = { x: laneX, y: end.y + (start.y <= end.y ? bend : -bend) };
 
-  return {
-    points: [start, c1, c2, end],
-    label: { x: laneX + (useLeft ? profile.nodeGap * 0.45 : -profile.nodeGap * 0.45), y: (start.y + end.y) / 2 }
-  };
+  return compactPolyline([
+    start,
+    { x: laneX, y: start.y },
+    { x: laneX, y: end.y },
+    end
+  ]);
 };
 
 const unionBounds = (left: ComponentBounds, right: ComponentBounds): ComponentBounds => {
@@ -182,15 +181,15 @@ export function routeEdges(
     const bounds = fromComponent === toComponent ? fromBounds : unionBounds(fromBounds, toBounds);
     const index = feedbackCount.get(componentId) ?? 0;
     feedbackCount.set(componentId, index + 1);
-    const route = feedbackRoute(from, to, bounds, index, profile);
+    const points = feedbackRoute(from, to, bounds, index, profile);
 
     return {
       from: edge.from,
       to: edge.to,
       ...(edge.label ? { label: edge.label } : {}),
       kind,
-      path: { kind: 'curve', points: route.points },
-      ...(edge.label ? { labelPosition: route.label } : {})
+      path: { kind: 'polyline', points },
+      ...(edge.label ? { labelPosition: labelPosition(points) } : {})
     };
   });
 }
