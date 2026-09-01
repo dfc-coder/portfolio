@@ -26,12 +26,6 @@ const architectureDescription = computed(() => {
 const svgPath = (path: ScenePath) => {
   const [first, ...rest] = path.points;
   if (!first) return "";
-
-  if (path.kind === "curve" && rest.length === 3) {
-    const [controlA, controlB, end] = rest;
-    return `M ${first.x} ${first.y} C ${controlA.x} ${controlA.y} ${controlB.x} ${controlB.y} ${end.x} ${end.y}`;
-  }
-
   return `M ${first.x} ${first.y}${rest.map((point) => ` L ${point.x} ${point.y}`).join("")}`;
 };
 
