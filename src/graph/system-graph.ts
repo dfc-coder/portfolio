@@ -5,6 +5,9 @@ export type SystemGraphProfile = "desktop" | "mobile";
 
 const GLYPH_DIAMETER = 2.1;
 
+// Portfolio Systems are read as architecture maps: ranks form horizontal columns on desktop
+// and vertical rows on mobile. The small virtual footprint keeps 5–6 ranks readable without
+// collapsing the scene into a top-to-bottom tower.
 const PROFILES: Record<SystemGraphProfile, LayoutProfile> = {
   desktop: {
     width: 100,
