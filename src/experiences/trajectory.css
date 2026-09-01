@@ -325,6 +325,15 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
   text-wrap: balance;
 }
 
+@media (min-width: 681px) {
+  .trajectory-entry--long-role h3 {
+    max-width: min(64vw, 980px);
+    font-size: clamp(3.4rem, 4.65vw, 5.1rem);
+    letter-spacing: -.045em;
+    text-wrap: wrap;
+  }
+}
+
 .trajectory-entry__context {
   translate: 0 var(--context-y);
   margin: 24px 0 0;
@@ -518,170 +527,8 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
   gap: 30px;
 }
 
-.trajectory-static-chrome__context span {
-  position: relative;
-  display: block;
-  padding-bottom: 30px;
-}
-
-.trajectory-static-chrome__context span::after,
-.trajectory-static-chrome__context span::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  height: 1px;
-}
-
-.trajectory-static-chrome__context span::after {
-  right: 0;
-  background: rgba(238, 234, 226, .18);
-}
-
-.trajectory-static-chrome__context span::before {
-  z-index: 1;
-  width: 42%;
-  background: rgba(238, 234, 226, .42);
-}
-
 .trajectory-static-chrome__focus {
   position: absolute;
   left: 29%;
-  top: 75.5%;
-}
-
-.trajectory-entry__context > div {
-  border-bottom-color: transparent;
-}
-
-.trajectory-entry__context > div::after,
-.trajectory-entry__context dt,
-.trajectory-entry__focus > h4 {
-  opacity: 0;
-}
-
-@media (max-width: 900px) {
-  .trajectory-axis,
-  .trajectory-years {
-    left: 11.5%;
-  }
-
-  .trajectory-entry {
-    left: 24%;
-    right: 4vw;
-  }
-
-  .trajectory-static-chrome__context {
-    left: 24%;
-    width: min(62vw, 560px);
-  }
-
-  .trajectory-static-chrome__focus {
-    left: 24%;
-  }
-
-  .trajectory-entry h3 {
-    max-width: 69vw;
-    font-size: clamp(3rem, 7.2vw, 5.6rem);
-  }
-
-  .trajectory-entry__context,
-  .trajectory-entry__statement {
-    width: min(62vw, 560px);
-  }
-
-  .trajectory-counter {
-    right: 2.5vw;
-  }
-}
-
-@media (max-width: 680px) {
-  .trajectory-intro {
-    width: 86vw;
-  }
-
-  .trajectory-header__meta {
-    display: none;
-  }
-
-  .trajectory-axis,
-  .trajectory-years {
-    left: 13%;
-  }
-
-  .trajectory-year span,
-  .trajectory-year b {
-    display: none;
-  }
-
-  .trajectory-static-chrome {
-    display: none;
-  }
-
-  .trajectory-entry {
-    left: 20%;
-    right: 4vw;
-    top: 45%;
-  }
-
-  .trajectory-entry h3 {
-    max-width: 76vw;
-    font-size: 9.6vw;
-  }
-
-  .trajectory-entry__context {
-    width: 72vw;
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-
-  .trajectory-entry__context > div {
-    border-bottom-color: rgba(238, 234, 226, calc(.05 + var(--entry-focus) * .13));
-  }
-
-  .trajectory-entry__context > div::after,
-  .trajectory-entry__context dt,
-  .trajectory-entry__focus > h4 {
-    opacity: 1;
-  }
-
-  .trajectory-entry__statement {
-    width: 72vw;
-    margin-top: 16px;
-  }
-
-  .trajectory-entry__statement p {
-    font-size: .9rem;
-  }
-
-  .trajectory-entry__focus {
-    grid-template-columns: 48px 1fr;
-  }
-
-  .trajectory-entry__focus ul {
-    gap: 7px 9px;
-  }
-
-  .trajectory-counter {
-    right: 12px;
-    bottom: 4vh;
-  }
-
-  .trajectory-counter__row {
-    font-size: 10vw;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ref-scene--chapter[data-chapter="career"] {
-    display: grid !important;
-  }
-
-  .ref-scene--career > :not(.trajectory-experience) {
-    display: initial !important;
-  }
-
-  .trajectory-experience {
-    display: none;
-  }
+  top: 83.5%;
 }
