@@ -14,24 +14,28 @@ test("agent session lifetime matches the visible page conversation", async () =>
   assert.equal((provider.match(/session_id: SESSION_ID/g) ?? []).length, 1);
 });
 
-test("BDD: the interface behaves as an active virtual presence", async () => {
+test("BDD: the agent presence is carried by one reactive liquid surface", async () => {
   const os = await read("src/components/agent/AgentOS.vue");
-  const presence = await read("src/components/agent/agent-presence.css");
+  const stage = await read("src/graphics/stageGraphics.ts");
 
-  assert.match(os, /ONLINE/);
+  assert.match(os, /READY/);
   assert.match(os, /LISTENING/);
-  assert.match(os, /REASONING/);
+  assert.match(os, /THINKING/);
   assert.match(os, /SPEAKING/);
   assert.match(os, /const engageAgent = \(\) =>/);
   assert.match(os, /inputEl\.value\?\.focus\(\)/);
   assert.match(os, /@pointerenter="wakeAgent/);
-  assert.match(os, /Conversation context active/);
-  assert.match(os, /NEW SESSION/);
-  assert.match(os, /DC \/ AGENT/);
 
-  assert.match(presence, /data-state="listening"/);
-  assert.match(presence, /data-state="thinking"/);
-  assert.match(presence, /data-state="speaking"/);
-  assert.match(presence, /agent-presence__orbit/);
-  assert.match(presence, /agent-session__state/);
+  assert.match(stage, /new THREE\.PlaneGeometry\(2\.2, 2\.2/);
+  assert.match(stage, /new THREE\.Mesh\(this\.agentGeometry, this\.agentMaterial\)/);
+  assert.match(stage, /float fbm\(vec2 p\)/);
+  assert.match(stage, /uniform float uMode/);
+  assert.match(stage, /listenMembrane/);
+  assert.match(stage, /voiceMembrane/);
+  assert.match(stage, /THREE\.NormalBlending/);
+
+  assert.doesNotMatch(stage, /THREE\.Points/);
+  assert.doesNotMatch(stage, /pointCount\s*=\s*4096/);
+  assert.doesNotMatch(stage, /createRing/);
+  assert.doesNotMatch(os, /agent-presence__orbit|agent-presence__reticle|agent-session__state/);
 });
