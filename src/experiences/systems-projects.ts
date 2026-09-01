@@ -1,4 +1,4 @@
-import type { GraphDiagramDefinition } from "../graph/model";
+import type { FlowDiagramDefinition } from "../graph/model";
 
 export type SystemProject = {
   id: string;
@@ -9,7 +9,7 @@ export type SystemProject = {
   detail: string;
   stack: string[];
   outcome: string;
-  graph: GraphDiagramDefinition;
+  graph: FlowDiagramDefinition;
 };
 
 export const systemsProjects: SystemProject[] = [
@@ -35,10 +35,10 @@ export const systemsProjects: SystemProject[] = [
     ],
     outcome: "General-purpose local agent · controlled autonomous execution",
     graph: {
-      kind: "graph",
+      kind: "flow",
       direction: "LR",
       nodes: [
-        { id: "request", label: "REQUEST" },
+        { id: "request", label: "REQUEST", role: "input" },
         { id: "router", label: "ROUTER" },
         { id: "reason", label: "REASON", kind: "accent" },
         { id: "tools", label: "TOOLS" },
@@ -70,16 +70,16 @@ export const systemsProjects: SystemProject[] = [
     stack: ["Python", "FastAPI", "Docling", "Local LLM", "Redis"],
     outcome: "Private by design · evidence-linked output",
     graph: {
-      kind: "graph",
+      kind: "flow",
       direction: "LR",
       nodes: [
-        { id: "document", label: "DOCUMENT" },
+        { id: "document", label: "DOCUMENT", role: "input" },
         { id: "segment", label: "SEGMENT" },
         { id: "rank", label: "RANK", kind: "accent" },
         { id: "extract", label: "EXTRACT" },
         { id: "validate", label: "VALIDATE" },
         { id: "review", label: "REVIEW" },
-        { id: "evidence", label: "EVIDENCE", kind: "accent" },
+        { id: "evidence", label: "EVIDENCE", kind: "accent", role: "output" },
       ],
       edges: [
         { from: "document", to: "segment" },
@@ -104,15 +104,15 @@ export const systemsProjects: SystemProject[] = [
     stack: ["Python", "Tool calling", "Schema RAG", "SQL policies", "Evaluation"],
     outcome: "Grounded questions · guarded execution",
     graph: {
-      kind: "graph",
+      kind: "flow",
       direction: "LR",
       nodes: [
-        { id: "question", label: "QUESTION" },
+        { id: "question", label: "QUESTION", role: "input" },
         { id: "intent", label: "INTENT", kind: "accent" },
         { id: "schema", label: "SCHEMA" },
         { id: "policy", label: "POLICY" },
         { id: "planner", label: "PLANNER" },
-        { id: "sql", label: "GUARDED SQL", kind: "accent" },
+        { id: "sql", label: "GUARDED SQL", kind: "accent", role: "output" },
       ],
       edges: [
         { from: "question", to: "intent" },
@@ -136,16 +136,16 @@ export const systemsProjects: SystemProject[] = [
     stack: ["MCP", "Python", "Market data", "Typed tools", "Agents"],
     outcome: "Signals organised as auditable tools",
     graph: {
-      kind: "graph",
+      kind: "flow",
       direction: "LR",
       nodes: [
-        { id: "agent", label: "AGENT" },
+        { id: "agent", label: "AGENT", role: "input" },
         { id: "contract", label: "TOOL CONTRACT", kind: "accent" },
         { id: "quote", label: "QUOTE" },
         { id: "history", label: "HISTORY" },
         { id: "signals", label: "SIGNALS" },
         { id: "typed", label: "TYPED RESULT" },
-        { id: "evidence", label: "EVIDENCE", kind: "accent" },
+        { id: "evidence", label: "EVIDENCE", kind: "accent", role: "output" },
       ],
       edges: [
         { from: "agent", to: "contract" },
@@ -171,17 +171,17 @@ export const systemsProjects: SystemProject[] = [
     stack: ["TypeScript", "Embeddings", "Hybrid search", "Catalog API", "Metrics"],
     outcome: "Faster discovery · explainable relevance",
     graph: {
-      kind: "graph",
+      kind: "flow",
       direction: "LR",
       nodes: [
-        { id: "need", label: "NEED" },
+        { id: "need", label: "NEED", role: "input" },
         { id: "attributes", label: "ATTRIBUTES", kind: "accent" },
         { id: "semantic", label: "SEMANTIC" },
         { id: "keyword", label: "KEYWORD" },
         { id: "vector", label: "VECTOR SET" },
         { id: "lexical", label: "LEXICAL SET" },
         { id: "rank", label: "RANK" },
-        { id: "explain", label: "EXPLAIN", kind: "accent" },
+        { id: "explain", label: "EXPLAIN", kind: "accent", role: "output" },
       ],
       edges: [
         { from: "need", to: "attributes" },
@@ -216,16 +216,16 @@ export const systemsProjects: SystemProject[] = [
     ],
     outcome: "Local trace evidence · zero cloud telemetry",
     graph: {
-      kind: "graph",
+      kind: "flow",
       direction: "LR",
       nodes: [
-        { id: "ingest", label: "SNAPSHOT" },
+        { id: "ingest", label: "SNAPSHOT", role: "input" },
         { id: "validate", label: "VALIDATE", kind: "accent" },
         { id: "normalize", label: "EXEC TREE" },
         { id: "sqlite", label: "SQLITE/WAL", kind: "accent" },
-        { id: "viewer", label: "LOCAL UI" },
-        { id: "search", label: "SEARCH" },
-        { id: "export", label: "EXPORT" },
+        { id: "viewer", label: "LOCAL UI", role: "output" },
+        { id: "search", label: "SEARCH", role: "output" },
+        { id: "export", label: "EXPORT", role: "output" },
       ],
       edges: [
         { from: "ingest", to: "validate", label: "SCHEMA" },
@@ -258,17 +258,17 @@ export const systemsProjects: SystemProject[] = [
     ],
     outcome: "Low-latency voice gateway · agent-agnostic boundary",
     graph: {
-      kind: "graph",
+      kind: "flow",
       direction: "LR",
       nodes: [
-        { id: "mic", label: "MIC" },
+        { id: "mic", label: "MIC", role: "input" },
         { id: "vad", label: "VAD / WAKE", kind: "accent" },
         { id: "stt", label: "STT" },
         { id: "acp", label: "ACP v1", kind: "accent" },
         { id: "agent", label: "AGENT" },
         { id: "cancel", label: "CANCEL" },
         { id: "tts", label: "KOKORO" },
-        { id: "speaker", label: "SPEAKER" },
+        { id: "speaker", label: "SPEAKER", role: "output" },
       ],
       edges: [
         { from: "mic", to: "vad" },
