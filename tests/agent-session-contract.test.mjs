@@ -40,7 +40,8 @@ test("BDD: speech energy is independent from general presence activity", async (
 
   assert.match(os, /pulseAgentSpeech/);
   assert.match(os, /speechChars/);
-  assert.match(os, /const boundary = \/\[\\s,.!?;:\]\//);
+  assert.match(os, /const boundary =/);
+  assert.match(os, /if \(!boundary && speechChars < 6\) return/);
   assert.match(stage, /speechTarget/);
   assert.match(stage, /speechResponse/);
   assert.match(stage, /pulseAgentSpeech/);
