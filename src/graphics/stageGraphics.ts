@@ -2,42 +2,37 @@ import * as THREE from "three";
 import { narrativeRuntime, type NarrativeScene } from "../experiences/narrative-runtime";
 import { agentLiquidFragment, agentLiquidVertex } from "./agent-liquid-shader";
 import { AgentParticleCloud } from "./agent-particle-cloud";
+import {
+  pulseAgentInteraction as pulseVisualInteraction,
+  pulseAgentSpeech as pulseVisualSpeech,
+  pulseAgentVisual as pulseVisualActivity,
+  setAgentPointer as setVisualPointer,
+  setAgentVisualPhase as setVisualPhase,
+  updateAgentVisual,
+  type AgentVisualPhase,
+} from "./agent-visual-controller";
 
-export type AgentVisualPhase = "idle" | "listening" | "thinking" | "speaking" | "error";
-
-interface AgentSignalState {
-  phase: AgentVisualPhase;
-  activity: number;
-  activityTarget: number;
-  speech: number;
-  speechTarget: number;
-}
-
-const agentSignal: AgentSignalState = {
-  phase: "idle",
-  activity: 0.10,
-  activityTarget: 0.10,
-  speech: 0,
-  speechTarget: 0,
-};
+export type { AgentVisualPhase } from "./agent-visual-controller";
 
 let mountedGraphics: StageGraphics | null = null;
 
 export const setAgentVisualPhase = (phase: AgentVisualPhase): void => {
-  agentSignal.phase = phase;
-  if (phase !== "speaking") agentSignal.speechTarget = 0;
+  setVisualPhase(phase);
   mountedGraphics?.wake();
 };
 
 export const pulseAgentVisual = (strength = 0.3): void => {
-  const impulse = Math.min(1, Math.max(0, strength));
-  agentSignal.activityTarget = Math.max(agentSignal.activityTarget, impulse);
+  pulseVisualActivity(strength);
   mountedGraphics?.wake();
 };
 
 export const pulseAgentSpeech = (strength = 0.6): void => {
-  const impulse = Math.min(1, Math.max(0, strength));
-  agentSignal.speechTarget = Math.max(agentSignal.speechTarget, impulse);
+  pulseVisualSpeech(strength);
+  mountedGraphics?.wake();
+};
+
+export const pulseAgentInteraction = (strength = 0.75): void => {
+  pulseVisualInteraction(strength);
   mountedGraphics?.wake();
 };
 
@@ -250,30 +245,6 @@ const atmosphereForScene = (scene: NarrativeScene) => {
   }
 };
 
-const phaseMode = (phase: AgentVisualPhase): number => {
-  if (phase === "listening") return 1;
-  if (phase === "thinking") return 2;
-  if (phase === "speaking") return 3;
-  if (phase === "error") return 4;
-  return 0;
-};
-
-const phaseActivity = (phase: AgentVisualPhase): number => {
-  if (phase === "listening") return 0.14;
-  if (phase === "thinking") return 0.28;
-  if (phase === "speaking") return 0.14;
-  if (phase === "error") return 0.30;
-  return 0.10;
-};
-
-const phaseMotionRate = (phase: AgentVisualPhase): number => {
-  if (phase === "thinking") return 0.54;
-  if (phase === "speaking") return 0.34;
-  if (phase === "listening") return 0.31;
-  if (phase === "error") return 0.42;
-  return 0.26;
-};
-
 class StageGraphics {
   private readonly stage: HTMLElement;
   private readonly canvas: HTMLCanvasElement;
@@ -299,8 +270,6 @@ class StageGraphics {
   private atmosphereTargetIntensity = 1;
   private atmosphereTurbulence = 0.48;
   private atmosphereTargetTurbulence = 0.48;
-  private agentMode = 0;
-  private agentTime = 0;
   private transitionActive = false;
   private pointer = new THREE.Vector2(0.72, 0.34);
   private pointerTarget = new THREE.Vector2(0.72, 0.34);
@@ -309,6 +278,7 @@ class StageGraphics {
   private lastPointer = new THREE.Vector2(0.72, 0.34);
   private lastPointerTime = performance.now();
   private pointerHotUntil = 0;
+  private agentScreenCenter = new THREE.Vector2(0.28, 0.50);
   private frame = 0;
   private timer = 0;
   private lastRenderTime = performance.now();
@@ -373,7 +343,7 @@ class StageGraphics {
       blending: THREE.AdditiveBlending,
       uniforms: {
         uTime: { value: 0 },
-        uActivity: { value: agentSignal.activity },
+        uActivity: { value: 0.10 },
         uSpeech: { value: 0 },
         uMode: { value: 0 },
         uPointer: { value: this.pointer.clone() },
@@ -453,6 +423,7 @@ class StageGraphics {
     this.agentGroup.position.x = desktop ? -1.47 : 0;
     this.agentGroup.position.y = desktop ? -0.02 : 0.18;
     this.agentGroup.scale.setScalar(desktop ? 1.08 : 0.80);
+    this.agentScreenCenter.set(desktop ? 0.28 : 0.50, desktop ? 0.50 : 0.40);
     this.wake();
   };
 
@@ -471,6 +442,12 @@ class StageGraphics {
     this.lastPointer.copy(this.pointerTarget);
     this.lastPointerTime = now;
     this.pointerHotUntil = now + 700;
+
+    const distanceToOrb = this.pointerTarget.distanceTo(this.agentScreenCenter);
+    const force = Math.exp(-distanceToOrb * 4.4);
+    const localX = Math.max(-1, Math.min(1, (x - this.agentScreenCenter.x) * 3.5));
+    const localY = Math.max(-1, Math.min(1, (y - this.agentScreenCenter.y) * 3.5));
+    setVisualPointer(localX, localY, this.pointerVelocityTarget, force);
     this.wake();
   };
 
@@ -511,18 +488,7 @@ class StageGraphics {
       dt,
     );
 
-    const baseActivity = phaseActivity(agentSignal.phase);
-    const excessActivity = Math.max(0, agentSignal.activityTarget - baseActivity);
-    agentSignal.activityTarget = baseActivity + excessActivity * Math.exp(-7.0 * dt);
-    agentSignal.activity = damp(agentSignal.activity, agentSignal.activityTarget, 8.0, dt);
-
-    agentSignal.speechTarget *= Math.exp(-7.2 * dt);
-    const speechResponse = agentSignal.speechTarget > agentSignal.speech ? 24.0 : 9.0;
-    agentSignal.speech = damp(agentSignal.speech, agentSignal.speechTarget, speechResponse, dt);
-    if (agentSignal.phase !== "speaking") agentSignal.speech *= Math.exp(-12.0 * dt);
-
-    this.agentMode = damp(this.agentMode, phaseMode(agentSignal.phase), 3.4, dt);
-    this.agentTime += dt * phaseMotionRate(agentSignal.phase);
+    const signals = updateAgentVisual(dt);
 
     this.atmosphereMaterial.uniforms.uPointer.value.copy(this.pointer);
     this.atmosphereMaterial.uniforms.uVelocity.value = this.pointerVelocity;
@@ -531,22 +497,22 @@ class StageGraphics {
     this.atmosphereMaterial.uniforms.uTurbulence.value = this.atmosphereTurbulence;
 
     this.transitionMaterial.uniforms.uTime.value = elapsed;
-    this.agentMaterial.uniforms.uTime.value = this.agentTime;
-    this.agentMaterial.uniforms.uActivity.value = agentSignal.activity;
-    this.agentMaterial.uniforms.uSpeech.value = agentSignal.speech;
-    this.agentMaterial.uniforms.uMode.value = this.agentMode;
+    this.agentMaterial.uniforms.uTime.value = signals.time;
+    this.agentMaterial.uniforms.uActivity.value = signals.activity;
+    this.agentMaterial.uniforms.uSpeech.value = signals.speech;
+    this.agentMaterial.uniforms.uMode.value = signals.mode;
     this.agentMaterial.uniforms.uPointer.value.copy(this.pointer);
 
-    this.agentParticles.update({
-      time: this.agentTime,
-      activity: agentSignal.activity,
-      speech: agentSignal.speech,
-      mode: this.agentMode,
-      dt,
-    });
+    this.agentParticles.update(signals, dt);
 
-    const speaking = agentSignal.phase === "speaking" ? 1 : 0;
-    this.agentMesh.scale.setScalar(0.96 + agentSignal.speech * speaking * 0.018);
+    const speaking = signals.phase === "speaking" ? 1 : 0;
+    const fluidScale =
+      0.96 -
+      signals.thinkingBlend * 0.16 +
+      signals.speech * speaking * 0.035 -
+      signals.interaction * 0.025;
+    this.agentMesh.scale.setScalar(fluidScale);
+    this.agentMesh.position.y = -signals.thinkingBlend * 0.22;
 
     this.renderer.clear();
     this.renderer.render(this.atmosphereScene, this.atmosphereCamera);
