@@ -13,3 +13,25 @@ test("agent session lifetime matches the visible page conversation", async () =>
   assert.doesNotMatch(provider, /sessionStorage|SESSION_KEY|getItem\(|setItem\(/);
   assert.equal((provider.match(/session_id: SESSION_ID/g) ?? []).length, 1);
 });
+
+test("BDD: the interface behaves as an active virtual presence", async () => {
+  const os = await read("src/components/agent/AgentOS.vue");
+  const presence = await read("src/components/agent/agent-presence.css");
+
+  assert.match(os, /ONLINE/);
+  assert.match(os, /LISTENING/);
+  assert.match(os, /REASONING/);
+  assert.match(os, /SPEAKING/);
+  assert.match(os, /const engageAgent = \(\) =>/);
+  assert.match(os, /inputEl\.value\?\.focus\(\)/);
+  assert.match(os, /@pointerenter="wakeAgent/);
+  assert.match(os, /Conversation context active/);
+  assert.match(os, /NEW SESSION/);
+  assert.match(os, /DC \/ AGENT/);
+
+  assert.match(presence, /data-state="listening"/);
+  assert.match(presence, /data-state="thinking"/);
+  assert.match(presence, /data-state="speaking"/);
+  assert.match(presence, /agent-presence__orbit/);
+  assert.match(presence, /agent-session__state/);
+});
