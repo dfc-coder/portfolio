@@ -9,6 +9,8 @@ import type { SystemProject } from "../../experiences/systems-projects";
 
 const props = defineProps<{ project: SystemProject }>();
 
+// Temporary validation switch. Fixed mode remains the production baseline
+// until the automatic engine is visually approved across every System.
 const automaticLayout =
   typeof window !== "undefined" &&
   new URLSearchParams(window.location.search).get("diagramEngine") === "auto";
