@@ -1,19 +1,4 @@
-export type GraphNode = {
-  id: string;
-  label: string;
-  x: number;
-  y: number;
-  step: number;
-  accent?: boolean;
-};
-
-export type GraphEdge = {
-  from: string;
-  to: string;
-  step: number;
-  label?: string;
-  path?: string;
-};
+import type { SystemGraphDefinition } from "../graph/system-graph";
 
 export type SystemProject = {
   id: string;
@@ -24,10 +9,7 @@ export type SystemProject = {
   detail: string;
   stack: string[];
   outcome: string;
-  graph: {
-    nodes: GraphNode[];
-    edges: GraphEdge[];
-  };
+  graph: SystemGraphDefinition;
 };
 
 export const systemsProjects: SystemProject[] = [
@@ -53,24 +35,25 @@ export const systemsProjects: SystemProject[] = [
     ],
     outcome: "General-purpose local agent · controlled autonomous execution",
     graph: {
+      direction: "LR",
       nodes: [
-        { id: "request", label: "REQUEST", x: 6, y: 32, step: 0 },
-        { id: "router", label: "ROUTER", x: 20, y: 32, step: 1 },
-        { id: "reason", label: "REASON", x: 42, y: 18, step: 2, accent: true },
-        { id: "tools", label: "TOOLS", x: 64, y: 18, step: 3 },
-        { id: "verify", label: "VERIFY", x: 64, y: 46, step: 4 },
-        { id: "reflect", label: "REFLECT", x: 42, y: 46, step: 5, accent: true },
-        { id: "model", label: "LOCAL MODEL", x: 88, y: 32, step: 6 },
+        { id: "request", label: "REQUEST", step: 0 },
+        { id: "router", label: "ROUTER", step: 1 },
+        { id: "reason", label: "REASON", step: 2, accent: true },
+        { id: "tools", label: "TOOLS", step: 3 },
+        { id: "verify", label: "VERIFY", step: 4 },
+        { id: "reflect", label: "REFLECT", step: 5, accent: true },
+        { id: "model", label: "LOCAL MODEL", step: 6 },
       ],
       edges: [
         { from: "request", to: "router", step: 0 },
-        { from: "router", to: "reason", step: 1, label: "PLAN", path: "M 20 32 H 31 V 18 H 42" },
+        { from: "router", to: "reason", step: 1, label: "PLAN" },
         { from: "reason", to: "tools", step: 2 },
-        { from: "tools", to: "verify", step: 3, label: "RESULT", path: "M 64 18 V 46" },
+        { from: "tools", to: "verify", step: 3, label: "RESULT" },
         { from: "verify", to: "reflect", step: 4 },
-        { from: "reflect", to: "reason", step: 5, label: "RETRY", path: "M 42 46 V 18" },
-        { from: "verify", to: "model", step: 6, path: "M 64 46 H 76 V 32 H 88" },
-        { from: "model", to: "reason", step: 7, path: "M 88 32 H 78 V 9 H 42 V 18" },
+        { from: "reflect", to: "reason", step: 5, label: "RETRY", kind: "feedback" },
+        { from: "verify", to: "model", step: 6 },
+        { from: "model", to: "reason", step: 7, kind: "feedback" },
       ],
     },
   },
@@ -86,23 +69,24 @@ export const systemsProjects: SystemProject[] = [
     stack: ["Python", "FastAPI", "Docling", "Local LLM", "Redis"],
     outcome: "Private by design · evidence-linked output",
     graph: {
+      direction: "LR",
       nodes: [
-        { id: "document", label: "DOCUMENT", x: 7, y: 18, step: 0 },
-        { id: "segment", label: "SEGMENT", x: 25, y: 18, step: 1 },
-        { id: "rank", label: "RANK", x: 43, y: 18, step: 2, accent: true },
-        { id: "extract", label: "EXTRACT", x: 61, y: 18, step: 3 },
-        { id: "validate", label: "VALIDATE", x: 79, y: 18, step: 4 },
-        { id: "review", label: "REVIEW", x: 43, y: 49, step: 5 },
-        { id: "evidence", label: "EVIDENCE", x: 82, y: 49, step: 6, accent: true },
+        { id: "document", label: "DOCUMENT", step: 0 },
+        { id: "segment", label: "SEGMENT", step: 1 },
+        { id: "rank", label: "RANK", step: 2, accent: true },
+        { id: "extract", label: "EXTRACT", step: 3 },
+        { id: "validate", label: "VALIDATE", step: 4 },
+        { id: "review", label: "REVIEW", step: 5 },
+        { id: "evidence", label: "EVIDENCE", step: 6, accent: true },
       ],
       edges: [
         { from: "document", to: "segment", step: 0 },
         { from: "segment", to: "rank", step: 1 },
         { from: "rank", to: "extract", step: 2, label: "FIELD" },
         { from: "extract", to: "validate", step: 3 },
-        { from: "segment", to: "review", step: 4, path: "M 25 18 V 49 H 43" },
-        { from: "review", to: "extract", step: 5, label: "UNCERTAIN", path: "M 43 49 H 52 V 18 H 61" },
-        { from: "validate", to: "evidence", step: 6, path: "M 79 18 H 82 V 49" },
+        { from: "segment", to: "review", step: 4 },
+        { from: "review", to: "extract", step: 5, label: "UNCERTAIN" },
+        { from: "validate", to: "evidence", step: 6 },
       ],
     },
   },
@@ -118,20 +102,21 @@ export const systemsProjects: SystemProject[] = [
     stack: ["Python", "Tool calling", "Schema RAG", "SQL policies", "Evaluation"],
     outcome: "Grounded questions · guarded execution",
     graph: {
+      direction: "LR",
       nodes: [
-        { id: "question", label: "QUESTION", x: 10, y: 10, step: 0 },
-        { id: "intent", label: "INTENT", x: 35, y: 10, step: 1, accent: true },
-        { id: "schema", label: "SCHEMA", x: 24, y: 32, step: 2 },
-        { id: "policy", label: "POLICY", x: 47, y: 32, step: 3 },
-        { id: "planner", label: "PLANNER", x: 35, y: 53, step: 4 },
-        { id: "sql", label: "GUARDED SQL", x: 79, y: 53, step: 5, accent: true },
+        { id: "question", label: "QUESTION", step: 0 },
+        { id: "intent", label: "INTENT", step: 1, accent: true },
+        { id: "schema", label: "SCHEMA", step: 2 },
+        { id: "policy", label: "POLICY", step: 3 },
+        { id: "planner", label: "PLANNER", step: 4 },
+        { id: "sql", label: "GUARDED SQL", step: 5, accent: true },
       ],
       edges: [
         { from: "question", to: "intent", step: 0 },
-        { from: "intent", to: "schema", step: 1, label: "GROUND", path: "M 35 10 V 20 H 24 V 32" },
-        { from: "intent", to: "policy", step: 2, label: "BOUND", path: "M 35 10 V 20 H 47 V 32" },
-        { from: "schema", to: "planner", step: 3, path: "M 24 32 V 43 H 35 V 53" },
-        { from: "policy", to: "planner", step: 4, path: "M 47 32 V 43 H 35 V 53" },
+        { from: "intent", to: "schema", step: 1, label: "GROUND" },
+        { from: "intent", to: "policy", step: 2, label: "BOUND" },
+        { from: "schema", to: "planner", step: 3 },
+        { from: "policy", to: "planner", step: 4 },
         { from: "planner", to: "sql", step: 5 },
       ],
     },
@@ -148,23 +133,24 @@ export const systemsProjects: SystemProject[] = [
     stack: ["MCP", "Python", "Market data", "Typed tools", "Agents"],
     outcome: "Signals organised as auditable tools",
     graph: {
+      direction: "LR",
       nodes: [
-        { id: "agent", label: "AGENT", x: 7, y: 32, step: 0 },
-        { id: "contract", label: "TOOL CONTRACT", x: 28, y: 32, step: 1, accent: true },
-        { id: "quote", label: "QUOTE", x: 53, y: 10, step: 2 },
-        { id: "history", label: "HISTORY", x: 53, y: 32, step: 3 },
-        { id: "signals", label: "SIGNALS", x: 53, y: 54, step: 4 },
-        { id: "typed", label: "TYPED RESULT", x: 76, y: 32, step: 5 },
-        { id: "evidence", label: "EVIDENCE", x: 92, y: 32, step: 6, accent: true },
+        { id: "agent", label: "AGENT", step: 0 },
+        { id: "contract", label: "TOOL CONTRACT", step: 1, accent: true },
+        { id: "quote", label: "QUOTE", step: 2 },
+        { id: "history", label: "HISTORY", step: 3 },
+        { id: "signals", label: "SIGNALS", step: 4 },
+        { id: "typed", label: "TYPED RESULT", step: 5 },
+        { id: "evidence", label: "EVIDENCE", step: 6, accent: true },
       ],
       edges: [
         { from: "agent", to: "contract", step: 0 },
-        { from: "contract", to: "quote", step: 1, path: "M 28 32 H 39 V 10 H 53" },
+        { from: "contract", to: "quote", step: 1 },
         { from: "contract", to: "history", step: 2 },
-        { from: "contract", to: "signals", step: 3, path: "M 28 32 H 39 V 54 H 53" },
-        { from: "quote", to: "typed", step: 4, path: "M 53 10 H 65 V 32 H 76" },
+        { from: "contract", to: "signals", step: 3 },
+        { from: "quote", to: "typed", step: 4 },
         { from: "history", to: "typed", step: 5 },
-        { from: "signals", to: "typed", step: 6, path: "M 53 54 H 65 V 32 H 76" },
+        { from: "signals", to: "typed", step: 6 },
         { from: "typed", to: "evidence", step: 7 },
       ],
     },
@@ -181,24 +167,25 @@ export const systemsProjects: SystemProject[] = [
     stack: ["TypeScript", "Embeddings", "Hybrid search", "Catalog API", "Metrics"],
     outcome: "Faster discovery · explainable relevance",
     graph: {
+      direction: "LR",
       nodes: [
-        { id: "need", label: "NEED", x: 7, y: 32, step: 0 },
-        { id: "attributes", label: "ATTRIBUTES", x: 23, y: 32, step: 1, accent: true },
-        { id: "semantic", label: "SEMANTIC", x: 42, y: 13, step: 2 },
-        { id: "keyword", label: "KEYWORD", x: 42, y: 51, step: 3 },
-        { id: "vector", label: "VECTOR SET", x: 62, y: 13, step: 4 },
-        { id: "lexical", label: "LEXICAL SET", x: 62, y: 51, step: 5 },
-        { id: "rank", label: "RANK", x: 79, y: 32, step: 6 },
-        { id: "explain", label: "EXPLAIN", x: 93, y: 32, step: 7, accent: true },
+        { id: "need", label: "NEED", step: 0 },
+        { id: "attributes", label: "ATTRIBUTES", step: 1, accent: true },
+        { id: "semantic", label: "SEMANTIC", step: 2 },
+        { id: "keyword", label: "KEYWORD", step: 3 },
+        { id: "vector", label: "VECTOR SET", step: 4 },
+        { id: "lexical", label: "LEXICAL SET", step: 5 },
+        { id: "rank", label: "RANK", step: 6 },
+        { id: "explain", label: "EXPLAIN", step: 7, accent: true },
       ],
       edges: [
         { from: "need", to: "attributes", step: 0 },
-        { from: "attributes", to: "semantic", step: 1, label: "EMBED", path: "M 23 32 H 31 V 13 H 42" },
-        { from: "attributes", to: "keyword", step: 2, label: "MATCH", path: "M 23 32 H 31 V 51 H 42" },
+        { from: "attributes", to: "semantic", step: 1, label: "EMBED" },
+        { from: "attributes", to: "keyword", step: 2, label: "MATCH" },
         { from: "semantic", to: "vector", step: 3 },
         { from: "keyword", to: "lexical", step: 4 },
-        { from: "vector", to: "rank", step: 5, path: "M 62 13 H 70 V 32 H 79" },
-        { from: "lexical", to: "rank", step: 6, path: "M 62 51 H 70 V 32 H 79" },
+        { from: "vector", to: "rank", step: 5 },
+        { from: "lexical", to: "rank", step: 6 },
         { from: "rank", to: "explain", step: 7 },
       ],
     },
