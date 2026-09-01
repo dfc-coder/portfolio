@@ -46,9 +46,10 @@ export interface Point {
   readonly y: number;
 }
 
-export type ScenePath =
-  | { readonly kind: 'polyline'; readonly points: readonly Point[] }
-  | { readonly kind: 'curve'; readonly points: readonly Point[] };
+export interface ScenePath {
+  readonly kind: 'polyline';
+  readonly points: readonly Point[];
+}
 
 export interface GraphSceneNode {
   readonly id: string;
