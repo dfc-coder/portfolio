@@ -1,0 +1,26 @@
+.systems-graph-variant {
+  position: absolute;
+  inset: 0;
+}
+
+.systems-graph-variant--mobile {
+  display: none;
+}
+
+.systems-graph__edge.is-feedback {
+  stroke-linecap: round;
+}
+
+.systems-graph__edge-label.is-feedback {
+  font-style: italic;
+}
+
+@media (max-width: 760px) {
+  .systems-graph-variant--desktop {
+    display: none;
+  }
+
+  .systems-graph-variant--mobile {
+    display: block;
+  }
+}
