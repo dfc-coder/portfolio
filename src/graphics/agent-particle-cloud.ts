@@ -14,6 +14,8 @@ const particleVertex = /* glsl */ `
   uniform float uTone;
   uniform float uThinkingBlend;
   uniform vec2 uPointer;
+  uniform vec2 uPointerSlow;
+  uniform vec2 uPointerDelta;
   uniform float uPointerForce;
   uniform float uPointerVelocity;
 
@@ -88,18 +90,43 @@ const particleVertex = /* glsl */ `
     float breath = sin(uTime * 0.45 + aSeed * 2.2) * 0.5 + 0.5;
     p += direction * breath * 0.009 * (1.0 - uThinkingBlend * 0.52);
 
-    // LISTENING / POINTER ATTENTION ----------------------------------------
-    // Nearby particles lean toward the pointer. Faster cursor motion leaves a
-    // short tangential wake. Curious/listening states amplify this response.
+    // POINTER ATTENTION -----------------------------------------------------
+    // Fast pointer = local membrane deformation. Slow pointer = broad body lean.
+    // Cursor delta + velocity create a wake, so the presence feels dragged by
+    // motion instead of snapping toward an instantaneous coordinate.
+    float pointerGain =
+      0.78 +
+      listening * 0.78 +
+      curious * 0.18 +
+      speaking * 0.22 -
+      thinking * 0.30;
+
     vec2 toPointer = uPointer - p.xy;
     float pointerDistance = length(toPointer);
-    float proximity = exp(-pointerDistance * 2.65) * uPointerForce;
-    float attention = 0.34 + listening * 0.92 + curious * 0.16;
-    p.xy += toPointer * proximity * attention * 0.092;
-
+    float proximity = exp(-pointerDistance * 1.92) * uPointerForce;
     vec2 safeDirection = pointerDistance > 0.0001 ? toPointer / pointerDistance : vec2(0.0, 1.0);
-    vec2 wakeDirection = vec2(-safeDirection.y, safeDirection.x);
-    p.xy += wakeDirection * proximity * uPointerVelocity * (0.030 + listening * 0.026);
+
+    vec2 toSlowPointer = uPointerSlow - p.xy;
+    float broadDistance = length(toSlowPointer);
+    float broadField = exp(-broadDistance * 0.92) * uPointerForce;
+
+    // Deep local pull: nearby particles move toward the cursor and slightly
+    // toward the viewer, creating a visible dent / bulge through the cloud.
+    p.xy += toPointer * proximity * pointerGain * 0.145;
+    p.xy += toSlowPointer * broadField * pointerGain * 0.022;
+    p.z += proximity * pointerGain * (0.045 + listening * 0.025);
+
+    // Directional wake follows actual pointer movement instead of an arbitrary
+    // tangent. A secondary perpendicular component gives the drag a fluid curl.
+    vec2 drag = uPointerDelta * proximity * uPointerVelocity;
+    vec2 curl = vec2(-uPointerDelta.y, uPointerDelta.x) * proximity * uPointerVelocity;
+    p.xy += drag * pointerGain * (0.072 + listening * 0.036);
+    p.xy += curl * pointerGain * (0.026 + curious * 0.014);
+
+    // A soft pressure ring makes the interaction propagate beyond the nearest
+    // points, while remaining subordinate to the actual state pose.
+    float pressureWave = sin(pointerDistance * 8.5 - uTime * 2.6 + aSeed * 0.6);
+    p += direction * pressureWave * proximity * pointerGain * 0.020;
 
     float listenRipple = sin(radius * 11.0 - uTime * 2.2 + aSeed * 3.0);
     p += direction * listenRipple * 0.025 * listening * (0.55 + uPointerForce * 0.45);
@@ -137,11 +164,14 @@ const particleVertex = /* glsl */ `
       aSize * 0.35 +
       uActivity * 0.09 +
       speechPacket * speechAmplitude * 0.34 +
+      proximity * pointerGain * 0.14 +
       uThinkingBlend * haloParticle * 0.08;
-    gl_PointSize = clamp(pointScale * perspective, 1.25, 11.5);
+    gl_PointSize = clamp(pointScale * perspective, 1.25, 12.4);
 
     float stateEnergy =
-      listening * (abs(listenRipple) * 0.10 + proximity * 0.18) +
+      listening * (abs(listenRipple) * 0.10 + proximity * 0.22) +
+      proximity * pointerGain * 0.20 +
+      uPointerVelocity * proximity * 0.12 +
       focused * uThinkingBlend * haloParticle * 0.22 +
       speechPacket * speechAmplitude * 0.72 +
       uInteraction * 0.18 +
@@ -268,6 +298,8 @@ export class AgentParticleCloud {
         uTone: { value: 0 },
         uThinkingBlend: { value: 0 },
         uPointer: { value: new THREE.Vector2() },
+        uPointerSlow: { value: new THREE.Vector2() },
+        uPointerDelta: { value: new THREE.Vector2() },
         uPointerForce: { value: 0 },
         uPointerVelocity: { value: 0 },
       },
@@ -285,25 +317,37 @@ export class AgentParticleCloud {
     this.material.uniforms.uMode.value = signals.mode;
     this.material.uniforms.uTone.value = signals.toneMode;
     this.material.uniforms.uThinkingBlend.value = signals.thinkingBlend;
-    this.material.uniforms.uPointer.value.set(signals.pointerX, signals.pointerY);
+    this.material.uniforms.uPointer.value.set(signals.pointerFastX, signals.pointerFastY);
+    this.material.uniforms.uPointerSlow.value.set(signals.pointerSlowX, signals.pointerSlowY);
+    this.material.uniforms.uPointerDelta.value.set(signals.pointerDx, signals.pointerDy);
     this.material.uniforms.uPointerForce.value = signals.pointerForce;
     this.material.uniforms.uPointerVelocity.value = signals.pointerVelocity;
 
     const thinking = signals.thinkingBlend;
     const speaking = signals.phase === "speaking" ? 1 : 0;
+    const listening = signals.phase === "listening" ? 1 : 0;
     const targetRotation = 0.030 + thinking * 0.020 + speaking * 0.015;
     this.rotationSpeed += (targetRotation - this.rotationSpeed) * (1 - Math.exp(-3.2 * dt));
     this.baseRotationY += this.rotationSpeed * dt;
 
-    const attention = signals.pointerForce * (signals.phase === "listening" ? 1 : 0.42);
-    this.points.rotation.y = this.baseRotationY + signals.pointerX * attention * 0.13;
-    this.points.rotation.x =
-      Math.sin(signals.time * 0.14) * 0.035 - signals.pointerY * attention * 0.085;
-    this.points.rotation.z = signals.pointerX * signals.pointerVelocity * attention * 0.018;
+    // Slow attention steers the full particle body. The shader's fast field then
+    // adds the local deformation, so the two layers do not fight each other.
+    const attentionGain = listening ? 1.0 : speaking ? 0.72 : thinking ? 0.28 : 0.80;
+    const attention = signals.pointerForce * attentionGain;
+    const targetY = this.baseRotationY + signals.pointerSlowX * attention * 0.22;
+    const targetX = Math.sin(signals.time * 0.14) * 0.035 - signals.pointerSlowY * attention * 0.16;
+    const targetZ = signals.pointerDx * signals.pointerVelocity * attention * 0.035;
 
-    const speechScale = 1 + signals.speech * speaking * 0.052;
+    this.points.rotation.y += (targetY - this.points.rotation.y) * (1 - Math.exp(-4.2 * dt));
+    this.points.rotation.x += (targetX - this.points.rotation.x) * (1 - Math.exp(-4.2 * dt));
+    this.points.rotation.z += (targetZ - this.points.rotation.z) * (1 - Math.exp(-6.0 * dt));
+
+    // Larger baseline presence. Speech and direct interaction still modulate
+    // around this base instead of being responsible for the apparent size.
+    const basePresenceScale = 1.20;
+    const speechScale = 1 + signals.speech * speaking * 0.060;
     const interactionScale = 1 - signals.interaction * 0.042;
-    this.points.scale.setScalar(speechScale * interactionScale);
+    this.points.scale.setScalar(basePresenceScale * speechScale * interactionScale);
   }
 
   dispose(): void {
