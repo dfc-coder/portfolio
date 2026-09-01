@@ -14,6 +14,12 @@ export type AgentVisualSignals = {
   thinkingBlend: number;
   pointerX: number;
   pointerY: number;
+  pointerFastX: number;
+  pointerFastY: number;
+  pointerSlowX: number;
+  pointerSlowY: number;
+  pointerDx: number;
+  pointerDy: number;
   pointerForce: number;
   pointerVelocity: number;
 };
@@ -22,11 +28,14 @@ type ControllerState = AgentVisualSignals & {
   activityTarget: number;
   speechTarget: number;
   interactionTarget: number;
+  pointerTargetX: number;
+  pointerTargetY: number;
   pointerForceTarget: number;
   pointerVelocityTarget: number;
 };
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
+const clampSigned = (value: number) => Math.max(-1, Math.min(1, value));
 
 const damp = (current: number, target: number, response: number, dt: number) =>
   current + (target - current) * (1 - Math.exp(-response * dt));
@@ -83,11 +92,19 @@ const state: ControllerState = {
   thinkingBlend: 0,
   pointerX: 0,
   pointerY: 0,
+  pointerFastX: 0,
+  pointerFastY: 0,
+  pointerSlowX: 0,
+  pointerSlowY: 0,
+  pointerDx: 0,
+  pointerDy: 0,
   pointerForce: 0,
   pointerVelocity: 0,
   activityTarget: 0.10,
   speechTarget: 0,
   interactionTarget: 0,
+  pointerTargetX: 0,
+  pointerTargetY: 0,
   pointerForceTarget: 0,
   pointerVelocityTarget: 0,
 };
@@ -116,8 +133,8 @@ export const setAgentPointer = (
   velocity: number,
   force: number,
 ): void => {
-  state.pointerX = Math.max(-1, Math.min(1, x));
-  state.pointerY = Math.max(-1, Math.min(1, y));
+  state.pointerTargetX = clampSigned(x);
+  state.pointerTargetY = clampSigned(y);
   state.pointerVelocityTarget = Math.max(state.pointerVelocityTarget, clamp01(velocity));
   state.pointerForceTarget = clamp01(force);
 };
@@ -137,9 +154,26 @@ export const updateAgentVisual = (dt: number): AgentVisualSignals => {
   const interactionResponse = state.interactionTarget > state.interaction ? 18.0 : 6.0;
   state.interaction = damp(state.interaction, state.interactionTarget, interactionResponse, dt);
 
-  state.pointerForce = damp(state.pointerForce, state.pointerForceTarget, 8.0, dt);
-  state.pointerVelocity = damp(state.pointerVelocity, state.pointerVelocityTarget, 12.0, dt);
-  state.pointerVelocityTarget *= Math.exp(-8.0 * dt);
+  // Two pointer followers create depth: the fast signal deforms nearby particles,
+  // while the slow signal moves the whole presence with deliberate inertia.
+  const previousFastX = state.pointerFastX;
+  const previousFastY = state.pointerFastY;
+  state.pointerFastX = damp(state.pointerFastX, state.pointerTargetX, 10.5, dt);
+  state.pointerFastY = damp(state.pointerFastY, state.pointerTargetY, 10.5, dt);
+  state.pointerSlowX = damp(state.pointerSlowX, state.pointerTargetX, 3.2, dt);
+  state.pointerSlowY = damp(state.pointerSlowY, state.pointerTargetY, 3.2, dt);
+
+  const deltaScale = 0.075 / Math.max(dt, 0.001);
+  const targetDx = clampSigned((state.pointerFastX - previousFastX) * deltaScale);
+  const targetDy = clampSigned((state.pointerFastY - previousFastY) * deltaScale);
+  state.pointerDx = damp(state.pointerDx, targetDx, 9.0, dt);
+  state.pointerDy = damp(state.pointerDy, targetDy, 9.0, dt);
+
+  state.pointerX = state.pointerFastX;
+  state.pointerY = state.pointerFastY;
+  state.pointerForce = damp(state.pointerForce, state.pointerForceTarget, 5.2, dt);
+  state.pointerVelocity = damp(state.pointerVelocity, state.pointerVelocityTarget, 9.0, dt);
+  state.pointerVelocityTarget *= Math.exp(-6.5 * dt);
 
   state.mode = damp(state.mode, phaseMode(state.phase), 5.0, dt);
   state.toneMode = damp(state.toneMode, toneMode(state.tone), 2.4, dt);
@@ -158,6 +192,12 @@ export const updateAgentVisual = (dt: number): AgentVisualSignals => {
     thinkingBlend: state.thinkingBlend,
     pointerX: state.pointerX,
     pointerY: state.pointerY,
+    pointerFastX: state.pointerFastX,
+    pointerFastY: state.pointerFastY,
+    pointerSlowX: state.pointerSlowX,
+    pointerSlowY: state.pointerSlowY,
+    pointerDx: state.pointerDx,
+    pointerDy: state.pointerDy,
     pointerForce: state.pointerForce,
     pointerVelocity: state.pointerVelocity,
   };
