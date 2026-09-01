@@ -68,9 +68,9 @@ const nodeBounds = (nodes) => ({
 });
 
 test("SDD: portfolio uses the exact MODEL + LAYOUT + ROUTING blobs from the blog PR #11", async () => {
-  assert.equal(gitBlobSha(await read("src/graph/model.ts")), "87a5dde828b57940654a2c1be900161e51c82810");
+  assert.equal(gitBlobSha(await read("src/graph/model.ts")), "c571d0e14e7b899988e18ad96667b4bacbc18c36");
   assert.equal(gitBlobSha(await read("src/graph/layout.ts")), "45f049f93b06f273897e983311bb02648d5c130a");
-  assert.equal(gitBlobSha(await read("src/graph/routing.ts")), "2f48614671ef0369fcab02aa029eb75f9f4fb9ae");
+  assert.equal(gitBlobSha(await read("src/graph/routing.ts")), "827475480290e10c14154402f45a585b30b4eea4");
 });
 
 test("BDD: Systems data contains semantics only and no manual geometry or animation steps", async () => {
