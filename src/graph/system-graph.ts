@@ -101,6 +101,8 @@ const compileFixed = (graph: SystemProject["graph"]): CompiledSystemGraph => {
   return { width: WIDTH, height: HEIGHT, layout: "fixed", nodes, edges };
 };
 
+// Adapter boundary: project content is translated into the semantic graph model;
+// layout and routing decisions belong exclusively to diagram-core.
 const toDefinition = (graph: SystemProject["graph"]): DiagramDefinition => {
   const nodesById = graphNodeMap(graph.nodes);
   assertEdgeReferences(graph.edges, nodesById);
