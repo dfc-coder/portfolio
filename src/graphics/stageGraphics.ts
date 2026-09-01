@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { narrativeRuntime, type NarrativeScene } from "../experiences/narrative-runtime";
+import { agentLiquidFragment, agentLiquidVertex } from "./agent-liquid-shader";
 
 export type AgentVisualPhase = "idle" | "listening" | "thinking" | "speaking" | "error";
 
@@ -215,159 +216,6 @@ const transitionFragment = /* glsl */ `
   }
 `;
 
-const agentVertex = /* glsl */ `
-  varying vec2 vUv;
-
-  void main() {
-    vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
-const agentFragment = /* glsl */ `
-  precision highp float;
-
-  uniform float uTime;
-  uniform float uActivity;
-  uniform float uMode;
-  uniform vec2 uPointer;
-  varying vec2 vUv;
-
-  float hash21(vec2 p) {
-    p = fract(p * vec2(123.34, 456.21));
-    p += dot(p, p + 45.32);
-    return fract(p.x * p.y);
-  }
-
-  float noise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    float a = hash21(i);
-    float b = hash21(i + vec2(1.0, 0.0));
-    float c = hash21(i + vec2(0.0, 1.0));
-    float d = hash21(i + vec2(1.0, 1.0));
-    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-  }
-
-  float fbm(vec2 p) {
-    float value = 0.0;
-    float amplitude = 0.5;
-    mat2 rotate = mat2(0.80, -0.60, 0.60, 0.80);
-    for (int i = 0; i < 4; i++) {
-      value += noise(p) * amplitude;
-      p = rotate * p * 2.03 + vec2(4.7, 8.3);
-      amplitude *= 0.5;
-    }
-    return value;
-  }
-
-  float modeMask(float mode) {
-    return 1.0 - smoothstep(0.14, 0.68, abs(uMode - mode));
-  }
-
-  void main() {
-    vec2 p = (vUv - 0.5) * 2.0;
-    float radius = length(p);
-    float angle = atan(p.y, p.x);
-
-    float idle = modeMask(0.0);
-    float listening = modeMask(1.0);
-    float thinking = modeMask(2.0);
-    float speaking = modeMask(3.0);
-    float error = modeMask(4.0);
-
-    float speed = 0.17 + listening * 0.18 + thinking * 0.60 + speaking * 0.48 + error * 0.68;
-    float t = uTime * speed;
-
-    vec2 pointer = (uPointer - 0.5) * 2.0;
-    pointer.y *= -1.0;
-    float pointerField = exp(-length(pointer - p) * 1.7) * listening;
-
-    float edgeNoise = fbm(
-      vec2(cos(angle), sin(angle)) * 2.35 + vec2(t * 0.10, -t * 0.075)
-    );
-    float contour =
-      0.82 +
-      (edgeNoise - 0.5) *
-        (0.040 + listening * 0.026 + thinking * 0.070 + speaking * 0.045 + uActivity * 0.020) +
-      sin(angle * 3.0 + t * 0.42) * 0.012 * (idle + listening * 0.72);
-
-    float nA = fbm(p * 1.66 + vec2(t * 0.18, -t * 0.13));
-    float nB = fbm(
-      mat2(0.72, -0.69, 0.69, 0.72) * p * 1.84 + vec2(-t * 0.11, t * 0.16)
-    );
-    float warpAmount =
-      0.11 + idle * 0.040 + listening * 0.13 + thinking * 0.25 + speaking * 0.17 + uActivity * 0.060;
-    vec2 warped = p + vec2(nA - 0.5, nB - 0.5) * warpAmount;
-    warped += normalize(pointer + vec2(0.0001)) * pointerField * 0.042;
-
-    float body = fbm(warped * (1.88 + thinking * 0.30) + vec2(t * 0.23, -t * 0.17));
-    float detail = fbm(warped * 3.70 - vec2(t * 0.19, t * 0.24));
-    float ridge = 1.0 - abs(detail * 2.0 - 1.0);
-    ridge = pow(clamp(ridge, 0.0, 1.0), 1.48);
-
-    float spiral = 0.5 + 0.5 * sin(
-      atan(warped.y, warped.x) * 3.0 + body * 5.2 - t * 2.1
-    );
-
-    float listenY =
-      sin(warped.x * 2.7 - t * 1.8) * 0.058 +
-      sin(warped.x * 5.3 + t * 0.72) * 0.020;
-    float listenMembrane = exp(-abs(warped.y - listenY) * 13.0) * listening;
-
-    float voiceY =
-      sin(warped.x * 3.9 - t * 4.7) * (0.10 + uActivity * 0.035) +
-      sin(warped.x * 7.2 + t * 2.2) * 0.028;
-    float voiceMembrane = exp(-abs(warped.y - voiceY) * 12.5) * speaking;
-
-    float tone = body * 0.58 + ridge * 0.28;
-    tone += spiral * thinking * 0.18;
-    tone += listenMembrane * 0.07 + voiceMembrane * (0.22 + uActivity * 0.16);
-    tone = clamp(tone, 0.0, 1.0);
-
-    float sphereRadius = max(contour, 0.001);
-    float normalRadius = clamp(radius / sphereRadius, 0.0, 1.0);
-    float z = sqrt(max(1.0 - normalRadius * normalRadius, 0.0));
-    vec3 normal = normalize(vec3(p / sphereRadius, z));
-    vec3 lightDirection = normalize(vec3(-0.46, 0.62, 0.90));
-    float diffuse = max(dot(normal, lightDirection), 0.0);
-    float specular = pow(diffuse, 10.0);
-    float fresnel = pow(1.0 - z, 3.0);
-
-    vec3 deep = vec3(0.010, 0.011, 0.012);
-    vec3 graphite = vec3(0.070, 0.067, 0.060);
-    vec3 gold = vec3(0.70, 0.56, 0.25);
-    vec3 ivory = vec3(0.94, 0.91, 0.84);
-    vec3 copper = vec3(0.66, 0.18, 0.09);
-
-    float bodyLight = smoothstep(0.16, 0.72, tone);
-    float vein = smoothstep(0.54, 0.94, ridge) * (0.34 + uActivity * 0.22);
-    float pearl = smoothstep(0.68, 0.98, tone) * (0.16 + uActivity * 0.18);
-
-    vec3 color = mix(deep, graphite, bodyLight * 0.88);
-    color = mix(color, gold, vein * 0.48);
-    color = mix(color, ivory, pearl);
-    color += ivory * specular * (0.18 + uActivity * 0.24);
-    color += gold * fresnel * (0.09 + uActivity * 0.13);
-    color += ivory * listenMembrane * (0.055 + uActivity * 0.045);
-    color += ivory * voiceMembrane * (0.12 + uActivity * 0.20);
-    color = mix(color, ivory, spiral * thinking * 0.055);
-    color = mix(color, copper, error * (0.28 + ridge * 0.22));
-
-    float edgeDistance = abs(radius - contour);
-    float edgeGlow = exp(-edgeDistance * 34.0) * (0.15 + uActivity * 0.24);
-    color += mix(gold, ivory, 0.52) * edgeGlow;
-
-    float alpha = 1.0 - smoothstep(contour - 0.020, contour + 0.024, radius);
-    alpha *= 0.94 + uActivity * 0.05;
-    alpha = max(alpha, edgeGlow * 0.22);
-
-    if (radius > contour + 0.09) discard;
-    gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0));
-  }
-`;
-
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
 const damp = (current: number, target: number, response: number, dt: number) =>
@@ -420,7 +268,7 @@ class StageGraphics {
   private readonly agentScene = new THREE.Scene();
   private readonly agentCamera = new THREE.PerspectiveCamera(42, 1, 0.1, 30);
   private readonly agentGroup = new THREE.Group();
-  private readonly agentGeometry = new THREE.PlaneGeometry(2.2, 2.2, 1, 1);
+  private readonly agentGeometry = new THREE.PlaneGeometry(2.65, 2.65, 1, 1);
   private readonly agentMaterial: THREE.ShaderMaterial;
   private readonly agentMesh: THREE.Mesh;
   private readonly resizeObserver: ResizeObserver;
@@ -495,8 +343,8 @@ class StageGraphics {
     this.transitionScene.add(new THREE.Mesh(this.fullscreenGeometry, this.transitionMaterial));
 
     this.agentMaterial = new THREE.ShaderMaterial({
-      vertexShader: agentVertex,
-      fragmentShader: agentFragment,
+      vertexShader: agentLiquidVertex,
+      fragmentShader: agentLiquidFragment,
       transparent: true,
       depthTest: false,
       depthWrite: false,
@@ -577,9 +425,9 @@ class StageGraphics {
     this.agentCamera.updateProjectionMatrix();
 
     const desktop = rect.width >= 900;
-    this.agentGroup.position.x = desktop ? -1.48 : 0;
+    this.agentGroup.position.x = desktop ? -1.50 : 0;
     this.agentGroup.position.y = desktop ? -0.02 : 0.18;
-    this.agentGroup.scale.setScalar(desktop ? 1.16 : 0.78);
+    this.agentGroup.scale.setScalar(desktop ? 1.12 : 0.78);
     this.wake();
   };
 
