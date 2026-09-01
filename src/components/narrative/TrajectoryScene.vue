@@ -9,10 +9,11 @@ const splitCompany = (company: string) => {
   return { organization, location: rest.join(" · ") || "Remote" };
 };
 
+const startYear = (period: string) => period.match(/\b\d{4}\b/)?.[0] ?? period.slice(0, 4);
 const roleCount = String(experiences.length).padStart(2, "0");
 const trajectoryRailItems = experiences.map((experience, index) => ({
   key: experience.period,
-  label: experience.period.slice(0, 4),
+  label: startYear(experience.period),
   meta: String(index + 1).padStart(2, "0"),
 }));
 </script>
