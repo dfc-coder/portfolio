@@ -6,61 +6,10 @@ import type { SystemProject } from "../../experiences/systems-projects";
 
 const props = defineProps<{ project: SystemProject }>();
 
-type Viewport = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
-
-const contentViewport = (scene: GraphScene, padding = 7): Viewport => {
-  if (!scene.nodes.length) {
-    return { x: 0, y: 0, width: scene.width, height: scene.height };
-  }
-
-  const minNodeX = Math.min(...scene.nodes.map((node) => node.x - node.width / 2));
-  const maxNodeX = Math.max(...scene.nodes.map((node) => node.x + node.width / 2));
-  const minNodeY = Math.min(...scene.nodes.map((node) => node.y - node.height / 2));
-  const maxNodeY = Math.max(...scene.nodes.map((node) => node.y + node.height / 2));
-  const points = scene.edges.flatMap((edge) => [...edge.path.points]);
-  const labels = scene.edges.flatMap((edge) => edge.labelPosition ? [edge.labelPosition] : []);
-
-  const minX = Math.min(
-    minNodeX,
-    ...(points.length ? points.map((point) => point.x) : [minNodeX]),
-    ...(labels.length ? labels.map((point) => point.x) : [minNodeX]),
-  );
-  const maxX = Math.max(
-    maxNodeX,
-    ...(points.length ? points.map((point) => point.x) : [maxNodeX]),
-    ...(labels.length ? labels.map((point) => point.x) : [maxNodeX]),
-  );
-  const minY = Math.min(
-    minNodeY,
-    ...(points.length ? points.map((point) => point.y) : [minNodeY]),
-    ...(labels.length ? labels.map((point) => point.y) : [minNodeY]),
-  );
-  const maxY = Math.max(
-    maxNodeY,
-    ...(points.length ? points.map((point) => point.y) : [maxNodeY]),
-    ...(labels.length ? labels.map((point) => point.y) : [maxNodeY]),
-  );
-
-  return {
-    x: minX - padding,
-    y: minY - padding,
-    width: Math.max(1, maxX - minX + padding * 2),
-    height: Math.max(1, maxY - minY + padding * 2),
-  };
-};
-
 const scenes = computed(() => [
   { key: "desktop", scene: compileSystemGraph(props.project.graph, "desktop") },
   { key: "mobile", scene: compileSystemGraph(props.project.graph, "mobile") },
-].map((variant) => ({
-  ...variant,
-  viewport: contentViewport(variant.scene),
-})));
+]);
 
 const nodeSteps = computed(() =>
   new Map(props.project.graph.nodes.map((node, index) => [node.id, index])),
@@ -86,13 +35,13 @@ const svgPath = (path: ScenePath) => {
   return `M ${first.x} ${first.y}${rest.map((point) => ` L ${point.x} ${point.y}`).join("")}`;
 };
 
-const edgeLabelStyle = (edge: GraphSceneEdge, viewport: Viewport, edgeIndex: number) => {
+const edgeLabelStyle = (edge: GraphSceneEdge, scene: GraphScene, edgeIndex: number) => {
   const position = edge.labelPosition;
   if (!position) return { display: "none" };
 
   return {
-    left: `${2 + ((position.x - viewport.x) / viewport.width) * 96}%`,
-    top: `${9 + ((position.y - viewport.y) / viewport.height) * 84}%`,
+    left: `${2 + (position.x / scene.width) * 96}%`,
+    top: `${9 + (position.y / scene.height) * 84}%`,
     "--edge-step": edgeIndex,
   };
 };
@@ -115,7 +64,7 @@ const graphId = (variant: string) => `${props.project.id}-${variant}`;
     >
       <svg
         class="systems-graph"
-        :viewBox="`${variant.viewport.x} ${variant.viewport.y} ${variant.viewport.width} ${variant.viewport.height}`"
+        :viewBox="`0 0 ${variant.scene.width} ${variant.scene.height}`"
         preserveAspectRatio="xMidYMid meet"
         role="img"
         :aria-labelledby="`system-graph-title-${graphId(variant.key)} system-graph-desc-${graphId(variant.key)}`"
@@ -165,7 +114,7 @@ const graphId = (variant: string) => `${props.project.id}-${variant}`;
         v-for="item in labeledEdges(variant.scene)"
         :key="`label-${item.edge.from}-${item.edge.to}-${item.index}`"
         class="systems-graph__edge-label"
-        :style="edgeLabelStyle(item.edge, variant.viewport, item.index)"
+        :style="edgeLabelStyle(item.edge, variant.scene, item.index)"
         aria-hidden="true"
       >
         {{ item.edge.label }}
