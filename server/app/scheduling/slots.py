@@ -3,15 +3,15 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta, timezone
 
 from app.domain.scheduling import BusyInterval, OfferedSlot
-from app.ports.calendar import CalendarPort
 
+from .calendar import Calendar
 from .policy import SchedulingPolicy
 
 _DAY_NAMES = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 
 class SlotService:
-    def __init__(self, calendar: CalendarPort, policy: SchedulingPolicy) -> None:
+    def __init__(self, calendar: Calendar, policy: SchedulingPolicy) -> None:
         self._calendar = calendar
         self._policy = policy
 
@@ -32,7 +32,11 @@ class SlotService:
 
         query_start = datetime.combine(start_date, time.min, tzinfo=tz)
         query_end = datetime.combine(end_date + timedelta(days=1), time.min, tzinfo=tz)
-        busy = await self._calendar.busy_intervals(query_start, query_end, self._policy.config.timezone)
+        busy = await self._calendar.busy_intervals(
+            query_start,
+            query_end,
+            self._policy.config.timezone,
+        )
 
         slots: list[OfferedSlot] = []
         day = start_date
@@ -45,7 +49,10 @@ class SlotService:
                 day_start = datetime.combine(day, hours[0], tzinfo=tz)
                 day_end = datetime.combine(day, hours[1], tzinfo=tz)
                 cursor = day_start
-                while cursor + duration <= day_end and len(slots) < self._policy.config.max_slots:
+                while (
+                    cursor + duration <= day_end
+                    and len(slots) < self._policy.config.max_slots
+                ):
                     candidate = OfferedSlot(start=cursor, end=cursor + duration)
                     if candidate.start >= min_start and not self._conflicts(candidate, busy):
                         slots.append(candidate)

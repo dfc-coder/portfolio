@@ -15,6 +15,7 @@ from app.infrastructure.llm.llama_cpp import LlamaCppClient
 from app.infrastructure.pockettrace import PocketTraceRecorder
 from app.infrastructure.sessions.memory import MemorySessionStore
 from app.ports.llm import GenerationConfig
+from app.portfolio.search import PortfolioSearch
 from app.scheduling.approval import BookingApproval
 from app.scheduling.policy import SchedulingPolicy
 from app.scheduling.slots import SlotService
@@ -67,10 +68,16 @@ def build_runtime(settings: Settings) -> AgentRuntime:
     )
 
     router = SemanticRouter(embeddings)
+    portfolio = PortfolioSearch(
+        profile,
+        embeddings,
+        max_chars=settings.context_max_chars,
+        max_documents=settings.context_max_documents,
+        min_score=settings.portfolio_min_score,
+    )
     scheduler = Scheduler(
         llm,
         slots,
-        calendar,
         policy,
         interpreter_config,
     )
@@ -80,9 +87,6 @@ def build_runtime(settings: Settings) -> AgentRuntime:
         policy,
         renderer_config,
         scheduler.public_capabilities,
-        embeddings,
-        context_max_chars=settings.context_max_chars,
-        context_max_documents=settings.context_max_documents,
     )
     trace_recorder = (
         PocketTraceRecorder(
@@ -96,6 +100,7 @@ def build_runtime(settings: Settings) -> AgentRuntime:
     representative = BusinessRepresentative(
         sessions,
         router,
+        portfolio,
         scheduler,
         responder,
         trace_recorder,

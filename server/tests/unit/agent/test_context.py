@@ -2,80 +2,31 @@ from __future__ import annotations
 
 import pytest
 
-from app.agent.context import ContextAssembler, ProfileDocumentIndex, ProfileRetriever
+from app.agent.context import ContextAssembler
 from app.domain.conversation import ChatTurn, SessionState
 from app.domain.profile import BusinessProfile
-from app.domain.routing import RouteDomain
-from app.ports.embeddings import EmbeddingTask
+from app.domain.routing import Route
+from app.portfolio.search import Fact
 
 
-class RecordingEmbeddings:
-    def __init__(self, target: str | None = None) -> None:
-        self.target = target
-        self.document_calls: list[list[str]] = []
-        self.query_calls: list[str] = []
-        self.query_tasks: list[EmbeddingTask] = []
-
-    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        self.document_calls.append(texts)
-        return [
-            [1.0, 0.0] if self.target and self.target in text else [0.0, 1.0]
-            for text in texts
-        ]
-
-    async def embed_query(self, text: str, task: EmbeddingTask) -> list[float]:
-        self.query_calls.append(text)
-        self.query_tasks.append(task)
-        return [1.0, 0.0]
-
-    async def health(self) -> bool:
-        return True
-
-
-def make_assembler(
-    profile: BusinessProfile,
-    embeddings: RecordingEmbeddings,
-) -> ContextAssembler:
-    retriever = ProfileRetriever(
-        ProfileDocumentIndex(profile),
-        embeddings,
-        max_chars=6000,
-        max_documents=1,
-    )
+def make_assembler(profile: BusinessProfile) -> ContextAssembler:
     return ContextAssembler(
         profile,
         ("Answer questions about Diego's professional work.",),
-        retriever,
     )
 
 
-def test_profile_index_is_generated_from_structured_profile(profile: BusinessProfile) -> None:
-    index = ProfileDocumentIndex(profile)
-    ids = {document.document_id for document in index.documents}
-
-    assert "owner" in ids
-    assert "positioning" in ids
-    assert "skills" in ids
-    assert any(document_id.startswith("projects.") for document_id in ids)
-    assert any(document_id.startswith("professional_experience.") for document_id in ids)
-    assert all(not hasattr(document, "tags") for document in index.documents)
-
-
 @pytest.mark.asyncio
-async def test_general_context_does_not_retrieve_or_expose_business_identity(
+async def test_conversation_context_does_not_expose_portfolio_identity(
     profile: BusinessProfile,
 ) -> None:
-    embeddings = RecordingEmbeddings(target="PocketTrace")
-    assembler = make_assembler(profile, embeddings)
-    state = SessionState("general-context")
-    state.current_focus = RouteDomain.GENERAL
+    assembler = make_assembler(profile)
+    state = SessionState("conversation-context")
+    state.current_focus = Route.CONVERSATION
     state.turns.append(ChatTurn(role="user", content="Hola"))
 
     context = await assembler.build(state)
 
-    assert embeddings.document_calls == []
-    assert embeddings.query_calls == []
-    assert embeddings.query_tasks == []
     assert context.document_ids == ()
     assert "\nRELEVANT_KNOWLEDGE:\n" not in context.system_prompt
     assert profile.owner.name not in context.system_prompt
@@ -88,72 +39,46 @@ async def test_general_context_does_not_retrieve_or_expose_business_identity(
 
 
 @pytest.mark.asyncio
-async def test_business_context_contains_top_dense_retrieval_document(
+async def test_portfolio_context_contains_only_supplied_evidence(
     profile: BusinessProfile,
 ) -> None:
-    embeddings = RecordingEmbeddings(target="https://github.com/dfc-coder/pockettrace")
-    assembler = make_assembler(profile, embeddings)
-    state = SessionState("business-context")
-    state.current_focus = RouteDomain.BUSINESS
+    assembler = make_assembler(profile)
+    state = SessionState("portfolio-context")
+    state.current_focus = Route.PORTFOLIO
     state.turns.append(
         ChatTurn(
             role="user",
-            content="¿Qué proyecto de Diego funciona como inspector local de trazas?",
+            content="¿Qué proyecto funciona como inspector local de trazas?",
         )
     )
-
-    context = await assembler.build(state)
-
-    assert len(embeddings.document_calls) == 1
-    assert len(embeddings.query_calls) == 1
-    assert embeddings.query_tasks == [EmbeddingTask.RETRIEVAL]
-    assert len(context.document_ids) == 1
-    assert context.document_ids[0].startswith("projects.")
-    assert f"PORTFOLIO_SUBJECT={profile.owner.name}" in context.system_prompt
-    assert "PORTFOLIO_SUBJECT is the professional being discussed, not you and not the visitor" in context.system_prompt
-    assert "PocketTrace" in context.system_prompt
-    assert "Xarlatan" not in context.system_prompt
-    assert "System-G" not in context.system_prompt
-
-
-@pytest.mark.asyncio
-async def test_profile_document_embeddings_are_computed_once(
-    profile: BusinessProfile,
-) -> None:
-    embeddings = RecordingEmbeddings(target="PocketTrace")
-    assembler = make_assembler(profile, embeddings)
-    state = SessionState("cached-index")
-    state.current_focus = RouteDomain.BUSINESS
-    state.turns.append(ChatTurn(role="user", content="PocketTrace"))
-
-    await assembler.build(state)
-    await assembler.build(state)
-
-    assert len(embeddings.document_calls) == 1
-    assert len(embeddings.query_calls) == 2
-    assert embeddings.query_tasks == [EmbeddingTask.RETRIEVAL, EmbeddingTask.RETRIEVAL]
-
-
-@pytest.mark.asyncio
-async def test_retrieval_query_keeps_small_recent_context_for_followups(
-    profile: BusinessProfile,
-) -> None:
-    embeddings = RecordingEmbeddings(target="Xarlatan")
-    assembler = make_assembler(profile, embeddings)
-    state = SessionState("followup-context")
-    state.current_focus = RouteDomain.BUSINESS
-    state.turns.extend(
-        [
-            ChatTurn(role="user", content="Contame sobre Xarlatan"),
-            ChatTurn(role="assistant", content="Es un proyecto de voz local-first."),
-            ChatTurn(role="user", content="¿Y qué lenguaje usa ahí?"),
-        ]
+    evidence = (
+        Fact(
+            source="projects.0",
+            text='{"project":{"name":"PocketTrace","stack":["Rust"]}}',
+        ),
     )
 
+    context = await assembler.build(state, evidence)
+
+    assert context.document_ids == ("projects.0",)
+    assert f"PORTFOLIO_SUBJECT={profile.owner.name}" in context.system_prompt
+    assert "PORTFOLIO_SUBJECT is the professional being discussed" in context.system_prompt
+    assert "PocketTrace" in context.system_prompt
+    assert "Xarlatan" not in context.system_prompt
+    assert context.knowledge_chars == len(evidence[0].text)
+
+
+@pytest.mark.asyncio
+async def test_portfolio_context_marks_missing_evidence_explicitly(
+    profile: BusinessProfile,
+) -> None:
+    assembler = make_assembler(profile)
+    state = SessionState("portfolio-empty")
+    state.current_focus = Route.PORTFOLIO
+    state.turns.append(ChatTurn(role="user", content="¿Tiene certificación XYZ?"))
+
     context = await assembler.build(state)
 
-    query = embeddings.query_calls[0]
-    assert embeddings.query_tasks == [EmbeddingTask.RETRIEVAL]
-    assert "Contame sobre Xarlatan" in query
-    assert "¿Y qué lenguaje usa ahí?" in query
-    assert any(document_id.startswith("projects.") for document_id in context.document_ids)
+    assert "RELEVANT_KNOWLEDGE:\n<none>" in context.system_prompt
+    assert context.document_ids == ()
+    assert context.knowledge_chars == 0

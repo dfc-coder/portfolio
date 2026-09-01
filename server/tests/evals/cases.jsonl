@@ -5,26 +5,26 @@
 {"kind":"workflow","stage":"scheduling_details","input":"Soy Ana, ana@example.com, para hablar de arquitectura","expected_action":"prepare_booking"}
 {"kind":"workflow","stage":"scheduling_confirmation","input":"Sí, confirmo","expected_fast_path":"hitl_required"}
 {"kind":"workflow","stage":"scheduling_confirmation","input":"Tuesday could work","expected_fast_path":"confirmation_reminder"}
-{"kind":"routing","id":"b01","state":{"active_workflow":null},"message":"¿Cuánto cobra Diego por hora?","domain":"business","relation":"new"}
-{"kind":"routing","id":"b02","state":{"active_workflow":null},"message":"Quiero hablar sobre el proyecto SQL","domain":"business","relation":"new"}
-{"kind":"routing","id":"b03","state":{"active_workflow":null},"message":"¿Qué podés hacer?","domain":"business","relation":"new","critical":true}
-{"kind":"routing","id":"b04","state":{"active_workflow":null},"message":"que podes hacer","domain":"business","relation":"new","critical":true}
-{"kind":"routing","id":"b05","state":{"active_workflow":null},"message":"¿Podés usar herramientas?","domain":"business","relation":"new","critical":true}
-{"kind":"routing","id":"b06","state":{"active_workflow":null},"message":"¿Podés agendar reuniones?","domain":"business","relation":"new","critical":true}
-{"kind":"routing","id":"b07","state":{"active_workflow":null},"message":"¿Podés consultar disponibilidad?","domain":"business","relation":"new","critical":true}
-{"kind":"routing","id":"b08","state":{"active_workflow":null},"message":"¿Qué proyectos hizo Diego?","domain":"business","relation":"new"}
-{"kind":"routing","id":"b09","state":{"active_workflow":null},"message":"¿Diego trabaja con AWS?","domain":"business","relation":"new"}
-{"kind":"routing","id":"b10","state":{"active_workflow":null},"message":"¿Tiene experiencia con agentes?","domain":"business","relation":"new"}
-{"kind":"routing","id":"b11","state":{"active_workflow":null},"message":"¿Trabaja con APIs e integraciones?","domain":"business","relation":"new"}
-{"kind":"routing","id":"b12","state":{"active_workflow":null},"message":"¿Puede trabajar con modelos locales?","domain":"business","relation":"new"}
-{"kind":"routing","id":"b13","state":{"active_workflow":null},"message":"¿Qué tecnologías usa?","domain":"business","relation":"new"}
-{"kind":"routing","id":"b14","state":{"active_workflow":null},"message":"Contame sobre el Financial MCP Server","domain":"business","relation":"new"}
-{"kind":"routing","id":"b15","state":{"active_workflow":null},"message":"¿Cómo aborda la seguridad en sistemas con LLMs?","domain":"business","relation":"new"}
-{"kind":"routing","id":"b16","state":{"active_workflow":null},"message":"What can you do?","domain":"business","relation":"new","critical":true}
-{"kind":"routing","id":"b17","state":{"active_workflow":null},"message":"Can you use tools?","domain":"business","relation":"new","critical":true}
-{"kind":"routing","id":"b18","state":{"active_workflow":null},"message":"Can you schedule meetings?","domain":"business","relation":"new","critical":true}
-{"kind":"routing","id":"b19","state":{"active_workflow":null},"message":"Tell me about Diego's AI work","domain":"business","relation":"new"}
-{"kind":"routing","id":"b20","state":{"active_workflow":null},"message":"Does Diego work with distributed systems?","domain":"business","relation":"new"}
+{"kind":"routing","id":"b01","state":{"active_workflow":null},"message":"¿Cuánto cobra Diego por hora?","domain":"portfolio","relation":"new"}
+{"kind":"routing","id":"b02","state":{"active_workflow":null},"message":"Quiero hablar sobre el proyecto SQL","domain":"portfolio","relation":"new"}
+{"kind":"routing","id":"b03","state":{"active_workflow":null},"message":"¿Qué podés hacer?","domain":"portfolio","relation":"new","critical":true}
+{"kind":"routing","id":"b04","state":{"active_workflow":null},"message":"que podes hacer","domain":"portfolio","relation":"new","critical":true}
+{"kind":"routing","id":"b05","state":{"active_workflow":null},"message":"¿Podés usar herramientas?","domain":"portfolio","relation":"new","critical":true}
+{"kind":"routing","id":"b06","state":{"active_workflow":null},"message":"¿Podés agendar reuniones?","domain":"portfolio","relation":"new","critical":true}
+{"kind":"routing","id":"b07","state":{"active_workflow":null},"message":"¿Podés consultar disponibilidad?","domain":"portfolio","relation":"new","critical":true}
+{"kind":"routing","id":"b08","state":{"active_workflow":null},"message":"¿Qué proyectos hizo Diego?","domain":"portfolio","relation":"new"}
+{"kind":"routing","id":"b09","state":{"active_workflow":null},"message":"¿Diego trabaja con AWS?","domain":"portfolio","relation":"new"}
+{"kind":"routing","id":"b10","state":{"active_workflow":null},"message":"¿Tiene experiencia con agentes?","domain":"portfolio","relation":"new"}
+{"kind":"routing","id":"b11","state":{"active_workflow":null},"message":"¿Trabaja con APIs e integraciones?","domain":"portfolio","relation":"new"}
+{"kind":"routing","id":"b12","state":{"active_workflow":null},"message":"¿Puede trabajar con modelos locales?","domain":"portfolio","relation":"new"}
+{"kind":"routing","id":"b13","state":{"active_workflow":null},"message":"¿Qué tecnologías usa?","domain":"portfolio","relation":"new"}
+{"kind":"routing","id":"b14","state":{"active_workflow":null},"message":"Contame sobre el Financial MCP Server","domain":"portfolio","relation":"new"}
+{"kind":"routing","id":"b15","state":{"active_workflow":null},"message":"¿Cómo aborda la seguridad en sistemas con LLMs?","domain":"portfolio","relation":"new"}
+{"kind":"routing","id":"b16","state":{"active_workflow":null},"message":"What can you do?","domain":"portfolio","relation":"new","critical":true}
+{"kind":"routing","id":"b17","state":{"active_workflow":null},"message":"Can you use tools?","domain":"portfolio","relation":"new","critical":true}
+{"kind":"routing","id":"b18","state":{"active_workflow":null},"message":"Can you schedule meetings?","domain":"portfolio","relation":"new","critical":true}
+{"kind":"routing","id":"b19","state":{"active_workflow":null},"message":"Tell me about Diego's AI work","domain":"portfolio","relation":"new"}
+{"kind":"routing","id":"b20","state":{"active_workflow":null},"message":"Does Diego work with distributed systems?","domain":"portfolio","relation":"new"}
 {"kind":"routing","id":"s01","state":{"active_workflow":null},"message":"Quiero una reunión el martes","domain":"scheduling","relation":"new","critical":true}
 {"kind":"routing","id":"s02","state":{"active_workflow":null},"message":"Quiero hablar con Diego la semana que viene","domain":"scheduling","relation":"new","critical":true}
 {"kind":"routing","id":"s03","state":{"active_workflow":null},"message":"Agendame una reunión con Diego","domain":"scheduling","relation":"new"}
@@ -41,16 +41,16 @@
 {"kind":"routing","id":"s14","state":{"active_workflow":null},"message":"Can we talk on Thursday afternoon?","domain":"scheduling","relation":"new"}
 {"kind":"routing","id":"s15","state":{"active_workflow":null},"message":"I need to reschedule my meeting with Diego","domain":"scheduling","relation":"new"}
 {"kind":"routing","id":"s16","state":{"active_workflow":null},"message":"Cancel my meeting with Diego","domain":"scheduling","relation":"new"}
-{"kind":"routing","id":"g01","state":{"active_workflow":null},"message":"¿Qué hora es?","domain":"general","relation":"new"}
-{"kind":"routing","id":"g02","state":{"active_workflow":null},"message":"Hola","domain":"general","relation":"new"}
-{"kind":"routing","id":"g03","state":{"active_workflow":null},"message":"Contame un chiste","domain":"general","relation":"new"}
-{"kind":"routing","id":"g04","state":{"active_workflow":null},"message":"¿Cómo está el clima?","domain":"general","relation":"new"}
-{"kind":"routing","id":"g05","state":{"active_workflow":null},"message":"Gracias","domain":"general","relation":"new"}
-{"kind":"routing","id":"g06","state":{"active_workflow":null},"message":"What time is it?","domain":"general","relation":"new"}
-{"kind":"routing","id":"g07","state":{"active_workflow":null},"message":"Tell me a joke","domain":"general","relation":"new"}
-{"kind":"routing","id":"g08","state":{"active_workflow":null},"message":"Hello","domain":"general","relation":"new"}
-{"kind":"routing","id":"g09","state":{"active_workflow":null},"message":"What's the weather like?","domain":"general","relation":"new"}
-{"kind":"routing","id":"g10","state":{"active_workflow":null},"message":"Who won the match yesterday?","domain":"general","relation":"new"}
+{"kind":"routing","id":"g01","state":{"active_workflow":null},"message":"¿Qué hora es?","domain":"conversation","relation":"new"}
+{"kind":"routing","id":"g02","state":{"active_workflow":null},"message":"Hola","domain":"conversation","relation":"new"}
+{"kind":"routing","id":"g03","state":{"active_workflow":null},"message":"Contame un chiste","domain":"conversation","relation":"new"}
+{"kind":"routing","id":"g04","state":{"active_workflow":null},"message":"¿Cómo está el clima?","domain":"conversation","relation":"new"}
+{"kind":"routing","id":"g05","state":{"active_workflow":null},"message":"Gracias","domain":"conversation","relation":"new"}
+{"kind":"routing","id":"g06","state":{"active_workflow":null},"message":"What time is it?","domain":"conversation","relation":"new"}
+{"kind":"routing","id":"g07","state":{"active_workflow":null},"message":"Tell me a joke","domain":"conversation","relation":"new"}
+{"kind":"routing","id":"g08","state":{"active_workflow":null},"message":"Hello","domain":"conversation","relation":"new"}
+{"kind":"routing","id":"g09","state":{"active_workflow":null},"message":"What's the weather like?","domain":"conversation","relation":"new"}
+{"kind":"routing","id":"g10","state":{"active_workflow":null},"message":"Who won the match yesterday?","domain":"conversation","relation":"new"}
 {"kind":"routing","id":"c01","state":{"active_workflow":"scheduling","stage":"scheduling_slot"},"message":"El segundo","domain":"scheduling","relation":"continue","critical":true}
 {"kind":"routing","id":"c02","state":{"active_workflow":"scheduling","stage":"scheduling_slot"},"message":"S2","domain":"scheduling","relation":"continue"}
 {"kind":"routing","id":"c03","state":{"active_workflow":"scheduling","stage":"scheduling_slot"},"message":"Mejor el primero","domain":"scheduling","relation":"continue"}
@@ -63,18 +63,18 @@
 {"kind":"routing","id":"c10","state":{"active_workflow":"scheduling","stage":"scheduling_dates"},"message":"Tomorrow instead","domain":"scheduling","relation":"continue"}
 {"kind":"routing","id":"c11","state":{"active_workflow":"scheduling","stage":"scheduling_slot"},"message":"The second slot","domain":"scheduling","relation":"continue"}
 {"kind":"routing","id":"c12","state":{"active_workflow":"scheduling","stage":"scheduling_details"},"message":"My email is ana@example.com","domain":"scheduling","relation":"continue"}
-{"kind":"routing","id":"i01","state":{"active_workflow":"scheduling","stage":"scheduling_slot"},"message":"Antes, ¿Diego trabaja con AWS?","domain":"business","relation":"interrupt"}
-{"kind":"routing","id":"i02","state":{"active_workflow":"scheduling","stage":"scheduling_dates"},"message":"¿Qué podés hacer?","domain":"business","relation":"interrupt","critical":true}
-{"kind":"routing","id":"i03","state":{"active_workflow":"scheduling","stage":"scheduling_details"},"message":"¿Podés usar herramientas?","domain":"business","relation":"interrupt"}
-{"kind":"routing","id":"i04","state":{"active_workflow":"scheduling","stage":"scheduling_confirmation"},"message":"Antes de confirmar, ¿qué experiencia tiene con APIs?","domain":"business","relation":"interrupt","critical":true}
-{"kind":"routing","id":"i05","state":{"active_workflow":"scheduling","stage":"scheduling_slot"},"message":"Contame sobre el proyecto de documentos","domain":"business","relation":"interrupt"}
-{"kind":"routing","id":"i06","state":{"active_workflow":"scheduling","stage":"scheduling_details"},"message":"Does Diego work with agents?","domain":"business","relation":"interrupt"}
-{"kind":"routing","id":"i07","state":{"active_workflow":"scheduling","stage":"scheduling_confirmation"},"message":"Can you use tools?","domain":"business","relation":"interrupt","critical":true}
-{"kind":"routing","id":"i08","state":{"active_workflow":"scheduling","stage":"scheduling_dates"},"message":"¿Qué hora es?","domain":"general","relation":"interrupt"}
-{"kind":"routing","id":"i09","state":{"active_workflow":"scheduling","stage":"scheduling_slot"},"message":"Contame un chiste","domain":"general","relation":"interrupt"}
-{"kind":"routing","id":"i10","state":{"active_workflow":"scheduling","stage":"scheduling_details"},"message":"Gracias","domain":"general","relation":"interrupt"}
-{"kind":"routing","id":"i11","state":{"active_workflow":"scheduling","stage":"scheduling_confirmation"},"message":"What time is it?","domain":"general","relation":"interrupt"}
-{"kind":"routing","id":"i12","state":{"active_workflow":"scheduling","stage":"scheduling_slot"},"message":"Hello","domain":"general","relation":"interrupt"}
+{"kind":"routing","id":"i01","state":{"active_workflow":"scheduling","stage":"scheduling_slot"},"message":"Antes, ¿Diego trabaja con AWS?","domain":"portfolio","relation":"interrupt"}
+{"kind":"routing","id":"i02","state":{"active_workflow":"scheduling","stage":"scheduling_dates"},"message":"¿Qué podés hacer?","domain":"portfolio","relation":"interrupt","critical":true}
+{"kind":"routing","id":"i03","state":{"active_workflow":"scheduling","stage":"scheduling_details"},"message":"¿Podés usar herramientas?","domain":"portfolio","relation":"interrupt"}
+{"kind":"routing","id":"i04","state":{"active_workflow":"scheduling","stage":"scheduling_confirmation"},"message":"Antes de confirmar, ¿qué experiencia tiene con APIs?","domain":"portfolio","relation":"interrupt","critical":true}
+{"kind":"routing","id":"i05","state":{"active_workflow":"scheduling","stage":"scheduling_slot"},"message":"Contame sobre el proyecto de documentos","domain":"portfolio","relation":"interrupt"}
+{"kind":"routing","id":"i06","state":{"active_workflow":"scheduling","stage":"scheduling_details"},"message":"Does Diego work with agents?","domain":"portfolio","relation":"interrupt"}
+{"kind":"routing","id":"i07","state":{"active_workflow":"scheduling","stage":"scheduling_confirmation"},"message":"Can you use tools?","domain":"portfolio","relation":"interrupt","critical":true}
+{"kind":"routing","id":"i08","state":{"active_workflow":"scheduling","stage":"scheduling_dates"},"message":"¿Qué hora es?","domain":"conversation","relation":"interrupt"}
+{"kind":"routing","id":"i09","state":{"active_workflow":"scheduling","stage":"scheduling_slot"},"message":"Contame un chiste","domain":"conversation","relation":"interrupt"}
+{"kind":"routing","id":"i10","state":{"active_workflow":"scheduling","stage":"scheduling_details"},"message":"Gracias","domain":"conversation","relation":"interrupt"}
+{"kind":"routing","id":"i11","state":{"active_workflow":"scheduling","stage":"scheduling_confirmation"},"message":"What time is it?","domain":"conversation","relation":"interrupt"}
+{"kind":"routing","id":"i12","state":{"active_workflow":"scheduling","stage":"scheduling_slot"},"message":"Hello","domain":"conversation","relation":"interrupt"}
 {"kind":"conversation","id":"conv01","critical":true,"turns":["¿Qué podés hacer?"],"expected_booking_count":0,"expected_active_workflow":null}
 {"kind":"conversation","id":"conv02","critical":true,"turns":["¿Podés agendar reuniones?"],"expected_booking_count":0,"expected_active_workflow":null}
 {"kind":"conversation","id":"conv03","turns":["Quiero una reunión el próximo martes"],"expected_booking_count":0,"expected_active_workflow":"scheduling"}

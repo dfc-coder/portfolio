@@ -7,7 +7,7 @@ import pytest
 from app.agent.responder import Responder
 from app.domain.conversation import ChatTurn, SessionState
 from app.domain.profile import BusinessProfile
-from app.domain.routing import RouteDomain
+from app.domain.routing import Route
 from app.infrastructure.pockettrace import PocketTraceRecorder
 from app.ports.llm import (
     GenerationConfig,
@@ -60,17 +60,6 @@ class FakeLlm:
         return True
 
 
-class UnusedEmbeddings:
-    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        raise AssertionError(f"embeddings should not be used for general response: {texts}")
-
-    async def embed_query(self, text: str) -> list[float]:
-        raise AssertionError(f"embeddings should not be used for general response: {text}")
-
-    async def health(self) -> bool:
-        return True
-
-
 @pytest.mark.asyncio
 async def test_generation_metadata_reaches_trace_without_changing_visible_stream(
     profile: BusinessProfile,
@@ -81,9 +70,8 @@ async def test_generation_metadata_reaches_trace_without_changing_visible_stream
         SchedulingPolicy(profile.scheduling),
         GenerationConfig(temperature=0.65, max_tokens=180),
         (),
-        UnusedEmbeddings(),
     )
-    state = SessionState("session-observability", current_focus=RouteDomain.GENERAL)
+    state = SessionState("session-observability", current_focus=Route.CONVERSATION)
     state.turns.append(ChatTurn(role="user", content="hola"))
     trace = PocketTraceRecorder("http://unused:4319", "Qwen3.5-2B").start_turn(
         state.session_id,

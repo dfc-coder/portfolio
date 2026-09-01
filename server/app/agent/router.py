@@ -4,43 +4,38 @@ import asyncio
 from dataclasses import dataclass
 
 from app.domain.conversation import ActiveWorkflow, SessionState
-from app.domain.routing import RouteDomain, RouteRelation, RoutingDecision
+from app.domain.routing import Route, RoutingDecision
+from app.infrastructure.embeddings.similarity import cosine_similarity
 from app.ports.embeddings import EmbeddingPort, EmbeddingTask
-
-from .similarity import cosine_similarity
 
 
 @dataclass(frozen=True)
-class Route:
+class _Candidate:
     key: str
-    domain: RouteDomain
-    relation: RouteRelation
+    domain: Route
     description: str
 
 
 _NEW_ROUTES = (
-    Route(
-        "business",
-        RouteDomain.BUSINESS,
-        RouteRelation.NEW,
+    _Candidate(
+        "portfolio",
+        Route.PORTFOLIO,
         (
             "A visitor asks about Diego's professional background, experience, projects, "
             "technologies, skills, services, credentials, rates, clients or capabilities."
         ),
     ),
-    Route(
+    _Candidate(
         "scheduling",
-        RouteDomain.SCHEDULING,
-        RouteRelation.NEW,
+        Route.SCHEDULING,
         (
             "A visitor wants to arrange, reschedule or cancel a meeting with Diego, check real "
             "calendar availability, choose a meeting time, or provide meeting details."
         ),
     ),
-    Route(
-        "general",
-        RouteDomain.GENERAL,
-        RouteRelation.NEW,
+    _Candidate(
+        "conversation",
+        Route.CONVERSATION,
         (
             "A greeting, small talk, casual conversation, or a question unrelated to Diego's "
             "professional profile and unrelated to arranging a meeting."
@@ -49,28 +44,25 @@ _NEW_ROUTES = (
 )
 
 _ACTIVE_SCHEDULING_ROUTES = (
-    Route(
-        "business_interrupt",
-        RouteDomain.BUSINESS,
-        RouteRelation.INTERRUPT,
+    _Candidate(
+        "portfolio_during_scheduling",
+        Route.PORTFOLIO,
         (
             "A professional question about Diego's work, projects, technologies, experience, "
             "skills, services or credentials while a meeting workflow is already active."
         ),
     ),
-    Route(
+    _Candidate(
         "scheduling_continue",
-        RouteDomain.SCHEDULING,
-        RouteRelation.CONTINUE,
+        Route.SCHEDULING,
         (
             "A continuation of the active meeting workflow, such as providing a date, email, "
             "meeting subject, selecting a proposed slot, changing a time, or cancelling it."
         ),
     ),
-    Route(
-        "general_interrupt",
-        RouteDomain.GENERAL,
-        RouteRelation.INTERRUPT,
+    _Candidate(
+        "conversation_during_scheduling",
+        Route.CONVERSATION,
         (
             "A greeting, small talk or unrelated conversation while a meeting workflow is active. "
             "The existing meeting state must be preserved."
@@ -78,24 +70,9 @@ _ACTIVE_SCHEDULING_ROUTES = (
     ),
 )
 
-_FALLBACK_ROUTES = (
-    Route(
-        "business_fallback",
-        RouteDomain.BUSINESS,
-        RouteRelation.NEW,
-        _NEW_ROUTES[0].description,
-    ),
-    Route(
-        "general_fallback",
-        RouteDomain.GENERAL,
-        RouteRelation.NEW,
-        _NEW_ROUTES[2].description,
-    ),
-)
-
 
 class SemanticRouter:
-    """Three-way semantic routing using the same dense embeddings as profile retrieval."""
+    """Semantic domain router. It never dispatches Python capabilities."""
 
     def __init__(self, embeddings: EmbeddingPort) -> None:
         self._embeddings = embeddings
@@ -103,9 +80,7 @@ class SemanticRouter:
         self._index_lock = asyncio.Lock()
 
     async def warm(self) -> None:
-        await self._ensure_route_vectors(
-            _NEW_ROUTES + _ACTIVE_SCHEDULING_ROUTES + _FALLBACK_ROUTES
-        )
+        await self._ensure_route_vectors(_NEW_ROUTES + _ACTIVE_SCHEDULING_ROUTES)
 
     async def route(self, state: SessionState, user_message: str) -> RoutingDecision:
         routes = (
@@ -115,22 +90,10 @@ class SemanticRouter:
         )
         return await self._choose(user_message, routes)
 
-    async def route_non_scheduling(
-        self,
-        state: SessionState,
-        user_message: str,
-    ) -> RoutingDecision:
-        relation = RouteRelation.INTERRUPT if state.active_workflow else RouteRelation.NEW
-        routes = tuple(
-            Route(route.key, route.domain, relation, route.description)
-            for route in _FALLBACK_ROUTES
-        )
-        return await self._choose(user_message, routes)
-
     async def _choose(
         self,
         user_message: str,
-        routes: tuple[Route, ...],
+        routes: tuple[_Candidate, ...],
     ) -> RoutingDecision:
         await self._ensure_route_vectors(routes)
         query_vector = await self._embeddings.embed_query(
@@ -145,7 +108,7 @@ class SemanticRouter:
         chosen = routes[best_index]
         return self._decision(chosen, scores[best_index], routes, scores)
 
-    async def _ensure_route_vectors(self, routes: tuple[Route, ...]) -> None:
+    async def _ensure_route_vectors(self, routes: tuple[_Candidate, ...]) -> None:
         missing = [route for route in routes if route.key not in self._route_vectors]
         if not missing:
             return
@@ -163,14 +126,13 @@ class SemanticRouter:
 
     @staticmethod
     def _decision(
-        route: Route,
+        route: _Candidate,
         confidence: float,
-        routes: tuple[Route, ...],
+        routes: tuple[_Candidate, ...],
         scores: list[float],
     ) -> RoutingDecision:
         return RoutingDecision(
             domain=route.domain,
-            relation=route.relation,
             route_key=route.key,
             confidence=max(0.0, min(1.0, confidence)),
             source="embedding",

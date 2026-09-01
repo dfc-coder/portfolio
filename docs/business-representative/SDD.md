@@ -2,9 +2,9 @@
 
 ## Goal
 
-Run a useful server-side representative on a small local Qwen model with real streaming, reliable Calendar writes and a codebase small enough to reason about.
+Run a useful server-side representative on a small local Qwen model with explicit business capabilities, real streaming, grounded portfolio answers and Calendar writes protected by human approval.
 
-The design intentionally avoids a conversational FSM, generic capability registry, generic ReAct loop, cross-encoder reranker and LLM routing judge.
+The design intentionally avoids a tool framework, generic capability registry, ToolExecutor, planner, ReAct loop, agent graph, cross-encoder reranker and LLM routing judge.
 
 ## Runtime
 
@@ -15,59 +15,101 @@ Vue / Netlify
      v
 FastAPI
      |
-     +-- BusinessRepresentative
-     |      +-- SemanticRouter ------> Qwen3-Embedding-0.6B
-     |      |                         cached route vectors + cosine
-     |      +-- Scheduler -----------> Qwen structured extraction
-     |      |                         + CalendarPort / HITL approval
-     |      +-- Responder -----------> cached profile vectors
-     |                                + Qwen real stream
-     |                                + StreamGuard
+     v
+BusinessRepresentative
      |
-     +-- SessionStore
-     +-- SlotService
-     +-- CalendarPort -------------> Google Calendar
+     +-- CONVERSATION ----------------------> Responder
+     |
+     +-- PORTFOLIO ---> PortfolioSearch ----> Responder
+     |                    |
+     |                    +--> profile knowledge + embeddings
+     |
+     +-- SCHEDULING ---> Scheduler
+                            |
+                            +--> SlotService ---> Calendar
+
+Explicit UI approval
+     |
+     v
+BookingApproval ---> Calendar ---> GoogleCalendarGateway
 ```
 
-## Agent boundary
+`BookingApproval` is deliberately outside free-form chat. It validates the pending booking and explicit user approval before the Calendar command crosses the side-effect boundary.
 
-`BusinessRepresentative` only orchestrates: append the visitor turn, route, delegate, and persist the assistant turn. It contains no workflow rules and no tool execution logic.
+## BusinessRepresentative
+
+`BusinessRepresentative` is the explicit orchestrator. It appends the visitor turn, asks the router for a domain, invokes one capability, streams or returns the result, and persists the assistant turn.
+
+Its control flow is intentionally boring:
+
+```text
+SCHEDULING  -> Scheduler
+PORTFOLIO   -> PortfolioSearch -> Responder
+otherwise   -> Responder
+```
+
+It contains no generic tool dispatcher, planner or dynamic function registry.
 
 ## Semantic routing
 
-`SemanticRouter` keeps natural-language descriptions for business, scheduling and general intent. Their embeddings are computed once and cached. Each visitor turn requires one query embedding and local cosine similarity against those cached vectors.
+`SemanticRouter` answers one question: what class of problem is the visitor trying to solve?
 
-During an active scheduling task, the descriptions become business interruption, scheduling continuation and general interruption. Scheduling memory is preserved across interruptions.
-
-There is no topic regex whitelist, reranker threshold cascade or LLM judge.
-
-## Business-profile retrieval
-
-`business-profile.json` is flattened into small structural documents such as `projects.3`, `experience.0` and `skills`. Document embeddings are computed once on the first business retrieval and then cached for the process lifetime.
-
-For each business turn:
+The only domains are:
 
 ```text
-recent visitor context
-       |
-       v
-query embedding
-       |
-       v
-cosine similarity against cached profile vectors
-       |
-       v
-top documents within context budget
-       |
-       v
+CONVERSATION
+PORTFOLIO
+SCHEDULING
+```
+
+Route descriptions are embedded once and cached. Each visitor turn requires one query embedding and local cosine similarity against the cached route vectors.
+
+During an active scheduling workflow, route descriptions are contextualized so a portfolio or conversational interruption can preserve scheduling memory. The router still returns only the domain; workflow relation is derived by the scheduling consumer.
+
+## PortfolioSearch
+
+`PortfolioSearch` is the first explicit business capability:
+
+```python
+search(query: str) -> SearchResult
+```
+
+It returns concrete values:
+
+```text
+SearchResult
+└── facts: tuple[Fact, ...]
+    ├── text
+    └── source
+```
+
+The capability hides its retrieval backend. Today it uses `business-profile.json`, cached embeddings and dense cosine retrieval. A future document store, vector database or reranker can replace that backend without changing `BusinessRepresentative` or `Responder`.
+
+Only recent visitor turns are used to build a follow-up retrieval query. Previous assistant text is not fed back as search evidence.
+
+## Responder
+
+`Responder` does not retrieve portfolio knowledge. It receives concrete evidence from the orchestrator and renders a response from that evidence.
+
+For a portfolio turn:
+
+```text
+PortfolioSearch
+     |
+     v
+SearchResult.facts
+     |
+     v
 Responder
 ```
 
-The retrieval service never pairwise-scores every profile document with a cross-encoder on each request.
+If no supported fact survives the evidence threshold, `RELEVANT_KNOWLEDGE` is explicitly empty and the prompt requires abstention instead of invention.
 
-## Scheduling
+`StreamGuard` remains a narrow safety layer for generated text, especially unverified side-effect claims. Correct control flow is the primary guarantee; the guard is not the authorization mechanism.
 
-Scheduling state is data, not a conversation stage:
+## Scheduling and Calendar
+
+Scheduling state remains data rather than a conversational stage machine:
 
 ```text
 SchedulingMemory
@@ -80,32 +122,32 @@ SchedulingMemory
 - pending booking
 ```
 
-`Scheduler` performs structured interpretation of scheduling turns and updates this memory. Free-form text never writes to Calendar. A prepared booking crosses the write boundary only after explicit human approval in the UI.
+The Calendar interface lives with the scheduling consumer. `SlotService` uses it for availability reads. `BookingApproval` uses it for the booking command after explicit UI approval.
 
-A business/general interruption does not clear `SchedulingMemory`.
+`Scheduler` never receives Calendar directly and never performs Calendar writes. Free-form chat may prepare a `PendingBooking`, but only the explicit approval boundary may execute `create_booking`.
 
-## False scheduling routes
+## Failure behavior
 
-A message routed to scheduling is interpreted again inside the narrow scheduling context. If it is not applicable, `Scheduler` returns `not_applicable` and the representative reroutes only between business and general without destroying meeting memory.
+A routing decision is not a Python function dispatch. If a scheduling message cannot be interpreted as a valid scheduling turn, `Scheduler` returns a scheduling clarification and does not silently invoke another capability.
 
-## Grounded real streaming
-
-`Responder` receives retrieved owner facts, agent capabilities, current time, focus and workflow summary and streams directly from llama.cpp.
-
-`StreamGuard` keeps a small rolling holdback and blocks narrow operational claims such as impersonating Diego or claiming an unverified completed Calendar action.
+Calendar success is reported only after the command boundary receives a concrete booking result. Calendar errors do not produce a success claim and leave the pending booking available according to the approval policy.
 
 ## Observability
 
-PocketTrace is optional and fail-open. It records `router`, `profile_retrieval`, `context_assembler`, `qwen_generation`, `stream_guard` and scheduling spans without participating in decisions.
+PocketTrace is optional and fail-open. Relevant spans include `router`, `portfolio_search`, `context_assembler`, `qwen_generation`, `stream_guard` and scheduling operations. Tracing observes decisions but does not participate in them.
 
 ## Package boundaries
 
 ```text
-app/api             HTTP + SSE
-app/agent           representative, router, context, scheduler, responder, guard
-app/domain          session/profile/routing/scheduling data
-app/scheduling      date policy + availability calculation
-app/ports           LLM, embeddings, calendar, sessions
-app/infrastructure  llama.cpp, embeddings, PocketTrace, Calendar, config, sessions
-app/bootstrap.py    dependency composition
+app/api                    HTTP + SSE + explicit approval endpoints
+app/agent                  representative, router, scheduler, responder, guard
+app/portfolio              PortfolioSearch + concrete result types
+app/domain                 conversation/profile/routing/scheduling data
+app/scheduling             Calendar boundary, policy, slots, approval
+app/infrastructure/knowledge  profile retrieval backend
+app/infrastructure         llama.cpp, embeddings, Calendar gateways, tracing, config, sessions
+app/ports                  legacy/shared technical ports only
+app/bootstrap.py           dependency composition
 ```
+
+There is intentionally no `tools/` package yet. Native function calling or MCP can be added later as thin adapters over these capabilities without changing the core.

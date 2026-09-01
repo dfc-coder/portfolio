@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "portfolio-business-representative"
 version = "0.1.0"
-description = "Server-side bounded reflective ReAct business representative"
+description = "Server-side portfolio representative with explicit business capabilities"
 requires-python = ">=3.13,<3.14"
 dependencies = [
   "fastapi>=0.116,<1",

@@ -5,10 +5,10 @@ from enum import StrEnum
 from pydantic import BaseModel, Field
 
 
-class RouteDomain(StrEnum):
-    BUSINESS = "business"
+class Route(StrEnum):
+    CONVERSATION = "conversation"
+    PORTFOLIO = "portfolio"
     SCHEDULING = "scheduling"
-    GENERAL = "general"
 
 
 class RouteRelation(StrEnum):
@@ -18,8 +18,7 @@ class RouteRelation(StrEnum):
 
 
 class RoutingDecision(BaseModel):
-    domain: RouteDomain
-    relation: RouteRelation
+    domain: Route
     route_key: str
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     source: str

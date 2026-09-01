@@ -9,7 +9,6 @@ from pydantic import BaseModel
 from app.domain.conversation import ActiveWorkflow, SessionState
 from app.domain.routing import RouteRelation
 from app.domain.scheduling import OfferedSlot, PendingBooking
-from app.ports.calendar import CalendarPort
 from app.ports.llm import GenerationConfig, LlmPort
 from app.scheduling.policy import SchedulingPolicy
 from app.scheduling.slots import SlotService
@@ -50,12 +49,11 @@ _SPANISH_WEEKDAYS = (
 
 
 class SchedulerReply(BaseModel):
-    text: str = ""
-    not_applicable: bool = False
+    text: str
 
 
 class Scheduler:
-    """Meeting workflow. It may prepare bookings but never performs calendar writes."""
+    """Meeting workflow. It prepares commands but never performs calendar writes."""
 
     PUBLIC_CAPABILITIES = (
         "Check Diego's calendar availability for a date or date range.",
@@ -67,13 +65,9 @@ class Scheduler:
         self,
         llm: LlmPort,
         slots: SlotService,
-        calendar: CalendarPort,
         policy: SchedulingPolicy,
         config: GenerationConfig,
     ) -> None:
-        # Compatibility seam for existing diagnostics. The capability is deliberately
-        # discarded, so Scheduler cannot perform calendar side effects.
-        del calendar
         self._slots = slots
         self._policy = policy
         self._parser = SchedulingTurnParser(llm, policy, config)
@@ -106,7 +100,15 @@ class Scheduler:
 
         turn = await self._interpret(state, user_message, relation)
         if turn.intent == SchedulingIntent.OTHER:
-            return SchedulerReply(not_applicable=True)
+            return SchedulerReply(
+                text=(
+                    "No pude interpretar ese mensaje como parte de la agenda. "
+                    "Indicame una fecha, horario o dato de la reunión para continuar."
+                    if spanish
+                    else "I couldn't interpret that as part of scheduling. "
+                    "Give me a date, time, or meeting detail to continue."
+                )
+            )
         if turn.intent == SchedulingIntent.CANCEL:
             state.reset_scheduling()
             return SchedulerReply(

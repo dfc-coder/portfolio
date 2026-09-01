@@ -40,7 +40,7 @@ TRACKED_FIELDS = (
 
 
 class RecordingLlm:
-    """Transparent LLM proxy that records whether structured output validated."""
+    """Transparent LLM proxy that records structured-output validity."""
 
     def __init__(self, inner: LlamaCppClient) -> None:
         self._inner = inner
@@ -61,7 +61,11 @@ class RecordingLlm:
     ) -> str:
         self.reset()
         try:
-            raw = await self._inner.complete(messages, config, response_schema=response_schema)
+            raw = await self._inner.complete(
+                messages,
+                config,
+                response_schema=response_schema,
+            )
         except Exception as exc:
             self.last_schema_valid = False
             self.last_error = f"{type(exc).__name__}: {exc}"
@@ -75,7 +79,7 @@ class RecordingLlm:
         try:
             response_schema.model_validate_json(raw)
             self.last_schema_valid = True
-        except Exception as exc:  # noqa: BLE001 - eval records validation failures verbatim
+        except Exception as exc:  # noqa: BLE001 - eval records validation failures
             self.last_schema_valid = False
             self.last_error = f"{type(exc).__name__}: {exc}"
         return raw
@@ -94,7 +98,7 @@ class RecordingLlm:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Evaluate SchedulingTurn schema validity and semantic accuracy on the live SLM.",
+        description="Evaluate SchedulingTurn schema validity and semantic accuracy.",
     )
     parser.add_argument(
         "--cases",
@@ -129,7 +133,10 @@ def percentile(values: list[float], fraction: float) -> float:
     if not values:
         return 0.0
     ordered = sorted(values)
-    index = min(len(ordered) - 1, max(0, round((len(ordered) - 1) * fraction)))
+    index = min(
+        len(ordered) - 1,
+        max(0, round((len(ordered) - 1) * fraction)),
+    )
     return ordered[index]
 
 
@@ -186,7 +193,9 @@ def normalize_value(value: Any) -> Any:
 def resolve_expected(value: Any, policy: SchedulingPolicy) -> Any:
     if isinstance(value, dict) and "$date_offset_days" in value:
         local_today = datetime.now(timezone.utc).astimezone(policy.timezone).date()
-        return (local_today + timedelta(days=int(value["$date_offset_days"]))).isoformat()
+        return (
+            local_today + timedelta(days=int(value["$date_offset_days"]))
+        ).isoformat()
     return normalize_value(value)
 
 
@@ -253,7 +262,6 @@ def build_scheduler(
     scheduler = Scheduler(
         llm,
         slots,
-        calendar,
         policy,
         GenerationConfig(
             temperature=settings.planner_temperature,
@@ -274,7 +282,9 @@ async def evaluate(
     scheduler, policy = build_scheduler(settings, llm)
     records: list[dict[str, Any]] = []
     critical_outcomes: dict[str, list[bool]] = defaultdict(list)
-    field_stats: dict[str, dict[str, int]] = defaultdict(lambda: {"correct": 0, "total": 0})
+    field_stats: dict[str, dict[str, int]] = defaultdict(
+        lambda: {"correct": 0, "total": 0}
+    )
     null_assertions = 0
     hallucinated_fields = 0
 
@@ -285,7 +295,11 @@ async def evaluate(
             relation = RouteRelation(case.get("relation", "new"))
             llm.reset()
             started = time.perf_counter()
-            turn = await scheduler._interpret(state, case["message"], relation)  # noqa: SLF001
+            turn = await scheduler._interpret(  # noqa: SLF001
+                state,
+                case["message"],
+                relation,
+            )
             latency_ms = (time.perf_counter() - started) * 1000
             schema_valid = llm.last_schema_valid is True
             semantic_success, field_results, semantic_failures = score_turn(
@@ -326,25 +340,29 @@ async def evaluate(
     schema_valid_count = sum(record["schema_valid"] for record in records)
     semantic_success_count = sum(record["semantic_success"] for record in records)
     latencies = [record["latency_ms"] for record in records]
-
     field_accuracy = {
         field: round(stats["correct"] / stats["total"], 4)
         for field, stats in sorted(field_stats.items())
         if stats["total"]
     }
-    critical_passed = sum(all(outcomes) for outcomes in critical_outcomes.values())
 
     return {
         "runs": total,
-        "schema_valid_rate": round(schema_valid_count / total, 4) if total else 0.0,
-        "semantic_accuracy": round(semantic_success_count / total, 4) if total else 0.0,
+        "schema_valid_rate": (
+            round(schema_valid_count / total, 4) if total else 0.0
+        ),
+        "semantic_accuracy": (
+            round(semantic_success_count / total, 4) if total else 0.0
+        ),
         "intent_accuracy": field_accuracy.get("intent", 0.0),
         "field_accuracy": field_accuracy,
         "hallucinated_field_rate": (
-            round(hallucinated_fields / null_assertions, 4) if null_assertions else 0.0
+            round(hallucinated_fields / null_assertions, 4)
+            if null_assertions
+            else 0.0
         ),
         "critical_pass_k": {
-            "passed": critical_passed,
+            "passed": sum(all(outcomes) for outcomes in critical_outcomes.values()),
             "total": len(critical_outcomes),
             "k": critical_repetitions,
         },
@@ -352,7 +370,11 @@ async def evaluate(
             "p50": round(statistics.median(latencies), 2) if latencies else 0.0,
             "p95": round(percentile(latencies, 0.95), 2),
         },
-        "failures": [record for record in records if not record["semantic_success"]],
+        "failures": [
+            record
+            for record in records
+            if not record["semantic_success"]
+        ],
     }
 
 
@@ -371,16 +393,16 @@ def verdict(
     ):
         return {
             "status": "structured_decoding_sufficient",
-            "next_step": "Keep Qwen3.5-0.8B and the current SchedulingTurn architecture.",
+            "next_step": "Keep the current SchedulingTurn architecture.",
         }
     if results["schema_valid_rate"] < min_schema_valid:
         return {
             "status": "structured_output_unreliable",
-            "next_step": "Inspect llama.cpp JSON-schema enforcement/fallback before changing model size.",
+            "next_step": "Inspect llama.cpp JSON-schema enforcement before changing model size.",
         }
     return {
         "status": "semantic_accuracy_insufficient",
-        "next_step": "Run the same corpus against Qwen3.5-2B before considering fine-tuning.",
+        "next_step": "Run the same corpus against the next candidate model before fine-tuning.",
     }
 
 

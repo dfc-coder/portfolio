@@ -10,7 +10,6 @@ from app.domain.conversation import ActiveWorkflow, SessionState
 from app.domain.profile import BusinessProfile
 from app.domain.routing import RouteRelation
 from app.domain.scheduling import OfferedSlot, PendingBooking
-from app.infrastructure.calendar.memory import InMemoryCalendarGateway
 from app.ports.llm import GenerationConfig
 from app.scheduling.policy import SchedulingPolicy
 
@@ -35,23 +34,34 @@ class QueueLlm:
 class FixedSlots:
     def __init__(self) -> None:
         tz = ZoneInfo("America/Argentina/Buenos_Aires")
-        self.slots = [OfferedSlot(start=datetime(2026, 8, 25, 14, 0, tzinfo=tz), end=datetime(2026, 8, 25, 14, 30, tzinfo=tz))]
+        self.slots = [
+            OfferedSlot(
+                start=datetime(2026, 8, 25, 14, 0, tzinfo=tz),
+                end=datetime(2026, 8, 25, 14, 30, tzinfo=tz),
+            )
+        ]
 
     async def available_slots(self, start_date: date, end_date: date) -> list[OfferedSlot]:
         del start_date, end_date
         return self.slots
 
 
-def make_scheduler(profile: BusinessProfile, turns: list[SchedulingTurn]):
+def make_scheduler(profile: BusinessProfile, turns: list[SchedulingTurn]) -> Scheduler:
     policy = SchedulingPolicy(profile.scheduling)
-    calendar = InMemoryCalendarGateway()
-    scheduler = Scheduler(QueueLlm(turns), FixedSlots(), calendar, policy, GenerationConfig(temperature=0.0, max_tokens=64))  # type: ignore[arg-type]
-    return scheduler, calendar
+    return Scheduler(
+        QueueLlm(turns),
+        FixedSlots(),
+        policy,
+        GenerationConfig(temperature=0.0, max_tokens=64),
+    )  # type: ignore[arg-type]
 
 
 @pytest.mark.asyncio
 async def test_date_input_reads_availability_without_stage_machine(profile: BusinessProfile) -> None:
-    scheduler, _ = make_scheduler(profile, [SchedulingTurn(intent=SchedulingIntent.INFORM, start_date=date(2026, 8, 25))])
+    scheduler = make_scheduler(
+        profile,
+        [SchedulingTurn(intent=SchedulingIntent.INFORM, start_date=date(2026, 8, 25))],
+    )
     state = SessionState("s1")
     reply = await scheduler.handle(state, "El 25 de agosto", RouteRelation.NEW)
     assert state.active_workflow == ActiveWorkflow.SCHEDULING
@@ -60,32 +70,25 @@ async def test_date_input_reads_availability_without_stage_machine(profile: Busi
 
 
 @pytest.mark.asyncio
-async def test_non_explicit_confirmation_never_writes_calendar(profile: BusinessProfile) -> None:
-    scheduler, calendar = make_scheduler(profile, [SchedulingTurn(intent=SchedulingIntent.CONFIRM)])
+async def test_non_explicit_confirmation_cannot_execute_calendar_command(
+    profile: BusinessProfile,
+) -> None:
+    scheduler = make_scheduler(profile, [SchedulingTurn(intent=SchedulingIntent.CONFIRM)])
     state = SessionState("s2")
     state.active_workflow = ActiveWorkflow.SCHEDULING
     slot = FixedSlots().slots[0]
     state.scheduling.offered_slots = {"S1": slot}
     state.scheduling.selected_slot_id = "S1"
-    state.scheduling.pending_booking = PendingBooking(booking_id="pending", slot=slot, visitor_name="Ana", visitor_email="ana@example.com", subject="Architecture")
-    reply = await scheduler.handle(state, "Tuesday could work", RouteRelation.CONTINUE)
-    assert len(calendar.bookings) == 0
-    assert state.scheduling.pending_booking is None
-    assert state.active_workflow == ActiveWorkflow.SCHEDULING
-    assert "S1" in reply.text
+    state.scheduling.pending_booking = PendingBooking(
+        booking_id="pending",
+        slot=slot,
+        visitor_name="Ana",
+        visitor_email="ana@example.com",
+        subject="Architecture",
+    )
 
-
-@pytest.mark.asyncio
-async def test_text_confirmation_requires_hitl_and_never_writes_calendar(profile: BusinessProfile) -> None:
-    scheduler, calendar = make_scheduler(profile, [SchedulingTurn(intent=SchedulingIntent.CONFIRM)])
-    state = SessionState("s3")
-    state.active_workflow = ActiveWorkflow.SCHEDULING
-    slot = FixedSlots().slots[0]
-    state.scheduling.offered_slots = {"S1": slot}
-    state.scheduling.selected_slot_id = "S1"
-    state.scheduling.pending_booking = PendingBooking(booking_id="pending", slot=slot, visitor_name="Ana", visitor_email="ana@example.com", subject="Architecture")
     reply = await scheduler.handle(state, "Sí, confirmo", RouteRelation.CONTINUE)
-    assert len(calendar.bookings) == 0
+
     assert state.active_workflow == ActiveWorkflow.SCHEDULING
     assert state.scheduling.pending_booking is not None
     assert "confirmar reunión" in reply.text.lower()
@@ -93,24 +96,46 @@ async def test_text_confirmation_requires_hitl_and_never_writes_calendar(profile
 
 @pytest.mark.asyncio
 async def test_details_before_slot_are_preserved(profile: BusinessProfile) -> None:
-    scheduler, _ = make_scheduler(profile, [SchedulingTurn(intent=SchedulingIntent.INFORM, visitor_email="ana@example.com")])
+    scheduler = make_scheduler(
+        profile,
+        [
+            SchedulingTurn(
+                intent=SchedulingIntent.INFORM,
+                visitor_email="ana@example.com",
+            )
+        ],
+    )
     state = SessionState("s4")
     state.active_workflow = ActiveWorkflow.SCHEDULING
     state.scheduling.requested_start_date = date(2026, 8, 25)
     state.scheduling.requested_end_date = date(2026, 8, 25)
     state.scheduling.offered_slots = {"S1": FixedSlots().slots[0]}
-    reply = await scheduler.handle(state, "Mi email es ana@example.com", RouteRelation.CONTINUE)
+
+    reply = await scheduler.handle(
+        state,
+        "Mi email es ana@example.com",
+        RouteRelation.CONTINUE,
+    )
+
     assert state.scheduling.visitor_email == "ana@example.com"
     assert "S1" in reply.text
 
 
 @pytest.mark.asyncio
-async def test_professional_tool_question_escapes_false_scheduling_route(profile: BusinessProfile) -> None:
-    scheduler, _ = make_scheduler(profile, [SchedulingTurn(intent=SchedulingIntent.OTHER)])
+async def test_unrecognized_scheduling_turn_returns_clarification_without_mutating_memory(
+    profile: BusinessProfile,
+) -> None:
+    scheduler = make_scheduler(profile, [SchedulingTurn(intent=SchedulingIntent.OTHER)])
     state = SessionState("s5")
     state.active_workflow = ActiveWorkflow.SCHEDULING
     state.scheduling.visitor_email = "ana@example.com"
-    reply = await scheduler.handle(state, "¿Podés usar herramientas?", RouteRelation.CONTINUE)
-    assert reply.not_applicable is True
+
+    reply = await scheduler.handle(
+        state,
+        "¿Podés usar herramientas?",
+        RouteRelation.CONTINUE,
+    )
+
+    assert "agenda" in reply.text.lower()
     assert state.active_workflow == ActiveWorkflow.SCHEDULING
     assert state.scheduling.visitor_email == "ana@example.com"

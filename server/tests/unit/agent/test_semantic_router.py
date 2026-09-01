@@ -6,7 +6,7 @@ import pytest
 
 from app.agent.router import SemanticRouter
 from app.domain.conversation import ActiveWorkflow, ChatTurn, SessionState
-from app.domain.routing import RouteDomain, RouteRelation
+from app.domain.routing import Route
 from app.ports.embeddings import EmbeddingTask
 
 
@@ -36,14 +36,13 @@ class FixedEmbeddings:
 
 
 @pytest.mark.asyncio
-async def test_embedding_router_selects_highest_business_similarity() -> None:
+async def test_embedding_router_selects_highest_portfolio_similarity() -> None:
     embeddings = FixedEmbeddings([0.92, 0.10, 0.05])
     router = SemanticRouter(embeddings)
 
     decision = await router.route(SessionState("s1"), "¿Cuánto cobra Diego por hora?")
 
-    assert decision.domain == RouteDomain.BUSINESS
-    assert decision.relation == RouteRelation.NEW
+    assert decision.domain == Route.PORTFOLIO
     assert decision.source == "embedding"
     assert embeddings.query_task == EmbeddingTask.ROUTING
 
@@ -55,7 +54,7 @@ async def test_embedding_router_selects_scheduling_without_llm_judge() -> None:
 
     decision = await router.route(SessionState("s2"), "¿A qué hora podemos hablar?")
 
-    assert decision.domain == RouteDomain.SCHEDULING
+    assert decision.domain == Route.SCHEDULING
     assert decision.source == "embedding"
     assert embeddings.query_task == EmbeddingTask.ROUTING
 
@@ -74,7 +73,7 @@ async def test_new_turn_routing_uses_latest_visitor_text_only() -> None:
 
     decision = await router.route(state, "¿Qué podés hacer?")
 
-    assert decision.domain == RouteDomain.BUSINESS
+    assert decision.domain == Route.PORTFOLIO
     assert embeddings.query == "¿Qué podés hacer?"
     assert embeddings.query_task == EmbeddingTask.ROUTING
     assert "LAST_ASSISTANT" not in embeddings.query
@@ -97,7 +96,7 @@ async def test_active_scheduling_routes_latest_turn_without_workflow_text_in_que
 
     decision = await router.route(state, "Mi email es ana@example.com")
 
-    assert decision.domain == RouteDomain.SCHEDULING
+    assert decision.domain == Route.SCHEDULING
     assert embeddings.query == "Mi email es ana@example.com"
     assert embeddings.query_task == EmbeddingTask.ROUTING
     assert "ACTIVE_WORKFLOW" not in embeddings.query
@@ -107,7 +106,7 @@ async def test_active_scheduling_routes_latest_turn_without_workflow_text_in_que
 
 
 @pytest.mark.asyncio
-async def test_active_scheduling_business_interrupt_preserves_memory() -> None:
+async def test_active_scheduling_portfolio_interrupt_preserves_memory() -> None:
     embeddings = FixedEmbeddings([0.95, 0.08, 0.04])
     router = SemanticRouter(embeddings)
     state = SessionState("s3")
@@ -116,8 +115,7 @@ async def test_active_scheduling_business_interrupt_preserves_memory() -> None:
 
     decision = await router.route(state, "Antes, ¿Diego trabaja con AWS?")
 
-    assert decision.domain == RouteDomain.BUSINESS
-    assert decision.relation == RouteRelation.INTERRUPT
+    assert decision.domain == Route.PORTFOLIO
     assert embeddings.query_task == EmbeddingTask.ROUTING
     assert state.active_workflow == ActiveWorkflow.SCHEDULING
     assert state.scheduling.visitor_name == "Ana"
