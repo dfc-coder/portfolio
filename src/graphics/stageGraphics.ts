@@ -12,8 +12,8 @@ interface AgentSignalState {
 
 const agentSignal: AgentSignalState = {
   phase: "idle",
-  activity: 0.14,
-  activityTarget: 0.14,
+  activity: 0.10,
+  activityTarget: 0.10,
 };
 
 let mountedGraphics: StageGraphics | null = null;
@@ -25,7 +25,7 @@ export const setAgentVisualPhase = (phase: AgentVisualPhase): void => {
 
 export const pulseAgentVisual = (strength = 0.3): void => {
   const impulse = Math.min(1, Math.max(0, strength));
-  agentSignal.activityTarget = Math.min(1, agentSignal.activityTarget + impulse);
+  agentSignal.activityTarget = Math.max(agentSignal.activityTarget, impulse);
   mountedGraphics?.wake();
 };
 
@@ -247,11 +247,19 @@ const phaseMode = (phase: AgentVisualPhase): number => {
 };
 
 const phaseActivity = (phase: AgentVisualPhase): number => {
-  if (phase === "listening") return 0.34;
-  if (phase === "thinking") return 0.76;
-  if (phase === "speaking") return 0.62;
-  if (phase === "error") return 0.92;
-  return 0.14;
+  if (phase === "listening") return 0.14;
+  if (phase === "thinking") return 0.24;
+  if (phase === "speaking") return 0.12;
+  if (phase === "error") return 0.30;
+  return 0.10;
+};
+
+const phaseMotionRate = (phase: AgentVisualPhase, activity: number): number => {
+  if (phase === "thinking") return 0.20;
+  if (phase === "speaking") return 0.06 + activity * 0.34;
+  if (phase === "listening") return 0.10;
+  if (phase === "error") return 0.12;
+  return 0.07;
 };
 
 class StageGraphics {
@@ -279,6 +287,7 @@ class StageGraphics {
   private atmosphereTurbulence = 0.48;
   private atmosphereTargetTurbulence = 0.48;
   private agentMode = 0;
+  private agentTime = 0;
   private transitionActive = false;
   private pointer = new THREE.Vector2(0.72, 0.34);
   private pointerTarget = new THREE.Vector2(0.72, 0.34);
@@ -487,9 +496,11 @@ class StageGraphics {
     );
 
     const baseActivity = phaseActivity(agentSignal.phase);
-    agentSignal.activityTarget = Math.max(baseActivity, agentSignal.activityTarget * Math.exp(-2.4 * dt));
-    agentSignal.activity = damp(agentSignal.activity, agentSignal.activityTarget, 3.2, dt);
+    const excessActivity = Math.max(0, agentSignal.activityTarget - baseActivity);
+    agentSignal.activityTarget = baseActivity + excessActivity * Math.exp(-7.0 * dt);
+    agentSignal.activity = damp(agentSignal.activity, agentSignal.activityTarget, 8.0, dt);
     this.agentMode = damp(this.agentMode, phaseMode(agentSignal.phase), 3.4, dt);
+    this.agentTime += dt * phaseMotionRate(agentSignal.phase, agentSignal.activity);
 
     this.atmosphereMaterial.uniforms.uPointer.value.copy(this.pointer);
     this.atmosphereMaterial.uniforms.uVelocity.value = this.pointerVelocity;
@@ -498,7 +509,7 @@ class StageGraphics {
     this.atmosphereMaterial.uniforms.uTurbulence.value = this.atmosphereTurbulence;
 
     this.transitionMaterial.uniforms.uTime.value = elapsed;
-    this.agentMaterial.uniforms.uTime.value = elapsed;
+    this.agentMaterial.uniforms.uTime.value = this.agentTime;
     this.agentMaterial.uniforms.uActivity.value = agentSignal.activity;
     this.agentMaterial.uniforms.uMode.value = this.agentMode;
     this.agentMaterial.uniforms.uPointer.value.copy(this.pointer);
