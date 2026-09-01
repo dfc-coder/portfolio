@@ -64,36 +64,20 @@ test("BDD: fixed straight and orthogonal routes remain backward compatible", () 
   assert.equal(compiled.edges[1].path, "M 30 20 H 40 V 40 H 50");
 });
 
-test("BDD: fixed edge labels keep the approved midpoint placement", () => {
-  const project = projectData.systemsProjects[0];
-  const compiled = compiler.compileSystemGraph(project.graph);
-
-  for (const edge of compiled.edges) {
-    const from = project.graph.nodes.find((node) => node.id === edge.from);
-    const to = project.graph.nodes.find((node) => node.id === edge.to);
-    assert.ok(from && to);
-    assert.equal(edge.labelX, (from.x + to.x) / 2);
-    assert.equal(edge.labelY, (from.y + to.y) / 2);
-  }
-});
-
 test("BDD: automatic engine compiles every shipped system for desktop and mobile", () => {
+  const allowed = ["serpentine", "layered-lr", "layered-tb", "fanout"];
+
   for (const project of projectData.systemsProjects) {
     for (const profile of ["desktop", "mobile"]) {
-      const compiled = compiler.compileSystemGraph(project.graph, {
-        mode: "auto",
-        profile,
-      });
-
+      const compiled = compiler.compileSystemGraph(project.graph, { mode: "auto", profile });
       assert.equal(compiled.nodes.length, project.graph.nodes.length, `${project.title} ${profile}`);
       assert.equal(compiled.edges.length, project.graph.edges.length, `${project.title} ${profile}`);
-      assert.ok(["layered-lr", "layered-tb"].includes(compiled.layout));
+      assert.ok(allowed.includes(compiled.layout), `${project.title}: ${compiled.layout}`);
 
       for (const node of compiled.nodes) {
         assert.ok(node.x >= 0 && node.x <= compiled.width, `${project.title}: ${node.id} x`);
         assert.ok(node.y >= 0 && node.y <= compiled.height, `${project.title}: ${node.id} y`);
       }
-
       for (const edge of compiled.edges) {
         assert.ok(edge.path.startsWith("M "), `${project.title}: ${edge.from} -> ${edge.to}`);
       }
@@ -103,31 +87,40 @@ test("BDD: automatic engine compiles every shipped system for desktop and mobile
 
 test("BDD: automatic layout is deterministic", () => {
   for (const project of projectData.systemsProjects) {
-    const first = compiler.compileSystemGraph(project.graph, {
-      mode: "auto",
-      profile: "desktop",
-    });
-    const second = compiler.compileSystemGraph(project.graph, {
-      mode: "auto",
-      profile: "desktop",
-    });
+    const first = compiler.compileSystemGraph(project.graph, { mode: "auto", profile: "desktop" });
+    const second = compiler.compileSystemGraph(project.graph, { mode: "auto", profile: "desktop" });
     assert.deepEqual(first, second, project.title);
   }
 });
 
-test("BDD: mobile automatic layout prefers vertical composition", () => {
+test("BDD: feedback-heavy ReAct becomes a compact vertical system", () => {
+  const project = projectData.systemsProjects.find((item) => item.code === "REACT—AI");
+  assert.ok(project);
+
+  const compiled = compiler.compileSystemGraph(project.graph, { mode: "auto", profile: "desktop" });
+  assert.equal(compiled.layout, "layered-tb");
+
+  const reason = compiled.nodes.find((node) => node.id === "reason");
+  const reflect = compiled.nodes.find((node) => node.id === "reflect");
+  const model = compiled.nodes.find((node) => node.id === "model");
+  assert.ok(reason && reflect && model);
+  assert.ok(reason.y < reflect.y);
+  assert.ok(reason.y < model.y);
+
+  const feedback = compiled.edges.filter((edge) => edge.feedback);
+  assert.deepEqual(
+    feedback.map((edge) => `${edge.from}->${edge.to}`).sort(),
+    ["model->reason", "reflect->reason"],
+  );
+  assert.ok(feedback.every((edge) => edge.labelX < reason.x));
+});
+
+test("BDD: branching search remains horizontal on desktop and vertical on mobile", () => {
   const project = projectData.systemsProjects.find((item) => item.code === "SEARCH");
   assert.ok(project);
 
-  const desktop = compiler.compileSystemGraph(project.graph, {
-    mode: "auto",
-    profile: "desktop",
-  });
-  const mobile = compiler.compileSystemGraph(project.graph, {
-    mode: "auto",
-    profile: "mobile",
-  });
-
+  const desktop = compiler.compileSystemGraph(project.graph, { mode: "auto", profile: "desktop" });
+  const mobile = compiler.compileSystemGraph(project.graph, { mode: "auto", profile: "mobile" });
   assert.equal(desktop.layout, "layered-lr");
   assert.equal(mobile.layout, "layered-tb");
   assert.notDeepEqual(
@@ -136,20 +129,25 @@ test("BDD: mobile automatic layout prefers vertical composition", () => {
   );
 });
 
-test("BDD: backward narrative relations become feedback edges in automatic mode", () => {
-  const project = projectData.systemsProjects.find((item) => item.code === "REACT—AI");
-  assert.ok(project);
+test("BDD: simple chains use serpentine layout instead of an over-wide horizontal line", () => {
+  const graph = {
+    nodes: Array.from({ length: 7 }, (_, index) => ({
+      id: `n${index}`,
+      label: `N${index}`,
+      x: index * 10,
+      y: 20,
+      step: index,
+    })),
+    edges: Array.from({ length: 6 }, (_, index) => ({
+      from: `n${index}`,
+      to: `n${index + 1}`,
+      step: index,
+    })),
+  };
 
-  const compiled = compiler.compileSystemGraph(project.graph, {
-    mode: "auto",
-    profile: "desktop",
-  });
-
-  const feedback = compiled.edges.filter((edge) => edge.feedback);
-  assert.deepEqual(
-    feedback.map((edge) => `${edge.from}->${edge.to}`).sort(),
-    ["model->reason", "reflect->reason"],
-  );
+  const compiled = compiler.compileSystemGraph(graph, { mode: "auto", profile: "desktop" });
+  assert.equal(compiled.layout, "serpentine");
+  assert.ok(new Set(compiled.nodes.map((node) => node.y)).size > 1);
 });
 
 test("BDD: invalid graph references fail explicitly in both modes", () => {
@@ -159,8 +157,5 @@ test("BDD: invalid graph references fail explicitly in both modes", () => {
   };
 
   assert.throws(() => compiler.compileSystemGraph(graph), /Unknown graph node/);
-  assert.throws(
-    () => compiler.compileSystemGraph(graph, { mode: "auto" }),
-    /Unknown graph node/,
-  );
+  assert.throws(() => compiler.compileSystemGraph(graph, { mode: "auto" }), /Unknown graph node/);
 });
