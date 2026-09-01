@@ -7,8 +7,12 @@ import ts from "typescript";
 const root = process.cwd();
 const read = (path) => readFile(resolve(root, path), "utf8");
 
-const loadTsModule = async (relativePath) => {
-  const source = await read(relativePath);
+const transpileToDataUrl = async (relativePath, replacements = new Map()) => {
+  let source = await read(relativePath);
+  for (const [from, to] of replacements) {
+    source = source.replaceAll(`"${from}"`, `"${to}"`);
+  }
+
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: {
       module: ts.ModuleKind.ES2022,
@@ -16,11 +20,18 @@ const loadTsModule = async (relativePath) => {
     },
     fileName: relativePath,
   });
-  return import(`data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`);
+  return `data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`;
 };
 
-const compiler = await loadTsModule("src/graph/system-graph.ts");
-const projectData = await loadTsModule("src/experiences/systems-projects.ts");
+const diagramCoreUrl = await transpileToDataUrl("src/graph/diagram-core.ts");
+const compilerUrl = await transpileToDataUrl(
+  "src/graph/system-graph.ts",
+  new Map([["./diagram-core", diagramCoreUrl]]),
+);
+const projectDataUrl = await transpileToDataUrl("src/experiences/systems-projects.ts");
+
+const compiler = await import(compilerUrl);
+const projectData = await import(projectDataUrl);
 
 test("BDD: default compilation preserves every approved Systems node position", () => {
   for (const project of projectData.systemsProjects) {
