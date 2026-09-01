@@ -119,10 +119,12 @@ test("BDD: project 00 graph visibly builds", () => {
   assert.ok(after >= 0.99);
 });
 
-test("SDD: all five Systems expose distinct architecture signatures", () => {
+test("SDD: all five Systems expose distinct semantic architecture signatures", () => {
   const signatures = projectData.systemsProjects.map((project) => {
-    const nodes = project.graph.nodes.map((node) => `${node.id}:${node.x},${node.y}`).join("|");
-    const edges = project.graph.edges.map((edge) => `${edge.from}>${edge.to}:${edge.path ?? "auto"}`).join("|");
+    const nodes = project.graph.nodes.map((node) => node.id).join("|");
+    const edges = project.graph.edges
+      .map((edge) => `${edge.from}>${edge.to}:${edge.kind ?? "default"}`)
+      .join("|");
     return `${nodes}::${edges}`;
   });
   assert.equal(new Set(signatures).size, projectData.systemsProjects.length);
