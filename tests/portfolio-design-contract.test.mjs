@@ -254,16 +254,19 @@ test("architecture: continuity no longer owns an animation loop", async () => {
   assert.doesNotMatch(component, /pointermove|cursorFrame|requestAnimationFrame|ref-cursor/);
 });
 
-test("architecture: Agent UI drives shared Three state and batches stream rendering", async () => {
+test("architecture: Agent UI decouples network chunks from presentation and visual energy", async () => {
   const os = await read("src/components/agent/AgentOS.vue");
   const runtime = await read("src/components/agent/useAgentRuntime.ts");
 
   assert.match(os, /setAgentVisualPhase/);
   assert.match(os, /pulseAgentVisual/);
+  assert.match(os, /onPresent: \(text\) =>/);
   assert.doesNotMatch(os, /AsciiFluidCanvas/);
-  assert.match(runtime, /pendingText/);
-  assert.match(runtime, /scheduleStreamFlush/);
-  assert.match(runtime, /requestAnimationFrame\(flushStream\)/);
+  assert.match(runtime, /presentationQueue/);
+  assert.match(runtime, /PRESENTATION_BASE_CPS/);
+  assert.match(runtime, /requestAnimationFrame\(present\)/);
+  assert.match(runtime, /waitForPresentation/);
+  assert.doesNotMatch(runtime, /pendingText|scheduleStreamFlush|flushStream/);
   assert.doesNotMatch(runtime, /localProvider|CORPUS|CorpusEntry|chunkify|Math\.random/);
 });
 
