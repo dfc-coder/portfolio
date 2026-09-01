@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
-    "test:visual": "node --test tests/systems-visual-contract.test.mjs tests/portfolio-design-contract.test.mjs tests/agent-session-contract.test.mjs",
+    "test:visual": "node --test tests/system-graph-contract.test.mjs tests/trajectory-data-contract.test.mjs tests/systems-visual-contract.test.mjs tests/portfolio-design-contract.test.mjs tests/agent-session-contract.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

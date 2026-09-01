@@ -150,11 +150,36 @@ test("architecture: narrative consumers subscribe instead of polling CSS every f
     assert.match(runtime, /narrativeRuntime\.subscribe/);
     assert.doesNotMatch(runtime, /getPropertyValue\("--progress"\)/);
     assert.doesNotMatch(runtime, /insertAdjacentHTML|innerHTML|const markup|Markup\s*=/);
+    assert.doesNotMatch(runtime, /requestAnimationFrame\(renderNarrative\)/);
   }
 
-  assert.doesNotMatch(trajectory, /requestAnimationFrame/);
-  assert.doesNotMatch(systems, /requestAnimationFrame\(renderNarrative\)/);
+  assert.match(trajectory, /requestAnimationFrame\(renderParallax\)/);
+  assert.match(systems, /requestAnimationFrame\(renderParallax\)/);
   assert.match(systems, /requestAnimationFrame\(renderPointer\)/);
+});
+
+test("architecture: mobile refinement is isolated from desktop ownership", async () => {
+  const main = await read("src/main.ts");
+  const mobile = await read("src/styles/mobile-experience.css");
+  const trajectory = await read("src/experiences/trajectory.ts");
+  const systemsMotion = await read("src/experiences/systems-motion-contract.ts");
+  const galleryTransition = await read("src/experiences/gallery-transition.ts");
+  const scroll = await read("src/experiences/scroll.ts");
+
+  const mobileImport = 'import "./styles/mobile-experience.css"';
+  const galleryTransitionImport = 'import "./experiences/gallery-transition.css"';
+
+  assert.match(main, /import "\.\/styles\/mobile-experience\.css"/);
+  assert.ok(main.indexOf(mobileImport) > main.indexOf(galleryTransitionImport));
+  assert.match(mobile, /@media \(max-width: 680px\)/);
+  assert.match(mobile, /--narrative-rail-x:\s*8\.5%/);
+  assert.match(mobile, /\.narrative-header__meta\s*\{[^}]*display:\s*none\s*!important/is);
+  assert.match(mobile, /\.systems-project__detail,[\s\S]*display:\s*none\s*!important/);
+  assert.match(mobile, /\.agent-core\s*\{[^}]*64vw/is);
+  assert.match(trajectory, /entryPresence\(Math\.abs\(roleOffset\), compact\)/);
+  assert.match(systemsMotion, /MOBILE_SYSTEMS_TIMING/);
+  assert.match(galleryTransition, /MOBILE_ENTRY_START_OFFSET = -1\.04/);
+  assert.match(scroll, /MOBILE_SCENE_CROSSFADE_WIDTH = 0\.22/);
 });
 
 test("architecture: persistent Three stage and isolated menu WebGL have separate lifecycles", async () => {

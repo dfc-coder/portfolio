@@ -5,6 +5,7 @@ import { mountTrajectoryExperience } from "./experiences/trajectory";
 import { mountSystemsExperience } from "./experiences/systems";
 import { mountVisualContinuity } from "./experiences/continuity";
 import { mountGalleryGel } from "./experiences/gallery";
+import { mountGalleryTransition } from "./experiences/gallery-transition";
 import { mountScrollSyncController } from "./experiences/scroll";
 import { mountStageGraphics } from "./graphics/stageGraphics";
 
@@ -17,11 +18,19 @@ import "./components/agent/agent.css";
 import "./experiences/hero.css";
 import "./experiences/trajectory.css";
 import "./experiences/trajectory-layout.css";
+import "./styles/trajectory-role-fit.css";
 import "./experiences/systems.css";
+import "./experiences/systems-project-balance.css";
 import "./experiences/continuity.css";
 import "./styles/chapter-bridges.css";
 import "./experiences/gallery.css";
 import "./experiences/gallery-clean.css";
+import "./experiences/gallery-transition.css";
+import "./styles/mobile-experience.css";
+import "./components/narrative/narrative-progress-rail.css";
+import "./styles/mobile-hero-layout.css";
+import "./styles/mobile-trajectory-layout.css";
+import "./styles/mobile-systems-layout.css";
 
 document.documentElement.classList.add("creative-hero-pending");
 
@@ -38,6 +47,7 @@ void document.fonts.ready.then(() => {
       mountTrajectoryExperience();
       mountSystemsExperience();
       mountGalleryGel();
+      mountGalleryTransition();
     });
   });
 });

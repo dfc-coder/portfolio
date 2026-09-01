@@ -128,15 +128,21 @@ test("SDD: all five Systems expose distinct architecture signatures", () => {
   assert.equal(new Set(signatures).size, projectData.systemsProjects.length);
 });
 
-test("SDD: Trajectory and Systems rails share one physical register", async () => {
+test("SDD: Trajectory and Systems use the same progress rail component", async () => {
   const bridges = await read("src/styles/chapter-bridges.css");
+  const rail = await read("src/components/narrative/NarrativeProgressRail.vue");
+  const railCss = await read("src/components/narrative/narrative-progress-rail.css");
   const trajectoryScene = await read("src/components/narrative/TrajectoryScene.vue");
   const systemsScene = await read("src/components/narrative/SystemsScene.vue");
 
   assert.match(bridges, /\.narrative-rail\s*\{[^}]*left:\s*var\(--narrative-rail-x,\s*11\.5%\)[^}]*top:\s*28%[^}]*height:\s*48vh/is);
-  assert.match(trajectoryScene, /trajectory-axis narrative-rail/);
-  assert.match(systemsScene, /systems-axis narrative-rail/);
-  assert.match(systemsScene, /systems-axis-items narrative-rail/);
+  assert.match(rail, /narrative-progress-rail narrative-rail/);
+  assert.match(rail, /narrative-progress-rail__progress/);
+  assert.match(rail, /narrative-progress-rail__item/);
+  assert.match(trajectoryScene, /<NarrativeProgressRail[\s\S]*variant="trajectory"/);
+  assert.match(systemsScene, /<NarrativeProgressRail[\s\S]*variant="systems"/);
+  assert.match(railCss, /\.trajectory-progress-rail[\s\S]*--rail-progress:\s*var\(--trajectory-timeline-progress/);
+  assert.match(railCss, /\.systems-progress-rail[\s\S]*--rail-progress:\s*var\(--systems-progress/);
 });
 
 test("TDD: Systems template chrome is persistent and project content stays semantic", async () => {

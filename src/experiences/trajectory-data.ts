@@ -8,27 +8,27 @@ export type Experience = {
 
 export const experiences: Experience[] = [
   {
-    period: "2025 — NOW",
+    period: "JAN 2024 — NOW",
+    role: "AI Engineer / Full-Stack Developer",
+    company: "Freelance · AI / Backend",
+    summary:
+      "Freelance AI and backend work running in parallel through Apr 2026 and becoming the primary professional activity from May 2026, spanning insurance RAG, financial MCP tooling, semantic product search and Python/FastAPI services.",
+    focus: ["RAG", "MCP", "Python / FastAPI", "Semantic Search"],
+  },
+  {
+    period: "DEC 2025 — APR 2026",
     role: "AI Engineer",
-    company: "aiRoss · Madrid / Remote",
+    company: "AiRoss · AI Systems",
     summary:
-      "Private document-intelligence systems, structured extraction and production workflows where security, evidence and human review remain visible.",
-    focus: ["Local LLMs", "Document AI", "Python", "Product architecture"],
+      "Agentic NL-to-SQL, local-first document extraction for sensitive banking documents and AI recruiting workflows with validation, security guardrails, auditability and reusable automation modules.",
+    focus: ["NL→SQL", "Document AI", "Local-first", "AI Workflows"],
   },
   {
-    period: "2024 — 2025",
-    role: "Independent AI Engineer",
-    company: "Applied AI · Remote",
-    summary:
-      "Agentic systems, retrieval pipelines and natural-language interfaces designed around operational constraints instead of isolated model demonstrations.",
-    focus: ["RAG", "Agents", "NL→SQL", "Evaluation"],
-  },
-  {
-    period: "2023 — 2025",
+    period: "JAN 2023 — SEP 2025",
     role: "Software Engineer",
-    company: "FK Tech · Argentina",
+    company: "FK Tech · Backend / Full-Stack",
     summary:
-      "Full-stack products and integrations with an emphasis on maintainable architecture, secure APIs and delivery across the complete software lifecycle.",
-    focus: ["TypeScript", "Backend", "Integrations", "Cloud"],
+      "Multi-agent RAG over internal knowledge bases, CI/CD automation and legacy-system refactoring, with measurable improvements in onboarding, debugging, deployment time, production incidents and execution performance.",
+    focus: ["RAG", "CI/CD", "Refactoring", "Backend"],
   },
 ];

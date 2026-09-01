@@ -1,0 +1,362 @@
+/* Mobile-only composition. Desktop remains owned by the existing chapter styles. */
+@media (max-width: 680px) {
+  .ref-stage {
+    --shell-gutter: 14px;
+    --narrative-rail-x: 8.5%;
+  }
+
+  .ref-brand,
+  .ref-index-toggle {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .narrative-header {
+    left: 14px !important;
+    right: 14px !important;
+    top: 16px !important;
+  }
+
+  .narrative-header__meta {
+    display: none !important;
+  }
+
+  .narrative-header__label,
+  .ref-scene--agent .ref-marker {
+    gap: 8px !important;
+  }
+
+  .narrative-header__label > i,
+  .ref-scene--agent .ref-marker > i {
+    width: 30px !important;
+    flex-basis: 30px !important;
+  }
+
+  .narrative-header__label .narrative-signal__label,
+  .ref-scene--agent .ref-marker > span:last-child {
+    font-size: 10px !important;
+    letter-spacing: .10em !important;
+  }
+
+  /* Shared 02/03 progress rail: same component, compact mobile grammar. */
+  .narrative-progress-rail {
+    left: var(--narrative-rail-x, 8.5%) !important;
+    top: 27% !important;
+    height: 51vh !important;
+  }
+
+  .narrative-progress-rail__item,
+  .narrative-progress-rail__item.trajectory-year,
+  .narrative-progress-rail__item.systems-axis-item {
+    width: 126px !important;
+    height: 18px !important;
+    gap: 6px !important;
+  }
+
+  .narrative-progress-rail__item > i {
+    width: 6px !important;
+    height: 6px !important;
+  }
+
+  .narrative-progress-rail__item > b {
+    min-width: 0 !important;
+    max-width: 98px !important;
+    padding-left: calc(12px + var(--rail-focus) * 22px) !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: clamp(0, calc(var(--rail-focus) * 3.6 - 1.872), 1);
+    font-size: 9px !important;
+    letter-spacing: .055em !important;
+  }
+
+  .narrative-progress-rail__item > b::before {
+    width: calc(8px + var(--rail-focus) * 22px) !important;
+  }
+
+  .narrative-progress-rail__meta {
+    display: none !important;
+  }
+
+  /* 02 / Trajectory: compact the information stack and keep one role dominant. */
+  .trajectory-intro,
+  .systems-intro {
+    left: 10vw !important;
+    width: 82vw !important;
+  }
+
+  .trajectory-entry {
+    left: 18% !important;
+    right: 4vw !important;
+    top: 44% !important;
+    width: auto !important;
+  }
+
+  .trajectory-entry__eyebrow {
+    margin-bottom: 11px !important;
+  }
+
+  .trajectory-entry h3 {
+    max-width: 78vw !important;
+    font-size: clamp(2.45rem, 9vw, 4rem) !important;
+    line-height: .90 !important;
+  }
+
+  .trajectory-entry__context {
+    width: 77vw !important;
+    margin-top: 17px !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px 12px !important;
+  }
+
+  .trajectory-entry__context dt {
+    margin-bottom: 4px !important;
+    font-size: 9px !important;
+  }
+
+  .trajectory-entry__context dd {
+    font-size: .82rem !important;
+  }
+
+  .trajectory-entry__statement {
+    width: 77vw !important;
+    margin-top: 13px !important;
+    gap: 10px !important;
+  }
+
+  .trajectory-entry__statement p {
+    font-size: .86rem !important;
+    line-height: 1.42 !important;
+  }
+
+  .trajectory-entry__focus {
+    width: 77vw !important;
+    margin-top: 13px !important;
+    grid-template-columns: 42px minmax(0, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .trajectory-entry__focus ul {
+    gap: 6px 8px !important;
+    font-size: 9px !important;
+  }
+
+  .trajectory-counter {
+    display: none !important;
+  }
+
+  /* 03 / Systems: mobile is one vertical composition, not a compressed desktop grid. */
+  .systems-header {
+    left: 14px !important;
+    right: 14px !important;
+  }
+
+  .systems-project__identity {
+    left: 18% !important;
+    top: 13.5% !important;
+    width: 77vw !important;
+  }
+
+  .systems-project h3 {
+    max-width: 77vw !important;
+    margin-top: 10px !important;
+    font-size: clamp(2.45rem, 9.6vw, 4.1rem) !important;
+    line-height: .89 !important;
+    letter-spacing: -.047em !important;
+  }
+
+  .systems-project__premise {
+    width: 76vw !important;
+    margin-top: 13px !important;
+    font-size: .92rem !important;
+    line-height: 1.30 !important;
+  }
+
+  .systems-project__architecture,
+  .systems-static-chrome__architecture {
+    left: 18% !important;
+    right: 4.5vw !important;
+    top: 39% !important;
+    height: 34vh !important;
+  }
+
+  .systems-graph-field {
+    inset: 30px 0 0 !important;
+  }
+
+  .systems-graph {
+    left: 0 !important;
+    top: 4% !important;
+    width: 100% !important;
+    height: 92% !important;
+  }
+
+  .systems-graph__node text {
+    font-size: 1.82px !important;
+  }
+
+  .systems-graph__node-label {
+    font-size: 2.18px !important;
+  }
+
+  .systems-graph__edge-label {
+    font-size: 7px !important;
+  }
+
+  .systems-project__detail,
+  .systems-static-chrome__detail {
+    display: none !important;
+  }
+
+  .systems-project__evidence,
+  .systems-static-chrome__evidence {
+    left: 18% !important;
+    top: 75.5% !important;
+    width: 77vw !important;
+  }
+
+  .systems-project__evidence {
+    padding-top: 27px !important;
+  }
+
+  .systems-project__evidence p {
+    font-size: .90rem !important;
+    line-height: 1.30 !important;
+  }
+
+  .systems-project__implementation,
+  .systems-static-chrome__implementation {
+    left: 18% !important;
+    right: auto !important;
+    top: 87% !important;
+    width: 77vw !important;
+  }
+
+  .systems-project__implementation ul {
+    margin-top: 14px !important;
+    gap: 5px 10px !important;
+  }
+
+  .systems-project__implementation li {
+    font-size: 9px !important;
+    line-height: 1.15 !important;
+  }
+
+  .systems-project__implementation li:nth-child(n + 6) {
+    display: none !important;
+  }
+
+  /* 04 / Gallery: fewer dominant images at once, larger touchable artwork. */
+  .ref-scene--gallery.ref-gallery-gel-ready .ref-gallery-stage {
+    inset: 4% 0 1% !important;
+  }
+
+  .ref-gallery-gel-ready .ref-art-card:nth-child(n) {
+    --gel-rotate: 0deg;
+  }
+
+  .ref-gallery-gel-ready .ref-art-card:nth-child(1) {
+    left: -2% !important; top: 2% !important; --gel-w: 46%; --gel-h: 24%; z-index: 11 !important;
+  }
+  .ref-gallery-gel-ready .ref-art-card:nth-child(2) {
+    left: 55% !important; top: -1% !important; --gel-w: 42%; --gel-h: 22%; z-index: 8 !important;
+  }
+  .ref-gallery-gel-ready .ref-art-card:nth-child(3) {
+    left: 23% !important; top: 18% !important; --gel-w: 50%; --gel-h: 29%; z-index: 15 !important;
+  }
+  .ref-gallery-gel-ready .ref-art-card:nth-child(4) {
+    left: -4% !important; top: 35% !important; --gel-w: 42%; --gel-h: 23%; z-index: 9 !important;
+  }
+  .ref-gallery-gel-ready .ref-art-card:nth-child(5) {
+    left: 60% !important; top: 31% !important; --gel-w: 44%; --gel-h: 26%; z-index: 12 !important;
+  }
+  .ref-gallery-gel-ready .ref-art-card:nth-child(6) {
+    left: 10% !important; top: 52% !important; --gel-w: 48%; --gel-h: 25%; z-index: 14 !important;
+  }
+  .ref-gallery-gel-ready .ref-art-card:nth-child(7) {
+    left: 58% !important; top: 56% !important; --gel-w: 39%; --gel-h: 22%; z-index: 7 !important;
+  }
+  .ref-gallery-gel-ready .ref-art-card:nth-child(8) {
+    left: -2% !important; top: 73% !important; --gel-w: 43%; --gel-h: 23%; z-index: 10 !important;
+  }
+  .ref-gallery-gel-ready .ref-art-card:nth-child(9) {
+    left: 45% !important; top: 75% !important; --gel-w: 51%; --gel-h: 25%; z-index: 13 !important;
+  }
+  .ref-gallery-gel-ready .ref-art-card:nth-child(10) {
+    left: 31% !important; top: 43% !important; --gel-w: 36%; --gel-h: 20%; z-index: 6 !important;
+  }
+
+  .ref-art-card__label {
+    display: none !important;
+  }
+
+  .ref-gallery-focus {
+    padding: 8vh 4vw 3vh !important;
+  }
+
+  .ref-gallery-focus__figure {
+    width: 92vw !important;
+    height: 84vh !important;
+    gap: 18px !important;
+  }
+
+  .ref-gallery-focus__image {
+    max-height: 52vh !important;
+  }
+
+  .ref-gallery-focus__caption h3 {
+    margin-top: 16px !important;
+    font-size: clamp(1.9rem, 7.4vw, 3rem) !important;
+  }
+
+  /* Chapter bridges: slightly tighter typography and less overlap with Agent. */
+  .ref-scene--chapter {
+    padding-left: 10vw !important;
+  }
+
+  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter,
+  .ref-scene--chapter[data-chapter="agent"] .ref-chapter,
+  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter > p,
+  .ref-scene--chapter[data-chapter="agent"] .ref-chapter > p {
+    width: 82vw !important;
+  }
+
+  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter > p,
+  .ref-scene--chapter[data-chapter="agent"] .ref-chapter > p {
+    font-size: clamp(1.9rem, 7.35vw, 3rem) !important;
+    line-height: 1.02 !important;
+  }
+
+  /* 05 / Agent: make the orb atmospheric instead of layout-dominant. */
+  .agent-os {
+    gap: 8px !important;
+    padding: 48px 14px 12px !important;
+  }
+
+  .agent-presence {
+    inset: 48px 0 126px !important;
+  }
+
+  .agent-core {
+    width: min(64vw, 320px) !important;
+    opacity: .30 !important;
+  }
+
+  .agent-lane {
+    min-height: 150px !important;
+    max-height: 44vh !important;
+    padding-top: 10px !important;
+  }
+
+  .agent-msg {
+    max-width: 100% !important;
+  }
+
+  .agent-ask {
+    min-height: 50px !important;
+  }
+
+  .agent-ask button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+}

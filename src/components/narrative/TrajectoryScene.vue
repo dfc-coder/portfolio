@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import ChapterSignal from "./ChapterSignal.vue";
 import NarrativeHeader from "./NarrativeHeader.vue";
+import NarrativeProgressRail from "./NarrativeProgressRail.vue";
 import { experiences } from "../../experiences/trajectory-data";
 
 const splitCompany = (company: string) => {
@@ -8,7 +9,13 @@ const splitCompany = (company: string) => {
   return { organization, location: rest.join(" · ") || "Remote" };
 };
 
+const startYear = (period: string) => period.match(/\b\d{4}\b/)?.[0] ?? period.slice(0, 4);
 const roleCount = String(experiences.length).padStart(2, "0");
+const trajectoryRailItems = experiences.map((experience, index) => ({
+  key: experience.period,
+  label: startYear(experience.period),
+  meta: String(index + 1).padStart(2, "0"),
+}));
 </script>
 
 <template>
@@ -26,18 +33,11 @@ const roleCount = String(experiences.length).padStart(2, "0");
       :meta="['2023 — NOW', `${roleCount} ROLES`]"
     />
 
-    <div class="trajectory-axis narrative-rail" aria-hidden="true"><i /></div>
-
-    <div class="trajectory-years" aria-hidden="true">
-      <div
-        v-for="(experience, index) in experiences"
-        :key="experience.period"
-        class="trajectory-year"
-        :data-index="index"
-      >
-        <span>{{ experience.period.slice(0, 4) }}</span><i /><b>{{ String(index + 1).padStart(2, "0") }}</b>
-      </div>
-    </div>
+    <NarrativeProgressRail
+      class="trajectory-progress-rail"
+      variant="trajectory"
+      :items="trajectoryRailItems"
+    />
 
     <div class="trajectory-static-chrome" aria-hidden="true">
       <div class="trajectory-static-chrome__context">
@@ -52,6 +52,7 @@ const roleCount = String(experiences.length).padStart(2, "0");
         v-for="(experience, index) in experiences"
         :key="`${experience.period}-${experience.role}`"
         class="trajectory-entry"
+        :class="{ 'trajectory-entry--long-role': experience.role.length > 24 }"
         :data-index="index"
       >
         <div class="trajectory-entry__eyebrow">

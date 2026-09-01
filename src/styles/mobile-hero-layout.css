@@ -1,0 +1,17 @@
+/* Hero mobile footer: reserve a dedicated right-hand lane for the scroll cue
+   so the thesis and navigation affordance never overlap. */
+@media (max-width: 680px) {
+  .ref-hero__thesis {
+    left: 14px !important;
+    right: 72px !important;
+    width: auto !important;
+    bottom: 64px !important;
+  }
+
+  .ref-scroll-cue {
+    left: auto !important;
+    right: 18px !important;
+    bottom: 14px !important;
+    translate: 0 0 !important;
+  }
+}
