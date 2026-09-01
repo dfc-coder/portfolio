@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
+  pulseAgentInteraction,
   pulseAgentSpeech,
   pulseAgentVisual,
   setAgentVisualPhase,
@@ -48,8 +49,8 @@ const pulsePresentedText = (text: string) => {
   const boundary = /[\s,.!?;:]/.test(text);
   if (!boundary && speechChars < 6) return;
 
-  const punctuation = /[.!?]/.test(text) ? 0.14 : /[,;:]/.test(text) ? 0.07 : 0;
-  const strength = Math.min(0.92, 0.38 + speechChars * 0.060 + punctuation);
+  const punctuation = /[!?]/.test(text) ? 0.18 : /[.]/.test(text) ? 0.12 : /[,;:]/.test(text) ? 0.05 : 0;
+  const strength = Math.min(0.96, 0.36 + speechChars * 0.060 + punctuation);
   pulseAgentSpeech(strength);
   speechChars = 0;
 };
@@ -121,10 +122,10 @@ const syncVisualPhase = () => {
 };
 
 const phaseImpulse = (phase: AgentVisualPhase) => {
-  if (phase === "thinking") return 0.30;
-  if (phase === "speaking") return 0.16;
-  if (phase === "listening") return 0.18;
-  if (phase === "error") return 0.45;
+  if (phase === "thinking") return 0.42;
+  if (phase === "speaking") return 0.20;
+  if (phase === "listening") return 0.24;
+  if (phase === "error") return 0.48;
   return 0.10;
 };
 
@@ -133,6 +134,7 @@ const wakeAgent = (strength = 0.16) => {
 };
 
 const engageAgent = () => {
+  pulseAgentInteraction(0.82);
   wakeAgent(0.34);
   void nextTick(() => inputEl.value?.focus());
 };
@@ -148,6 +150,7 @@ const submit = () => {
 
 const startPrompt = (prompt: string) => {
   if (busy.value) return;
+  pulseAgentInteraction(0.34);
   draft.value = prompt;
   submit();
 };
