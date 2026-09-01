@@ -60,6 +60,13 @@ const overlaps = (left, right) =>
   Math.abs(left.x - right.x) * 2 < left.width + right.width &&
   Math.abs(left.y - right.y) * 2 < left.height + right.height;
 
+const nodeBounds = (nodes) => ({
+  minX: Math.min(...nodes.map((node) => node.x - node.width / 2)),
+  maxX: Math.max(...nodes.map((node) => node.x + node.width / 2)),
+  minY: Math.min(...nodes.map((node) => node.y - node.height / 2)),
+  maxY: Math.max(...nodes.map((node) => node.y + node.height / 2)),
+});
+
 test("SDD: portfolio uses the exact MODEL + LAYOUT + ROUTING blobs from the blog PR #11", async () => {
   assert.equal(gitBlobSha(await read("src/graph/model.ts")), "87a5dde828b57940654a2c1be900161e51c82810");
   assert.equal(gitBlobSha(await read("src/graph/layout.ts")), "d78c70927d3c286eebb150409f1891b46cff6c48");
@@ -126,7 +133,7 @@ test("BDD: responsive scenes preserve semantics but may use different geometry",
   }
 });
 
-test("BDD: Reflective ReAct is cycle-aware and keeps feedback explicit", () => {
+test("BDD: Reflective ReAct is cycle-aware, explicit and uses the portfolio artboard", () => {
   const project = projectData.systemsProjects.find((item) => item.code === "REACT—AI");
   assert.ok(project);
 
@@ -140,8 +147,13 @@ test("BDD: Reflective ReAct is cycle-aware and keeps feedback explicit", () => {
 
   const cycleIds = new Set(["reason", "tools", "verify", "reflect", "model"]);
   const cycleNodes = scene.nodes.filter((node) => cycleIds.has(node.id));
-  const cycleWidth = Math.max(...cycleNodes.map((node) => node.x + node.width / 2)) - Math.min(...cycleNodes.map((node) => node.x - node.width / 2));
+  const cycleBounds = nodeBounds(cycleNodes);
+  const cycleWidth = cycleBounds.maxX - cycleBounds.minX;
   assert.ok(cycleWidth < scene.width * 0.5, `cycle width ${cycleWidth} / ${scene.width}`);
+
+  const bounds = nodeBounds(scene.nodes);
+  const usedWidth = bounds.maxX - bounds.minX;
+  assert.ok(usedWidth >= scene.width * 0.75, `desktop graph uses only ${usedWidth} / ${scene.width}`);
 });
 
 test("BDD: branch and join systems are discovered from topology instead of authored layout", () => {
