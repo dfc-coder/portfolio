@@ -1,0 +1,510 @@
+/* Agent presence layer: keeps the shared Three.js field as identity and adds
+   a readable conversational HUD around it. No fake controls or duplicate canvas. */
+
+.agent-os {
+  grid-template-columns: minmax(360px, 46%) minmax(0, 1fr);
+  gap: clamp(34px, 5vw, 78px);
+}
+
+.agent-presence {
+  position: relative;
+  min-height: 0;
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+  appearance: none;
+}
+
+.agent-presence:focus-visible {
+  outline: 1px solid rgba(205, 182, 117, .46);
+  outline-offset: -22px;
+}
+
+.agent-core--three {
+  width: min(38vw, 590px);
+  max-width: 96%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  isolation: isolate;
+}
+
+.agent-core--three::before {
+  display: block;
+  content: "";
+  position: absolute;
+  inset: 8.5%;
+  border: 1px solid rgba(205, 182, 117, .13);
+  border-radius: 50%;
+  box-shadow:
+    0 0 80px rgba(205, 182, 117, .035),
+    inset 0 0 80px rgba(205, 182, 117, .018);
+  opacity: .78;
+  transition: opacity .35s ease, transform .6s cubic-bezier(.2, .8, .2, 1);
+}
+
+.agent-core--three::after {
+  display: block;
+  content: "";
+  position: absolute;
+  inset: 22%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(205, 182, 117, .075), transparent 66%);
+  filter: blur(12px);
+  opacity: .34;
+  transform: scale(.82);
+  transition: opacity .4s ease, transform .6s cubic-bezier(.2, .8, .2, 1);
+}
+
+.agent-presence__orbit,
+.agent-presence__reticle,
+.agent-presence__node,
+.agent-core__identity,
+.agent-core__status,
+.agent-core__caption,
+.agent-core__hint {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.agent-presence__orbit {
+  left: 50%;
+  top: 50%;
+  border: 1px solid rgba(236, 230, 213, .13);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition:
+    border-color .45s ease,
+    opacity .45s ease,
+    scale .6s cubic-bezier(.2, .8, .2, 1);
+}
+
+.agent-presence__orbit::before,
+.agent-presence__orbit::after {
+  content: "";
+  position: absolute;
+  background: var(--os-gold);
+  opacity: .54;
+}
+
+.agent-presence__orbit::before {
+  left: 50%;
+  top: -1px;
+  width: 38px;
+  height: 1px;
+  transform: translateX(-50%);
+}
+
+.agent-presence__orbit::after {
+  top: 50%;
+  right: -1px;
+  width: 1px;
+  height: 24px;
+  transform: translateY(-50%);
+}
+
+.agent-presence__orbit--outer {
+  width: 88%;
+  height: 88%;
+  opacity: .34;
+  animation: agent-orbit 24s linear infinite;
+}
+
+.agent-presence__orbit--inner {
+  width: 69%;
+  height: 69%;
+  opacity: .24;
+  animation: agent-orbit-reverse 17s linear infinite;
+}
+
+.agent-presence__reticle {
+  left: 50%;
+  top: 50%;
+  width: 17%;
+  height: 17%;
+  border: 1px solid rgba(205, 182, 117, .22);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  opacity: .38;
+}
+
+.agent-presence__reticle::before,
+.agent-presence__reticle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: rgba(205, 182, 117, .46);
+  transform: translate(-50%, -50%);
+}
+
+.agent-presence__reticle::before {
+  width: 155%;
+  height: 1px;
+}
+
+.agent-presence__reticle::after {
+  width: 1px;
+  height: 155%;
+}
+
+.agent-presence__node {
+  width: 7px;
+  height: 7px;
+  border: 1px solid rgba(236, 230, 213, .48);
+  border-radius: 50%;
+  background: #090908;
+  box-shadow: 0 0 0 6px rgba(205, 182, 117, .035);
+}
+
+.agent-presence__node--a {
+  left: 10.5%;
+  top: 35%;
+}
+
+.agent-presence__node--b {
+  right: 7.5%;
+  top: 56%;
+}
+
+.agent-core__identity {
+  left: 50%;
+  top: 8.5%;
+  translate: -50% 0;
+  white-space: nowrap;
+  color: rgba(236, 230, 213, .34);
+  font: 500 var(--t-meta)/1 var(--font-info);
+  letter-spacing: .16em;
+}
+
+.agent-core__status {
+  left: 50%;
+  bottom: 14%;
+  translate: -50% 0;
+  color: rgba(205, 182, 117, .82);
+  font: 600 clamp(10px, .72vw, 12px)/1 var(--font-info);
+  letter-spacing: .18em;
+  opacity: .86;
+  transition: color .35s ease, opacity .35s ease, transform .45s ease;
+}
+
+.agent-core__caption {
+  left: 50%;
+  bottom: 8.5%;
+  width: min(82%, 390px);
+  translate: -50% 0;
+  color: rgba(236, 230, 213, .42);
+  font: 400 clamp(10px, .68vw, 12px)/1.45 var(--font-info);
+  letter-spacing: .015em;
+  text-align: center;
+}
+
+.agent-core__hint {
+  left: 50%;
+  bottom: 1.8%;
+  translate: -50% 0;
+  color: rgba(236, 230, 213, .24);
+  font: 500 9px/1 var(--font-info);
+  letter-spacing: .16em;
+  transition: opacity .3s ease;
+}
+
+.agent-presence:hover .agent-core--three::before,
+.agent-presence:focus-visible .agent-core--three::before,
+.agent-os[data-engaged="true"] .agent-core--three::before {
+  opacity: 1;
+  transform: scale(1.02);
+}
+
+.agent-presence:hover .agent-presence__orbit,
+.agent-presence:focus-visible .agent-presence__orbit,
+.agent-os[data-engaged="true"] .agent-presence__orbit {
+  border-color: rgba(205, 182, 117, .25);
+}
+
+.agent-os[data-state="listening"] .agent-presence__reticle {
+  animation: agent-listen 1.8s ease-in-out infinite;
+}
+
+.agent-os[data-state="thinking"] .agent-presence__orbit--outer {
+  animation-duration: 6s;
+}
+
+.agent-os[data-state="thinking"] .agent-presence__orbit--inner {
+  animation-duration: 4.2s;
+}
+
+.agent-os[data-state="thinking"] .agent-core--three::after {
+  opacity: .68;
+  transform: scale(1.12);
+}
+
+.agent-os[data-state="speaking"] .agent-core--three::before {
+  animation: agent-speak-ring 1.25s ease-in-out infinite;
+}
+
+.agent-os[data-state="speaking"] .agent-core__status,
+.agent-os[data-state="thinking"] .agent-core__status {
+  color: rgba(236, 230, 213, .95);
+  transform: translateY(-2px);
+}
+
+.agent-os[data-state="error"] .agent-presence__orbit,
+.agent-os[data-state="error"] .agent-presence__reticle {
+  border-color: rgba(208, 138, 106, .42);
+}
+
+.agent-os[data-state="error"] .agent-core__status {
+  color: rgba(208, 138, 106, .9);
+}
+
+/* Conversation deck */
+.agent-chat {
+  max-width: 760px;
+  justify-content: center;
+  gap: 12px;
+}
+
+.agent-session {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 18px;
+  align-items: end;
+  min-height: 58px;
+  padding: 0 2px 14px;
+  border-bottom: 1px solid rgba(236, 230, 213, .12);
+}
+
+.agent-session__identity {
+  display: grid;
+  gap: 7px;
+}
+
+.agent-session__identity > span,
+.agent-session__state,
+.agent-session__reset,
+.agent-context {
+  color: rgba(236, 230, 213, .42);
+  font: 500 var(--t-meta)/1 var(--font-info);
+  letter-spacing: .12em;
+}
+
+.agent-session__identity > span {
+  color: var(--os-gold);
+}
+
+.agent-session__identity > strong {
+  color: rgba(236, 230, 213, .86);
+  font: 500 clamp(14px, 1vw, 17px)/1.25 var(--font-info);
+  letter-spacing: -.015em;
+}
+
+.agent-session__state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 2px;
+}
+
+.agent-session__state i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--os-gold);
+  box-shadow: 0 0 12px rgba(205, 182, 117, .48);
+  animation: agent-state-dot 2.4s ease-in-out infinite;
+}
+
+.agent-os[data-state="thinking"] .agent-session__state i,
+.agent-os[data-state="speaking"] .agent-session__state i {
+  animation-duration: .82s;
+}
+
+.agent-session__reset {
+  padding: 0 0 2px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  transition: color .2s ease;
+}
+
+.agent-session__reset:hover,
+.agent-session__reset:focus-visible {
+  color: var(--os-paper);
+  outline: 0;
+}
+
+.agent-lane {
+  min-height: 300px;
+  max-height: min(54vh, 570px);
+  padding-top: 22px;
+}
+
+.agent-msg {
+  max-width: 88%;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+.agent-msg--agent {
+  border-left-color: rgba(205, 182, 117, .58);
+}
+
+.agent-msg--agent .agent-msg__body {
+  padding-right: 8%;
+}
+
+.agent-msg--user {
+  border-right-color: rgba(236, 230, 213, .28);
+}
+
+.agent-ask {
+  min-height: 58px;
+  border-top-color: rgba(236, 230, 213, .10);
+  border-bottom-color: rgba(236, 230, 213, .22);
+  background: linear-gradient(90deg, rgba(205, 182, 117, .025), transparent 42%);
+}
+
+.agent-os[data-state="listening"] .agent-ask,
+.agent-ask:focus-within {
+  border-bottom-color: rgba(205, 182, 117, .62);
+  background: linear-gradient(90deg, rgba(205, 182, 117, .055), transparent 58%);
+}
+
+.agent-ask button {
+  width: auto;
+  min-width: 62px;
+  padding: 0 7px;
+  color: rgba(205, 182, 117, .82);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .12em;
+}
+
+.agent-ask button:hover:not(:disabled) {
+  transform: translateX(2px);
+  color: var(--os-paper);
+}
+
+.agent-context {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 2px 2px 0;
+  opacity: .58;
+}
+
+.agent-context span:last-child {
+  color: rgba(205, 182, 117, .58);
+}
+
+@keyframes agent-orbit {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@keyframes agent-orbit-reverse {
+  to { transform: translate(-50%, -50%) rotate(-360deg); }
+}
+
+@keyframes agent-listen {
+  0%, 100% { opacity: .28; transform: translate(-50%, -50%) scale(.92); }
+  50% { opacity: .82; transform: translate(-50%, -50%) scale(1.12); }
+}
+
+@keyframes agent-speak-ring {
+  0%, 100% { opacity: .74; transform: scale(.98); }
+  50% { opacity: 1; transform: scale(1.035); }
+}
+
+@keyframes agent-state-dot {
+  0%, 100% { opacity: .35; transform: scale(.78); }
+  50% { opacity: 1; transform: scale(1.12); }
+}
+
+@media (max-width: 1040px) {
+  .agent-os {
+    grid-template-columns: minmax(300px, 41%) minmax(0, 1fr);
+    gap: 26px;
+  }
+
+  .agent-core--three {
+    width: min(41vw, 500px);
+  }
+}
+
+@media (max-width: 820px) {
+  .agent-os {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .agent-presence {
+    position: absolute;
+    inset: 64px 0 92px;
+    opacity: .48;
+  }
+
+  .agent-core--three {
+    width: min(74vw, 470px);
+  }
+
+  .agent-core__identity,
+  .agent-core__caption,
+  .agent-core__hint,
+  .agent-presence__node {
+    display: none;
+  }
+
+  .agent-chat {
+    align-self: end;
+    max-width: none;
+  }
+
+  .agent-session {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .agent-session__reset {
+    display: none;
+  }
+
+  .agent-lane {
+    min-height: 210px;
+    max-height: 49vh;
+  }
+}
+
+@media (max-width: 520px) {
+  .agent-session__state {
+    display: none;
+  }
+
+  .agent-session {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-context {
+    font-size: 8px;
+  }
+
+  .agent-core__status {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-presence__orbit,
+  .agent-presence__reticle,
+  .agent-core--three::before,
+  .agent-session__state i {
+    animation: none !important;
+  }
+}
