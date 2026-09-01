@@ -45,38 +45,63 @@ export type CompiledDiagram = {
 };
 
 type LayoutProfile = {
+  id: DiagramProfile;
   width: number;
-  height: number;
   maxColumns: number;
   vertical: boolean;
 };
 
-const WIDTH = 100;
-const HEIGHT = 64;
-const NODE_WIDTH = 10;
-const NODE_HEIGHT = 5;
-const COLUMN_GAP = 4;
-const RANK_GAP = 4;
-const STACK_GAP = 4;
-const MARGIN_X = 6;
-const MARGIN_Y = 6;
-const PORT = 1.6;
-const FEEDBACK_LANE_GAP = 4;
-const LONG_EDGE_LANE_GAP = 3;
+type SizedNode = {
+  node: DiagramNode;
+  width: number;
+  height: number;
+  rank: number;
+};
+
+type PositionedInternalNode = DiagramNode & {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rank: number;
+};
+
+type InternalLayout = {
+  kind: DiagramLayoutKind;
+  width: number;
+  height: number;
+  nodes: PositionedInternalNode[];
+  ranks: PositionedInternalNode[][];
+};
+
+type EdgeRoute = {
+  path: string;
+  labelX: number;
+  labelY: number;
+};
+
+const ARTBOARD_WIDTH = 720;
+const MOBILE_ARTBOARD_WIDTH = 336;
+const ARTBOARD_MIN_HEIGHT = 220;
+const NODE_WIDTH = 152;
+const NODE_LINE_HEIGHT = 18;
+const NODE_PADDING_Y = 14;
+const NODE_HEIGHT = NODE_LINE_HEIGHT + NODE_PADDING_Y * 2;
+const MAX_LABEL_CHARS = 20;
+const COLUMN_GAP = 20;
+const ROW_GAP = 64;
+const RANK_GAP = 60;
+const STACK_GAP = 22;
+const MARGIN_X = 24;
+const MARGIN_Y = 28;
+const LONG_EDGE_LANE_GAP = 10;
 
 const PROFILES: Record<DiagramProfile, LayoutProfile> = {
-  desktop: { width: WIDTH, height: HEIGHT, maxColumns: 4, vertical: false },
-  mobile: { width: WIDTH, height: HEIGHT, maxColumns: 2, vertical: true },
+  desktop: { id: "desktop", width: ARTBOARD_WIDTH, maxColumns: 4, vertical: false },
+  mobile: { id: "mobile", width: MOBILE_ARTBOARD_WIDTH, maxColumns: 2, vertical: true },
 };
 
 const isFeedback = (edge: DiagramEdge) => (edge.kind ?? "default") === "feedback";
-
-const distribute = (count: number, min: number, max: number) => {
-  if (count <= 0) return [];
-  if (count === 1) return [(min + max) / 2];
-  const gap = (max - min) / (count - 1);
-  return Array.from({ length: count }, (_, index) => min + gap * index);
-};
 
 const validate = (graph: DiagramDefinition) => {
   const ids = new Set<string>();
@@ -91,8 +116,61 @@ const validate = (graph: DiagramDefinition) => {
   }
 };
 
+const resolveNodeWidth = (profile: LayoutProfile) => {
+  const totalGaps = Math.max(profile.maxColumns - 1, 0) * COLUMN_GAP;
+  const available = profile.width - MARGIN_X * 2 - totalGaps;
+  return Math.min(NODE_WIDTH, Math.floor(available / profile.maxColumns));
+};
+
+const maxLabelChars = (nodeWidth: number) =>
+  Math.max(16, Math.floor((MAX_LABEL_CHARS * nodeWidth) / NODE_WIDTH));
+
+const wrapLine = (line: string, nodeWidth: number): string[] => {
+  const limit = maxLabelChars(nodeWidth);
+  const trimmed = line.trim();
+  if (trimmed.length <= limit) return [trimmed];
+
+  const words = trimmed.split(/\s+/);
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    if (word.length > limit) {
+      if (current) {
+        lines.push(current);
+        current = "";
+      }
+      for (let offset = 0; offset < word.length; offset += limit) {
+        lines.push(word.slice(offset, offset + limit));
+      }
+      continue;
+    }
+
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length <= limit) current = candidate;
+    else {
+      lines.push(current);
+      current = word;
+    }
+  }
+
+  if (current) lines.push(current);
+  return lines.length ? lines : [""];
+};
+
+const nodeLines = (label: string, nodeWidth: number) =>
+  label.split("\n").flatMap((line) => wrapLine(line, nodeWidth));
+
+const estimateNodeSize = (node: DiagramNode, nodeWidth: number) => {
+  const lineCount = Math.max(nodeLines(node.label, nodeWidth).length, 1);
+  return {
+    width: nodeWidth,
+    height: NODE_HEIGHT + (lineCount - 1) * NODE_LINE_HEIGHT,
+  };
+};
+
 const buildRanks = (graph: DiagramDefinition) => {
-  const order = new Map(graph.nodes.map((node, index) => [node.id, index]));
+  const nodeIndex = new Map(graph.nodes.map((node, index) => [node.id, index]));
   const indegree = new Map(graph.nodes.map((node) => [node.id, 0]));
   const outgoing = new Map(graph.nodes.map((node) => [node.id, [] as string[]]));
 
@@ -109,13 +187,16 @@ const buildRanks = (graph: DiagramDefinition) => {
   let visited = 0;
 
   while (queue.length) {
-    queue.sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
+    queue.sort((left, right) => (nodeIndex.get(left) ?? 0) - (nodeIndex.get(right) ?? 0));
     const current = queue.shift();
     if (!current) break;
     visited += 1;
 
     for (const target of outgoing.get(current) ?? []) {
-      rankById.set(target, Math.max(rankById.get(target) ?? 0, (rankById.get(current) ?? 0) + 1));
+      rankById.set(
+        target,
+        Math.max(rankById.get(target) ?? 0, (rankById.get(current) ?? 0) + 1),
+      );
       const remaining = (indegree.get(target) ?? 0) - 1;
       indegree.set(target, remaining);
       if (remaining === 0) queue.push(target);
@@ -126,101 +207,201 @@ const buildRanks = (graph: DiagramDefinition) => {
     throw new Error("Graph contains a structural cycle. Mark return relations as feedback.");
   }
 
-  return rankById;
+  return graph.nodes.map((node) => rankById.get(node.id) ?? 0);
 };
 
-const groupRanks = (graph: DiagramDefinition, rankById: ReadonlyMap<string, number>) => {
-  const maxRank = Math.max(...graph.nodes.map((node) => rankById.get(node.id) ?? 0));
-  const ranks: DiagramNode[][] = Array.from({ length: maxRank + 1 }, () => []);
-  for (const node of graph.nodes) ranks[rankById.get(node.id) ?? 0]?.push(node);
+const buildRawRanks = (
+  graph: DiagramDefinition,
+  nodeRanks: readonly number[],
+  nodeWidth: number,
+): SizedNode[][] => {
+  const rankCount = Math.max(...nodeRanks) + 1;
+  const ranks: SizedNode[][] = Array.from({ length: rankCount }, () => []);
+
+  graph.nodes.forEach((node, index) => {
+    const rank = nodeRanks[index] ?? 0;
+    ranks[rank]?.push({ node, ...estimateNodeSize(node, nodeWidth), rank });
+  });
+
   return ranks;
 };
 
-const defaultSerpentineColumns = (count: number) => {
-  if (count <= 3) return Math.max(1, count);
-  if (count === 4) return 2;
-  if (count <= 6) return 3;
+const centerArtboardHeight = (contentHeight: number) => {
+  const height = Math.max(ARTBOARD_MIN_HEIGHT, contentHeight + MARGIN_Y * 2);
+  return { height, offsetY: (height - contentHeight) / 2 };
+};
+
+const defaultSerpentineColumns = (nodeCount: number) => {
+  if (nodeCount <= 3) return Math.max(nodeCount, 1);
+  if (nodeCount === 4) return 2;
+  if (nodeCount <= 6) return 3;
   return 4;
 };
 
+const resolveSerpentineColumns = (nodeCount: number, profile: LayoutProfile) =>
+  Math.max(1, Math.min(defaultSerpentineColumns(nodeCount), Math.min(nodeCount, profile.maxColumns)));
+
 const serpentineLayout = (
-  ranks: readonly (readonly DiagramNode[])[],
-  rankById: ReadonlyMap<string, number>,
+  rawRanks: readonly (readonly SizedNode[])[],
   profile: LayoutProfile,
-): PositionedDiagramNode[] => {
-  const ordered = ranks.flat();
-  const columns = Math.min(defaultSerpentineColumns(ordered.length), profile.maxColumns);
-  const rows: DiagramNode[][] = [];
+  nodeWidth: number,
+): InternalLayout => {
+  const ordered = rawRanks.flat();
+  const columns = resolveSerpentineColumns(ordered.length, profile);
+  const rows: SizedNode[][] = [];
   for (let index = 0; index < ordered.length; index += columns) {
     rows.push(ordered.slice(index, index + columns));
   }
 
-  const ys = distribute(rows.length, MARGIN_Y + NODE_HEIGHT / 2, profile.height - MARGIN_Y - NODE_HEIGHT / 2);
-  return rows.flatMap((row, rowIndex) => {
-    const rowWidth = row.length * NODE_WIDTH + Math.max(0, row.length - 1) * COLUMN_GAP;
-    const startX = (profile.width - rowWidth) / 2 + NODE_WIDTH / 2;
+  const rowHeights = rows.map((row) => Math.max(...row.map((item) => item.height), NODE_HEIGHT));
+  const contentHeight = rowHeights.reduce(
+    (total, height, index) => total + height + (index > 0 ? ROW_GAP : 0),
+    0,
+  );
+  const { height, offsetY } = centerArtboardHeight(contentHeight);
+  const positionedRows: PositionedInternalNode[][] = [];
+  let y = offsetY;
 
-    return row.map((node, itemIndex) => {
+  rows.forEach((row, rowIndex) => {
+    const rowHeight = rowHeights[rowIndex] ?? NODE_HEIGHT;
+    const rowWidth = row.length * nodeWidth + Math.max(row.length - 1, 0) * COLUMN_GAP;
+    const startX = (profile.width - rowWidth) / 2;
+    const positioned: PositionedInternalNode[] = [];
+
+    row.forEach((item, itemIndex) => {
       const visualIndex = rowIndex % 2 === 0 ? itemIndex : row.length - 1 - itemIndex;
-      return {
-        ...node,
-        x: startX + visualIndex * (NODE_WIDTH + COLUMN_GAP),
-        y: ys[rowIndex] ?? profile.height / 2,
-        rank: rankById.get(node.id) ?? 0,
-      };
+      positioned.push({
+        ...item.node,
+        width: item.width,
+        height: item.height,
+        x: startX + visualIndex * (nodeWidth + COLUMN_GAP) + nodeWidth / 2,
+        y: y + rowHeight / 2,
+        rank: item.rank,
+      });
     });
+
+    positionedRows.push(positioned);
+    y += rowHeight + ROW_GAP;
   });
+
+  return {
+    kind: "serpentine",
+    width: profile.width,
+    height,
+    nodes: positionedRows.flat(),
+    ranks: positionedRows,
+  };
 };
 
 const layeredTbLayout = (
-  ranks: readonly (readonly DiagramNode[])[],
-  rankById: ReadonlyMap<string, number>,
+  rawRanks: readonly (readonly SizedNode[])[],
   profile: LayoutProfile,
-): PositionedDiagramNode[] => {
-  const rows: { nodes: readonly DiagramNode[]; rank: number }[] = [];
-  ranks.forEach((rank, semanticRank) => {
+  nodeWidth: number,
+): InternalLayout => {
+  const visualRows: { items: readonly SizedNode[]; semanticRank: number }[] = [];
+
+  rawRanks.forEach((rank, semanticRank) => {
     for (let index = 0; index < rank.length; index += profile.maxColumns) {
-      rows.push({ nodes: rank.slice(index, index + profile.maxColumns), rank: semanticRank });
+      visualRows.push({ items: rank.slice(index, index + profile.maxColumns), semanticRank });
     }
   });
 
-  const ys = distribute(rows.length, MARGIN_Y + NODE_HEIGHT / 2, profile.height - MARGIN_Y - NODE_HEIGHT / 2);
-  return rows.flatMap((row, rowIndex) => {
-    const rowWidth = row.nodes.length * NODE_WIDTH + Math.max(0, row.nodes.length - 1) * COLUMN_GAP;
-    const startX = (profile.width - rowWidth) / 2 + NODE_WIDTH / 2;
+  const rowHeights = visualRows.map(({ items }) =>
+    Math.max(...items.map((item) => item.height), NODE_HEIGHT),
+  );
+  let contentHeight = rowHeights.reduce((total, rowHeight) => total + rowHeight, 0);
+  for (let index = 1; index < visualRows.length; index += 1) {
+    contentHeight +=
+      visualRows[index - 1]?.semanticRank === visualRows[index]?.semanticRank
+        ? STACK_GAP
+        : RANK_GAP;
+  }
 
-    return row.nodes.map((node, index) => ({
-      ...node,
-      x: startX + index * (NODE_WIDTH + COLUMN_GAP),
-      y: ys[rowIndex] ?? profile.height / 2,
-      rank: rankById.get(node.id) ?? row.rank,
-    }));
+  const { height, offsetY } = centerArtboardHeight(contentHeight);
+  const positionedRows: PositionedInternalNode[][] = [];
+  let y = offsetY;
+
+  visualRows.forEach((row, rowIndex) => {
+    const rowHeight = rowHeights[rowIndex] ?? NODE_HEIGHT;
+    const rowWidth = row.items.length * nodeWidth + Math.max(row.items.length - 1, 0) * COLUMN_GAP;
+    let x = (profile.width - rowWidth) / 2;
+    const positioned: PositionedInternalNode[] = [];
+
+    for (const item of row.items) {
+      positioned.push({
+        ...item.node,
+        width: item.width,
+        height: item.height,
+        x: x + nodeWidth / 2,
+        y: y + rowHeight / 2,
+        rank: item.rank,
+      });
+      x += nodeWidth + COLUMN_GAP;
+    }
+
+    positionedRows.push(positioned);
+    const next = visualRows[rowIndex + 1];
+    if (next) {
+      y += rowHeight + (next.semanticRank === row.semanticRank ? STACK_GAP : RANK_GAP);
+    }
   });
+
+  return {
+    kind: "layered-tb",
+    width: profile.width,
+    height,
+    nodes: positionedRows.flat(),
+    ranks: positionedRows,
+  };
 };
 
 const layeredLrLayout = (
-  ranks: readonly (readonly DiagramNode[])[],
-  rankById: ReadonlyMap<string, number>,
+  rawRanks: readonly (readonly SizedNode[])[],
   profile: LayoutProfile,
-): PositionedDiagramNode[] => {
-  const contentWidth = ranks.length * NODE_WIDTH + Math.max(0, ranks.length - 1) * RANK_GAP;
-  const startX = (profile.width - contentWidth) / 2 + NODE_WIDTH / 2;
+  nodeWidth: number,
+): InternalLayout => {
+  const columnHeights = rawRanks.map((rank) =>
+    rank.reduce((total, item, index) => total + item.height + (index > 0 ? STACK_GAP : 0), 0),
+  );
+  const contentHeight = Math.max(...columnHeights, NODE_HEIGHT);
+  const { height, offsetY } = centerArtboardHeight(contentHeight);
+  const contentWidth = rawRanks.length * nodeWidth + Math.max(rawRanks.length - 1, 0) * RANK_GAP;
+  let x = (profile.width - contentWidth) / 2;
+  const positionedRanks: PositionedInternalNode[][] = [];
 
-  return ranks.flatMap((rank, rankIndex) => {
-    const columnHeight = rank.length * NODE_HEIGHT + Math.max(0, rank.length - 1) * STACK_GAP;
-    const startY = (profile.height - columnHeight) / 2 + NODE_HEIGHT / 2;
-    return rank.map((node, index) => ({
-      ...node,
-      x: startX + rankIndex * (NODE_WIDTH + RANK_GAP),
-      y: startY + index * (NODE_HEIGHT + STACK_GAP),
-      rank: rankById.get(node.id) ?? rankIndex,
-    }));
+  rawRanks.forEach((rank, rankIndex) => {
+    const columnHeight = columnHeights[rankIndex] ?? NODE_HEIGHT;
+    let y = offsetY + (contentHeight - columnHeight) / 2;
+    const positioned: PositionedInternalNode[] = [];
+
+    for (const item of rank) {
+      positioned.push({
+        ...item.node,
+        width: item.width,
+        height: item.height,
+        x: x + nodeWidth / 2,
+        y: y + item.height / 2,
+        rank: item.rank,
+      });
+      y += item.height + STACK_GAP;
+    }
+
+    positionedRanks.push(positioned);
+    x += nodeWidth + RANK_GAP;
   });
+
+  return {
+    kind: "layered-lr",
+    width: profile.width,
+    height,
+    nodes: positionedRanks.flat(),
+    ranks: positionedRanks,
+  };
 };
 
 const fanoutHub = (graph: DiagramDefinition) => {
   const structural = graph.edges.filter((edge) => !isFeedback(edge));
-  if (graph.nodes.length < 5 || structural.length !== graph.nodes.length - 1) return undefined;
+  if (structural.length !== graph.nodes.length - 1 || graph.nodes.length < 5) return undefined;
   const outgoing = new Map(graph.nodes.map((node) => [node.id, 0]));
   for (const edge of structural) outgoing.set(edge.from, (outgoing.get(edge.from) ?? 0) + 1);
   return graph.nodes.find((node) => (outgoing.get(node.id) ?? 0) === graph.nodes.length - 1)?.id;
@@ -228,122 +409,169 @@ const fanoutHub = (graph: DiagramDefinition) => {
 
 const fanoutLayout = (
   graph: DiagramDefinition,
+  nodeRanks: readonly number[],
   hubId: string,
-  rankById: ReadonlyMap<string, number>,
   profile: LayoutProfile,
-): PositionedDiagramNode[] => {
-  const hub = graph.nodes.find((node) => node.id === hubId);
+  nodeWidth: number,
+): InternalLayout => {
+  const hubIndex = graph.nodes.findIndex((node) => node.id === hubId);
+  const hub = graph.nodes[hubIndex];
   if (!hub) throw new Error(`Unknown fanout hub "${hubId}".`);
-  const children = graph.nodes.filter((node) => node.id !== hubId);
-  const rows = Math.ceil(children.length / 2);
-  const ys = distribute(rows, 30, profile.height - MARGIN_Y - NODE_HEIGHT / 2);
-  const result: PositionedDiagramNode[] = [
-    { ...hub, x: profile.width / 2, y: MARGIN_Y + NODE_HEIGHT / 2, rank: rankById.get(hub.id) ?? 0 },
-  ];
 
-  children.forEach((node, index) => {
-    result.push({
+  const hubSize = estimateNodeSize(hub, nodeWidth);
+  const children = graph.nodes
+    .map((node, index) => ({ node, index }))
+    .filter(({ node }) => node.id !== hubId);
+  const rowCount = Math.ceil(children.length / 2);
+  const childRows = children.map(({ node }) => estimateNodeSize(node, nodeWidth));
+  const rowHeight = Math.max(...childRows.map((size) => size.height), NODE_HEIGHT);
+  const childGap = 32;
+  const contentHeight =
+    hubSize.height + 62 + rowCount * rowHeight + Math.max(rowCount - 1, 0) * childGap;
+  const { height, offsetY } = centerArtboardHeight(contentHeight);
+  const hubPosition: PositionedInternalNode = {
+    ...hub,
+    ...hubSize,
+    x: profile.width / 2,
+    y: offsetY + hubSize.height / 2,
+    rank: nodeRanks[hubIndex] ?? 0,
+  };
+  const leftX = profile.width * 0.28;
+  const rightX = profile.width * 0.72;
+  const positionedChildren: PositionedInternalNode[] = [];
+  let childY = offsetY + hubSize.height + 62 + rowHeight / 2;
+
+  children.forEach(({ node, index }, childIndex) => {
+    const size = estimateNodeSize(node, nodeWidth);
+    positionedChildren.push({
       ...node,
-      x: index % 2 === 0 ? profile.width * 0.30 : profile.width * 0.70,
-      y: ys[Math.floor(index / 2)] ?? profile.height / 2,
-      rank: rankById.get(node.id) ?? 1,
+      ...size,
+      x: childIndex % 2 === 0 ? leftX : rightX,
+      y: childY,
+      rank: nodeRanks[index] ?? 1,
     });
+    if (childIndex % 2 === 1) childY += rowHeight + childGap;
   });
-  return result;
+
+  return {
+    kind: "fanout",
+    width: profile.width,
+    height,
+    nodes: [hubPosition, ...positionedChildren],
+    ranks: [[hubPosition], positionedChildren],
+  };
 };
 
-const chooseLayout = (
-  graph: DiagramDefinition,
-  ranks: readonly (readonly DiagramNode[])[],
-  profile: LayoutProfile,
-): DiagramLayoutKind => {
-  if (fanoutHub(graph)) return "fanout";
-  if (ranks.every((rank) => rank.length === 1)) return "serpentine";
+const createLayout = (graph: DiagramDefinition, profile: LayoutProfile): InternalLayout => {
+  const nodeWidth = resolveNodeWidth(profile);
+  const nodeRanks = buildRanks(graph);
+  const rawRanks = buildRawRanks(graph, nodeRanks, nodeWidth);
+  const hub = fanoutHub(graph);
 
-  // Feedback-heavy graphs read more clearly as compact vertical systems. This
-  // is the same structural idea used by the blog: feedback does not drive DAG ranks.
-  if (graph.edges.some(isFeedback)) return "layered-tb";
+  if (hub) return fanoutLayout(graph, nodeRanks, hub, profile, nodeWidth);
+  if (rawRanks.every((rank) => rank.length === 1)) {
+    return serpentineLayout(rawRanks, profile, nodeWidth);
+  }
 
-  const lrWidth = ranks.length * NODE_WIDTH + Math.max(0, ranks.length - 1) * RANK_GAP;
+  const lrWidth = rawRanks.length * nodeWidth + Math.max(rawRanks.length - 1, 0) * RANK_GAP;
   const canUseLr =
     !profile.vertical &&
     graph.direction === "LR" &&
-    Math.max(...ranks.map((rank) => rank.length)) <= 3 &&
-    lrWidth <= profile.width - MARGIN_X * 2;
+    Math.max(...rawRanks.map((rank) => rank.length)) <= 3;
 
-  return canUseLr ? "layered-lr" : "layered-tb";
+  if (canUseLr && lrWidth <= profile.width - MARGIN_X * 2) {
+    return layeredLrLayout(rawRanks, profile, nodeWidth);
+  }
+
+  return layeredTbLayout(rawRanks, profile, nodeWidth);
 };
 
-const nodeMap = (nodes: readonly PositionedDiagramNode[]) => new Map(nodes.map((node) => [node.id, node]));
-
-const regularRoute = (from: PositionedDiagramNode, to: PositionedDiagramNode) => {
+const regularRoute = (from: PositionedInternalNode, to: PositionedInternalNode): EdgeRoute => {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
 
   if (Math.abs(dx) > Math.abs(dy)) {
     const direction = Math.sign(dx) || 1;
-    const startX = from.x + PORT * direction;
-    const endX = to.x - PORT * direction;
+    const startX = from.x + (from.width / 2) * direction;
+    const endX = to.x - (to.width / 2) * direction;
     const middleX = (startX + endX) / 2;
     return {
       path: `M ${startX} ${from.y} H ${middleX} V ${to.y} H ${endX}`,
       labelX: middleX,
-      labelY: (from.y + to.y) / 2 - 2,
+      labelY: (from.y + to.y) / 2 - 8,
     };
   }
 
   const direction = Math.sign(dy) || 1;
-  const startY = from.y + PORT * direction;
-  const endY = to.y - PORT * direction;
+  const startY = from.y + (from.height / 2) * direction;
+  const endY = to.y - (to.height / 2) * direction;
   const middleY = (startY + endY) / 2;
   return {
     path: `M ${from.x} ${startY} V ${middleY} H ${to.x} V ${endY}`,
-    labelX: (from.x + to.x) / 2 + 2,
-    labelY: middleY - 1.5,
+    labelX: (from.x + to.x) / 2 + 8,
+    labelY: middleY - 8,
+  };
+};
+
+const fanoutRoute = (
+  from: PositionedInternalNode,
+  to: PositionedInternalNode,
+  profile: LayoutProfile,
+): EdgeRoute => {
+  const goesLeft = to.x < from.x;
+  const laneX = goesLeft ? MARGIN_X / 2 : profile.width - MARGIN_X / 2;
+  const startX = from.x + (goesLeft ? -from.width / 2 : from.width / 2);
+  const endX = to.x + (goesLeft ? -to.width / 2 : to.width / 2);
+  return {
+    path: `M ${startX} ${from.y} H ${laneX} V ${to.y} H ${endX}`,
+    labelX: laneX + (goesLeft ? 8 : -8),
+    labelY: (from.y + to.y) / 2,
   };
 };
 
 const longRoute = (
-  from: PositionedDiagramNode,
-  to: PositionedDiagramNode,
+  from: PositionedInternalNode,
+  to: PositionedInternalNode,
   index: number,
   profile: LayoutProfile,
-) => {
-  const laneX = profile.width - MARGIN_X / 2 - index * LONG_EDGE_LANE_GAP;
+): EdgeRoute => {
+  const laneX = profile.width - 8 - index * LONG_EDGE_LANE_GAP;
+  const startX = from.x + from.width / 2;
+  const endX = to.x + to.width / 2;
   return {
-    path: `M ${from.x + PORT} ${from.y} H ${laneX} V ${to.y} H ${to.x + PORT}`,
-    labelX: laneX - 2,
-    labelY: (from.y + to.y) / 2 - 2,
+    path: `M ${startX} ${from.y} H ${laneX} V ${to.y} H ${endX}`,
+    labelX: laneX - 8,
+    labelY: (from.y + to.y) / 2 - 8,
   };
 };
 
 const feedbackRoute = (
-  from: PositionedDiagramNode,
-  to: PositionedDiagramNode,
-  nodes: readonly PositionedDiagramNode[],
-  index: number,
-) => {
-  const leftBoundary = Math.min(...nodes.map((node) => node.x - NODE_WIDTH / 2));
-  const laneX = Math.max(3, leftBoundary - 4 - index * FEEDBACK_LANE_GAP);
-  const startY = from.y - PORT;
-  const endY = to.y + PORT;
-  const bend = Math.min(7, Math.max(4, Math.abs(startY - endY) * 0.18));
+  from: PositionedInternalNode,
+  to: PositionedInternalNode,
+  layout: InternalLayout,
+): EdgeRoute => {
+  const startX = from.x;
+  const startY = from.y - from.height / 2;
+  const endX = to.x;
+  const endY = to.y + to.height / 2;
+  const leftNodeBoundary = Math.min(...layout.nodes.map((node) => node.x - node.width / 2));
+  const laneX = Math.max(MARGIN_X / 2, leftNodeBoundary - 20);
+  const verticalBend = Math.min(44, Math.max(28, Math.abs(startY - endY) * 0.18));
+
   return {
-    path: `M ${from.x} ${startY} C ${laneX} ${startY - bend} ${laneX} ${endY + bend} ${to.x} ${endY}`,
-    labelX: laneX + 2,
-    labelY: (startY + endY) / 2 - 1,
+    path: `M ${startX} ${startY} C ${laneX} ${startY - verticalBend} ${laneX} ${endY + verticalBend} ${endX} ${endY}`,
+    labelX: laneX + 10,
+    labelY: (startY + endY) / 2 - 6,
   };
 };
 
 const routeEdges = (
   graph: DiagramDefinition,
-  nodes: readonly PositionedDiagramNode[],
-  layout: DiagramLayoutKind,
+  layout: InternalLayout,
   profile: LayoutProfile,
 ): RoutedDiagramEdge[] => {
-  const byId = nodeMap(nodes);
+  const byId = new Map(layout.nodes.map((node) => [node.id, node]));
   let longIndex = 0;
-  let feedbackIndex = 0;
 
   return graph.edges.map((edge) => {
     const from = byId.get(edge.from);
@@ -351,11 +579,14 @@ const routeEdges = (
     if (!from || !to) throw new Error(`Unknown graph node in edge ${edge.from} -> ${edge.to}.`);
 
     const feedback = isFeedback(edge);
+    const long = !feedback && to.rank - from.rank > 1;
     const route = feedback
-      ? feedbackRoute(from, to, nodes, feedbackIndex++)
-      : to.rank - from.rank > 1
-        ? longRoute(from, to, longIndex++, profile)
-        : regularRoute(from, to);
+      ? feedbackRoute(from, to, layout)
+      : layout.kind === "fanout"
+        ? fanoutRoute(from, to, profile)
+        : long
+          ? longRoute(from, to, longIndex++, profile)
+          : regularRoute(from, to);
 
     return { ...edge, ...route, feedback };
   });
@@ -367,24 +598,21 @@ export const compileDiagram = (
 ): CompiledDiagram => {
   validate(graph);
   const profile = PROFILES[profileName];
-  const rankById = buildRanks(graph);
-  const ranks = groupRanks(graph, rankById);
-  const hub = fanoutHub(graph);
-  const layout = chooseLayout(graph, ranks, profile);
-
-  const nodes = layout === "fanout" && hub
-    ? fanoutLayout(graph, hub, rankById, profile)
-    : layout === "serpentine"
-      ? serpentineLayout(ranks, rankById, profile)
-      : layout === "layered-lr"
-        ? layeredLrLayout(ranks, rankById, profile)
-        : layeredTbLayout(ranks, rankById, profile);
+  const layout = createLayout(graph, profile);
+  const edges = routeEdges(graph, layout, profile);
 
   return {
-    width: profile.width,
-    height: profile.height,
-    layout,
-    nodes,
-    edges: routeEdges(graph, nodes, layout, profile),
+    width: layout.width,
+    height: layout.height,
+    layout: layout.kind,
+    nodes: layout.nodes.map(({ id, label, kind, x, y, rank }) => ({
+      id,
+      label,
+      kind,
+      x,
+      y,
+      rank,
+    })),
+    edges,
   };
 };
