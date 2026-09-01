@@ -101,8 +101,6 @@ const compileFixed = (graph: SystemProject["graph"]): CompiledSystemGraph => {
   return { width: WIDTH, height: HEIGHT, layout: "fixed", nodes, edges };
 };
 
-// Adapter boundary: project content is translated into the semantic graph model;
-// layout and routing decisions belong exclusively to diagram-core.
 const toDefinition = (graph: SystemProject["graph"]): DiagramDefinition => {
   const nodesById = graphNodeMap(graph.nodes);
   assertEdgeReferences(graph.edges, nodesById);
@@ -130,6 +128,7 @@ const compileAutomatic = (
 ): CompiledSystemGraph => {
   const core = compileDiagram(toDefinition(graph), profile);
   const sourceNodes = new Map(graph.nodes.map((node) => [node.id, node]));
+  const sourceEdges = new Map(graph.edges.map((edge) => [`${edge.from}->${edge.to}`, edge]));
 
   const nodes = core.nodes.map((node) => {
     const source = sourceNodes.get(node.id);
@@ -137,8 +136,8 @@ const compileAutomatic = (
     return { ...source, x: node.x, y: node.y, rank: node.rank };
   });
 
-  const edges = core.edges.map((edge, index) => {
-    const source = graph.edges[index];
+  const edges = core.edges.map((edge) => {
+    const source = sourceEdges.get(`${edge.from}->${edge.to}`);
     if (!source) throw new Error(`Missing source graph edge ${edge.from} -> ${edge.to}.`);
     return {
       ...source,
