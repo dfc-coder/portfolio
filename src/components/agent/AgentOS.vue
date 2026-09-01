@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
+  pulseAgentSpeech,
   pulseAgentVisual,
   setAgentVisualPhase,
   type AgentVisualPhase,
@@ -47,9 +48,9 @@ const pulsePresentedText = (text: string) => {
   const boundary = /[\s,.!?;:]/.test(text);
   if (!boundary && speechChars < 6) return;
 
-  const punctuation = /[.!?]/.test(text) ? 0.16 : /[,;:]/.test(text) ? 0.08 : 0;
-  const strength = Math.min(0.78, 0.30 + speechChars * 0.055 + punctuation);
-  pulseAgentVisual(strength);
+  const punctuation = /[.!?]/.test(text) ? 0.14 : /[,;:]/.test(text) ? 0.07 : 0;
+  const strength = Math.min(0.92, 0.38 + speechChars * 0.060 + punctuation);
+  pulseAgentSpeech(strength);
   speechChars = 0;
 };
 
