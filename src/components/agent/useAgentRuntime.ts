@@ -22,6 +22,10 @@ export interface AgentProvider {
 export type RuntimeState = "idle" | "listening" | "thinking" | "speaking";
 
 const TZ = "America/Argentina/Buenos_Aires";
+const PRESENTATION_BASE_CPS = 52;
+const PRESENTATION_MAX_CPS = 92;
+const PRESENTATION_MAX_BATCH = 4;
+
 const timeFormatter = new Intl.DateTimeFormat("en-GB", {
   timeZone: TZ,
   hour12: false,
@@ -34,7 +38,7 @@ export const stamp = (date = new Date()): string => timeFormatter.format(date);
 
 export interface RuntimeHooks {
   onMessage?: (message: AgentMessage) => void;
-  onToken?: () => void;
+  onPresent?: (text: string) => void;
 }
 
 export function useAgentRuntime(
@@ -47,9 +51,13 @@ export function useAgentRuntime(
   const busy = ref(false);
   const error = ref<string | null>(null);
   const nextId = shallowRef(1);
-  let streamFrame = 0;
-  let pendingText = "";
+
   let replyId = -1;
+  let presentationFrame = 0;
+  let presentationQueue = "";
+  let presentationBudget = 0;
+  let presentationTime = 0;
+  let drainResolver: (() => void) | null = null;
 
   const state = computed<RuntimeState>(() => {
     if (messages.value.some((message) => message.streaming)) return "speaking";
@@ -82,40 +90,83 @@ export function useAgentRuntime(
 
   const reply = () => messages.value.find((message) => message.id === replyId);
 
-  const flushStream = () => {
-    streamFrame = 0;
-    if (!pendingText) return;
-    const target = reply();
-    if (!target) {
-      pendingText = "";
+  const resolveDrain = () => {
+    if (presentationQueue || presentationFrame) return;
+    const resolve = drainResolver;
+    drainResolver = null;
+    resolve?.();
+  };
+
+  const present = (now: number) => {
+    presentationFrame = 0;
+    if (!presentationQueue) {
+      presentationTime = 0;
+      resolveDrain();
       return;
     }
 
-    target.text += pendingText;
-    pendingText = "";
-    hooks.onToken?.();
+    if (!presentationTime) presentationTime = now;
+    const dt = Math.min(0.05, Math.max(0.008, (now - presentationTime) / 1000));
+    presentationTime = now;
+
+    const cps = Math.min(
+      PRESENTATION_MAX_CPS,
+      PRESENTATION_BASE_CPS + presentationQueue.length * 0.10,
+    );
+    presentationBudget += cps * dt;
+
+    const count = Math.min(
+      PRESENTATION_MAX_BATCH,
+      presentationQueue.length,
+      Math.floor(presentationBudget),
+    );
+
+    if (count > 0) {
+      const target = reply();
+      const batch = presentationQueue.slice(0, count);
+      presentationQueue = presentationQueue.slice(count);
+      presentationBudget -= count;
+
+      if (target) {
+        target.text += batch;
+        hooks.onPresent?.(batch);
+      }
+    }
+
+    if (presentationQueue) {
+      presentationFrame = requestAnimationFrame(present);
+      return;
+    }
+
+    presentationBudget = Math.min(1, presentationBudget);
+    presentationTime = 0;
+    resolveDrain();
   };
 
-  const scheduleStreamFlush = () => {
-    if (streamFrame) return;
-    streamFrame = requestAnimationFrame(flushStream);
+  const schedulePresentation = () => {
+    if (presentationFrame) return;
+    presentationFrame = requestAnimationFrame(present);
   };
 
-  const flushStreamNow = () => {
-    if (streamFrame) cancelAnimationFrame(streamFrame);
-    streamFrame = 0;
-    flushStream();
+  const waitForPresentation = (): Promise<void> => {
+    if (!presentationQueue && !presentationFrame) return Promise.resolve();
+    return new Promise((resolve) => {
+      drainResolver = resolve;
+    });
   };
 
-  const handleEvent = (event: AgentEvent | string): void => {
+  const handleEvent = (event: AgentEvent | string): boolean => {
     const text = typeof event === "string" ? event : event.text;
-    if (!text) return;
+    if (!text) return false;
+
     if (replyId < 0) {
       busy.value = false;
       replyId = push("agent", "", true).id;
     }
-    pendingText += text;
-    scheduleStreamFlush();
+
+    presentationQueue += text;
+    schedulePresentation();
+    return true;
   };
 
   const send = async () => {
@@ -129,23 +180,25 @@ export function useAgentRuntime(
 
     const history = messages.value.slice(0, -1);
     replyId = -1;
-    pendingText = "";
+    presentationQueue = "";
+    presentationBudget = 0;
+    presentationTime = 0;
     let receivedContent = false;
 
     try {
       for await (const event of provider.ask(question, history)) {
-        receivedContent = true;
-        handleEvent(event);
+        receivedContent = handleEvent(event) || receivedContent;
       }
 
-      flushStreamNow();
       if (!receivedContent) {
         throw new Error("Agent provider returned no conversational content");
       }
+
+      await waitForPresentation();
       const target = reply();
       if (target) target.streaming = false;
     } catch (cause) {
-      flushStreamNow();
+      await waitForPresentation();
       error.value = "The agent could not answer. Try again.";
       const target = reply();
       if (target) target.streaming = false;
@@ -156,10 +209,15 @@ export function useAgentRuntime(
   };
 
   const reset = () => {
-    if (streamFrame) cancelAnimationFrame(streamFrame);
-    streamFrame = 0;
-    pendingText = "";
+    if (presentationFrame) cancelAnimationFrame(presentationFrame);
+    presentationFrame = 0;
+    presentationQueue = "";
+    presentationBudget = 0;
+    presentationTime = 0;
     replyId = -1;
+    const resolve = drainResolver;
+    drainResolver = null;
+    resolve?.();
     messages.value = [];
     draft.value = "";
     error.value = null;
