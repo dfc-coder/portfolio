@@ -1,63 +1,36 @@
-import type { GraphEdge, GraphNode, SystemProject } from "../experiences/systems-projects";
+import { layoutDiagram } from "./layout";
+import type { FlowDiagramDefinition, FlowScene, LayoutProfile } from "./model";
 
-export type CompiledGraphEdge = GraphEdge & {
-  path: string;
-  labelX: number;
-  labelY: number;
-};
+export type SystemGraphProfile = "desktop" | "mobile";
 
-export type CompiledSystemGraph = {
-  width: 100;
-  height: 64;
-  nodes: GraphNode[];
-  edges: CompiledGraphEdge[];
-};
+const GLYPH_DIAMETER = 2.1;
 
-const resolveEdgePath = (
-  nodesById: ReadonlyMap<string, GraphNode>,
-  edge: GraphEdge,
-) => {
-  if (edge.path) return edge.path;
-
-  const from = nodesById.get(edge.from);
-  const to = nodesById.get(edge.to);
-  if (!from || !to) {
-    throw new Error(`Unknown graph node in edge ${edge.from} -> ${edge.to}.`);
-  }
-
-  if (Math.abs(from.y - to.y) < 2) {
-    return `M ${from.x} ${from.y} H ${to.x}`;
-  }
-
-  const midX = (from.x + to.x) / 2;
-  return `M ${from.x} ${from.y} H ${midX} V ${to.y} H ${to.x}`;
+const PROFILES: Record<SystemGraphProfile, LayoutProfile> = {
+  desktop: {
+    width: 100,
+    nodeWidth: 6,
+    nodeHeight: 5,
+    nodeGap: 8,
+    rankGap: 9,
+    maxColumns: 4,
+    direction: "LR",
+    anchorWidth: GLYPH_DIAMETER,
+    anchorHeight: GLYPH_DIAMETER,
+  },
+  mobile: {
+    width: 100,
+    nodeWidth: 12,
+    nodeHeight: 7,
+    nodeGap: 8,
+    rankGap: 10,
+    maxColumns: 3,
+    direction: "TB",
+    anchorWidth: GLYPH_DIAMETER,
+    anchorHeight: GLYPH_DIAMETER,
+  },
 };
 
 export const compileSystemGraph = (
-  graph: SystemProject["graph"],
-): CompiledSystemGraph => {
-  const nodes = graph.nodes.map((node) => ({ ...node }));
-  const nodesById = new Map(nodes.map((node) => [node.id, node]));
-
-  const edges = graph.edges.map((edge) => {
-    const from = nodesById.get(edge.from);
-    const to = nodesById.get(edge.to);
-    if (!from || !to) {
-      throw new Error(`Unknown graph node in edge ${edge.from} -> ${edge.to}.`);
-    }
-
-    return {
-      ...edge,
-      path: resolveEdgePath(nodesById, edge),
-      labelX: (from.x + to.x) / 2,
-      labelY: (from.y + to.y) / 2,
-    };
-  });
-
-  return {
-    width: 100,
-    height: 64,
-    nodes,
-    edges,
-  };
-};
+  flow: FlowDiagramDefinition,
+  profile: SystemGraphProfile = "desktop",
+): FlowScene => layoutDiagram(flow, PROFILES[profile]) as FlowScene;
