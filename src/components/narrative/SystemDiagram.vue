@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { compileSystemGraph } from "../../graph/system-graph";
+import {
+  compileSystemGraph,
+  type CompiledGraphEdge,
+} from "../../graph/system-graph";
 import type { SystemProject } from "../../experiences/systems-projects";
 
 const props = defineProps<{ project: SystemProject }>();
@@ -15,7 +18,7 @@ const architectureDescription = computed(() => {
   return `Components: ${nodes}. Connections: ${edges}.`;
 });
 
-const edgeLabelStyle = (edge: (typeof graph.value.edges)[number]) => ({
+const edgeLabelStyle = (edge: CompiledGraphEdge) => ({
   left: `${edge.labelX}%`,
   top: `${edge.labelY}%`,
   "--edge-step": edge.step,
