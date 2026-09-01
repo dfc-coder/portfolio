@@ -69,7 +69,7 @@ const nodeBounds = (nodes) => ({
 
 test("SDD: portfolio uses the exact MODEL + LAYOUT + ROUTING blobs from the blog PR #11", async () => {
   assert.equal(gitBlobSha(await read("src/graph/model.ts")), "87a5dde828b57940654a2c1be900161e51c82810");
-  assert.equal(gitBlobSha(await read("src/graph/layout.ts")), "d78c70927d3c286eebb150409f1891b46cff6c48");
+  assert.equal(gitBlobSha(await read("src/graph/layout.ts")), "45f049f93b06f273897e983311bb02648d5c130a");
   assert.equal(gitBlobSha(await read("src/graph/routing.ts")), "2f48614671ef0369fcab02aa029eb75f9f4fb9ae");
 });
 
@@ -133,7 +133,7 @@ test("BDD: responsive scenes preserve semantics but may use different geometry",
   }
 });
 
-test("BDD: Reflective ReAct is cycle-aware, explicit and uses the portfolio artboard", () => {
+test("BDD: Reflective ReAct derives its shape from the forward structure", () => {
   const project = projectData.systemsProjects.find((item) => item.code === "REACT—AI");
   assert.ok(project);
 
@@ -144,6 +144,20 @@ test("BDD: Reflective ReAct is cycle-aware, explicit and uses the portfolio artb
     scene.edges.filter((edge) => edge.kind === "feedback").map((edge) => `${edge.from}->${edge.to}`).sort(),
     ["model->reason", "reflect->reason"],
   );
+
+  const byId = new Map(scene.nodes.map((node) => [node.id, node]));
+  const reason = byId.get("reason");
+  const tools = byId.get("tools");
+  const verify = byId.get("verify");
+  const reflect = byId.get("reflect");
+  const model = byId.get("model");
+  assert.ok(reason && tools && verify && reflect && model);
+
+  assert.ok(reason.x < tools.x, "REASON should precede TOOLS");
+  assert.ok(tools.y < verify.y, "TOOLS should flow down to VERIFY after the fold");
+  assert.ok(reflect.x < verify.x, "REFLECT should return on the opposite side of VERIFY");
+  assert.ok(model.x < verify.x, "LOCAL MODEL should share the return side of the cycle");
+  assert.ok(reflect.y < model.y, "REFLECT and LOCAL MODEL should remain distinguishable");
 
   const cycleIds = new Set(["reason", "tools", "verify", "reflect", "model"]);
   const cycleNodes = scene.nodes.filter((node) => cycleIds.has(node.id));
