@@ -1,13 +1,10 @@
 import { layoutDiagram } from "./layout";
-import type { GraphDiagramDefinition, GraphScene, LayoutProfile } from "./model";
+import type { FlowDiagramDefinition, FlowScene, LayoutProfile } from "./model";
 
 export type SystemGraphProfile = "desktop" | "mobile";
 
 const GLYPH_DIAMETER = 2.1;
 
-// Portfolio Systems are read as architecture maps: ranks form horizontal columns on desktop
-// and vertical rows on mobile. The small virtual footprint keeps 5–6 ranks readable without
-// collapsing the scene into a top-to-bottom tower.
 const PROFILES: Record<SystemGraphProfile, LayoutProfile> = {
   desktop: {
     width: 100,
@@ -34,6 +31,6 @@ const PROFILES: Record<SystemGraphProfile, LayoutProfile> = {
 };
 
 export const compileSystemGraph = (
-  graph: GraphDiagramDefinition,
+  flow: FlowDiagramDefinition,
   profile: SystemGraphProfile = "desktop",
-): GraphScene => layoutDiagram(graph, PROFILES[profile]);
+): FlowScene => layoutDiagram(flow, PROFILES[profile]) as FlowScene;
