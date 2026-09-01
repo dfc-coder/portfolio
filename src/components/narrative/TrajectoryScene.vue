@@ -52,6 +52,7 @@ const trajectoryRailItems = experiences.map((experience, index) => ({
         v-for="(experience, index) in experiences"
         :key="`${experience.period}-${experience.role}`"
         class="trajectory-entry"
+        :class="{ 'trajectory-entry--long-role': experience.role.length > 24 }"
         :data-index="index"
       >
         <div class="trajectory-entry__eyebrow">
