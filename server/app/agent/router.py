@@ -24,8 +24,9 @@ _NEW_ROUTES = (
         RouteDomain.BUSINESS,
         RouteRelation.NEW,
         (
-            "A visitor asks about Diego's professional background, experience, projects, "
-            "technologies, skills, services, credentials, rates, clients or capabilities."
+            "A question about Diego as a professional: his background, experience, projects, "
+            "technologies, skills, services, education, credentials, languages, rates, clients or "
+            "capabilities. This is not a request to arrange contact or a meeting."
         ),
     ),
     Route(
@@ -33,8 +34,8 @@ _NEW_ROUTES = (
         RouteDomain.SCHEDULING,
         RouteRelation.NEW,
         (
-            "A visitor wants to arrange, reschedule or cancel a meeting with Diego, check real "
-            "calendar availability, choose a meeting time, or provide meeting details."
+            "A request to contact, call, talk with or meet Diego on a day, date or time; check his "
+            "calendar availability; book, reschedule or cancel a meeting."
         ),
     ),
     Route(
@@ -42,8 +43,9 @@ _NEW_ROUTES = (
         RouteDomain.GENERAL,
         RouteRelation.NEW,
         (
-            "A greeting, small talk, casual conversation, or a question unrelated to Diego's "
-            "professional profile and unrelated to arranging a meeting."
+            "Conversation unrelated to Diego's professional profile and unrelated to arranging "
+            "contact with him, such as greetings, thanks, jokes, weather, general knowledge or "
+            "casual chat."
         ),
     ),
 )
@@ -54,8 +56,9 @@ _ACTIVE_SCHEDULING_ROUTES = (
         RouteDomain.BUSINESS,
         RouteRelation.INTERRUPT,
         (
-            "A professional question about Diego's work, projects, technologies, experience, "
-            "skills, services or credentials while a meeting workflow is already active."
+            "While scheduling is active, the visitor switches to a question about Diego as a "
+            "professional: experience, projects, technologies, skills, services, education, "
+            "credentials, languages, rates, clients or capabilities. This is not meeting logistics."
         ),
     ),
     Route(
@@ -63,8 +66,9 @@ _ACTIVE_SCHEDULING_ROUTES = (
         RouteDomain.SCHEDULING,
         RouteRelation.CONTINUE,
         (
-            "A continuation of the active meeting workflow, such as providing a date, email, "
-            "meeting subject, selecting a proposed slot, changing a time, or cancelling it."
+            "While scheduling is active, the visitor continues the meeting logistics by giving or "
+            "changing a day, date or time; choosing a slot; providing a name, email or subject; "
+            "confirming, rescheduling or cancelling."
         ),
     ),
     Route(
@@ -72,8 +76,9 @@ _ACTIVE_SCHEDULING_ROUTES = (
         RouteDomain.GENERAL,
         RouteRelation.INTERRUPT,
         (
-            "A greeting, small talk or unrelated conversation while a meeting workflow is active. "
-            "The existing meeting state must be preserved."
+            "While scheduling is active, the visitor switches to casual or unrelated conversation, "
+            "such as a greeting, thanks, joke, weather, general knowledge or other non-professional, "
+            "non-scheduling chat."
         ),
     ),
 )
