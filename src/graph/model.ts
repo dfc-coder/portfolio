@@ -1,11 +1,17 @@
 export type GraphDirection = 'TB' | 'LR';
 export type GraphNodeKind = 'default' | 'terminal' | 'accent' | 'muted';
 export type GraphEdgeKind = 'default' | 'feedback';
+export type FlowNodeRole = 'input' | 'step' | 'output';
+export type FlowEdgeRole = 'spine' | 'branch' | 'feedback';
 
 export interface GraphNode {
   readonly id: string;
   readonly label: string;
   readonly kind?: GraphNodeKind;
+}
+
+export interface FlowNode extends GraphNode {
+  readonly role?: FlowNodeRole;
 }
 
 export interface GraphEdge {
@@ -23,7 +29,15 @@ export interface GraphDiagramDefinition {
   readonly edges: readonly GraphEdge[];
 }
 
-export type DiagramDefinition = GraphDiagramDefinition;
+export interface FlowDiagramDefinition {
+  readonly kind: 'flow';
+  readonly title?: string;
+  readonly direction?: GraphDirection;
+  readonly nodes: readonly FlowNode[];
+  readonly edges: readonly GraphEdge[];
+}
+
+export type DiagramDefinition = GraphDiagramDefinition | FlowDiagramDefinition;
 
 export type GraphTopology =
   | 'chain'
@@ -33,6 +47,14 @@ export type GraphTopology =
   | 'cycle'
   | 'layered';
 
+export type FlowTopology =
+  | 'linear'
+  | 'branch'
+  | 'join'
+  | 'branch-join'
+  | 'feedback'
+  | 'mixed';
+
 export type GraphLayoutKind =
   | 'serpentine'
   | 'layered-lr'
@@ -40,6 +62,8 @@ export type GraphLayoutKind =
   | 'fanout'
   | 'fanin'
   | 'cycle';
+
+export type FlowLayoutKind = 'flow-lr' | 'flow-tb';
 
 export interface Point {
   readonly x: number;
@@ -55,6 +79,7 @@ export interface GraphSceneNode {
   readonly id: string;
   readonly label: string;
   readonly kind: GraphNodeKind;
+  readonly role?: FlowNodeRole;
   readonly lines: readonly string[];
   readonly x: number;
   readonly y: number;
@@ -67,6 +92,7 @@ export interface GraphSceneEdge {
   readonly to: string;
   readonly label?: string;
   readonly kind: GraphEdgeKind;
+  readonly role?: FlowEdgeRole;
   readonly path: ScenePath;
   readonly labelPosition?: Point;
 }
@@ -81,7 +107,18 @@ export interface GraphScene {
   readonly edges: readonly GraphSceneEdge[];
 }
 
-export type DiagramScene = GraphScene;
+export interface FlowScene {
+  readonly kind: 'flow';
+  readonly width: number;
+  readonly height: number;
+  readonly topology: FlowTopology;
+  readonly layout: FlowLayoutKind;
+  readonly spine: readonly string[];
+  readonly nodes: readonly GraphSceneNode[];
+  readonly edges: readonly GraphSceneEdge[];
+}
+
+export type DiagramScene = GraphScene | FlowScene;
 
 export type LayoutDirection = 'auto' | GraphDirection;
 
