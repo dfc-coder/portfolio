@@ -3,6 +3,7 @@ import type { GraphDiagramDefinition, GraphScene, LayoutProfile } from "./model"
 
 export type SystemGraphProfile = "desktop" | "mobile";
 
+// Keep the blog's spatial rhythm while leaving a small margin for the portfolio artboard.
 const DESKTOP_SCALE = 90 / 720;
 const MOBILE_SCALE = 90 / 336;
 const GLYPH_DIAMETER = 2.1;
