@@ -18,6 +18,7 @@ import "./components/agent/agent.css";
 import "./experiences/hero.css";
 import "./experiences/trajectory.css";
 import "./experiences/trajectory-layout.css";
+import "./styles/trajectory-role-fit.css";
 import "./experiences/systems.css";
 import "./experiences/systems-project-balance.css";
 import "./experiences/continuity.css";
