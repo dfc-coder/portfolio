@@ -63,3 +63,29 @@ async def test_different_sessions_can_progress_concurrently() -> None:
     await asyncio.wait_for(second_entered.wait(), timeout=1.0)
     release_first.set()
     await asyncio.gather(first_task, second_task)
+
+
+@pytest.mark.asyncio
+async def test_session_store_evicts_oldest_inactive_session_at_capacity() -> None:
+    store = MemorySessionStore(max_sessions=2)
+    first = await store.get("session-one")
+    await asyncio.sleep(0.001)
+    await store.get("session-two")
+    await asyncio.sleep(0.001)
+    await store.get("session-three")
+
+    recreated = await store.get("session-one")
+
+    assert recreated is not first
+
+
+@pytest.mark.asyncio
+async def test_session_store_never_evicts_active_session() -> None:
+    store = MemorySessionStore(max_sessions=1)
+
+    async with store.session("session-active"):
+        with pytest.raises(RuntimeError, match="Session capacity reached"):
+            await store.get("session-other")
+
+    replacement = await store.get("session-other")
+    assert replacement.session_id == "session-other"

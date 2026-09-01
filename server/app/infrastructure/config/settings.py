@@ -39,6 +39,15 @@ class Settings:
     pockettrace_enabled: bool = False
     pockettrace_url: str = "http://host.containers.internal:4319"
     pockettrace_timeout_seconds: float = 1.0
+    api_docs_enabled: bool = False
+    max_request_bytes: int = 16_384
+    rate_limit_requests_per_window: int = 10
+    global_rate_limit_requests_per_window: int = 60
+    rate_limit_window_seconds: int = 60
+    max_streams_per_client: int = 2
+    max_global_streams: int = 4
+    trust_proxy_headers: bool = False
+    session_max_sessions: int = 256
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -83,6 +92,19 @@ class Settings:
             pockettrace_timeout_seconds=float(
                 os.getenv("POCKETTRACE_TIMEOUT_SECONDS", "1.0")
             ),
+            api_docs_enabled=_bool(os.getenv("API_DOCS_ENABLED", "false")),
+            max_request_bytes=int(os.getenv("MAX_REQUEST_BYTES", "16384")),
+            rate_limit_requests_per_window=int(
+                os.getenv("RATE_LIMIT_REQUESTS_PER_WINDOW", "10")
+            ),
+            global_rate_limit_requests_per_window=int(
+                os.getenv("GLOBAL_RATE_LIMIT_REQUESTS_PER_WINDOW", "60")
+            ),
+            rate_limit_window_seconds=int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60")),
+            max_streams_per_client=int(os.getenv("MAX_STREAMS_PER_CLIENT", "2")),
+            max_global_streams=int(os.getenv("MAX_GLOBAL_STREAMS", "4")),
+            trust_proxy_headers=_bool(os.getenv("TRUST_PROXY_HEADERS", "false")),
+            session_max_sessions=int(os.getenv("SESSION_MAX_SESSIONS", "256")),
         )
 
     def validate_calendar(self) -> None:
