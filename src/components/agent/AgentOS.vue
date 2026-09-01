@@ -19,6 +19,7 @@ const laneEl = ref<HTMLElement | null>(null);
 const inputEl = ref<HTMLInputElement | null>(null);
 let scrollFrame = 0;
 let followStream = true;
+let speechChars = 0;
 
 const isNearBottom = (host: HTMLElement) =>
   host.scrollHeight - host.scrollTop - host.clientHeight < 96;
@@ -42,15 +43,22 @@ const handleLaneScroll = () => {
 };
 
 const pulsePresentedText = (text: string) => {
-  const visibleChars = text.replace(/\s/g, "").length;
-  if (!visibleChars) return;
-  const punctuation = /[.!?,;:]/.test(text) ? 0.06 : 0;
-  pulseAgentVisual(Math.min(0.42, 0.18 + visibleChars * 0.045 + punctuation));
+  speechChars += text.replace(/\s/g, "").length;
+  const boundary = /[\s,.!?;:]/.test(text);
+  if (!boundary && speechChars < 6) return;
+
+  const punctuation = /[.!?]/.test(text) ? 0.16 : /[,;:]/.test(text) ? 0.08 : 0;
+  const strength = Math.min(0.78, 0.30 + speechChars * 0.055 + punctuation);
+  pulseAgentVisual(strength);
+  speechChars = 0;
 };
 
 const runtime = useAgentRuntime(props.provider, {
   onMessage: (message) => {
-    if (message.role === "user") followStream = true;
+    if (message.role === "user") {
+      followStream = true;
+      speechChars = 0;
+    }
     scheduleScrollToBottom();
     pulseAgentVisual(message.role === "user" ? 0.52 : 0.18);
   },
@@ -131,6 +139,7 @@ const engageAgent = () => {
 const submit = () => {
   if (!canSend.value) return;
   followStream = true;
+  speechChars = 0;
   pulseAgentVisual(0.50);
   void send();
   inputEl.value?.focus();
