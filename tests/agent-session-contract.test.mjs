@@ -14,6 +14,38 @@ test("agent session lifetime matches the visible page conversation", async () =>
   assert.equal((provider.match(/session_id: SESSION_ID/g) ?? []).length, 1);
 });
 
+test("BDD: network chunks are presented at a stable UI-controlled pace", async () => {
+  const runtime = await read("src/components/agent/useAgentRuntime.ts");
+  const os = await read("src/components/agent/AgentOS.vue");
+
+  assert.match(runtime, /PRESENTATION_BASE_CPS/);
+  assert.match(runtime, /PRESENTATION_MAX_BATCH/);
+  assert.match(runtime, /presentationQueue \+= text/);
+  assert.match(runtime, /requestAnimationFrame\(present\)/);
+  assert.match(runtime, /await waitForPresentation\(\)/);
+  assert.match(runtime, /hooks\.onPresent\?\.\(batch\)/);
+  assert.doesNotMatch(runtime, /target\.text \+= pendingText/);
+  assert.doesNotMatch(runtime, /scheduleStreamFlush/);
+
+  assert.match(os, /onPresent: \(text\) =>/);
+  assert.match(os, /pulsePresentedText\(text\)/);
+  assert.match(os, /message\.streaming/);
+  assert.match(os, /agent-msg__stream/);
+  assert.match(os, /@scroll="handleLaneScroll"/);
+});
+
+test("BDD: visual motion follows presented output instead of accumulating arbitrary impulses", async () => {
+  const stage = await read("src/graphics/stageGraphics.ts");
+
+  assert.match(stage, /activityTarget = Math\.max\(agentSignal\.activityTarget, impulse\)/);
+  assert.match(stage, /const phaseMotionRate/);
+  assert.match(stage, /private agentTime = 0/);
+  assert.match(stage, /this\.agentTime \+= dt \* phaseMotionRate/);
+  assert.match(stage, /uTime\.value = this\.agentTime/);
+  assert.match(stage, /excessActivity \* Math\.exp\(-7\.0 \* dt\)/);
+  assert.doesNotMatch(stage, /activityTarget \+ impulse/);
+});
+
 test("BDD: the agent presence is carried by one reactive refractive liquid surface", async () => {
   const os = await read("src/components/agent/AgentOS.vue");
   const stage = await read("src/graphics/stageGraphics.ts");
