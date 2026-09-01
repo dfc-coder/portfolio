@@ -1,0 +1,10 @@
+/* Long professional titles must fit the fixed trajectory chrome without
+   changing the composition of shorter roles or the mobile layout. */
+@media (min-width: 681px) {
+  .trajectory-entry--long-role h3 {
+    max-width: min(64vw, 1040px);
+    font-size: clamp(3.2rem, 4.2vw, 4.7rem);
+    letter-spacing: -.045em;
+    text-wrap: wrap;
+  }
+}
