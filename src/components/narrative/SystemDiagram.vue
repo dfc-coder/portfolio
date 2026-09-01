@@ -43,11 +43,14 @@ const architectureDescription = computed(() => {
   return `Components: ${nodes}. Connections: ${edges}.`;
 });
 
-const edgeLabelStyle = (edge: CompiledGraphEdge) => ({
-  left: `${edge.labelX}%`,
-  top: `${edge.labelY}%`,
-  "--edge-step": edge.step,
-});
+const edgeLabelStyle = (edge: CompiledGraphEdge, graph: CompiledSystemGraph) => {
+  const automatic = graph.layout !== "fixed";
+  return {
+    left: `${automatic ? (edge.labelX / graph.width) * 100 : edge.labelX}%`,
+    top: `${automatic ? (edge.labelY / graph.height) * 100 : edge.labelY}%`,
+    "--edge-step": edge.step,
+  };
+};
 
 const graphId = (variant: string) => `${props.project.id}-${variant}`;
 </script>
@@ -109,7 +112,7 @@ const graphId = (variant: string) => `${props.project.id}-${variant}`;
         v-for="edge in variant.graph.edges.filter((item) => item.label)"
         :key="`label-${edge.from}-${edge.to}`"
         class="systems-graph__edge-label"
-        :style="edgeLabelStyle(edge)"
+        :style="edgeLabelStyle(edge, variant.graph)"
         aria-hidden="true"
       >
         {{ edge.label }}
