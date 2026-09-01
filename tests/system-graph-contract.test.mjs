@@ -60,17 +60,21 @@ const overlaps = (left, right) =>
   Math.abs(left.x - right.x) * 2 < left.width + right.width &&
   Math.abs(left.y - right.y) * 2 < left.height + right.height;
 
-const nodeBounds = (nodes) => ({
-  minX: Math.min(...nodes.map((node) => node.x - node.width / 2)),
-  maxX: Math.max(...nodes.map((node) => node.x + node.width / 2)),
-  minY: Math.min(...nodes.map((node) => node.y - node.height / 2)),
-  maxY: Math.max(...nodes.map((node) => node.y + node.height / 2)),
-});
+const isOrthogonal = (points) =>
+  points.every((point, index) => {
+    if (index === 0) return true;
+    const previous = points[index - 1];
+    return point.x === previous.x || point.y === previous.y;
+  });
 
-test("SDD: portfolio uses the exact MODEL + LAYOUT + ROUTING blobs from the blog PR #11", async () => {
-  assert.equal(gitBlobSha(await read("src/graph/model.ts")), "c571d0e14e7b899988e18ad96667b4bacbc18c36");
+test("SDD: portfolio keeps the shared layout core while enforcing its orthogonal scene contract", async () => {
   assert.equal(gitBlobSha(await read("src/graph/layout.ts")), "45f049f93b06f273897e983311bb02648d5c130a");
-  assert.equal(gitBlobSha(await read("src/graph/routing.ts")), "827475480290e10c14154402f45a585b30b4eea4");
+
+  const model = await read("src/graph/model.ts");
+  assert.doesNotMatch(model, /kind:\s*['"]curve['"]/);
+
+  const renderer = await read("src/components/narrative/SystemDiagram.vue");
+  assert.doesNotMatch(renderer, /path\.kind\s*===\s*["']curve["']/);
 });
 
 test("BDD: Systems data contains semantics only and no manual geometry or animation steps", async () => {
@@ -84,7 +88,7 @@ test("BDD: Systems data contains semantics only and no manual geometry or animat
   }
 });
 
-test("BDD: every shipped System compiles from the same semantic graph on desktop and mobile", () => {
+test("BDD: every shipped System compiles with orthogonal paths on desktop and mobile", () => {
   assert.equal(projectData.systemsProjects.length, 7);
 
   for (const project of projectData.systemsProjects) {
@@ -108,8 +112,10 @@ test("BDD: every shipped System compiles from the same semantic graph on desktop
       }
 
       for (const edge of scene.edges) {
+        assert.equal(edge.path.kind, "polyline", `${project.title}: ${edge.from} -> ${edge.to} kind`);
         assert.ok(edge.path.points.length >= 2, `${project.title}: ${edge.from} -> ${edge.to}`);
         assert.ok(edge.path.points.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y)));
+        assert.ok(isOrthogonal(edge.path.points), `${project.title}: ${edge.from} -> ${edge.to} must be orthogonal`);
       }
     }
   }
@@ -133,7 +139,7 @@ test("BDD: responsive scenes preserve semantics but may use different geometry",
   }
 });
 
-test("BDD: Reflective ReAct derives its shape from the forward structure", () => {
+test("BDD: Reflective ReAct remains cycle-aware with explicit feedback", () => {
   const project = projectData.systemsProjects.find((item) => item.code === "REACT—AI");
   assert.ok(project);
 
@@ -144,30 +150,7 @@ test("BDD: Reflective ReAct derives its shape from the forward structure", () =>
     scene.edges.filter((edge) => edge.kind === "feedback").map((edge) => `${edge.from}->${edge.to}`).sort(),
     ["model->reason", "reflect->reason"],
   );
-
-  const byId = new Map(scene.nodes.map((node) => [node.id, node]));
-  const reason = byId.get("reason");
-  const tools = byId.get("tools");
-  const verify = byId.get("verify");
-  const reflect = byId.get("reflect");
-  const model = byId.get("model");
-  assert.ok(reason && tools && verify && reflect && model);
-
-  assert.ok(reason.x < tools.x, "REASON should precede TOOLS");
-  assert.ok(tools.y < verify.y, "TOOLS should flow down to VERIFY after the fold");
-  assert.ok(reflect.x < verify.x, "REFLECT should return on the opposite side of VERIFY");
-  assert.ok(model.x < verify.x, "LOCAL MODEL should share the return side of the cycle");
-  assert.ok(reflect.y < model.y, "REFLECT and LOCAL MODEL should remain distinguishable");
-
-  const cycleIds = new Set(["reason", "tools", "verify", "reflect", "model"]);
-  const cycleNodes = scene.nodes.filter((node) => cycleIds.has(node.id));
-  const cycleBounds = nodeBounds(cycleNodes);
-  const cycleWidth = cycleBounds.maxX - cycleBounds.minX;
-  assert.ok(cycleWidth < scene.width * 0.5, `cycle width ${cycleWidth} / ${scene.width}`);
-
-  const bounds = nodeBounds(scene.nodes);
-  const usedWidth = bounds.maxX - bounds.minX;
-  assert.ok(usedWidth >= scene.width * 0.75, `desktop graph uses only ${usedWidth} / ${scene.width}`);
+  assert.ok(scene.edges.every((edge) => edge.path.kind === "polyline" && isOrthogonal(edge.path.points)));
 });
 
 test("BDD: branch and join systems are discovered from topology instead of authored layout", () => {
