@@ -84,6 +84,7 @@ test("BDD: automatic engine compiles every shipped system for desktop and mobile
       assert.equal(compiled.nodes.length, project.graph.nodes.length, `${project.title} ${profile}`);
       assert.equal(compiled.edges.length, project.graph.edges.length, `${project.title} ${profile}`);
       assert.ok(allowed.includes(compiled.layout), `${project.title}: ${compiled.layout}`);
+      assert.equal(compiled.width, profile === "desktop" ? 720 : 336);
 
       for (const node of compiled.nodes) {
         assert.ok(node.x >= 0 && node.x <= compiled.width, `${project.title}: ${node.id} x`);
@@ -104,19 +105,29 @@ test("BDD: automatic layout is deterministic", () => {
   }
 });
 
-test("BDD: feedback-heavy ReAct becomes a compact vertical system", () => {
+test("BDD: ReAct follows the blog layered composition and keeps return edges outside the main flow", () => {
   const project = projectData.systemsProjects.find((item) => item.code === "REACT—AI");
   assert.ok(project);
 
   const compiled = compiler.compileSystemGraph(project.graph, { mode: "auto", profile: "desktop" });
   assert.equal(compiled.layout, "layered-tb");
+  assert.equal(compiled.width, 720);
 
+  const request = compiled.nodes.find((node) => node.id === "request");
+  const router = compiled.nodes.find((node) => node.id === "router");
   const reason = compiled.nodes.find((node) => node.id === "reason");
+  const tools = compiled.nodes.find((node) => node.id === "tools");
+  const verify = compiled.nodes.find((node) => node.id === "verify");
   const reflect = compiled.nodes.find((node) => node.id === "reflect");
   const model = compiled.nodes.find((node) => node.id === "model");
-  assert.ok(reason && reflect && model);
-  assert.ok(reason.y < reflect.y);
-  assert.ok(reason.y < model.y);
+  assert.ok(request && router && reason && tools && verify && reflect && model);
+
+  assert.ok(request.y < router.y);
+  assert.ok(router.y < reason.y);
+  assert.ok(reason.y < tools.y);
+  assert.ok(tools.y < verify.y);
+  assert.equal(reflect.y, model.y);
+  assert.ok(verify.y < reflect.y);
 
   const feedback = compiled.edges.filter((edge) => edge.feedback);
   assert.deepEqual(
@@ -126,21 +137,43 @@ test("BDD: feedback-heavy ReAct becomes a compact vertical system", () => {
   assert.ok(feedback.every((edge) => edge.labelX < reason.x));
 });
 
-test("BDD: branching search remains horizontal on desktop and vertical on mobile", () => {
+test("BDD: branching systems use blog-style layered TB when six ranks do not fit LR", () => {
   const project = projectData.systemsProjects.find((item) => item.code === "SEARCH");
   assert.ok(project);
 
   const desktop = compiler.compileSystemGraph(project.graph, { mode: "auto", profile: "desktop" });
   const mobile = compiler.compileSystemGraph(project.graph, { mode: "auto", profile: "mobile" });
-  assert.equal(desktop.layout, "layered-lr");
+  assert.equal(desktop.layout, "layered-tb");
   assert.equal(mobile.layout, "layered-tb");
+  assert.equal(desktop.width, 720);
+  assert.equal(mobile.width, 336);
   assert.notDeepEqual(
     desktop.nodes.map(({ id, x, y }) => ({ id, x, y })),
     mobile.nodes.map(({ id, x, y }) => ({ id, x, y })),
   );
 });
 
-test("BDD: simple chains use serpentine layout instead of an over-wide horizontal line", () => {
+test("BDD: compact three-rank branching graph may use layered LR on desktop", () => {
+  const graph = {
+    nodes: [
+      { id: "in", label: "IN", x: 0, y: 0, step: 0 },
+      { id: "left", label: "LEFT", x: 0, y: 0, step: 1 },
+      { id: "right", label: "RIGHT", x: 0, y: 0, step: 2 },
+      { id: "out", label: "OUT", x: 0, y: 0, step: 3 },
+    ],
+    edges: [
+      { from: "in", to: "left", step: 0 },
+      { from: "in", to: "right", step: 1 },
+      { from: "left", to: "out", step: 2 },
+      { from: "right", to: "out", step: 3 },
+    ],
+  };
+
+  const compiled = compiler.compileSystemGraph(graph, { mode: "auto", profile: "desktop" });
+  assert.equal(compiled.layout, "layered-lr");
+});
+
+test("BDD: simple chains use the blog serpentine layout instead of a horizontal strip", () => {
   const graph = {
     nodes: Array.from({ length: 7 }, (_, index) => ({
       id: `n${index}`,
