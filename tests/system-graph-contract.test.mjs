@@ -22,9 +22,10 @@ const loadTsModule = async (relativePath) => {
 const compiler = await loadTsModule("src/graph/system-graph.ts");
 const projectData = await loadTsModule("src/experiences/systems-projects.ts");
 
-test("BDD: refactor preserves every approved Systems node position", () => {
+test("BDD: default compilation preserves every approved Systems node position", () => {
   for (const project of projectData.systemsProjects) {
     const compiled = compiler.compileSystemGraph(project.graph);
+    assert.equal(compiled.layout, "fixed");
     assert.deepEqual(
       compiled.nodes.map(({ id, x, y }) => ({ id, x, y })),
       project.graph.nodes.map(({ id, x, y }) => ({ id, x, y })),
@@ -33,7 +34,7 @@ test("BDD: refactor preserves every approved Systems node position", () => {
   }
 });
 
-test("BDD: refactor preserves every explicit approved edge path", () => {
+test("BDD: default compilation preserves every explicit approved edge path", () => {
   for (const project of projectData.systemsProjects) {
     const compiled = compiler.compileSystemGraph(project.graph);
     for (const edge of project.graph.edges.filter((item) => item.path)) {
@@ -45,7 +46,7 @@ test("BDD: refactor preserves every explicit approved edge path", () => {
   }
 });
 
-test("BDD: automatic straight and orthogonal routes remain backward compatible", () => {
+test("BDD: fixed straight and orthogonal routes remain backward compatible", () => {
   const graph = {
     nodes: [
       { id: "a", label: "A", x: 10, y: 20, step: 0 },
@@ -63,7 +64,7 @@ test("BDD: automatic straight and orthogonal routes remain backward compatible",
   assert.equal(compiled.edges[1].path, "M 30 20 H 40 V 40 H 50");
 });
 
-test("BDD: edge labels keep the same midpoint placement", () => {
+test("BDD: fixed edge labels keep the approved midpoint placement", () => {
   const project = projectData.systemsProjects[0];
   const compiled = compiler.compileSystemGraph(project.graph);
 
@@ -76,12 +77,90 @@ test("BDD: edge labels keep the same midpoint placement", () => {
   }
 });
 
-test("BDD: invalid graph references fail explicitly", () => {
+test("BDD: automatic engine compiles every shipped system for desktop and mobile", () => {
+  for (const project of projectData.systemsProjects) {
+    for (const profile of ["desktop", "mobile"]) {
+      const compiled = compiler.compileSystemGraph(project.graph, {
+        mode: "auto",
+        profile,
+      });
+
+      assert.equal(compiled.nodes.length, project.graph.nodes.length, `${project.title} ${profile}`);
+      assert.equal(compiled.edges.length, project.graph.edges.length, `${project.title} ${profile}`);
+      assert.ok(["layered-lr", "layered-tb"].includes(compiled.layout));
+
+      for (const node of compiled.nodes) {
+        assert.ok(node.x >= 0 && node.x <= compiled.width, `${project.title}: ${node.id} x`);
+        assert.ok(node.y >= 0 && node.y <= compiled.height, `${project.title}: ${node.id} y`);
+      }
+
+      for (const edge of compiled.edges) {
+        assert.ok(edge.path.startsWith("M "), `${project.title}: ${edge.from} -> ${edge.to}`);
+      }
+    }
+  }
+});
+
+test("BDD: automatic layout is deterministic", () => {
+  for (const project of projectData.systemsProjects) {
+    const first = compiler.compileSystemGraph(project.graph, {
+      mode: "auto",
+      profile: "desktop",
+    });
+    const second = compiler.compileSystemGraph(project.graph, {
+      mode: "auto",
+      profile: "desktop",
+    });
+    assert.deepEqual(first, second, project.title);
+  }
+});
+
+test("BDD: mobile automatic layout prefers vertical composition", () => {
+  const project = projectData.systemsProjects.find((item) => item.code === "SEARCH");
+  assert.ok(project);
+
+  const desktop = compiler.compileSystemGraph(project.graph, {
+    mode: "auto",
+    profile: "desktop",
+  });
+  const mobile = compiler.compileSystemGraph(project.graph, {
+    mode: "auto",
+    profile: "mobile",
+  });
+
+  assert.equal(desktop.layout, "layered-lr");
+  assert.equal(mobile.layout, "layered-tb");
+  assert.notDeepEqual(
+    desktop.nodes.map(({ id, x, y }) => ({ id, x, y })),
+    mobile.nodes.map(({ id, x, y }) => ({ id, x, y })),
+  );
+});
+
+test("BDD: backward narrative relations become feedback edges in automatic mode", () => {
+  const project = projectData.systemsProjects.find((item) => item.code === "REACT—AI");
+  assert.ok(project);
+
+  const compiled = compiler.compileSystemGraph(project.graph, {
+    mode: "auto",
+    profile: "desktop",
+  });
+
+  const feedback = compiled.edges.filter((edge) => edge.feedback);
+  assert.deepEqual(
+    feedback.map((edge) => `${edge.from}->${edge.to}`).sort(),
+    ["model->reason", "reflect->reason"],
+  );
+});
+
+test("BDD: invalid graph references fail explicitly in both modes", () => {
+  const graph = {
+    nodes: [{ id: "a", label: "A", x: 10, y: 10, step: 0 }],
+    edges: [{ from: "a", to: "missing", step: 0 }],
+  };
+
+  assert.throws(() => compiler.compileSystemGraph(graph), /Unknown graph node/);
   assert.throws(
-    () => compiler.compileSystemGraph({
-      nodes: [{ id: "a", label: "A", x: 10, y: 10, step: 0 }],
-      edges: [{ from: "a", to: "missing", step: 0 }],
-    }),
+    () => compiler.compileSystemGraph(graph, { mode: "auto" }),
     /Unknown graph node/,
   );
 });
