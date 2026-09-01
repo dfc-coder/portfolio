@@ -191,7 +191,9 @@ test("architecture: persistent Three stage and isolated menu WebGL have separate
   assert.equal((graphics.match(/new THREE\.WebGLRenderer/g) ?? []).length, 1);
   assert.match(graphics, /const atmosphereFragment/);
   assert.match(graphics, /const agentVertex/);
-  assert.match(graphics, /new THREE\.Points/);
+  assert.match(graphics, /new THREE\.PlaneGeometry\(2\.2, 2\.2/);
+  assert.match(graphics, /new THREE\.Mesh\(this\.agentGeometry, this\.agentMaterial\)/);
+  assert.doesNotMatch(graphics, /new THREE\.Points/);
   assert.match(graphics, /new THREE\.PerspectiveCamera/);
   assert.match(graphics, /renderer\.render\(this\.atmosphereScene/);
   assert.match(graphics, /renderer\.render\(this\.agentScene/);
