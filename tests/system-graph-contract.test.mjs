@@ -60,42 +60,60 @@ const isOrthogonal = (points) =>
     return point.x === previous.x || point.y === previous.y;
   });
 
-const bounds = (nodes) => ({
-  minX: Math.min(...nodes.map((node) => node.x - node.width / 2)),
-  maxX: Math.max(...nodes.map((node) => node.x + node.width / 2)),
-});
+const byCode = (code) => {
+  const project = projectData.systemsProjects.find((item) => item.code === code);
+  assert.ok(project, code);
+  return project;
+};
 
-test("SDD: portfolio scene contract is orthogonal-only", async () => {
+const expectedSpines = new Map([
+  ["REACT—AI", ["request", "router", "reason", "tools", "verify", "reflect"]],
+  ["DOC—AI", ["document", "segment", "rank", "extract", "validate", "evidence"]],
+  ["NL→SQL", ["question", "intent", "schema", "planner", "sql"]],
+  ["MCP—03", ["agent", "contract", "quote", "typed", "evidence"]],
+  ["SEARCH", ["need", "attributes", "semantic", "vector", "rank", "explain"]],
+  ["TRACE—RUST", ["ingest", "validate", "normalize", "sqlite", "viewer"]],
+  ["VOICE—ACP", ["mic", "vad", "stt", "acp", "agent", "tts", "speaker"]],
+]);
+
+test("SDD: portfolio scene contract is directional and orthogonal-only", async () => {
   const model = await read("src/graph/model.ts");
   assert.doesNotMatch(model, /kind:\s*['"]curve['"]/);
+  assert.match(model, /kind:\s*'flow'/);
 
   const renderer = await read("src/components/narrative/SystemDiagram.vue");
   assert.doesNotMatch(renderer, /path\.kind\s*===\s*["']curve["']/);
+  assert.match(renderer, /marker-end/);
+  assert.match(renderer, /edge\.role\s*===\s*["']spine["']/);
 });
 
-test("BDD: Systems data contains semantics only and no manual geometry or animation steps", async () => {
+test("BDD: Systems are flow definitions with semantics only", async () => {
   const source = await read("src/experiences/systems-projects.ts");
   assert.doesNotMatch(source, /\b(?:x|y|path|step|accent)\s*:/);
 
   for (const project of projectData.systemsProjects) {
-    assert.equal(project.graph.kind, "graph");
+    assert.equal(project.graph.kind, "flow");
     assert.ok(project.graph.nodes.every((node) => !("x" in node) && !("y" in node) && !("step" in node)));
     assert.ok(project.graph.edges.every((edge) => !("path" in edge) && !("step" in edge)));
   }
 });
 
-test("BDD: every shipped System compiles with orthogonal paths on desktop and mobile", () => {
+test("BDD: every shipped System compiles as a directed orthogonal flow", () => {
   assert.equal(projectData.systemsProjects.length, 7);
 
   for (const project of projectData.systemsProjects) {
     for (const profile of ["desktop", "mobile"]) {
       const scene = compiler.compileSystemGraph(project.graph, profile);
+      assert.equal(scene.kind, "flow", `${project.title} ${profile}`);
+      assert.equal(scene.layout, profile === "desktop" ? "flow-lr" : "flow-tb");
       assert.equal(scene.nodes.length, project.graph.nodes.length, `${project.title} ${profile} nodes`);
       assert.equal(scene.edges.length, project.graph.edges.length, `${project.title} ${profile} edges`);
+      assert.ok(scene.spine.length >= 2, `${project.title} requires a readable main spine`);
 
       for (const node of scene.nodes) {
         assert.ok(Number.isFinite(node.x) && Number.isFinite(node.y), `${project.title}: ${node.id}`);
         assert.ok(node.x - node.width / 2 >= 0 && node.x + node.width / 2 <= scene.width, `${project.title}: ${node.id} x`);
+        assert.ok(node.y - node.height / 2 >= 0 && node.y + node.height / 2 <= scene.height, `${project.title}: ${node.id} y`);
       }
 
       for (let left = 0; left < scene.nodes.length; left += 1) {
@@ -108,75 +126,85 @@ test("BDD: every shipped System compiles with orthogonal paths on desktop and mo
         assert.equal(edge.path.kind, "polyline", `${project.title}: ${edge.from} -> ${edge.to} kind`);
         assert.ok(edge.path.points.length >= 2, `${project.title}: ${edge.from} -> ${edge.to}`);
         assert.ok(isOrthogonal(edge.path.points), `${project.title}: ${edge.from} -> ${edge.to} must be orthogonal`);
+        assert.ok(["spine", "branch", "feedback"].includes(edge.role), `${project.title}: edge role`);
       }
     }
   }
 });
 
-test("BDD: desktop Systems use a wide left-to-right reading direction", () => {
-  for (const project of projectData.systemsProjects) {
-    const scene = compiler.compileSystemGraph(project.graph, "desktop");
-    assert.notEqual(scene.layout, "layered-tb", `${project.title} must not collapse into a vertical tower`);
-    const used = bounds(scene.nodes);
-    assert.ok(used.maxX - used.minX >= scene.width * 0.6, `${project.title} uses too little horizontal space`);
+test("BDD: each System exposes a deterministic main narrative spine", () => {
+  for (const [code, expected] of expectedSpines) {
+    const scene = compiler.compileSystemGraph(byCode(code).graph, "desktop");
+    assert.deepEqual(scene.spine, expected, code);
+
+    const byId = new Map(scene.nodes.map((node) => [node.id, node]));
+    const spineNodes = expected.map((id) => byId.get(id));
+    assert.ok(spineNodes.every(Boolean), code);
+    assert.ok(spineNodes.every((node, index) => index === 0 || spineNodes[index - 1].x < node.x), `${code}: spine must read left to right`);
+    assert.ok(spineNodes.every((node) => node.y === spineNodes[0].y), `${code}: spine must stay on one visual axis`);
+
+    const spineEdges = scene.edges.filter((edge) => edge.role === "spine");
+    assert.equal(spineEdges.length, expected.length - 1, `${code}: spine edge count`);
   }
 });
 
-test("BDD: Reflective ReAct keeps its forward spine readable and feedback external", () => {
-  const project = projectData.systemsProjects.find((item) => item.code === "REACT—AI");
-  assert.ok(project);
+test("BDD: side branches leave the spine and remain visually secondary", () => {
+  const expectations = new Map([
+    ["DOC—AI", ["review"]],
+    ["NL→SQL", ["policy"]],
+    ["MCP—03", ["history", "signals"]],
+    ["SEARCH", ["keyword", "lexical"]],
+    ["TRACE—RUST", ["search", "export"]],
+    ["VOICE—ACP", ["cancel"]],
+  ]);
 
-  const scene = compiler.compileSystemGraph(project.graph, "desktop");
-  assert.equal(scene.topology, "cycle");
-  assert.equal(scene.layout, "cycle");
+  for (const [code, branchIds] of expectations) {
+    const scene = compiler.compileSystemGraph(byCode(code).graph, "desktop");
+    const byId = new Map(scene.nodes.map((node) => [node.id, node]));
+    const spineY = byId.get(scene.spine[0]).y;
+    for (const id of branchIds) {
+      assert.notEqual(byId.get(id).y, spineY, `${code}: ${id} must leave the main spine`);
+    }
+    assert.ok(scene.edges.some((edge) => edge.role === "branch"), `${code}: branch edges`);
+  }
+});
+
+test("BDD: Reflective ReAct reads as a forward flow with external feedback", () => {
+  const scene = compiler.compileSystemGraph(byCode("REACT—AI").graph, "desktop");
+  assert.equal(scene.topology, "feedback");
+  assert.deepEqual(scene.spine, ["request", "router", "reason", "tools", "verify", "reflect"]);
 
   const byId = new Map(scene.nodes.map((node) => [node.id, node]));
-  const request = byId.get("request");
-  const router = byId.get("router");
-  const reason = byId.get("reason");
-  const tools = byId.get("tools");
-  const verify = byId.get("verify");
-  const reflect = byId.get("reflect");
-  const model = byId.get("model");
-  assert.ok(request && router && reason && tools && verify && reflect && model);
-
-  assert.ok(request.x < router.x && router.x < reason.x && reason.x < tools.x && tools.x < verify.x);
-  assert.ok(verify.x < reflect.x && reflect.x === model.x, "return nodes should share the final rank");
-  assert.equal(reason.y, tools.y);
-  assert.equal(tools.y, verify.y);
-  assert.ok(reflect.y < model.y, "feedback sources must remain visually distinct");
-
+  assert.notEqual(byId.get("model").y, byId.get("verify").y, "LOCAL MODEL is a side branch");
   assert.deepEqual(
-    scene.edges.filter((edge) => edge.kind === "feedback").map((edge) => `${edge.from}->${edge.to}`).sort(),
+    scene.edges.filter((edge) => edge.role === "feedback").map((edge) => `${edge.from}->${edge.to}`).sort(),
     ["model->reason", "reflect->reason"],
   );
-  assert.ok(scene.edges.every((edge) => isOrthogonal(edge.path.points)));
+  assert.ok(scene.edges.filter((edge) => edge.role === "feedback").every((edge) => isOrthogonal(edge.path.points)));
 });
 
-test("BDD: branch and join systems stay horizontally layered", () => {
-  const expected = new Set(["DOC—AI", "NL→SQL", "MCP—03", "SEARCH", "VOICE—ACP"]);
-  for (const code of expected) {
-    const project = projectData.systemsProjects.find((item) => item.code === code);
-    assert.ok(project, code);
+test("BDD: input and output roles are present in the rendered flow", () => {
+  for (const project of projectData.systemsProjects) {
     const scene = compiler.compileSystemGraph(project.graph, "desktop");
-    assert.equal(scene.topology, "branch-join", code);
-    assert.equal(scene.layout, "layered-lr", code);
+    assert.ok(scene.nodes.some((node) => node.role === "input"), `${project.title}: input`);
+    assert.ok(scene.nodes.some((node) => node.role === "output"), `${project.title}: output`);
   }
 });
 
-test("BDD: responsive scenes preserve semantics but use different geometry", () => {
+test("BDD: responsive flow scenes preserve semantics but use different geometry", () => {
   for (const project of projectData.systemsProjects) {
     const desktop = compiler.compileSystemGraph(project.graph, "desktop");
     const mobile = compiler.compileSystemGraph(project.graph, "mobile");
 
+    assert.deepEqual(desktop.spine, mobile.spine, project.title);
     assert.deepEqual(
       desktop.nodes.map((node) => node.id).sort(),
       mobile.nodes.map((node) => node.id).sort(),
       project.title,
     );
     assert.deepEqual(
-      desktop.edges.map((edge) => `${edge.kind}:${edge.from}->${edge.to}`).sort(),
-      mobile.edges.map((edge) => `${edge.kind}:${edge.from}->${edge.to}`).sort(),
+      desktop.edges.map((edge) => `${edge.role}:${edge.from}->${edge.to}`).sort(),
+      mobile.edges.map((edge) => `${edge.role}:${edge.from}->${edge.to}`).sort(),
       project.title,
     );
   }
@@ -194,10 +222,10 @@ test("BDD: layout is deterministic for every System and profile", () => {
   }
 });
 
-test("BDD: invalid graph references fail explicitly", () => {
+test("BDD: invalid flow references fail explicitly", () => {
   assert.throws(
     () => compiler.compileSystemGraph({
-      kind: "graph",
+      kind: "flow",
       nodes: [{ id: "a", label: "A" }],
       edges: [{ from: "a", to: "missing" }],
     }),
