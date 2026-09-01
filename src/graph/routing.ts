@@ -1,4 +1,5 @@
 import type {
+  FlowDiagramDefinition,
   GraphDiagramDefinition,
   GraphSceneEdge,
   GraphSceneNode,
@@ -159,7 +160,7 @@ const unionBounds = (left: ComponentBounds, right: ComponentBounds): ComponentBo
 };
 
 export function routeEdges(
-  graph: GraphDiagramDefinition,
+  diagram: GraphDiagramDefinition | FlowDiagramDefinition,
   nodes: readonly GraphSceneNode[],
   componentByNode: ReadonlyMap<string, number>,
   componentBounds: ReadonlyMap<number, ComponentBounds>,
@@ -168,7 +169,7 @@ export function routeEdges(
   const byId = nodeMap(nodes);
   let feedbackIndex = 0;
 
-  return graph.edges.map((edge) => {
+  return diagram.edges.map((edge) => {
     const from = byId.get(edge.from);
     const to = byId.get(edge.to);
     if (!from || !to) throw new Error(`Unknown node in edge ${edge.from} -> ${edge.to}.`);
