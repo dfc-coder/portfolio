@@ -82,7 +82,8 @@ test("BDD: thinking is a distinct upper atomic halo pose", async () => {
   assert.match(stage, /this\.agentMesh\.position\.y = -signals\.thinkingBlend/);
 });
 
-test("BDD: listening visibly attends to the cursor", async () => {
+test("BDD: listening visibly attends to the cursor with layered inertia", async () => {
+  const controller = await read("src/graphics/agent-visual-controller.ts");
   const particles = await read("src/graphics/agent-particle-cloud.ts");
   const stage = await read("src/graphics/stageGraphics.ts");
 
@@ -92,12 +93,24 @@ test("BDD: listening visibly attends to the cursor", async () => {
   assert.match(stage, /localY/);
   assert.match(stage, /setVisualPointer\(localX, localY/);
 
+  assert.match(controller, /pointerFastX/);
+  assert.match(controller, /pointerSlowX/);
+  assert.match(controller, /pointerDx/);
+  assert.match(controller, /pointerDy/);
+  assert.match(controller, /pointerTargetX/);
+  assert.match(controller, /10\.5/);
+  assert.match(controller, /3\.2/);
+
   assert.match(particles, /uPointerForce/);
   assert.match(particles, /uPointerVelocity/);
+  assert.match(particles, /uPointerSlow/);
+  assert.match(particles, /uPointerDelta/);
   assert.match(particles, /toPointer/);
-  assert.match(particles, /proximity/);
-  assert.match(particles, /wakeDirection/);
-  assert.match(particles, /listening \* 0\.92/);
+  assert.match(particles, /broadField/);
+  assert.match(particles, /vec2 drag/);
+  assert.match(particles, /vec2 curl/);
+  assert.match(particles, /pressureWave/);
+  assert.match(particles, /basePresenceScale = 1\.20/);
 });
 
 test("BDD: speaking keeps continuous life while presented words drive stronger emission", async () => {
