@@ -1,8 +1,9 @@
 /* The shared Three.js canvas owns the agent identity. The DOM only provides a
-   hit area and one quiet state label; the orb itself carries the behavior. */
+   generous hit area; the liquid surface itself carries the visual state. */
 
 .agent-presence {
   width: 100%;
+  min-height: min(62vh, 620px);
   padding: 0;
   border: 0;
   outline: 0;
@@ -18,8 +19,8 @@
 }
 
 .agent-core--three {
-  width: min(29vw, 370px);
-  max-width: 86%;
+  width: min(40vw, 560px);
+  max-width: 96%;
   background: none;
 }
 
@@ -28,57 +29,28 @@
   display: none;
 }
 
+/* State is expressed by the liquid material rather than detached UI chrome. */
 .agent-core__status {
-  position: absolute;
-  left: 50%;
-  bottom: -3%;
-  translate: -50% 0;
-  color: rgba(205, 182, 117, 0.46);
-  font: 500 var(--t-meta)/1 var(--font-info);
-  letter-spacing: 0.14em;
-  opacity: 0.54;
-  transition:
-    color 0.45s ease,
-    opacity 0.45s ease,
-    transform 0.55s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.agent-presence:hover .agent-core__status,
-.agent-presence:focus-visible .agent-core__status,
-.agent-os[data-state="listening"] .agent-core__status {
-  opacity: 0.74;
-}
-
-.agent-os[data-state="thinking"] .agent-core__status,
-.agent-os[data-state="speaking"] .agent-core__status {
-  color: rgba(236, 230, 213, 0.72);
-  opacity: 0.84;
-  transform: translateY(-2px);
-}
-
-.agent-os[data-state="error"] .agent-core__status {
-  color: rgba(208, 138, 106, 0.78);
+  display: none;
 }
 
 @media (max-width: 920px) {
+  .agent-presence {
+    min-height: min(52vh, 500px);
+  }
+
   .agent-core--three {
-    width: min(34vw, 330px);
+    width: min(44vw, 470px);
   }
 }
 
 @media (max-width: 820px) {
+  .agent-presence {
+    min-height: 0;
+  }
+
   .agent-core--three {
-    width: min(62vw, 300px);
-    opacity: 0.5;
-  }
-
-  .agent-core__status {
-    display: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .agent-core__status {
-    transition: none;
+    width: min(76vw, 430px);
+    opacity: 0.62;
   }
 }
