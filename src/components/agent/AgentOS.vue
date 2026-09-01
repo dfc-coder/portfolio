@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
+  pulseAgentInteraction,
+  pulseAgentSpeech,
   pulseAgentVisual,
   setAgentVisualPhase,
   type AgentVisualPhase,
@@ -18,11 +20,16 @@ const props = withDefaults(
 const laneEl = ref<HTMLElement | null>(null);
 const inputEl = ref<HTMLInputElement | null>(null);
 let scrollFrame = 0;
+let followStream = true;
+let speechChars = 0;
+
+const isNearBottom = (host: HTMLElement) =>
+  host.scrollHeight - host.scrollTop - host.clientHeight < 96;
 
 const scrollToBottom = () => {
   scrollFrame = 0;
   const host = laneEl.value;
-  if (!host) return;
+  if (!host || !followStream) return;
   host.scrollTop = host.scrollHeight;
 };
 
@@ -31,13 +38,34 @@ const scheduleScrollToBottom = () => {
   scrollFrame = requestAnimationFrame(scrollToBottom);
 };
 
+const handleLaneScroll = () => {
+  const host = laneEl.value;
+  if (!host) return;
+  followStream = isNearBottom(host);
+};
+
+const pulsePresentedText = (text: string) => {
+  speechChars += text.replace(/\s/g, "").length;
+  const boundary = /[\s,.!?;:]/.test(text);
+  if (!boundary && speechChars < 6) return;
+
+  const punctuation = /[!?]/.test(text) ? 0.18 : /[.]/.test(text) ? 0.12 : /[,;:]/.test(text) ? 0.05 : 0;
+  const strength = Math.min(0.96, 0.36 + speechChars * 0.060 + punctuation);
+  pulseAgentSpeech(strength);
+  speechChars = 0;
+};
+
 const runtime = useAgentRuntime(props.provider, {
   onMessage: (message) => {
+    if (message.role === "user") {
+      followStream = true;
+      speechChars = 0;
+    }
     scheduleScrollToBottom();
-    if (message.role === "user") pulseAgentVisual(0.78);
+    pulseAgentVisual(message.role === "user" ? 0.52 : 0.18);
   },
-  onToken: () => {
-    pulseAgentVisual(0.22);
+  onPresent: (text) => {
+    pulsePresentedText(text);
     scheduleScrollToBottom();
   },
 });
@@ -80,31 +108,65 @@ const linesOf = (text: string): Line[] =>
       : { kind: "text", value: line };
   });
 
-const statusLabel = () => {
-  if (error.value) return "FAULT";
+const statusLabel = computed(() => {
+  if (error.value) return "DEGRADED";
   if (state.value === "thinking") return "THINKING";
-  if (state.value === "speaking") return "RESPONDING";
+  if (state.value === "speaking") return "SPEAKING";
+  if (state.value === "listening") return "LISTENING";
   return "READY";
-};
+});
 
 const syncVisualPhase = () => {
   const phase: AgentVisualPhase = error.value ? "error" : state.value;
   setAgentVisualPhase(phase);
 };
 
+const phaseImpulse = (phase: AgentVisualPhase) => {
+  if (phase === "thinking") return 0.42;
+  if (phase === "speaking") return 0.20;
+  if (phase === "listening") return 0.24;
+  if (phase === "error") return 0.48;
+  return 0.10;
+};
+
+const wakeAgent = (strength = 0.16) => {
+  pulseAgentVisual(strength);
+};
+
+const engageAgent = () => {
+  pulseAgentInteraction(0.82);
+  wakeAgent(0.34);
+  void nextTick(() => inputEl.value?.focus());
+};
+
 const submit = () => {
+  if (!canSend.value) return;
+  followStream = true;
+  speechChars = 0;
+  pulseAgentVisual(0.50);
   void send();
   inputEl.value?.focus();
 };
 
 const startPrompt = (prompt: string) => {
   if (busy.value) return;
+  pulseAgentInteraction(0.34);
   draft.value = prompt;
   submit();
 };
 
-watch(state, syncVisualPhase, { immediate: true });
+watch(
+  state,
+  (next) => {
+    syncVisualPhase();
+    pulseAgentVisual(phaseImpulse(next));
+  },
+  { immediate: true },
+);
 watch(error, syncVisualPhase);
+watch(draft, (next, previous) => {
+  if (next.length > previous.length && next.length % 6 === 0) pulseAgentVisual(0.08);
+});
 
 onMounted(() => {
   void nextTick(scheduleScrollToBottom);
@@ -124,14 +186,26 @@ onBeforeUnmount(() => {
   >
     <h2 class="ref-marker"><span>05</span><i aria-hidden="true" /><span>THE INTERFACE</span></h2>
 
-    <aside class="agent-presence" aria-hidden="true">
+    <button
+      type="button"
+      class="agent-presence"
+      aria-label="Engage the portfolio agent"
+      @click="engageAgent"
+      @pointerenter="wakeAgent(0.12)"
+    >
       <div class="agent-core agent-core--three">
-        <span class="agent-core__status">{{ statusLabel() }}</span>
+        <span class="agent-core__status">{{ statusLabel }}</span>
       </div>
-    </aside>
+    </button>
 
     <div class="agent-chat">
-      <div ref="laneEl" class="agent-lane" role="log" aria-live="polite">
+      <div
+        ref="laneEl"
+        class="agent-lane"
+        role="log"
+        aria-live="polite"
+        @scroll="handleLaneScroll"
+      >
         <div
           v-if="messages.length === 0 && !busy"
           class="agent-empty"
@@ -144,6 +218,7 @@ onBeforeUnmount(() => {
               :key="starter.label"
               type="button"
               class="agent-empty__starter"
+              @pointerenter="wakeAgent(0.06)"
               @click="startPrompt(starter.prompt)"
             >
               <span>{{ String(index + 1).padStart(2, "0") }}</span>
@@ -166,12 +241,14 @@ onBeforeUnmount(() => {
           </div>
 
           <div class="agent-msg__body">
-            <template v-for="(line, i) in linesOf(message.text)" :key="i">
+            <p v-if="message.streaming" class="agent-msg__stream">
+              {{ message.text }}<i class="agent-msg__caret" />
+            </p>
+            <template v-else v-for="(line, i) in linesOf(message.text)" :key="i">
               <p v-if="line.kind === 'text' && line.value">{{ line.value }}</p>
               <span v-else-if="line.kind === 'text'" class="agent-msg__gap" />
               <p v-else class="agent-msg__item"><b>{{ line.index }}</b>{{ line.value }}</p>
             </template>
-            <i v-if="message.streaming" class="agent-msg__caret" />
           </div>
         </article>
 
@@ -192,7 +269,7 @@ onBeforeUnmount(() => {
           autocomplete="off"
           spellcheck="false"
           placeholder="Ask about Diego's work, projects, skills, or experience..."
-          @focus="focused = true"
+          @focus="focused = true; wakeAgent(0.16)"
           @blur="focused = false"
         />
         <button type="submit" :disabled="!canSend" aria-label="Send question">→</button>

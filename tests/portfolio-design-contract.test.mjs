@@ -184,17 +184,26 @@ test("architecture: mobile refinement is isolated from desktop ownership", async
 
 test("architecture: persistent Three stage and isolated menu WebGL have separate lifecycles", async () => {
   const graphics = await read("src/graphics/stageGraphics.ts");
+  const agentShader = await read("src/graphics/agent-liquid-shader.ts");
   const hero = await read("src/experiences/hero.ts");
   const transition = await read("src/experiences/section-transition.ts");
   const continuity = await read("src/experiences/continuity.css");
 
   assert.equal((graphics.match(/new THREE\.WebGLRenderer/g) ?? []).length, 1);
   assert.match(graphics, /const atmosphereFragment/);
-  assert.match(graphics, /const agentVertex/);
-  assert.match(graphics, /new THREE\.Points/);
+  assert.match(graphics, /agent-liquid-shader/);
+  assert.match(graphics, /agentLiquidVertex/);
+  assert.match(graphics, /agentLiquidFragment/);
+  assert.match(graphics, /new THREE\.PlaneGeometry\(/);
+  assert.match(graphics, /new THREE\.Mesh\(this\.agentGeometry, this\.agentMaterial\)/);
+  assert.doesNotMatch(graphics, /new THREE\.Points/);
   assert.match(graphics, /new THREE\.PerspectiveCamera/);
   assert.match(graphics, /renderer\.render\(this\.atmosphereScene/);
   assert.match(graphics, /renderer\.render\(this\.agentScene/);
+  assert.match(agentShader, /fluidValue/);
+  assert.match(agentShader, /refractStrength/);
+  assert.match(agentShader, /caustic/);
+  assert.match(agentShader, /shellEdge/);
   assert.doesNotMatch(hero, /three|WebGLRenderer|ShaderMaterial/);
 
   assert.match(transition, /document\.createElement\("canvas"\)/);
@@ -245,16 +254,19 @@ test("architecture: continuity no longer owns an animation loop", async () => {
   assert.doesNotMatch(component, /pointermove|cursorFrame|requestAnimationFrame|ref-cursor/);
 });
 
-test("architecture: Agent UI drives shared Three state and batches stream rendering", async () => {
+test("architecture: Agent UI decouples network chunks from presentation and visual energy", async () => {
   const os = await read("src/components/agent/AgentOS.vue");
   const runtime = await read("src/components/agent/useAgentRuntime.ts");
 
   assert.match(os, /setAgentVisualPhase/);
   assert.match(os, /pulseAgentVisual/);
+  assert.match(os, /onPresent: \(text\) =>/);
   assert.doesNotMatch(os, /AsciiFluidCanvas/);
-  assert.match(runtime, /pendingText/);
-  assert.match(runtime, /scheduleStreamFlush/);
-  assert.match(runtime, /requestAnimationFrame\(flushStream\)/);
+  assert.match(runtime, /presentationQueue/);
+  assert.match(runtime, /PRESENTATION_BASE_CPS/);
+  assert.match(runtime, /requestAnimationFrame\(present\)/);
+  assert.match(runtime, /waitForPresentation/);
+  assert.doesNotMatch(runtime, /pendingText|scheduleStreamFlush|flushStream/);
   assert.doesNotMatch(runtime, /localProvider|CORPUS|CorpusEntry|chunkify|Math\.random/);
 });
 
