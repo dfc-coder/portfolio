@@ -9,8 +9,6 @@ import type { SystemProject } from "../../experiences/systems-projects";
 
 const props = defineProps<{ project: SystemProject }>();
 
-// Temporary validation switch. Fixed mode remains the production baseline
-// until the automatic engine is visually approved across every System.
 const automaticLayout =
   typeof window !== "undefined" &&
   new URLSearchParams(window.location.search).get("diagramEngine") === "auto";
@@ -54,6 +52,7 @@ const edgeLabelStyle = (edge: CompiledGraphEdge, graph: CompiledSystemGraph) => 
   };
 };
 
+const graphUnit = (graph: CompiledSystemGraph) => graph.width / 100;
 const graphId = (variant: string) => `${props.project.id}-${variant}`;
 </script>
 
@@ -64,6 +63,7 @@ const graphId = (variant: string) => `${props.project.id}-${variant}`;
       :key="variant.key"
       class="systems-diagram__variant"
       :class="`systems-diagram__variant--${variant.key}`"
+      :style="{ '--diagram-unit': graphUnit(variant.graph) }"
     >
       <svg
         class="systems-graph"
@@ -102,10 +102,18 @@ const graphId = (variant: string) => `${props.project.id}-${variant}`;
             :transform="`translate(${node.x} ${node.y})`"
             :style="{ '--node-step': node.step }"
           >
-            <circle r="1.05" />
-            <circle class="systems-graph__node-halo" r="3.25" />
-            <text x="2.4" y=".8">{{ String(nodeIndex + 1).padStart(2, "0") }}</text>
-            <text class="systems-graph__node-label" x="2.4" y="4.2">{{ node.label }}</text>
+            <circle :r="1.05 * graphUnit(variant.graph)" />
+            <circle class="systems-graph__node-halo" :r="3.25 * graphUnit(variant.graph)" />
+            <text :x="2.4 * graphUnit(variant.graph)" :y=".8 * graphUnit(variant.graph)">
+              {{ String(nodeIndex + 1).padStart(2, "0") }}
+            </text>
+            <text
+              class="systems-graph__node-label"
+              :x="2.4 * graphUnit(variant.graph)"
+              :y="4.2 * graphUnit(variant.graph)"
+            >
+              {{ node.label }}
+            </text>
           </g>
         </g>
       </svg>
@@ -132,6 +140,14 @@ const graphId = (variant: string) => `${props.project.id}-${variant}`;
 
 .systems-diagram.is-auto .systems-diagram__variant--mobile {
   display: none;
+}
+
+.systems-diagram.is-auto .systems-graph__node text {
+  font-size: calc(1.45px * var(--diagram-unit, 1));
+}
+
+.systems-diagram.is-auto .systems-graph__node-label {
+  font-size: calc(1.7px * var(--diagram-unit, 1));
 }
 
 @media (max-width: 680px) {
