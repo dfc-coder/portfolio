@@ -34,22 +34,49 @@ test("BDD: network chunks are presented at a stable UI-controlled pace", async (
   assert.match(os, /@scroll="handleLaneScroll"/);
 });
 
-test("BDD: visual motion follows presented output instead of accumulating arbitrary impulses", async () => {
-  const stage = await read("src/graphics/stageGraphics.ts");
-
-  assert.match(stage, /activityTarget = Math\.max\(agentSignal\.activityTarget, impulse\)/);
-  assert.match(stage, /const phaseMotionRate/);
-  assert.match(stage, /private agentTime = 0/);
-  assert.match(stage, /this\.agentTime \+= dt \* phaseMotionRate/);
-  assert.match(stage, /uTime\.value = this\.agentTime/);
-  assert.match(stage, /excessActivity \* Math\.exp\(-7\.0 \* dt\)/);
-  assert.doesNotMatch(stage, /activityTarget \+ impulse/);
-});
-
-test("BDD: the agent presence is carried by one reactive refractive liquid surface", async () => {
+test("BDD: speech energy is independent from general presence activity", async () => {
   const os = await read("src/components/agent/AgentOS.vue");
   const stage = await read("src/graphics/stageGraphics.ts");
-  const shader = await read("src/graphics/agent-liquid-shader.ts");
+
+  assert.match(os, /pulseAgentSpeech/);
+  assert.match(os, /speechChars/);
+  assert.match(os, /const boundary = \/\[\\s,.!?;:\]\//);
+  assert.match(stage, /speechTarget/);
+  assert.match(stage, /speechResponse/);
+  assert.match(stage, /pulseAgentSpeech/);
+  assert.match(stage, /uSpeech/);
+  assert.match(stage, /speechTarget \*= Math\.exp\(-7\.2 \* dt\)/);
+  assert.doesNotMatch(os, /pulseAgentVisual\(strength\);\s*speechChars = 0/);
+});
+
+test("BDD: visual motion keeps continuous flow while presented words drive the shell", async () => {
+  const stage = await read("src/graphics/stageGraphics.ts");
+  const particles = await read("src/graphics/agent-particle-cloud.ts");
+  const liquid = await read("src/graphics/agent-liquid-shader.ts");
+
+  assert.match(stage, /AgentParticleCloud/);
+  assert.match(stage, /this\.agentParticles\.update/);
+  assert.match(stage, /this\.agentGroup\.add\(this\.agentParticles\.points\)/);
+  assert.match(stage, /private agentTime = 0/);
+  assert.match(stage, /this\.agentTime \+= dt \* phaseMotionRate/);
+
+  assert.match(particles, /pointCount = 4096/);
+  assert.match(particles, /new THREE\.Points/);
+  assert.match(particles, /uniform float uSpeech/);
+  assert.match(particles, /Continuous, low-energy circulation/);
+  assert.match(particles, /speechPacket/);
+  assert.match(particles, /uSpeech \* speaking/);
+
+  assert.match(liquid, /The flow never freezes/);
+  assert.match(liquid, /float fluidValue\(vec2 p/);
+  assert.match(liquid, /float refractStrength/);
+  assert.match(liquid, /float caustic/);
+  assert.match(liquid, /vec3 shellEdge/);
+  assert.match(liquid, /uniform float uSpeech/);
+});
+
+test("BDD: the interface remains restrained around the reactive orb", async () => {
+  const os = await read("src/components/agent/AgentOS.vue");
 
   assert.match(os, /READY/);
   assert.match(os, /LISTENING/);
@@ -58,25 +85,5 @@ test("BDD: the agent presence is carried by one reactive refractive liquid surfa
   assert.match(os, /const engageAgent = \(\) =>/);
   assert.match(os, /inputEl\.value\?\.focus\(\)/);
   assert.match(os, /@pointerenter="wakeAgent/);
-
-  assert.match(stage, /new THREE\.PlaneGeometry\(/);
-  assert.match(stage, /new THREE\.Mesh\(this\.agentGeometry, this\.agentMaterial\)/);
-  assert.match(stage, /agentLiquidFragment/);
-  assert.match(stage, /agentLiquidVertex/);
-  assert.match(stage, /THREE\.NormalBlending/);
-
-  assert.match(shader, /float fluidValue\(vec2 p/);
-  assert.match(shader, /float refractStrength/);
-  assert.match(shader, /float caustic/);
-  assert.match(shader, /float chroma/);
-  assert.match(shader, /vec3 shellMid/);
-  assert.match(shader, /uniform float uMode/);
-  assert.match(shader, /listeningWave/);
-  assert.match(shader, /speakingWave/);
-
-  assert.doesNotMatch(stage, /THREE\.Points/);
-  assert.doesNotMatch(stage, /pointCount\s*=\s*4096/);
-  assert.doesNotMatch(stage, /createRing/);
-  assert.doesNotMatch(shader, /diffuse\s*=|sphereRadius|lightDirection/);
   assert.doesNotMatch(os, /agent-presence__orbit|agent-presence__reticle|agent-session__state/);
 });
