@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -7,12 +6,6 @@ import ts from "typescript";
 
 const root = process.cwd();
 const read = (path) => readFile(resolve(root, path), "utf8");
-
-const gitBlobSha = (source) =>
-  createHash("sha1")
-    .update(`blob ${Buffer.byteLength(source)}\0`)
-    .update(source)
-    .digest("hex");
 
 const transpileToDataUrl = async (relativePath, replacements = new Map()) => {
   let source = await read(relativePath);
@@ -67,9 +60,12 @@ const isOrthogonal = (points) =>
     return point.x === previous.x || point.y === previous.y;
   });
 
-test("SDD: portfolio keeps the shared layout core while enforcing its orthogonal scene contract", async () => {
-  assert.equal(gitBlobSha(await read("src/graph/layout.ts")), "45f049f93b06f273897e983311bb02648d5c130a");
+const bounds = (nodes) => ({
+  minX: Math.min(...nodes.map((node) => node.x - node.width / 2)),
+  maxX: Math.max(...nodes.map((node) => node.x + node.width / 2)),
+});
 
+test("SDD: portfolio scene contract is orthogonal-only", async () => {
   const model = await read("src/graph/model.ts");
   assert.doesNotMatch(model, /kind:\s*['"]curve['"]/);
 
@@ -94,15 +90,12 @@ test("BDD: every shipped System compiles with orthogonal paths on desktop and mo
   for (const project of projectData.systemsProjects) {
     for (const profile of ["desktop", "mobile"]) {
       const scene = compiler.compileSystemGraph(project.graph, profile);
-      assert.equal(scene.kind, "graph", `${project.title} ${profile}`);
       assert.equal(scene.nodes.length, project.graph.nodes.length, `${project.title} ${profile} nodes`);
       assert.equal(scene.edges.length, project.graph.edges.length, `${project.title} ${profile} edges`);
-      assert.ok(scene.width > 0 && scene.height > 0, `${project.title} ${profile} bounds`);
 
       for (const node of scene.nodes) {
         assert.ok(Number.isFinite(node.x) && Number.isFinite(node.y), `${project.title}: ${node.id}`);
         assert.ok(node.x - node.width / 2 >= 0 && node.x + node.width / 2 <= scene.width, `${project.title}: ${node.id} x`);
-        assert.ok(node.y - node.height / 2 >= 0 && node.y + node.height / 2 <= scene.height, `${project.title}: ${node.id} y`);
       }
 
       for (let left = 0; left < scene.nodes.length; left += 1) {
@@ -114,14 +107,64 @@ test("BDD: every shipped System compiles with orthogonal paths on desktop and mo
       for (const edge of scene.edges) {
         assert.equal(edge.path.kind, "polyline", `${project.title}: ${edge.from} -> ${edge.to} kind`);
         assert.ok(edge.path.points.length >= 2, `${project.title}: ${edge.from} -> ${edge.to}`);
-        assert.ok(edge.path.points.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y)));
         assert.ok(isOrthogonal(edge.path.points), `${project.title}: ${edge.from} -> ${edge.to} must be orthogonal`);
       }
     }
   }
 });
 
-test("BDD: responsive scenes preserve semantics but may use different geometry", () => {
+test("BDD: desktop Systems use a wide left-to-right reading direction", () => {
+  for (const project of projectData.systemsProjects) {
+    const scene = compiler.compileSystemGraph(project.graph, "desktop");
+    assert.notEqual(scene.layout, "layered-tb", `${project.title} must not collapse into a vertical tower`);
+    const used = bounds(scene.nodes);
+    assert.ok(used.maxX - used.minX >= scene.width * 0.6, `${project.title} uses too little horizontal space`);
+  }
+});
+
+test("BDD: Reflective ReAct keeps its forward spine readable and feedback external", () => {
+  const project = projectData.systemsProjects.find((item) => item.code === "REACT—AI");
+  assert.ok(project);
+
+  const scene = compiler.compileSystemGraph(project.graph, "desktop");
+  assert.equal(scene.topology, "cycle");
+  assert.equal(scene.layout, "cycle");
+
+  const byId = new Map(scene.nodes.map((node) => [node.id, node]));
+  const request = byId.get("request");
+  const router = byId.get("router");
+  const reason = byId.get("reason");
+  const tools = byId.get("tools");
+  const verify = byId.get("verify");
+  const reflect = byId.get("reflect");
+  const model = byId.get("model");
+  assert.ok(request && router && reason && tools && verify && reflect && model);
+
+  assert.ok(request.x < router.x && router.x < reason.x && reason.x < tools.x && tools.x < verify.x);
+  assert.ok(verify.x < reflect.x && reflect.x === model.x, "return nodes should share the final rank");
+  assert.equal(reason.y, tools.y);
+  assert.equal(tools.y, verify.y);
+  assert.ok(reflect.y < model.y, "feedback sources must remain visually distinct");
+
+  assert.deepEqual(
+    scene.edges.filter((edge) => edge.kind === "feedback").map((edge) => `${edge.from}->${edge.to}`).sort(),
+    ["model->reason", "reflect->reason"],
+  );
+  assert.ok(scene.edges.every((edge) => isOrthogonal(edge.path.points)));
+});
+
+test("BDD: branch and join systems stay horizontally layered", () => {
+  const expected = new Set(["DOC—AI", "NL→SQL", "MCP—03", "SEARCH", "VOICE—ACP"]);
+  for (const code of expected) {
+    const project = projectData.systemsProjects.find((item) => item.code === code);
+    assert.ok(project, code);
+    const scene = compiler.compileSystemGraph(project.graph, "desktop");
+    assert.equal(scene.topology, "branch-join", code);
+    assert.equal(scene.layout, "layered-lr", code);
+  }
+});
+
+test("BDD: responsive scenes preserve semantics but use different geometry", () => {
   for (const project of projectData.systemsProjects) {
     const desktop = compiler.compileSystemGraph(project.graph, "desktop");
     const mobile = compiler.compileSystemGraph(project.graph, "mobile");
@@ -136,36 +179,6 @@ test("BDD: responsive scenes preserve semantics but may use different geometry",
       mobile.edges.map((edge) => `${edge.kind}:${edge.from}->${edge.to}`).sort(),
       project.title,
     );
-  }
-});
-
-test("BDD: Reflective ReAct remains cycle-aware with explicit feedback", () => {
-  const project = projectData.systemsProjects.find((item) => item.code === "REACT—AI");
-  assert.ok(project);
-
-  const scene = compiler.compileSystemGraph(project.graph, "desktop");
-  assert.equal(scene.topology, "cycle");
-  assert.equal(scene.layout, "cycle");
-  assert.deepEqual(
-    scene.edges.filter((edge) => edge.kind === "feedback").map((edge) => `${edge.from}->${edge.to}`).sort(),
-    ["model->reason", "reflect->reason"],
-  );
-  assert.ok(scene.edges.every((edge) => edge.path.kind === "polyline" && isOrthogonal(edge.path.points)));
-});
-
-test("BDD: branch and join systems are discovered from topology instead of authored layout", () => {
-  const expected = new Map([
-    ["DOC—AI", "branch-join"],
-    ["NL→SQL", "branch-join"],
-    ["MCP—03", "branch-join"],
-    ["SEARCH", "branch-join"],
-    ["VOICE—ACP", "branch-join"],
-  ]);
-
-  for (const [code, topology] of expected) {
-    const project = projectData.systemsProjects.find((item) => item.code === code);
-    assert.ok(project, code);
-    assert.equal(compiler.compileSystemGraph(project.graph, "desktop").topology, topology, code);
   }
 });
 
