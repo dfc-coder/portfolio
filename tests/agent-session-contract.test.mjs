@@ -34,49 +34,107 @@ test("BDD: network chunks are presented at a stable UI-controlled pace", async (
   assert.match(os, /@scroll="handleLaneScroll"/);
 });
 
-test("BDD: speech energy is independent from general presence activity", async () => {
+test("BDD: speech, interaction, pointer and state are independent visual signals", async () => {
   const os = await read("src/components/agent/AgentOS.vue");
+  const controller = await read("src/graphics/agent-visual-controller.ts");
   const stage = await read("src/graphics/stageGraphics.ts");
 
   assert.match(os, /pulseAgentSpeech/);
+  assert.match(os, /pulseAgentInteraction/);
   assert.match(os, /speechChars/);
   assert.match(os, /const boundary =/);
   assert.match(os, /if \(!boundary && speechChars < 6\) return/);
-  assert.match(stage, /speechTarget/);
-  assert.match(stage, /speechResponse/);
-  assert.match(stage, /pulseAgentSpeech/);
-  assert.match(stage, /uSpeech/);
-  assert.match(stage, /speechTarget \*= Math\.exp\(-7\.2 \* dt\)/);
-  assert.doesNotMatch(os, /pulseAgentVisual\(strength\);\s*speechChars = 0/);
+
+  assert.match(controller, /activityTarget/);
+  assert.match(controller, /speechTarget/);
+  assert.match(controller, /interactionTarget/);
+  assert.match(controller, /pointerForceTarget/);
+  assert.match(controller, /const speechResponse/);
+  assert.match(controller, /state\.phase !== "speaking"/);
+  assert.match(controller, /updateAgentVisual/);
+
+  assert.match(stage, /updateAgentVisual\(dt\)/);
+  assert.match(stage, /setVisualPointer/);
+  assert.match(stage, /pulseAgentInteraction/);
+  assert.doesNotMatch(stage, /interface AgentSignalState/);
 });
 
-test("BDD: visual motion keeps continuous flow while presented words drive the shell", async () => {
+test("BDD: thinking is a distinct upper atomic halo pose", async () => {
+  const controller = await read("src/graphics/agent-visual-controller.ts");
+  const particles = await read("src/graphics/agent-particle-cloud.ts");
   const stage = await read("src/graphics/stageGraphics.ts");
+
+  assert.match(controller, /thinkingBlend/);
+  assert.match(controller, /state\.phase === "thinking" \? 1 : 0/);
+  assert.match(controller, /"thinking"\) return "focused"/);
+
+  assert.match(particles, /THINKING POSE/);
+  assert.match(particles, /haloParticle/);
+  assert.match(particles, /haloA/);
+  assert.match(particles, /haloB/);
+  assert.match(particles, /haloC/);
+  assert.match(particles, /haloTarget/);
+  assert.match(particles, /coreTarget/);
+  assert.match(particles, /mix\(sphere, thinkingTarget, uThinkingBlend\)/);
+  assert.match(particles, /uTime \* \(1\.45 \+ aLayer/);
+
+  assert.match(stage, /signals\.thinkingBlend/);
+  assert.match(stage, /this\.agentMesh\.position\.y = -signals\.thinkingBlend/);
+});
+
+test("BDD: listening visibly attends to the cursor", async () => {
+  const particles = await read("src/graphics/agent-particle-cloud.ts");
+  const stage = await read("src/graphics/stageGraphics.ts");
+
+  assert.match(stage, /agentScreenCenter/);
+  assert.match(stage, /distanceToOrb/);
+  assert.match(stage, /localX/);
+  assert.match(stage, /localY/);
+  assert.match(stage, /setVisualPointer\(localX, localY/);
+
+  assert.match(particles, /uPointerForce/);
+  assert.match(particles, /uPointerVelocity/);
+  assert.match(particles, /toPointer/);
+  assert.match(particles, /proximity/);
+  assert.match(particles, /wakeDirection/);
+  assert.match(particles, /listening \* 0\.92/);
+});
+
+test("BDD: speaking keeps continuous life while presented words drive stronger emission", async () => {
   const particles = await read("src/graphics/agent-particle-cloud.ts");
   const liquid = await read("src/graphics/agent-liquid-shader.ts");
 
-  assert.match(stage, /AgentParticleCloud/);
-  assert.match(stage, /this\.agentParticles\.update/);
-  assert.match(stage, /this\.agentGroup\.add\(this\.agentParticles\.points\)/);
-  assert.match(stage, /private agentTime = 0/);
-  assert.match(stage, /this\.agentTime \+= dt \* phaseMotionRate/);
-
   assert.match(particles, /pointCount = 4096/);
   assert.match(particles, /new THREE\.Points/);
-  assert.match(particles, /uniform float uSpeech/);
-  assert.match(particles, /Continuous, low-energy circulation/);
+  assert.match(particles, /CONTINUOUS LIFE/);
+  assert.match(particles, /SPEAKING/);
   assert.match(particles, /speechPacket/);
-  assert.match(particles, /uSpeech \* speaking/);
+  assert.match(particles, /speechAmplitude/);
+  assert.match(particles, /p\.x \+= speechAmplitude/);
+  assert.match(particles, /speechScale/);
 
   assert.match(liquid, /The flow never freezes/);
   assert.match(liquid, /float fluidValue\(vec2 p/);
-  assert.match(liquid, /float refractStrength/);
-  assert.match(liquid, /float caustic/);
-  assert.match(liquid, /vec3 shellEdge/);
   assert.match(liquid, /uniform float uSpeech/);
 });
 
-test("BDD: the interface remains restrained around the reactive orb", async () => {
+test("BDD: state-derived tone gives the same agent different movement character", async () => {
+  const controller = await read("src/graphics/agent-visual-controller.ts");
+  const particles = await read("src/graphics/agent-particle-cloud.ts");
+
+  for (const tone of ["calm", "curious", "focused", "confident", "uncertain"]) {
+    assert.match(controller, new RegExp(`"${tone}"`));
+  }
+
+  assert.match(controller, /phaseTone/);
+  assert.match(controller, /toneMode/);
+  assert.match(particles, /curious/);
+  assert.match(particles, /focused/);
+  assert.match(particles, /confident/);
+  assert.match(particles, /uncertain/);
+});
+
+test("BDD: the interface remains restrained around the expressive orb", async () => {
   const os = await read("src/components/agent/AgentOS.vue");
 
   assert.match(os, /READY/);
@@ -84,6 +142,7 @@ test("BDD: the interface remains restrained around the reactive orb", async () =
   assert.match(os, /THINKING/);
   assert.match(os, /SPEAKING/);
   assert.match(os, /const engageAgent = \(\) =>/);
+  assert.match(os, /pulseAgentInteraction\(0\.82\)/);
   assert.match(os, /inputEl\.value\?\.focus\(\)/);
   assert.match(os, /@pointerenter="wakeAgent/);
   assert.doesNotMatch(os, /agent-presence__orbit|agent-presence__reticle|agent-session__state/);
