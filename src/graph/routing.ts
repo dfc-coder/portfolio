@@ -33,8 +33,6 @@ const anchorBounds = (node: GraphSceneNode, profile: LayoutProfile): ComponentBo
   };
 };
 
-const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
-
 const regularRoute = (
   from: GraphSceneNode,
   to: GraphSceneNode,
@@ -112,27 +110,42 @@ const feedbackRoute = (
   index: number,
   profile: LayoutProfile
 ): readonly Point[] => {
-  const useLeft = index % 2 === 0;
-  const laneGap = Math.max(profile.nodeGap, profile.rankGap * 0.35);
-  const minX = profile.nodeGap / 2;
-  const maxX = profile.width - profile.nodeGap / 2;
-  const laneX = useLeft
-    ? clamp(bounds.x - laneGap, minX, maxX)
-    : clamp(bounds.x + bounds.width + laneGap, minX, maxX);
-
   const fromBox = anchorBounds(from, profile);
   const toBox = anchorBounds(to, profile);
-  const start = useLeft
-    ? { x: fromBox.x, y: from.y }
-    : { x: fromBox.x + fromBox.width, y: from.y };
-  const end = useLeft
-    ? { x: toBox.x, y: to.y }
-    : { x: toBox.x + toBox.width, y: to.y };
+  const laneGap = Math.max(profile.nodeGap, profile.rankGap * 0.65);
+  const direction = profile.direction && profile.direction !== 'auto' ? profile.direction : 'LR';
+
+  if (direction === 'TB') {
+    const useLeft = index % 2 === 0;
+    const laneX = useLeft ? bounds.x - laneGap : bounds.x + bounds.width + laneGap;
+    const start = useLeft
+      ? { x: fromBox.x, y: from.y }
+      : { x: fromBox.x + fromBox.width, y: from.y };
+    const end = useLeft
+      ? { x: toBox.x, y: to.y }
+      : { x: toBox.x + toBox.width, y: to.y };
+
+    return compactPolyline([
+      start,
+      { x: laneX, y: start.y },
+      { x: laneX, y: end.y },
+      end
+    ]);
+  }
+
+  const useTop = index % 2 === 0;
+  const laneY = useTop ? bounds.y - laneGap : bounds.y + bounds.height + laneGap;
+  const start = useTop
+    ? { x: from.x, y: fromBox.y }
+    : { x: from.x, y: fromBox.y + fromBox.height };
+  const end = useTop
+    ? { x: to.x, y: toBox.y }
+    : { x: to.x, y: toBox.y + toBox.height };
 
   return compactPolyline([
     start,
-    { x: laneX, y: start.y },
-    { x: laneX, y: end.y },
+    { x: start.x, y: laneY },
+    { x: end.x, y: laneY },
     end
   ]);
 };
@@ -153,7 +166,7 @@ export function routeEdges(
   profile: LayoutProfile
 ): GraphSceneEdge[] {
   const byId = nodeMap(nodes);
-  const feedbackCount = new Map<number, number>();
+  let feedbackIndex = 0;
 
   return graph.edges.map((edge) => {
     const from = byId.get(edge.from);
@@ -175,13 +188,11 @@ export function routeEdges(
 
     const fromComponent = componentByNode.get(edge.from);
     const toComponent = componentByNode.get(edge.to);
-    const componentId = fromComponent ?? toComponent ?? -1;
     const fromBounds = fromComponent === undefined ? nodeBounds(from) : componentBounds.get(fromComponent) ?? nodeBounds(from);
     const toBounds = toComponent === undefined ? nodeBounds(to) : componentBounds.get(toComponent) ?? nodeBounds(to);
-    const bounds = fromComponent === toComponent ? fromBounds : unionBounds(fromBounds, toBounds);
-    const index = feedbackCount.get(componentId) ?? 0;
-    feedbackCount.set(componentId, index + 1);
-    const points = feedbackRoute(from, to, bounds, index, profile);
+    const bounds = unionBounds(fromBounds, toBounds);
+    const points = feedbackRoute(from, to, bounds, feedbackIndex, profile);
+    feedbackIndex += 1;
 
     return {
       from: edge.from,
