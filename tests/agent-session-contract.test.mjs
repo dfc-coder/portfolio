@@ -14,9 +14,10 @@ test("agent session lifetime matches the visible page conversation", async () =>
   assert.equal((provider.match(/session_id: SESSION_ID/g) ?? []).length, 1);
 });
 
-test("BDD: the agent presence is carried by one reactive liquid surface", async () => {
+test("BDD: the agent presence is carried by one reactive refractive liquid surface", async () => {
   const os = await read("src/components/agent/AgentOS.vue");
   const stage = await read("src/graphics/stageGraphics.ts");
+  const shader = await read("src/graphics/agent-liquid-shader.ts");
 
   assert.match(os, /READY/);
   assert.match(os, /LISTENING/);
@@ -26,16 +27,24 @@ test("BDD: the agent presence is carried by one reactive liquid surface", async 
   assert.match(os, /inputEl\.value\?\.focus\(\)/);
   assert.match(os, /@pointerenter="wakeAgent/);
 
-  assert.match(stage, /new THREE\.PlaneGeometry\(2\.2, 2\.2/);
+  assert.match(stage, /new THREE\.PlaneGeometry\(/);
   assert.match(stage, /new THREE\.Mesh\(this\.agentGeometry, this\.agentMaterial\)/);
-  assert.match(stage, /float fbm\(vec2 p\)/);
-  assert.match(stage, /uniform float uMode/);
-  assert.match(stage, /listenMembrane/);
-  assert.match(stage, /voiceMembrane/);
+  assert.match(stage, /agentLiquidFragment/);
+  assert.match(stage, /agentLiquidVertex/);
   assert.match(stage, /THREE\.NormalBlending/);
+
+  assert.match(shader, /float fluidValue\(vec2 p/);
+  assert.match(shader, /float refractStrength/);
+  assert.match(shader, /float caustic/);
+  assert.match(shader, /float chroma/);
+  assert.match(shader, /vec3 shellMid/);
+  assert.match(shader, /uniform float uMode/);
+  assert.match(shader, /listeningWave/);
+  assert.match(shader, /speakingWave/);
 
   assert.doesNotMatch(stage, /THREE\.Points/);
   assert.doesNotMatch(stage, /pointCount\s*=\s*4096/);
   assert.doesNotMatch(stage, /createRing/);
+  assert.doesNotMatch(shader, /diffuse\s*=|sphereRadius|lightDirection/);
   assert.doesNotMatch(os, /agent-presence__orbit|agent-presence__reticle|agent-session__state/);
 });
