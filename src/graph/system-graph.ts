@@ -5,17 +5,17 @@ export type SystemGraphProfile = "desktop" | "mobile";
 
 const PROFILES: Record<SystemGraphProfile, LayoutProfile> = {
   desktop: {
-    width: 134,
-    nodeWidth: 15,
-    nodeHeight: 7,
-    nodeGap: 6,
-    rankGap: 6,
+    width: 100,
+    nodeWidth: 10,
+    nodeHeight: 6,
+    nodeGap: 5,
+    rankGap: 3,
     maxColumns: 4,
     direction: "auto",
   },
   mobile: {
     width: 100,
-    nodeWidth: 16,
+    nodeWidth: 14,
     nodeHeight: 8,
     nodeGap: 8,
     rankGap: 10,
