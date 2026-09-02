@@ -150,14 +150,14 @@ wait-ready: ## Wait until both models are ready through FastAPI
 compile: ## Compile Python sources and tests
 	@cd "$(ROOT)" && $(UV) run python -m compileall -q app tests
 
-test: ## Run the complete pytest suite
-	@cd "$(ROOT)" && PYTHONPATH=. $(UV) run pytest -q
+test: ## Run the complete pytest suite with test extras installed
+	@cd "$(ROOT)" && PYTHONPATH=. $(UV) run --extra test pytest -q
 
-test-unit: ## Run fast unit tests only
-	@cd "$(ROOT)" && PYTHONPATH=. $(UV) run pytest -q tests/unit
+test-unit: ## Run fast unit tests only with test extras installed
+	@cd "$(ROOT)" && PYTHONPATH=. $(UV) run --extra test pytest -q tests/unit
 
-test-e2e: ## Run end-to-end agent tests
-	@cd "$(ROOT)" && PYTHONPATH=. $(UV) run pytest -q tests/e2e
+test-e2e: ## Run end-to-end agent tests with test extras installed
+	@cd "$(ROOT)" && PYTHONPATH=. $(UV) run --extra test pytest -q tests/e2e
 
 check: compile test ## Run compile + complete test suite
 
