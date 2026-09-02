@@ -58,16 +58,24 @@ def macro_f1(records: list[dict[str, Any]]) -> float:
 
 def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
     total = len(records)
+    known = [record for record in records if record["expected_intent"] is not None]
+    out_of_scope = [record for record in records if record["expected_intent"] is None]
     accepted = [record for record in records if record["accepted"]]
-    correct = [
+    correct_known = [
         record
-        for record in records
+        for record in known
         if record["predicted_intent"] == record["expected_intent"]
     ]
     accepted_errors = [
         record
         for record in accepted
-        if record["predicted_intent"] != record["expected_intent"]
+        if record["expected_intent"] is None
+        or record["predicted_intent"] != record["expected_intent"]
+    ]
+    correctly_rejected_oos = [
+        record
+        for record in out_of_scope
+        if not record["accepted"]
     ]
     non_scheduling = [
         record
@@ -87,7 +95,7 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
     latencies = [float(record["latency_ms"]) for record in records]
     confusion = Counter(
         (
-            record["expected_intent"],
+            record["expected_intent"] or "oos",
             record["predicted_intent"] or "abstain",
         )
         for record in records
@@ -95,13 +103,24 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
 
     return {
         "runs": total,
-        "accuracy": round(len(correct) / total, 4) if total else 1.0,
-        "macro_f1": round(macro_f1(records), 4) if total else 1.0,
+        "known_intent_runs": len(known),
+        "oos_runs": len(out_of_scope),
+        "accuracy": (
+            round(len(correct_known) / len(known), 4)
+            if known
+            else 1.0
+        ),
+        "macro_f1": round(macro_f1(records), 4) if known else 1.0,
         "coverage": round(len(accepted) / total, 4) if total else 1.0,
         "selective_risk": (
             round(len(accepted_errors) / len(accepted), 4)
             if accepted
             else 0.0
+        ),
+        "oos_recall": (
+            round(len(correctly_rejected_oos) / len(out_of_scope), 4)
+            if out_of_scope
+            else None
         ),
         "false_scheduling_rate": (
             round(len(false_scheduling) / len(non_scheduling), 4)
@@ -121,7 +140,13 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
         "failures": [
             record
             for record in records
-            if record["predicted_intent"] != record["expected_intent"]
+            if (
+                record["expected_intent"] is None and record["accepted"]
+            )
+            or (
+                record["expected_intent"] is not None
+                and record["predicted_intent"] != record["expected_intent"]
+            )
         ],
     }
 
@@ -149,6 +174,7 @@ def calibrate_thresholds(
         {0.0, *(float(record["margin"]) for record in records)}
     )
     best: tuple[float, float, float, float] | None = None
+    chosen: tuple[float, float] | None = None
 
     for min_confidence in confidence_candidates:
         for min_margin in margin_candidates:
@@ -163,7 +189,8 @@ def calibrate_thresholds(
             errors = [
                 record
                 for record in accepted
-                if record["predicted_intent"] != record["expected_intent"]
+                if record["expected_intent"] is None
+                or record["predicted_intent"] != record["expected_intent"]
             ]
             critical_false_scheduling = sum(
                 record["critical"]
@@ -185,6 +212,6 @@ def calibrate_thresholds(
                 best = candidate
                 chosen = (min_confidence, min_margin)
 
-    if best is None:
+    if best is None or chosen is None:
         raise ValueError("validation data cannot satisfy selective-risk safety constraints")
     return chosen
