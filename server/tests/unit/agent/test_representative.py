@@ -28,6 +28,19 @@ class StaticRouter:
         )
 
 
+class AbstainingRouter:
+    async def route(self, state, user_message):  # type: ignore[no-untyped-def]
+        del state, user_message
+        return RoutingDecision(
+            domain=None,
+            accepted=False,
+            route_key="abstain",
+            confidence=0.42,
+            margin=0.01,
+            source="abstain",
+        )
+
+
 class RecordingPortfolio:
     def __init__(self) -> None:
         self.queries: list[str] = []
@@ -157,3 +170,32 @@ async def test_representative_derives_scheduling_relation_outside_router() -> No
 
     assert answer == "continuemos con la reunión"
     assert scheduler.relation == RouteRelation.CONTINUE
+
+
+@pytest.mark.asyncio
+async def test_abstention_invokes_no_business_capability() -> None:
+    sessions = MemorySessionStore()
+    portfolio = RecordingPortfolio()
+    agent = BusinessRepresentative(
+        sessions,
+        AbstainingRouter(),  # type: ignore[arg-type]
+        portfolio,  # type: ignore[arg-type]
+        UnusedScheduler(),  # type: ignore[arg-type]
+        UnusedResponder(),  # type: ignore[arg-type]
+    )
+
+    answer = "".join(
+        [
+            chunk
+            async for chunk in agent.respond(
+                "session-abstain",
+                "mensaje deliberadamente ambiguo",
+            )
+        ]
+    )
+    state = await sessions.get("session-abstain")
+
+    assert "certeza" in answer.lower()
+    assert portfolio.queries == []
+    assert state.current_focus == Route.CONVERSATION
+    assert state.active_workflow is None
