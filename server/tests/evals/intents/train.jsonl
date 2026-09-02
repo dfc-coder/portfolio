@@ -10,6 +10,12 @@
 {"id":"tr-pq-05-en","message":"Does Diego have AWS and cloud architecture experience?","intent":"portfolio_query","route":"portfolio","language":"en","family":"train-profile-cloud-05"}
 {"id":"tr-pq-06-es","message":"Explicame uno de los proyectos de backend de Diego","intent":"portfolio_query","route":"portfolio","language":"es","family":"train-profile-project-06"}
 {"id":"tr-pq-06-en","message":"Explain one of Diego's backend projects","intent":"portfolio_query","route":"portfolio","language":"en","family":"train-profile-project-06"}
+{"id":"tr-pq-07-es","message":"¿Cómo fija Diego el precio de sus servicios profesionales?","intent":"portfolio_query","route":"portfolio","language":"es","family":"train-profile-pricing-07"}
+{"id":"tr-pq-07-en","message":"How does Diego price his professional services?","intent":"portfolio_query","route":"portfolio","language":"en","family":"train-profile-pricing-07"}
+{"id":"tr-pq-08-es","message":"¿Qué opciones de contratación ofrece Diego para consultoría?","intent":"portfolio_query","route":"portfolio","language":"es","family":"train-profile-services-08"}
+{"id":"tr-pq-08-en","message":"What engagement options does Diego offer for consulting?","intent":"portfolio_query","route":"portfolio","language":"en","family":"train-profile-services-08"}
+{"id":"tr-pq-09-es","message":"¿La consultoría de Diego se cobra por tiempo o por proyecto?","intent":"portfolio_query","route":"portfolio","language":"es","family":"train-profile-pricing-model-09"}
+{"id":"tr-pq-09-en","message":"Does Diego charge for consulting by time or by project?","intent":"portfolio_query","route":"portfolio","language":"en","family":"train-profile-pricing-model-09"}
 {"id":"tr-cap-01-es","message":"¿Qué cosas puede hacer este asistente por mí?","intent":"capability_query","route":"portfolio","language":"es","family":"train-cap-general-01","critical":true}
 {"id":"tr-cap-01-en","message":"What kinds of things can this assistant do for me?","intent":"capability_query","route":"portfolio","language":"en","family":"train-cap-general-01","critical":true}
 {"id":"tr-cap-02-es","message":"¿Tenés herramientas disponibles?","intent":"capability_query","route":"portfolio","language":"es","family":"train-cap-tools-02","critical":true}
