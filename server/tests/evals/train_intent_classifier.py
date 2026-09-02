@@ -47,9 +47,9 @@ def prediction_record(
 ) -> dict[str, Any]:
     prediction = classifier.predict([float(value) for value in record["embedding"]])
     return {
-        "expected_intent": str(record["intent"]),
+        "expected_intent": record.get("intent"),
         "predicted_intent": prediction.intent.value,
-        "expected_route": str(record["route"]),
+        "expected_route": record.get("route"),
         "predicted_route": route_for_intent(prediction.intent).value,
         "accepted": True,
         "critical": bool(record.get("critical", False)),
@@ -66,6 +66,8 @@ def main() -> int:
     validation_embedding_model, validation = load_vectors(args.validation_vectors)
     if train_embedding_model != validation_embedding_model:
         raise ValueError("train and validation embeddings use different models")
+    if any(record.get("intent") is None for record in train):
+        raise ValueError("out-of-scope examples must not be used as a trained intent")
 
     try:
         from sklearn.linear_model import LogisticRegression
