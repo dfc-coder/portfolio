@@ -34,3 +34,7 @@
 {"id":"blind-chat-02-en","message":"Good afternoon","intent":"conversation","route":"conversation","language":"en","family":"blind-chat-greeting-02"}
 {"id":"blind-chat-03-es","message":"¿Cómo está el tiempo hoy?","intent":"conversation","route":"conversation","language":"es","family":"blind-chat-weather-03"}
 {"id":"blind-chat-03-en","message":"How is the weather today?","intent":"conversation","route":"conversation","language":"en","family":"blind-chat-weather-03"}
+{"id":"blind-oos-01-es","message":"Creame una tarea para revisar el presupuesto el viernes","intent":null,"route":null,"language":"es","family":"blind-oos-task-01","critical":true}
+{"id":"blind-oos-01-en","message":"Create a task to review the budget on Friday","intent":null,"route":null,"language":"en","family":"blind-oos-task-01","critical":true}
+{"id":"blind-oos-02-es","message":"Comprame un pasaje para Córdoba para mañana","intent":null,"route":null,"language":"es","family":"blind-oos-purchase-02","critical":true}
+{"id":"blind-oos-02-en","message":"Buy me a ticket to Cordoba for tomorrow","intent":null,"route":null,"language":"en","family":"blind-oos-purchase-02","critical":true}
