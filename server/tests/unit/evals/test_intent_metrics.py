@@ -12,6 +12,7 @@ def record(
     confidence: float = 0.9,
     margin: float = 0.4,
     latency_ms: float = 20.0,
+    active_workflow: str | None = None,
 ) -> dict[str, object]:
     return {
         "expected_intent": None,
@@ -23,6 +24,7 @@ def record(
         "confidence": confidence,
         "margin": margin,
         "latency_ms": latency_ms,
+        "active_workflow": active_workflow,
         "source": "route_classifier" if accepted else "abstain",
     }
 
@@ -114,19 +116,32 @@ def test_summary_detects_critical_false_scheduling() -> None:
     assert meets_dod(metrics) is False
 
 
-def test_calibration_prefers_maximum_safe_route_coverage() -> None:
+def test_calibration_uses_distinct_business_context_thresholds() -> None:
     records = [
         record(
             expected_route="portfolio",
             predicted_route="portfolio",
-            confidence=0.95,
-            margin=0.50,
+            confidence=0.45,
+            margin=0.20,
         ),
         record(
             expected_route="conversation",
             predicted_route="conversation",
-            confidence=0.90,
-            margin=0.40,
+            confidence=0.50,
+            margin=0.20,
+        ),
+        record(
+            expected_route="scheduling",
+            predicted_route="scheduling",
+            confidence=0.75,
+            margin=0.30,
+        ),
+        record(
+            expected_route="scheduling",
+            predicted_route="scheduling",
+            confidence=0.40,
+            margin=0.10,
+            active_workflow="scheduling",
         ),
         record(
             expected_route=None,
@@ -137,6 +152,16 @@ def test_calibration_prefers_maximum_safe_route_coverage() -> None:
         ),
     ]
 
-    min_confidence, min_margin = calibrate_thresholds(records)
+    thresholds = calibrate_thresholds(records)
 
-    assert min_confidence > 0.60 or min_margin > 0.05
+    assert set(thresholds) == {
+        "conversation",
+        "portfolio",
+        "scheduling",
+        "scheduling_active",
+    }
+    scheduling_confidence, scheduling_margin = thresholds["scheduling"]
+    assert scheduling_confidence > 0.60 or scheduling_margin > 0.05
+    active_confidence, active_margin = thresholds["scheduling_active"]
+    assert active_confidence <= 0.40
+    assert active_margin <= 0.10
