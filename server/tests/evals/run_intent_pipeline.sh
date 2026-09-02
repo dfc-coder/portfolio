@@ -21,11 +21,29 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
+if [[ "$ARTIFACT" != "$ROOT"/* ]]; then
+  echo "INTENT_ARTIFACT must live under $ROOT so the eval container can read it" >&2
+  exit 1
+fi
+
 mkdir -p "$TMP_DIR" "$(dirname "$ARTIFACT")"
 COMPOSE=("$ENGINE" compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE")
 
 cd "$ROOT"
+"${COMPOSE[@]}" build api
 "${COMPOSE[@]}" up -d embedding
+
+for attempt in $(seq 1 60); do
+  if "${COMPOSE[@]}" exec -T embedding \
+    curl -fsS http://127.0.0.1:8081/health >/dev/null 2>&1; then
+    break
+  fi
+  if [[ "$attempt" -eq 60 ]]; then
+    echo "embedding service did not become ready" >&2
+    exit 1
+  fi
+  sleep 1
+done
 
 embed_split() {
   local split="$1"
