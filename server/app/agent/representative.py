@@ -11,7 +11,7 @@ from app.ports.sessions import SessionStorePort
 from app.portfolio.search import PortfolioSearch
 
 from .responder import Responder
-from .router import IntentRouter, SemanticRouter
+from .router import SemanticRouter, SupervisedRouteRouter
 from .scheduler import Scheduler
 
 if TYPE_CHECKING:
@@ -30,7 +30,7 @@ class BusinessRepresentative:
     def __init__(
         self,
         sessions: SessionStorePort,
-        router: SemanticRouter | IntentRouter,
+        router: SemanticRouter | SupervisedRouteRouter,
         portfolio: PortfolioSearch,
         scheduler: Scheduler,
         responder: Responder,
