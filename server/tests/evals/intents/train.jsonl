@@ -1,0 +1,72 @@
+{"id":"tr-pq-01-es","message":"¿Con qué tecnologías trabaja Diego?","intent":"portfolio_query","route":"portfolio","language":"es","family":"train-profile-tech-01"}
+{"id":"tr-pq-01-en","message":"Which technologies does Diego work with?","intent":"portfolio_query","route":"portfolio","language":"en","family":"train-profile-tech-01"}
+{"id":"tr-pq-02-es","message":"Contame la experiencia de Diego con integraciones empresariales","intent":"portfolio_query","route":"portfolio","language":"es","family":"train-profile-integration-02"}
+{"id":"tr-pq-02-en","message":"Tell me about Diego's enterprise integration experience","intent":"portfolio_query","route":"portfolio","language":"en","family":"train-profile-integration-02"}
+{"id":"tr-pq-03-es","message":"¿Qué proyectos de inteligencia artificial desarrolló Diego?","intent":"portfolio_query","route":"portfolio","language":"es","family":"train-profile-ai-03"}
+{"id":"tr-pq-03-en","message":"What AI projects has Diego built?","intent":"portfolio_query","route":"portfolio","language":"en","family":"train-profile-ai-03"}
+{"id":"tr-pq-04-es","message":"¿Cómo diseña Diego sistemas con LLMs?","intent":"portfolio_query","route":"portfolio","language":"es","family":"train-profile-llm-04"}
+{"id":"tr-pq-04-en","message":"How does Diego design LLM systems?","intent":"portfolio_query","route":"portfolio","language":"en","family":"train-profile-llm-04"}
+{"id":"tr-pq-05-es","message":"¿Diego tiene experiencia con AWS y arquitectura cloud?","intent":"portfolio_query","route":"portfolio","language":"es","family":"train-profile-cloud-05"}
+{"id":"tr-pq-05-en","message":"Does Diego have AWS and cloud architecture experience?","intent":"portfolio_query","route":"portfolio","language":"en","family":"train-profile-cloud-05"}
+{"id":"tr-pq-06-es","message":"Explicame uno de los proyectos de backend de Diego","intent":"portfolio_query","route":"portfolio","language":"es","family":"train-profile-project-06"}
+{"id":"tr-pq-06-en","message":"Explain one of Diego's backend projects","intent":"portfolio_query","route":"portfolio","language":"en","family":"train-profile-project-06"}
+{"id":"tr-cap-01-es","message":"¿Qué cosas puede hacer este asistente por mí?","intent":"capability_query","route":"portfolio","language":"es","family":"train-cap-general-01","critical":true}
+{"id":"tr-cap-01-en","message":"What kinds of things can this assistant do for me?","intent":"capability_query","route":"portfolio","language":"en","family":"train-cap-general-01","critical":true}
+{"id":"tr-cap-02-es","message":"¿Tenés herramientas disponibles?","intent":"capability_query","route":"portfolio","language":"es","family":"train-cap-tools-02","critical":true}
+{"id":"tr-cap-02-en","message":"Do you have tools available?","intent":"capability_query","route":"portfolio","language":"en","family":"train-cap-tools-02","critical":true}
+{"id":"tr-cap-03-es","message":"¿Sos capaz de organizar una reunión?","intent":"capability_query","route":"portfolio","language":"es","family":"train-cap-meeting-03","critical":true}
+{"id":"tr-cap-03-en","message":"Are you able to arrange meetings?","intent":"capability_query","route":"portfolio","language":"en","family":"train-cap-meeting-03","critical":true}
+{"id":"tr-cap-04-es","message":"¿Tenés acceso para revisar horarios disponibles?","intent":"capability_query","route":"portfolio","language":"es","family":"train-cap-availability-04","critical":true}
+{"id":"tr-cap-04-en","message":"Are you able to look up available times?","intent":"capability_query","route":"portfolio","language":"en","family":"train-cap-availability-04","critical":true}
+{"id":"tr-cap-05-es","message":"¿Podrías ayudarme a coordinar llamadas si lo necesito?","intent":"capability_query","route":"portfolio","language":"es","family":"train-cap-call-05","critical":true}
+{"id":"tr-cap-05-en","message":"Could you help coordinate calls if I needed that?","intent":"capability_query","route":"portfolio","language":"en","family":"train-cap-call-05","critical":true}
+{"id":"tr-cap-06-es","message":"¿Qué funciones de negocio soportás?","intent":"capability_query","route":"portfolio","language":"es","family":"train-cap-business-06"}
+{"id":"tr-cap-06-en","message":"Which business capabilities do you support?","intent":"capability_query","route":"portfolio","language":"en","family":"train-cap-business-06"}
+{"id":"tr-req-01-es","message":"Reservame una reunión con Diego","intent":"schedule_request","route":"scheduling","language":"es","family":"train-request-book-01","critical":true}
+{"id":"tr-req-01-en","message":"Book a meeting with Diego for me","intent":"schedule_request","route":"scheduling","language":"en","family":"train-request-book-01","critical":true}
+{"id":"tr-req-02-es","message":"Quiero coordinar una llamada con Diego","intent":"schedule_request","route":"scheduling","language":"es","family":"train-request-call-02"}
+{"id":"tr-req-02-en","message":"I want to arrange a call with Diego","intent":"schedule_request","route":"scheduling","language":"en","family":"train-request-call-02"}
+{"id":"tr-req-03-es","message":"Necesito reunirme con Diego la semana que viene","intent":"schedule_request","route":"scheduling","language":"es","family":"train-request-meet-03"}
+{"id":"tr-req-03-en","message":"I need to meet Diego next week","intent":"schedule_request","route":"scheduling","language":"en","family":"train-request-meet-03"}
+{"id":"tr-req-04-es","message":"Mové mi reunión con Diego a otro día","intent":"schedule_request","route":"scheduling","language":"es","family":"train-request-reschedule-04"}
+{"id":"tr-req-04-en","message":"Move my meeting with Diego to another day","intent":"schedule_request","route":"scheduling","language":"en","family":"train-request-reschedule-04"}
+{"id":"tr-req-05-es","message":"Cancelá la reunión que tengo con Diego","intent":"schedule_request","route":"scheduling","language":"es","family":"train-request-cancel-05"}
+{"id":"tr-req-05-en","message":"Cancel the meeting I have with Diego","intent":"schedule_request","route":"scheduling","language":"en","family":"train-request-cancel-05"}
+{"id":"tr-req-06-es","message":"Quisiera hablar con Diego en una reunión","intent":"schedule_request","route":"scheduling","language":"es","family":"train-request-contact-06"}
+{"id":"tr-req-06-en","message":"I'd like to speak with Diego in a meeting","intent":"schedule_request","route":"scheduling","language":"en","family":"train-request-contact-06"}
+{"id":"tr-av-01-es","message":"Buscá horarios libres de Diego para el jueves","intent":"schedule_availability","route":"scheduling","language":"es","family":"train-availability-day-01","critical":true}
+{"id":"tr-av-01-en","message":"Find Diego's free times for Thursday","intent":"schedule_availability","route":"scheduling","language":"en","family":"train-availability-day-01","critical":true}
+{"id":"tr-av-02-es","message":"Mostrame qué turnos hay disponibles esta semana","intent":"schedule_availability","route":"scheduling","language":"es","family":"train-availability-slots-02"}
+{"id":"tr-av-02-en","message":"Show me the available meeting slots this week","intent":"schedule_availability","route":"scheduling","language":"en","family":"train-availability-slots-02"}
+{"id":"tr-av-03-es","message":"Revisá el calendario de Diego para mañana","intent":"schedule_availability","route":"scheduling","language":"es","family":"train-availability-calendar-03"}
+{"id":"tr-av-03-en","message":"Check Diego's calendar for tomorrow","intent":"schedule_availability","route":"scheduling","language":"en","family":"train-availability-calendar-03"}
+{"id":"tr-av-04-es","message":"Necesito saber cuándo está libre Diego","intent":"schedule_availability","route":"scheduling","language":"es","family":"train-availability-when-04"}
+{"id":"tr-av-04-en","message":"I need to know when Diego is free","intent":"schedule_availability","route":"scheduling","language":"en","family":"train-availability-when-04"}
+{"id":"tr-av-05-es","message":"Consultá si Diego tiene un hueco el viernes","intent":"schedule_availability","route":"scheduling","language":"es","family":"train-availability-gap-05"}
+{"id":"tr-av-05-en","message":"Check whether Diego has an opening on Friday","intent":"schedule_availability","route":"scheduling","language":"en","family":"train-availability-gap-05"}
+{"id":"tr-av-06-es","message":"Decime qué horarios se pueden reservar con Diego","intent":"schedule_availability","route":"scheduling","language":"es","family":"train-availability-options-06"}
+{"id":"tr-av-06-en","message":"Tell me which times can be booked with Diego","intent":"schedule_availability","route":"scheduling","language":"en","family":"train-availability-options-06"}
+{"id":"tr-cont-01-es","message":"Sí, ese horario me sirve","intent":"schedule_continue","route":"scheduling","language":"es","family":"train-continue-confirm-01","active_workflow":"scheduling"}
+{"id":"tr-cont-01-en","message":"Yes, that time works for me","intent":"schedule_continue","route":"scheduling","language":"en","family":"train-continue-confirm-01","active_workflow":"scheduling"}
+{"id":"tr-cont-02-es","message":"Confirmo esa opción","intent":"schedule_continue","route":"scheduling","language":"es","family":"train-continue-confirm-02","active_workflow":"scheduling"}
+{"id":"tr-cont-02-en","message":"I confirm that option","intent":"schedule_continue","route":"scheduling","language":"en","family":"train-continue-confirm-02","active_workflow":"scheduling"}
+{"id":"tr-cont-03-es","message":"No, cancelalo","intent":"schedule_continue","route":"scheduling","language":"es","family":"train-continue-cancel-03","active_workflow":"scheduling"}
+{"id":"tr-cont-03-en","message":"No, cancel it","intent":"schedule_continue","route":"scheduling","language":"en","family":"train-continue-cancel-03","active_workflow":"scheduling"}
+{"id":"tr-cont-04-es","message":"Prefiero cambiar esa opción","intent":"schedule_continue","route":"scheduling","language":"es","family":"train-continue-change-04","active_workflow":"scheduling"}
+{"id":"tr-cont-04-en","message":"I'd rather change that option","intent":"schedule_continue","route":"scheduling","language":"en","family":"train-continue-change-04","active_workflow":"scheduling"}
+{"id":"tr-cont-05-es","message":"Dejemos ese turno","intent":"schedule_continue","route":"scheduling","language":"es","family":"train-continue-keep-05","active_workflow":"scheduling"}
+{"id":"tr-cont-05-en","message":"Let's keep that appointment","intent":"schedule_continue","route":"scheduling","language":"en","family":"train-continue-keep-05","active_workflow":"scheduling"}
+{"id":"tr-cont-06-es","message":"No quiero seguir con la reserva","intent":"schedule_continue","route":"scheduling","language":"es","family":"train-continue-stop-06","active_workflow":"scheduling"}
+{"id":"tr-cont-06-en","message":"I don't want to continue with the booking","intent":"schedule_continue","route":"scheduling","language":"en","family":"train-continue-stop-06","active_workflow":"scheduling"}
+{"id":"tr-chat-01-es","message":"Hola, ¿cómo va?","intent":"conversation","route":"conversation","language":"es","family":"train-chat-greeting-01"}
+{"id":"tr-chat-01-en","message":"Hi, how's it going?","intent":"conversation","route":"conversation","language":"en","family":"train-chat-greeting-01"}
+{"id":"tr-chat-02-es","message":"Muchas gracias por la ayuda","intent":"conversation","route":"conversation","language":"es","family":"train-chat-thanks-02"}
+{"id":"tr-chat-02-en","message":"Thanks a lot for the help","intent":"conversation","route":"conversation","language":"en","family":"train-chat-thanks-02"}
+{"id":"tr-chat-03-es","message":"¿Qué hora es ahora?","intent":"conversation","route":"conversation","language":"es","family":"train-chat-time-03"}
+{"id":"tr-chat-03-en","message":"What time is it right now?","intent":"conversation","route":"conversation","language":"en","family":"train-chat-time-03"}
+{"id":"tr-chat-04-es","message":"¿Va a llover hoy?","intent":"conversation","route":"conversation","language":"es","family":"train-chat-weather-04"}
+{"id":"tr-chat-04-en","message":"Is it going to rain today?","intent":"conversation","route":"conversation","language":"en","family":"train-chat-weather-04"}
+{"id":"tr-chat-05-es","message":"¿Qué es una API REST?","intent":"conversation","route":"conversation","language":"es","family":"train-chat-general-tech-05"}
+{"id":"tr-chat-05-en","message":"What is a REST API?","intent":"conversation","route":"conversation","language":"en","family":"train-chat-general-tech-05"}
+{"id":"tr-chat-06-es","message":"Contame un chiste corto","intent":"conversation","route":"conversation","language":"es","family":"train-chat-joke-06"}
+{"id":"tr-chat-06-en","message":"Tell me a short joke","intent":"conversation","route":"conversation","language":"en","family":"train-chat-joke-06"}
