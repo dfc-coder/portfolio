@@ -18,6 +18,26 @@ class RoutePrediction:
 
 
 @dataclass(frozen=True)
+class RouteThreshold:
+    min_confidence: float
+    min_margin: float
+
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.min_confidence <= 1.0:
+            raise ValueError("min_confidence must be between 0 and 1")
+        if not 0.0 <= self.min_margin <= 1.0:
+            raise ValueError("min_margin must be between 0 and 1")
+
+
+_REQUIRED_THRESHOLD_KEYS = {
+    Route.CONVERSATION.value,
+    Route.PORTFOLIO.value,
+    Route.SCHEDULING.value,
+    "scheduling_active",
+}
+
+
+@dataclass(frozen=True)
 class RouteModel:
     version: int
     embedding_model: str
@@ -25,14 +45,13 @@ class RouteModel:
     routes: tuple[Route, ...]
     coefficients: tuple[tuple[float, ...], ...]
     intercepts: tuple[float, ...]
-    min_confidence: float
-    min_margin: float
+    thresholds: dict[str, RouteThreshold]
     training_dataset_hash: str
     seed: int
 
     def __post_init__(self) -> None:
-        if self.version < 2:
-            raise ValueError("route model version must be >= 2")
+        if self.version < 3:
+            raise ValueError("route model version must be >= 3")
         if self.embedding_dimension < 1:
             raise ValueError("embedding dimension must be >= 1")
         if len(self.routes) < 2:
@@ -45,14 +64,28 @@ class RouteModel:
             raise ValueError("intercept count must match route count")
         if any(len(row) != self.embedding_dimension for row in self.coefficients):
             raise ValueError("coefficient dimension does not match embedding dimension")
-        if not 0.0 <= self.min_confidence <= 1.0:
-            raise ValueError("min_confidence must be between 0 and 1")
-        if not 0.0 <= self.min_margin <= 1.0:
-            raise ValueError("min_margin must be between 0 and 1")
+        if set(self.thresholds) != _REQUIRED_THRESHOLD_KEYS:
+            raise ValueError(
+                "route thresholds must define conversation, portfolio, scheduling, "
+                "and scheduling_active"
+            )
         if not self.embedding_model.strip():
             raise ValueError("embedding_model is required")
         if not self.training_dataset_hash.strip():
             raise ValueError("training_dataset_hash is required")
+
+    def threshold_for(
+        self,
+        route: Route,
+        *,
+        active_scheduling: bool,
+    ) -> RouteThreshold:
+        key = (
+            "scheduling_active"
+            if route == Route.SCHEDULING and active_scheduling
+            else route.value
+        )
+        return self.thresholds[key]
 
 
 class BusinessRouteClassifier:
@@ -107,16 +140,32 @@ class BusinessRouteClassifier:
             },
         )
 
-    def accepts(self, prediction: RoutePrediction) -> bool:
+    def accepts(
+        self,
+        prediction: RoutePrediction,
+        *,
+        active_scheduling: bool,
+    ) -> bool:
+        threshold = self.model.threshold_for(
+            prediction.route,
+            active_scheduling=active_scheduling,
+        )
         return (
-            prediction.confidence >= self.model.min_confidence
-            and prediction.margin >= self.model.min_margin
+            prediction.confidence >= threshold.min_confidence
+            and prediction.margin >= threshold.min_margin
         )
 
 
 def load_route_model(path: Path) -> RouteModel:
     payload = json.loads(path.read_text(encoding="utf-8"))
     try:
+        thresholds = {
+            str(key): RouteThreshold(
+                min_confidence=float(value["min_confidence"]),
+                min_margin=float(value["min_margin"]),
+            )
+            for key, value in payload["thresholds"].items()
+        }
         return RouteModel(
             version=int(payload["version"]),
             embedding_model=str(payload["embedding_model"]),
@@ -127,8 +176,7 @@ def load_route_model(path: Path) -> RouteModel:
                 for row in payload["coefficients"]
             ),
             intercepts=tuple(float(value) for value in payload["intercepts"]),
-            min_confidence=float(payload["min_confidence"]),
-            min_margin=float(payload["min_margin"]),
+            thresholds=thresholds,
             training_dataset_hash=str(payload["training_dataset_hash"]),
             seed=int(payload["seed"]),
         )
@@ -145,8 +193,13 @@ def save_route_model(model: RouteModel, path: Path) -> None:
         "routes": [route.value for route in model.routes],
         "coefficients": [list(row) for row in model.coefficients],
         "intercepts": list(model.intercepts),
-        "min_confidence": model.min_confidence,
-        "min_margin": model.min_margin,
+        "thresholds": {
+            key: {
+                "min_confidence": threshold.min_confidence,
+                "min_margin": threshold.min_margin,
+            }
+            for key, threshold in model.thresholds.items()
+        },
         "training_dataset_hash": model.training_dataset_hash,
         "seed": model.seed,
     }
