@@ -38,7 +38,7 @@ async def main() -> int:
                 {
                     "id": case.case_id,
                     "message": case.message,
-                    "intent": case.intent.value,
+                    "intent": case.intent.value if case.intent is not None else None,
                     "route": case.route,
                     "language": case.language,
                     "family": case.family,
