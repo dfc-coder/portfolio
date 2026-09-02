@@ -95,8 +95,13 @@ async def evaluate(
         "embedding_model": model.embedding_model,
         "embedding_dimension": model.embedding_dimension,
         "routes": [route.value for route in model.routes],
-        "min_confidence": model.min_confidence,
-        "min_margin": model.min_margin,
+        "thresholds": {
+            key: {
+                "min_confidence": threshold.min_confidence,
+                "min_margin": threshold.min_margin,
+            }
+            for key, threshold in model.thresholds.items()
+        },
         "training_dataset_hash": model.training_dataset_hash,
         "seed": model.seed,
     }
