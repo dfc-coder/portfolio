@@ -12,6 +12,13 @@ DOD_MIN_ROUTE_MACRO_F1 = 0.95
 DOD_MAX_ROUTE_SELECTIVE_RISK = 0.02
 DOD_MAX_ROUTING_P95_MS = 100.0
 
+_THRESHOLD_KEYS = (
+    Route.CONVERSATION.value,
+    Route.PORTFOLIO.value,
+    Route.SCHEDULING.value,
+    "scheduling_active",
+)
+
 
 def percentile(values: list[float], fraction: float) -> float:
     if not values:
@@ -161,12 +168,39 @@ def meets_dod(metrics: dict[str, Any]) -> bool:
     )
 
 
+def threshold_key(record: dict[str, Any]) -> str:
+    predicted_route = str(record["predicted_route"])
+    if (
+        predicted_route == Route.SCHEDULING.value
+        and record.get("active_workflow") == "scheduling"
+    ):
+        return "scheduling_active"
+    return predicted_route
+
+
 def calibrate_thresholds(
     records: list[dict[str, Any]],
     *,
     max_selective_risk: float = DOD_MAX_ROUTE_SELECTIVE_RISK,
+) -> dict[str, tuple[float, float]]:
+    """Calibrate each predicted route on validation, with scheduling state separated."""
+    calibrated: dict[str, tuple[float, float]] = {}
+    for key in _THRESHOLD_KEYS:
+        group = [record for record in records if threshold_key(record) == key]
+        if not group:
+            raise ValueError(f"validation data has no predictions for threshold group: {key}")
+        calibrated[key] = _calibrate_group(
+            group,
+            max_selective_risk=max_selective_risk,
+        )
+    return calibrated
+
+
+def _calibrate_group(
+    records: list[dict[str, Any]],
+    *,
+    max_selective_risk: float,
 ) -> tuple[float, float]:
-    """Maximize validation coverage under business-route safety constraints."""
     confidence_candidates = sorted(
         {0.0, *(float(record["confidence"]) for record in records)}
     )
@@ -201,7 +235,7 @@ def calibrate_thresholds(
             selective_risk = len(errors) / len(accepted)
             if selective_risk > max_selective_risk or critical_false_scheduling:
                 continue
-            coverage = len(accepted) / len(records) if records else 1.0
+            coverage = len(accepted) / len(records)
             candidate = (
                 coverage,
                 -selective_risk,
@@ -213,5 +247,5 @@ def calibrate_thresholds(
                 chosen = (min_confidence, min_margin)
 
     if best is None or chosen is None:
-        raise ValueError("validation data cannot satisfy route-risk safety constraints")
+        raise ValueError("validation group cannot satisfy route-risk safety constraints")
     return chosen
