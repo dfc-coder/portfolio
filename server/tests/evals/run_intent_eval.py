@@ -66,7 +66,9 @@ async def evaluate(
                     "family": case.family,
                     "critical": case.critical,
                     "active_workflow": case.active_workflow,
-                    "expected_intent": case.intent.value,
+                    "expected_intent": (
+                        case.intent.value if case.intent is not None else None
+                    ),
                     "predicted_intent": (
                         decision.intent.value if decision.intent is not None else None
                     ),
