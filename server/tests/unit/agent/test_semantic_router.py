@@ -4,9 +4,10 @@ import math
 
 import pytest
 
-from app.agent.router import SemanticRouter
+from app.agent.router import IntentRouter, SemanticRouter, route_for_intent
 from app.domain.conversation import ActiveWorkflow, ChatTurn, SessionState
-from app.domain.routing import Route
+from app.domain.routing import Intent, Route
+from app.infrastructure.intent_classifier import IntentClassifier, IntentModel
 from app.ports.embeddings import EmbeddingTask
 
 
@@ -19,7 +20,14 @@ class FixedEmbeddings:
 
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         self.documents = texts
-        return [self._vector(score) for score in self.scores[: len(texts)]]
+        return [
+            self._vector(
+                self.scores[index]
+                if index < len(self.scores)
+                else self.scores[-1]
+            )
+            for index in range(len(texts))
+        ]
 
     async def embed_query(self, text: str, task: EmbeddingTask) -> list[float]:
         self.query = text
@@ -33,6 +41,49 @@ class FixedEmbeddings:
     def _vector(score: float) -> list[float]:
         bounded = max(-1.0, min(1.0, score))
         return [bounded, math.sqrt(max(0.0, 1.0 - bounded * bounded))]
+
+
+def classifier(
+    *,
+    min_confidence: float = 0.0,
+    min_margin: float = 0.0,
+) -> IntentClassifier:
+    model = IntentModel(
+        version=1,
+        embedding_model="test",
+        embedding_dimension=2,
+        intents=(
+            Intent.CAPABILITY_QUERY,
+            Intent.SCHEDULE_REQUEST,
+            Intent.CONVERSATION,
+        ),
+        coefficients=(
+            (3.0, 0.0),
+            (0.0, 2.0),
+            (-1.0, 0.0),
+        ),
+        intercepts=(0.0, 0.0, 0.0),
+        min_confidence=min_confidence,
+        min_margin=min_margin,
+        training_dataset_hash="test",
+        seed=42,
+    )
+    return IntentClassifier(model)
+
+
+@pytest.mark.parametrize(
+    ("intent", "route"),
+    [
+        (Intent.PORTFOLIO_QUERY, Route.PORTFOLIO),
+        (Intent.CAPABILITY_QUERY, Route.PORTFOLIO),
+        (Intent.SCHEDULE_REQUEST, Route.SCHEDULING),
+        (Intent.SCHEDULE_AVAILABILITY, Route.SCHEDULING),
+        (Intent.SCHEDULE_CONTINUE, Route.SCHEDULING),
+        (Intent.CONVERSATION, Route.CONVERSATION),
+    ],
+)
+def test_intent_maps_to_business_route(intent: Intent, route: Route) -> None:
+    assert route_for_intent(intent) == route
 
 
 @pytest.mark.asyncio
@@ -81,28 +132,19 @@ async def test_new_turn_routing_uses_latest_visitor_text_only() -> None:
 
 
 @pytest.mark.asyncio
-async def test_active_scheduling_routes_latest_turn_without_workflow_text_in_query() -> None:
+async def test_active_scheduling_explicit_email_bypasses_embeddings() -> None:
     embeddings = FixedEmbeddings([0.05, 0.90, 0.02])
     router = SemanticRouter(embeddings)
     state = SessionState("s-workflow")
     state.active_workflow = ActiveWorkflow.SCHEDULING
-    state.scheduling.visitor_name = "Ana"
-    state.turns = [
-        ChatTurn(
-            role="assistant",
-            content="Tell me which meeting slot you prefer.",
-        )
-    ]
 
     decision = await router.route(state, "Mi email es ana@example.com")
 
     assert decision.domain == Route.SCHEDULING
-    assert embeddings.query == "Mi email es ana@example.com"
-    assert embeddings.query_task == EmbeddingTask.ROUTING
-    assert "ACTIVE_WORKFLOW" not in embeddings.query
-    assert "SCHEDULING_FACTS" not in embeddings.query
-    assert "visitor_name" not in embeddings.query
-    assert "Tell me which meeting slot" not in embeddings.query
+    assert decision.intent == Intent.SCHEDULE_CONTINUE
+    assert decision.source == "deterministic_scheduling"
+    assert embeddings.query == ""
+    assert embeddings.query_task is None
 
 
 @pytest.mark.asyncio
@@ -131,6 +173,51 @@ async def test_route_document_embeddings_are_cached() -> None:
     first_documents = list(embeddings.documents)
     await router.route(state, "¿Qué proyectos tiene?")
 
-    assert len(first_documents) == 3
-    assert len(embeddings.documents) == 3
+    assert len(first_documents) >= 3
+    assert embeddings.documents == first_documents
     assert embeddings.query_task == EmbeddingTask.ROUTING
+
+
+@pytest.mark.asyncio
+async def test_intent_router_routes_confident_prediction() -> None:
+    embeddings = FixedEmbeddings([0.1])
+    router = IntentRouter(embeddings, classifier())
+
+    decision = await router.route(SessionState("intent-1"), "¿Qué capacidades tenés?")
+
+    assert decision.accepted is True
+    assert decision.intent == Intent.CAPABILITY_QUERY
+    assert decision.domain == Route.PORTFOLIO
+    assert decision.source == "intent_classifier"
+    assert embeddings.query_task == EmbeddingTask.ROUTING
+
+
+@pytest.mark.asyncio
+async def test_intent_router_abstains_when_thresholds_are_not_met() -> None:
+    embeddings = FixedEmbeddings([0.1])
+    router = IntentRouter(
+        embeddings,
+        classifier(min_confidence=0.99, min_margin=0.99),
+    )
+
+    decision = await router.route(SessionState("intent-2"), "mensaje ambiguo")
+
+    assert decision.accepted is False
+    assert decision.intent is None
+    assert decision.domain is None
+    assert decision.source == "abstain"
+
+
+@pytest.mark.asyncio
+async def test_intent_router_uses_structured_scheduling_before_classifier() -> None:
+    embeddings = FixedEmbeddings([0.1])
+    router = IntentRouter(embeddings, classifier())
+    state = SessionState("intent-3")
+    state.active_workflow = ActiveWorkflow.SCHEDULING
+
+    decision = await router.route(state, "El segundo")
+
+    assert decision.domain == Route.SCHEDULING
+    assert decision.intent == Intent.SCHEDULE_CONTINUE
+    assert decision.source == "deterministic_scheduling"
+    assert embeddings.query == ""
