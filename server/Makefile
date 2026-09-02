@@ -17,7 +17,8 @@ COMPOSE = $(CONTAINER_ENGINE) compose -f $(COMPOSE_FILE) --env-file $(ENV_FILE)
 	logs logs-api logs-llama logs-embedding shell-api \
 	health ready wait-ready \
 	compile test test-unit test-e2e check \
-	eval-routing eval-scheduling eval-live eval-smoke clean model models
+	eval-routing eval-scheduling eval-live eval-smoke \
+	eval-intents-challenge eval-intents-blind clean model models
 
 help: ## Show available targets
 	@printf "\nPortfolio Business Representative\n\n"
@@ -159,6 +160,12 @@ test-e2e: ## Run end-to-end agent tests
 	@cd "$(ROOT)" && PYTHONPATH=. $(UV) run pytest -q tests/e2e
 
 check: compile test ## Run compile + complete test suite
+
+eval-intents-challenge: engine-check env-check ## Train on train/validation and run the 70-case development challenge set
+	@cd "$(ROOT)" && bash tests/evals/run_intent_pipeline.sh
+
+eval-intents-blind: engine-check env-check ## Run the frozen blind intent DoD gate; do not use this in the normal tuning loop
+	@cd "$(ROOT)" && bash tests/evals/run_intent_pipeline.sh --blind
 
 eval-routing: up ## Run the complete live embedding routing/conversation evaluation
 	@echo "Full routing/conversation eval: all cases run; CRITICAL_REPETITIONS only changes repeated critical cases."
