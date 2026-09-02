@@ -36,6 +36,20 @@ def test_train_contains_balanced_spanish_and_english_examples_per_intent() -> No
         assert counts[(intent, "en")] >= 6
 
 
+def test_training_set_contains_no_oos_label() -> None:
+    cases = load_intent_cases(ROOT / "train.jsonl")
+
+    assert all(not case.out_of_scope for case in cases)
+
+
+def test_validation_and_blind_contain_oos_for_abstention() -> None:
+    validation = load_intent_cases(ROOT / "validation.jsonl")
+    blind = load_intent_cases(ROOT / "blind_test.jsonl")
+
+    assert sum(case.out_of_scope for case in validation) >= 4
+    assert sum(case.out_of_scope for case in blind) >= 4
+
+
 def test_blind_cases_are_not_exact_training_messages() -> None:
     train_messages = {
         case.message.casefold()
