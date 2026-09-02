@@ -5,9 +5,9 @@ from tests.evals.intent_metrics import calibrate_thresholds, meets_dod, summariz
 
 def record(
     *,
-    expected: str,
+    expected: str | None,
     predicted: str | None,
-    expected_route: str,
+    expected_route: str | None,
     predicted_route: str | None,
     accepted: bool = True,
     critical: bool = False,
@@ -29,7 +29,7 @@ def record(
     }
 
 
-def test_summary_counts_abstention_as_coverage_loss_and_error() -> None:
+def test_summary_counts_abstention_as_coverage_loss_and_known_intent_error() -> None:
     records = [
         record(
             expected="portfolio_query",
@@ -51,6 +51,44 @@ def test_summary_counts_abstention_as_coverage_loss_and_error() -> None:
     assert metrics["accuracy"] == 0.5
     assert metrics["coverage"] == 0.5
     assert metrics["selective_risk"] == 0.0
+
+
+def test_summary_counts_rejected_oos_as_correct_oos_detection() -> None:
+    records = [
+        record(
+            expected=None,
+            predicted=None,
+            expected_route=None,
+            predicted_route=None,
+            accepted=False,
+        )
+    ]
+
+    metrics = summarize(records)
+
+    assert metrics["known_intent_runs"] == 0
+    assert metrics["oos_runs"] == 1
+    assert metrics["oos_recall"] == 1.0
+    assert metrics["selective_risk"] == 0.0
+
+
+def test_summary_counts_accepted_oos_as_selective_error() -> None:
+    records = [
+        record(
+            expected=None,
+            predicted="schedule_request",
+            expected_route=None,
+            predicted_route="scheduling",
+            accepted=True,
+            critical=True,
+        )
+    ]
+
+    metrics = summarize(records)
+
+    assert metrics["oos_recall"] == 0.0
+    assert metrics["selective_risk"] == 1.0
+    assert metrics["critical_false_scheduling"] == 1
 
 
 def test_summary_detects_critical_false_scheduling() -> None:
@@ -89,9 +127,9 @@ def test_calibration_prefers_maximum_safe_coverage() -> None:
             margin=0.40,
         ),
         record(
-            expected="capability_query",
+            expected=None,
             predicted="schedule_request",
-            expected_route="portfolio",
+            expected_route=None,
             predicted_route="scheduling",
             critical=True,
             confidence=0.60,
