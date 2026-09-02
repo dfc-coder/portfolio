@@ -4,12 +4,12 @@ import statistics
 from collections import Counter
 from typing import Any
 
-from app.domain.routing import Intent
+from app.domain.routing import Route
 
 
-DOD_MIN_ACCURACY = 0.95
-DOD_MIN_MACRO_F1 = 0.95
-DOD_MAX_SELECTIVE_RISK = 0.02
+DOD_MIN_ROUTE_ACCURACY = 0.95
+DOD_MIN_ROUTE_MACRO_F1 = 0.95
+DOD_MAX_ROUTE_SELECTIVE_RISK = 0.02
 DOD_MAX_ROUTING_P95_MS = 100.0
 
 
@@ -21,23 +21,23 @@ def percentile(values: list[float], fraction: float) -> float:
     return ordered[index]
 
 
-def macro_f1(records: list[dict[str, Any]]) -> float:
+def route_macro_f1(records: list[dict[str, Any]]) -> float:
     scores: list[float] = []
-    for intent in Intent:
-        label = intent.value
+    for route in Route:
+        label = route.value
         true_positive = sum(
-            record["expected_intent"] == label
-            and record["predicted_intent"] == label
+            record["expected_route"] == label
+            and record["predicted_route"] == label
             for record in records
         )
         false_positive = sum(
-            record["expected_intent"] != label
-            and record["predicted_intent"] == label
+            record["expected_route"] != label
+            and record["predicted_route"] == label
             for record in records
         )
         false_negative = sum(
-            record["expected_intent"] == label
-            and record["predicted_intent"] != label
+            record["expected_route"] == label
+            and record["predicted_route"] != label
             for record in records
         )
         precision_denominator = true_positive + false_positive
@@ -58,19 +58,19 @@ def macro_f1(records: list[dict[str, Any]]) -> float:
 
 def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
     total = len(records)
-    known = [record for record in records if record["expected_intent"] is not None]
-    out_of_scope = [record for record in records if record["expected_intent"] is None]
+    known = [record for record in records if record["expected_route"] is not None]
+    out_of_scope = [record for record in records if record["expected_route"] is None]
     accepted = [record for record in records if record["accepted"]]
     correct_known = [
         record
         for record in known
-        if record["predicted_intent"] == record["expected_intent"]
+        if record["predicted_route"] == record["expected_route"]
     ]
-    accepted_errors = [
+    accepted_route_errors = [
         record
         for record in accepted
-        if record["expected_intent"] is None
-        or record["predicted_intent"] != record["expected_intent"]
+        if record["expected_route"] is None
+        or record["predicted_route"] != record["expected_route"]
     ]
     correctly_rejected_oos = [
         record
@@ -80,12 +80,12 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
     non_scheduling = [
         record
         for record in records
-        if record["expected_route"] != "scheduling"
+        if record["expected_route"] != Route.SCHEDULING.value
     ]
     false_scheduling = [
         record
         for record in non_scheduling
-        if record["predicted_route"] == "scheduling"
+        if record["predicted_route"] == Route.SCHEDULING.value
     ]
     critical_false_scheduling = [
         record
@@ -93,27 +93,27 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
         if record["critical"]
     ]
     latencies = [float(record["latency_ms"]) for record in records]
-    confusion = Counter(
+    route_confusion = Counter(
         (
-            record["expected_intent"] or "oos",
-            record["predicted_intent"] or "abstain",
+            record["expected_route"] or "oos",
+            record["predicted_route"] or "abstain",
         )
         for record in records
     )
 
     return {
         "runs": total,
-        "known_intent_runs": len(known),
+        "known_route_runs": len(known),
         "oos_runs": len(out_of_scope),
-        "accuracy": (
+        "route_accuracy": (
             round(len(correct_known) / len(known), 4)
             if known
             else 1.0
         ),
-        "macro_f1": round(macro_f1(records), 4) if known else 1.0,
+        "route_macro_f1": round(route_macro_f1(records), 4) if known else 1.0,
         "coverage": round(len(accepted) / total, 4) if total else 1.0,
-        "selective_risk": (
-            round(len(accepted_errors) / len(accepted), 4)
+        "route_selective_risk": (
+            round(len(accepted_route_errors) / len(accepted), 4)
             if accepted
             else 0.0
         ),
@@ -133,19 +133,19 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
             "p50": round(statistics.median(latencies), 2) if latencies else 0.0,
             "p95": round(percentile(latencies, 0.95), 2),
         },
-        "confusion_matrix": {
+        "route_confusion_matrix": {
             f"{expected}->{predicted}": count
-            for (expected, predicted), count in sorted(confusion.items())
+            for (expected, predicted), count in sorted(route_confusion.items())
         },
         "failures": [
             record
             for record in records
             if (
-                record["expected_intent"] is None and record["accepted"]
+                record["expected_route"] is None and record["accepted"]
             )
             or (
-                record["expected_intent"] is not None
-                and record["predicted_intent"] != record["expected_intent"]
+                record["expected_route"] is not None
+                and record["predicted_route"] != record["expected_route"]
             )
         ],
     }
@@ -153,10 +153,10 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
 
 def meets_dod(metrics: dict[str, Any]) -> bool:
     return (
-        metrics["accuracy"] >= DOD_MIN_ACCURACY
-        and metrics["macro_f1"] >= DOD_MIN_MACRO_F1
+        metrics["route_accuracy"] >= DOD_MIN_ROUTE_ACCURACY
+        and metrics["route_macro_f1"] >= DOD_MIN_ROUTE_MACRO_F1
         and metrics["critical_false_scheduling"] == 0
-        and metrics["selective_risk"] <= DOD_MAX_SELECTIVE_RISK
+        and metrics["route_selective_risk"] <= DOD_MAX_ROUTE_SELECTIVE_RISK
         and metrics["latency_ms"]["p95"] <= DOD_MAX_ROUTING_P95_MS
     )
 
@@ -164,9 +164,9 @@ def meets_dod(metrics: dict[str, Any]) -> bool:
 def calibrate_thresholds(
     records: list[dict[str, Any]],
     *,
-    max_selective_risk: float = DOD_MAX_SELECTIVE_RISK,
+    max_selective_risk: float = DOD_MAX_ROUTE_SELECTIVE_RISK,
 ) -> tuple[float, float]:
-    """Choose maximum coverage on validation under the safety/risk constraints."""
+    """Maximize validation coverage under business-route safety constraints."""
     confidence_candidates = sorted(
         {0.0, *(float(record["confidence"]) for record in records)}
     )
@@ -189,13 +189,13 @@ def calibrate_thresholds(
             errors = [
                 record
                 for record in accepted
-                if record["expected_intent"] is None
-                or record["predicted_intent"] != record["expected_intent"]
+                if record["expected_route"] is None
+                or record["predicted_route"] != record["expected_route"]
             ]
             critical_false_scheduling = sum(
-                record["critical"]
-                and record["expected_route"] != "scheduling"
-                and record["predicted_route"] == "scheduling"
+                bool(record["critical"])
+                and record["expected_route"] != Route.SCHEDULING.value
+                and record["predicted_route"] == Route.SCHEDULING.value
                 for record in accepted
             )
             selective_risk = len(errors) / len(accepted)
@@ -213,5 +213,5 @@ def calibrate_thresholds(
                 chosen = (min_confidence, min_margin)
 
     if best is None or chosen is None:
-        raise ValueError("validation data cannot satisfy selective-risk safety constraints")
+        raise ValueError("validation data cannot satisfy route-risk safety constraints")
     return chosen
