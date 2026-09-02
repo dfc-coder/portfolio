@@ -6,6 +6,7 @@ dist/
 *.log
 .DS_Store
 server/models/
+server/artifacts/
 *.gguf
 __pycache__/
 .pytest_cache/
