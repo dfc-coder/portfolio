@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ENV_FILE="${ENV_FILE:-$ROOT/.env}"
 COMPOSE_FILE="${COMPOSE_FILE:-$ROOT/compose.yaml}"
-ARTIFACT="${ROUTE_ARTIFACT:-$ROOT/artifacts/business-route-v3.json}"
+ARTIFACT="${ROUTE_ARTIFACT:-$ROOT/artifacts/business-route-v4.json}"
 TMP_DIR="${ROUTE_TMP_DIR:-/tmp/portfolio-routes}"
 
 if command -v podman >/dev/null 2>&1; then
