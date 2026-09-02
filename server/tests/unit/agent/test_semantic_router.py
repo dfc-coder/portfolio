@@ -16,8 +16,9 @@ from app.ports.embeddings import EmbeddingTask
 
 
 class FixedEmbeddings:
-    def __init__(self, scores: list[float]) -> None:
+    def __init__(self, scores: list[float], query_vector: list[float] | None = None) -> None:
         self.scores = scores
+        self.query_vector = query_vector or [1.0, 0.0]
         self.documents: list[str] = []
         self.query = ""
         self.query_task: EmbeddingTask | None = None
@@ -36,7 +37,7 @@ class FixedEmbeddings:
     async def embed_query(self, text: str, task: EmbeddingTask) -> list[float]:
         self.query = text
         self.query_task = task
-        return [1.0, 0.0]
+        return self.query_vector
 
     async def health(self) -> bool:
         return True
@@ -54,7 +55,7 @@ def classifier(
 ) -> BusinessRouteClassifier:
     threshold = RouteThreshold(min_confidence, min_margin)
     model = RouteModel(
-        version=3,
+        version=4,
         embedding_model="test",
         embedding_dimension=2,
         routes=(
@@ -74,6 +75,9 @@ def classifier(
             "scheduling_active": threshold,
             "conversation": threshold,
         },
+        scheduling_boundary_coefficients=(0.0, 4.0),
+        scheduling_boundary_intercept=-2.0,
+        scheduling_boundary_threshold=RouteThreshold(0.60, 0.10),
         training_dataset_hash="test",
         seed=42,
     )
@@ -230,3 +234,16 @@ async def test_supervised_router_uses_structured_scheduling_before_classifier() 
     assert decision.intent == Intent.SCHEDULE_CONTINUE
     assert decision.source == "deterministic_scheduling"
     assert embeddings.query == ""
+
+
+@pytest.mark.asyncio
+async def test_supervised_router_can_override_new_scheduling_as_capability() -> None:
+    embeddings = FixedEmbeddings([0.1], query_vector=[0.0, 0.6])
+    router = SupervisedRouteRouter(embeddings, classifier())
+
+    decision = await router.route(SessionState("route-4"), "Can you schedule meetings?")
+
+    assert decision.accepted is True
+    assert decision.domain == Route.PORTFOLIO
+    assert decision.intent == Intent.CAPABILITY_QUERY
+    assert decision.source == "capability_boundary"
