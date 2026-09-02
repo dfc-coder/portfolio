@@ -275,7 +275,7 @@ class SemanticRouter:
 
 
 class SupervisedRouteRouter:
-    """Supervised business-route classifier evaluated before runtime promotion."""
+    """Supervised route head plus a narrow learned scheduling-capability boundary."""
 
     def __init__(
         self,
@@ -308,6 +308,30 @@ class SupervisedRouteRouter:
             EmbeddingTask.ROUTING,
         )
         prediction = self._classifier.predict(embedding)
+
+        if (
+            state.active_workflow != ActiveWorkflow.SCHEDULING
+            and prediction.route == Route.SCHEDULING
+        ):
+            boundary = self._classifier.predict_scheduling_boundary(embedding)
+            if self._classifier.accepts_capability_override(boundary):
+                return RoutingDecision(
+                    domain=Route.PORTFOLIO,
+                    intent=Intent.CAPABILITY_QUERY,
+                    accepted=True,
+                    route_key="scheduling_capability",
+                    confidence=boundary.confidence,
+                    margin=boundary.margin,
+                    source="capability_boundary",
+                    scores={
+                        **prediction.scores,
+                        **{
+                            f"boundary_{key}": value
+                            for key, value in boundary.scores.items()
+                        },
+                    },
+                )
+
         return self._decision(state, prediction)
 
     def _decision(
