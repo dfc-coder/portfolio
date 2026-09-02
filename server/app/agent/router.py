@@ -308,10 +308,19 @@ class SupervisedRouteRouter:
             EmbeddingTask.ROUTING,
         )
         prediction = self._classifier.predict(embedding)
-        return self._decision(prediction)
+        return self._decision(state, prediction)
 
-    def _decision(self, prediction: RoutePrediction) -> RoutingDecision:
-        accepted = self._classifier.accepts(prediction)
+    def _decision(
+        self,
+        state: SessionState,
+        prediction: RoutePrediction,
+    ) -> RoutingDecision:
+        accepted = self._classifier.accepts(
+            prediction,
+            active_scheduling=(
+                state.active_workflow == ActiveWorkflow.SCHEDULING
+            ),
+        )
         return RoutingDecision(
             domain=prediction.route if accepted else None,
             intent=None,
