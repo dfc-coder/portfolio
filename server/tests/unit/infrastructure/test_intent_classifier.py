@@ -8,13 +8,14 @@ from app.domain.routing import Route
 from app.infrastructure.business_route_classifier import (
     BusinessRouteClassifier,
     RouteModel,
+    RouteThreshold,
     load_route_model,
 )
 
 
 def model() -> RouteModel:
     return RouteModel(
-        version=2,
+        version=3,
         embedding_model="test-embedding",
         embedding_dimension=2,
         routes=(
@@ -28,8 +29,12 @@ def model() -> RouteModel:
             (-2.0, -2.0),
         ),
         intercepts=(0.0, 0.0, 0.0),
-        min_confidence=0.60,
-        min_margin=0.10,
+        thresholds={
+            "portfolio": RouteThreshold(0.60, 0.10),
+            "scheduling": RouteThreshold(0.80, 0.20),
+            "scheduling_active": RouteThreshold(0.40, 0.05),
+            "conversation": RouteThreshold(0.60, 0.10),
+        },
         training_dataset_hash="abc123",
         seed=42,
     )
@@ -56,16 +61,25 @@ def test_classifier_rejects_wrong_embedding_dimension() -> None:
         classifier.predict([1.0, 2.0, 3.0])
 
 
-def test_classifier_applies_model_thresholds() -> None:
+def test_classifier_applies_route_threshold() -> None:
     classifier = BusinessRouteClassifier(model())
     prediction = classifier.predict([1.0, 0.0])
 
-    assert classifier.accepts(prediction) is True
+    assert classifier.accepts(prediction, active_scheduling=False) is True
+
+
+def test_scheduling_active_can_use_distinct_threshold() -> None:
+    classifier = BusinessRouteClassifier(model())
+    prediction = classifier.predict([0.0, 1.0])
+
+    assert prediction.route == Route.SCHEDULING
+    assert classifier.accepts(prediction, active_scheduling=True) is True
+    assert classifier.accepts(prediction, active_scheduling=False) is False
 
 
 def test_load_model_rejects_mismatched_coefficient_dimension(tmp_path) -> None:
     artifact = {
-        "version": 2,
+        "version": 3,
         "embedding_model": "test",
         "embedding_dimension": 3,
         "routes": ["portfolio", "scheduling", "conversation"],
@@ -75,8 +89,12 @@ def test_load_model_rejects_mismatched_coefficient_dimension(tmp_path) -> None:
             [0.0, 1.0],
         ],
         "intercepts": [0.0, 0.0, 0.0],
-        "min_confidence": 0.7,
-        "min_margin": 0.1,
+        "thresholds": {
+            "portfolio": {"min_confidence": 0.4, "min_margin": 0.1},
+            "scheduling": {"min_confidence": 0.7, "min_margin": 0.2},
+            "scheduling_active": {"min_confidence": 0.4, "min_margin": 0.1},
+            "conversation": {"min_confidence": 0.4, "min_margin": 0.1},
+        },
         "training_dataset_hash": "abc",
         "seed": 42,
     }
@@ -89,14 +107,18 @@ def test_load_model_rejects_mismatched_coefficient_dimension(tmp_path) -> None:
 
 def test_load_model_rejects_unknown_route(tmp_path) -> None:
     artifact = {
-        "version": 2,
+        "version": 3,
         "embedding_model": "test",
         "embedding_dimension": 1,
         "routes": ["portfolio", "not_a_real_route"],
         "coefficients": [[1.0], [0.0]],
         "intercepts": [0.0, 0.0],
-        "min_confidence": 0.7,
-        "min_margin": 0.1,
+        "thresholds": {
+            "portfolio": {"min_confidence": 0.4, "min_margin": 0.1},
+            "scheduling": {"min_confidence": 0.7, "min_margin": 0.2},
+            "scheduling_active": {"min_confidence": 0.4, "min_margin": 0.1},
+            "conversation": {"min_confidence": 0.4, "min_margin": 0.1},
+        },
         "training_dataset_hash": "abc",
         "seed": 42,
     }
