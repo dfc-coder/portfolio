@@ -12,12 +12,16 @@ from app.domain.routing import Intent
 class IntentCase:
     case_id: str
     message: str
-    intent: Intent
-    route: str
+    intent: Intent | None
+    route: str | None
     language: str
     family: str
     critical: bool = False
     active_workflow: str | None = None
+
+    @property
+    def out_of_scope(self) -> bool:
+        return self.intent is None
 
 
 def load_intent_cases(path: Path) -> list[IntentCase]:
@@ -32,12 +36,15 @@ def load_intent_cases(path: Path) -> list[IntentCase]:
             continue
         try:
             payload = json.loads(line)
-            intent = Intent(payload["intent"])
+            raw_intent = payload.get("intent")
+            raw_route = payload.get("route")
+            intent = Intent(raw_intent) if raw_intent is not None else None
+            route = str(raw_route) if raw_route is not None else None
             case = IntentCase(
                 case_id=str(payload["id"]),
                 message=str(payload["message"]).strip(),
                 intent=intent,
-                route=str(payload["route"]),
+                route=route,
                 language=str(payload["language"]),
                 family=str(payload["family"]),
                 critical=bool(payload.get("critical", False)),
@@ -54,10 +61,14 @@ def load_intent_cases(path: Path) -> list[IntentCase]:
             raise ValueError(f"unsupported language at {path}:{line_number}")
         if not case.family:
             raise ValueError(f"empty family at {path}:{line_number}")
-        if route_for_intent(intent).value != case.route:
+        if (case.intent is None) != (case.route is None):
+            raise ValueError(
+                f"OOS cases require both intent and route to be null at {path}:{line_number}"
+            )
+        if case.intent is not None and route_for_intent(case.intent).value != case.route:
             raise ValueError(
                 f"intent/route mismatch at {path}:{line_number}: "
-                f"{intent.value} -> {route_for_intent(intent).value}, got {case.route}"
+                f"{case.intent.value} -> {route_for_intent(case.intent).value}, got {case.route}"
             )
         if case.active_workflow not in {None, "scheduling"}:
             raise ValueError(f"unsupported active_workflow at {path}:{line_number}")
