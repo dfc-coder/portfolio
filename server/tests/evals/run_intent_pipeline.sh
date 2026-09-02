@@ -59,7 +59,7 @@ embed_split() {
 embed_split train
 embed_split validation
 
-uv run --with scikit-learn python tests/evals/train_intent_classifier.py \
+PYTHONPATH="$ROOT" uv run --with scikit-learn python tests/evals/train_intent_classifier.py \
   --train-vectors "$TMP_DIR/train-vectors.json" \
   --validation-vectors "$TMP_DIR/validation-vectors.json" \
   --train-cases tests/evals/intents/train.jsonl \
