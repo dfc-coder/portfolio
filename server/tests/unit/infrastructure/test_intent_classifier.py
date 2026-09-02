@@ -31,7 +31,7 @@ def model() -> RouteModel:
         intercepts=(0.0, 0.0, 0.0),
         thresholds={
             "portfolio": RouteThreshold(0.60, 0.10),
-            "scheduling": RouteThreshold(0.80, 0.20),
+            "scheduling": RouteThreshold(0.95, 0.20),
             "scheduling_active": RouteThreshold(0.40, 0.05),
             "conversation": RouteThreshold(0.60, 0.10),
         },
