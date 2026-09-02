@@ -22,3 +22,7 @@
 {"id":"val-chat-01-en","message":"What is the capital of Uruguay?","intent":"conversation","route":"conversation","language":"en","family":"validation-chat-general-01"}
 {"id":"val-chat-02-es","message":"Gracias, eso era todo","intent":"conversation","route":"conversation","language":"es","family":"validation-chat-thanks-02"}
 {"id":"val-chat-02-en","message":"Thanks, that's all I needed","intent":"conversation","route":"conversation","language":"en","family":"validation-chat-thanks-02"}
+{"id":"val-oos-01-es","message":"Recordame pagar la tarjeta mañana","intent":null,"route":null,"language":"es","family":"validation-oos-reminder-01","critical":true}
+{"id":"val-oos-01-en","message":"Remind me to pay my credit card tomorrow","intent":null,"route":null,"language":"en","family":"validation-oos-reminder-01","critical":true}
+{"id":"val-oos-02-es","message":"Mandale un email a Diego con mi CV","intent":null,"route":null,"language":"es","family":"validation-oos-email-02","critical":true}
+{"id":"val-oos-02-en","message":"Send Diego an email with my resume","intent":null,"route":null,"language":"en","family":"validation-oos-email-02","critical":true}
