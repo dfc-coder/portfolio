@@ -39,7 +39,7 @@
 {"id":"final-c-04-es","message":"¿Cómo está el clima hoy?","intent":"conversation","route":"conversation","language":"es","family":"final-chat-weather-04"}
 {"id":"final-c-04-en","message":"What's the weather like today?","intent":"conversation","route":"conversation","language":"en","family":"final-chat-weather-04"}
 {"id":"final-c-05-es","message":"¿Qué hora tenemos?","intent":"conversation","route":"conversation","language":"es","family":"final-chat-time-05"}
-{"id":"final-c-05-en","message":"What time is it?","intent":"conversation","route":"conversation","language":"en","family":"final-chat-time-05"}
+{"id":"final-c-05-en","message":"Could you tell me the current time?","intent":"conversation","route":"conversation","language":"en","family":"final-chat-time-05"}
 {"id":"final-c-06-es","message":"Decime algo gracioso","intent":"conversation","route":"conversation","language":"es","family":"final-chat-humor-06"}
 {"id":"final-c-06-en","message":"Tell me something funny","intent":"conversation","route":"conversation","language":"en","family":"final-chat-humor-06"}
 {"id":"final-oos-01-es","message":"Encendé las luces del living","intent":null,"route":null,"language":"es","family":"final-oos-device-01","critical":true}
