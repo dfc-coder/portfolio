@@ -11,11 +11,17 @@ from app.ports.sessions import SessionStorePort
 from app.portfolio.search import PortfolioSearch
 
 from .responder import Responder
-from .router import SemanticRouter
+from .router import IntentRouter, SemanticRouter
 from .scheduler import Scheduler
 
 if TYPE_CHECKING:
     from app.infrastructure.pockettrace import PocketTraceRecorder, TurnTrace
+
+
+_ABSTAIN_REPLY = (
+    "No pude determinar con suficiente certeza si querés consultar información o iniciar "
+    "una acción. ¿Podés reformularlo?"
+)
 
 
 class BusinessRepresentative:
@@ -24,7 +30,7 @@ class BusinessRepresentative:
     def __init__(
         self,
         sessions: SessionStorePort,
-        router: SemanticRouter,
+        router: SemanticRouter | IntentRouter,
         portfolio: PortfolioSearch,
         scheduler: Scheduler,
         responder: Responder,
@@ -67,9 +73,22 @@ class BusinessRepresentative:
                         output=decision.model_dump(mode="json"),
                     )
                     trace.add_attributes(
-                        route=decision.domain.value,
+                        route=decision.domain.value if decision.domain else "abstain",
                         route_source=decision.source,
+                        intent=decision.intent.value if decision.intent else "unknown",
+                        route_accepted=decision.accepted,
+                        route_confidence=decision.confidence,
+                        route_margin=decision.margin,
                     )
+
+                if not decision.accepted:
+                    await self._sessions.append_turn(state, "assistant", _ABSTAIN_REPLY)
+                    response_chunks.append(_ABSTAIN_REPLY)
+                    yield _ABSTAIN_REPLY
+                    return
+
+                if decision.domain is None:
+                    raise RuntimeError("accepted routing decision has no business route")
                 state.current_focus = decision.domain
 
                 if decision.domain == Route.SCHEDULING:
