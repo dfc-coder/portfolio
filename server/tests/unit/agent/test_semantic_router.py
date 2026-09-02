@@ -238,7 +238,7 @@ async def test_supervised_router_uses_structured_scheduling_before_classifier() 
 
 @pytest.mark.asyncio
 async def test_supervised_router_can_override_new_scheduling_as_capability() -> None:
-    embeddings = FixedEmbeddings([0.1], query_vector=[0.0, 0.6])
+    embeddings = FixedEmbeddings([0.1], query_vector=[0.0, 0.39])
     router = SupervisedRouteRouter(embeddings, classifier())
 
     decision = await router.route(SessionState("route-4"), "Can you schedule meetings?")
