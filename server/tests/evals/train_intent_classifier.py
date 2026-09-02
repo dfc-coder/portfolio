@@ -17,6 +17,9 @@ from tests.evals.intent_metrics import calibrate_thresholds
 
 
 DEFAULT_SEED = 42
+_CAPABILITY = "capability"
+_SCHEDULING_ACTION = "scheduling_action"
+_SCHEDULING_ACTION_INTENTS = {"schedule_request", "schedule_availability"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -61,6 +64,70 @@ def prediction_record(
     }
 
 
+def _boundary_label(record: dict[str, Any]) -> str | None:
+    intent = record.get("intent")
+    if intent == "capability_query":
+        return _CAPABILITY
+    if intent in _SCHEDULING_ACTION_INTENTS and record.get("active_workflow") is None:
+        return _SCHEDULING_ACTION
+    return None
+
+
+def _calibrate_capability_override(
+    classifier: BusinessRouteClassifier,
+    validation: list[dict[str, Any]],
+) -> RouteThreshold:
+    candidates: list[dict[str, float | bool]] = []
+    for record in validation:
+        embedding = [float(value) for value in record["embedding"]]
+        route_prediction = classifier.predict(embedding)
+        if (
+            route_prediction.route != Route.SCHEDULING
+            or record.get("active_workflow") is not None
+        ):
+            continue
+        boundary = classifier.predict_scheduling_boundary(embedding)
+        if not boundary.is_capability:
+            continue
+        candidates.append(
+            {
+                "expected_capability": record.get("intent") == "capability_query",
+                "confidence": boundary.confidence,
+                "margin": boundary.margin,
+            }
+        )
+
+    if not candidates:
+        return RouteThreshold(1.0, 1.0)
+
+    confidence_candidates = sorted(
+        {0.0, *(float(item["confidence"]) for item in candidates)}
+    )
+    margin_candidates = sorted(
+        {0.0, *(float(item["margin"]) for item in candidates)}
+    )
+    best: tuple[int, float, float] | None = None
+    chosen = RouteThreshold(1.0, 1.0)
+
+    for min_confidence in confidence_candidates:
+        for min_margin in margin_candidates:
+            accepted = [
+                item
+                for item in candidates
+                if float(item["confidence"]) >= min_confidence
+                and float(item["margin"]) >= min_margin
+            ]
+            if any(not bool(item["expected_capability"]) for item in accepted):
+                continue
+            true_overrides = sum(bool(item["expected_capability"]) for item in accepted)
+            score = (true_overrides, -min_confidence, -min_margin)
+            if best is None or score > best:
+                best = score
+                chosen = RouteThreshold(min_confidence, min_margin)
+
+    return chosen
+
+
 def main() -> int:
     args = parse_args()
     train_embedding_model, train = load_vectors(args.train_vectors)
@@ -95,6 +162,22 @@ def main() -> int:
         missing = sorted(route.value for route in set(Route) - set(routes))
         raise ValueError(f"training data is missing routes: {missing}")
 
+    boundary_train = [record for record in train if _boundary_label(record) is not None]
+    boundary_estimator = LogisticRegression(
+        solver="lbfgs",
+        max_iter=2000,
+        class_weight="balanced",
+        random_state=args.seed,
+    )
+    boundary_estimator.fit(
+        [[float(value) for value in record["embedding"]] for record in boundary_train],
+        [_boundary_label(record) for record in boundary_train],
+    )
+    if list(boundary_estimator.classes_) != [_CAPABILITY, _SCHEDULING_ACTION]:
+        raise ValueError("scheduling boundary requires capability and scheduling_action classes")
+    if len(boundary_estimator.coef_) != 1:
+        raise ValueError("unexpected scheduling boundary coefficient shape")
+
     zero_thresholds = {
         Route.CONVERSATION.value: RouteThreshold(0.0, 0.0),
         Route.PORTFOLIO.value: RouteThreshold(0.0, 0.0),
@@ -102,7 +185,7 @@ def main() -> int:
         "scheduling_active": RouteThreshold(0.0, 0.0),
     }
     uncalibrated = RouteModel(
-        version=3,
+        version=4,
         embedding_model=train_embedding_model,
         embedding_dimension=dimension,
         routes=routes,
@@ -112,6 +195,11 @@ def main() -> int:
         ),
         intercepts=tuple(float(value) for value in estimator.intercept_.tolist()),
         thresholds=zero_thresholds,
+        scheduling_boundary_coefficients=tuple(
+            float(value) for value in boundary_estimator.coef_[0].tolist()
+        ),
+        scheduling_boundary_intercept=float(boundary_estimator.intercept_[0]),
+        scheduling_boundary_threshold=RouteThreshold(0.0, 0.0),
         training_dataset_hash=hashlib.sha256(
             args.train_cases.read_bytes()
         ).hexdigest(),
@@ -130,6 +218,7 @@ def main() -> int:
         )
         for key, values in raw_thresholds.items()
     }
+    boundary_threshold = _calibrate_capability_override(classifier, validation)
 
     calibrated = RouteModel(
         version=uncalibrated.version,
@@ -139,6 +228,9 @@ def main() -> int:
         coefficients=uncalibrated.coefficients,
         intercepts=uncalibrated.intercepts,
         thresholds=thresholds,
+        scheduling_boundary_coefficients=uncalibrated.scheduling_boundary_coefficients,
+        scheduling_boundary_intercept=uncalibrated.scheduling_boundary_intercept,
+        scheduling_boundary_threshold=boundary_threshold,
         training_dataset_hash=uncalibrated.training_dataset_hash,
         seed=uncalibrated.seed,
     )
@@ -156,6 +248,10 @@ def main() -> int:
                         "min_margin": threshold.min_margin,
                     }
                     for key, threshold in calibrated.thresholds.items()
+                },
+                "scheduling_boundary_threshold": {
+                    "min_confidence": calibrated.scheduling_boundary_threshold.min_confidence,
+                    "min_margin": calibrated.scheduling_boundary_threshold.min_margin,
                 },
                 "training_dataset_hash": calibrated.training_dataset_hash,
                 "seed": calibrated.seed,
