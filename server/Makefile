@@ -18,11 +18,12 @@ COMPOSE = $(CONTAINER_ENGINE) compose -f $(COMPOSE_FILE) --env-file $(ENV_FILE)
 	health ready wait-ready \
 	compile test test-unit test-e2e check \
 	eval-routing eval-scheduling eval-live eval-smoke \
-	eval-intents-challenge eval-intents-blind clean model models
+	eval-intents-challenge eval-intents-blind \
+	eval-routes-v5 eval-routes-final clean model models
 
 help: ## Show available targets
 	@printf "\nPortfolio Business Representative\n\n"
-	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\nTargets:\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-16s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\nTargets:\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@printf "\nOverrides: CONTAINER_ENGINE=podman|docker API_URL=http://... ENV_FILE=/path/.env CRITICAL_REPETITIONS=5\n\n"
 
 env: ## Create .env from .env.example when missing
@@ -161,11 +162,17 @@ test-e2e: ## Run end-to-end agent tests with test extras installed
 
 check: compile test ## Run compile + complete test suite
 
-eval-intents-challenge: engine-check env-check ## Train on train/validation and run the 70-case development challenge set
+eval-intents-challenge: engine-check env-check ## Historical v4 training/challenge pipeline; keep only for comparison
 	@cd "$(ROOT)" && bash tests/evals/run_intent_pipeline.sh
 
-eval-intents-blind: engine-check env-check ## Run the frozen blind intent DoD gate; do not use this in the normal tuning loop
+eval-intents-blind: engine-check env-check ## Historical v4 blind gate; already consumed, do not use as a final gate
 	@cd "$(ROOT)" && bash tests/evals/run_intent_pipeline.sh --blind
+
+eval-routes-v5: engine-check env-check ## Train nonlinear 4-class candidate and require challenge + historical blind regression
+	@cd "$(ROOT)" && bash tests/evals/run_nonlinear_route_pipeline.sh
+
+eval-routes-final: engine-check env-check ## Evaluate frozen nonlinear artifact once on final_holdout_v2 without retraining
+	@cd "$(ROOT)" && bash tests/evals/run_nonlinear_route_final.sh
 
 eval-routing: up ## Run the complete live embedding routing/conversation evaluation
 	@echo "Full routing/conversation eval: all cases run; CRITICAL_REPETITIONS only changes repeated critical cases."
