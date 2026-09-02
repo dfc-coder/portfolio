@@ -9,17 +9,20 @@ from typing import Any
 
 import httpx
 
-from app.agent.router import IntentRouter
+from app.agent.router import SupervisedRouteRouter
 from app.domain.conversation import ActiveWorkflow, SessionState
+from app.infrastructure.business_route_classifier import (
+    BusinessRouteClassifier,
+    load_route_model,
+)
 from app.infrastructure.config.settings import Settings
 from app.infrastructure.embeddings.llama_cpp import LlamaCppEmbeddingClient
-from app.infrastructure.intent_classifier import IntentClassifier, load_intent_model
 from tests.evals.intent_dataset import load_intent_cases
 from tests.evals.intent_metrics import meets_dod, summarize
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Evaluate supervised intent routing.")
+    parser = argparse.ArgumentParser(description="Evaluate supervised business-route routing.")
     parser.add_argument("--cases", type=Path, required=True)
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--output", type=Path)
@@ -33,10 +36,10 @@ async def evaluate(
     settings: Settings,
 ) -> dict[str, Any]:
     cases = load_intent_cases(cases_path)
-    model = load_intent_model(model_path)
+    model = load_route_model(model_path)
     if model.embedding_model != settings.embedding_model:
         raise ValueError(
-            "intent artifact embedding model mismatch: "
+            "route artifact embedding model mismatch: "
             f"artifact={model.embedding_model}, runtime={settings.embedding_model}"
         )
 
@@ -47,11 +50,11 @@ async def evaluate(
             settings.embedding_timeout_seconds,
             client=http,
         )
-        router = IntentRouter(embeddings, IntentClassifier(model))
+        router = SupervisedRouteRouter(embeddings, BusinessRouteClassifier(model))
         records: list[dict[str, Any]] = []
 
         for case in cases:
-            state = SessionState(session_id=f"intent-eval-{case.case_id}")
+            state = SessionState(session_id=f"route-eval-{case.case_id}")
             if case.active_workflow == "scheduling":
                 state.active_workflow = ActiveWorkflow.SCHEDULING
 
@@ -91,6 +94,7 @@ async def evaluate(
         "version": model.version,
         "embedding_model": model.embedding_model,
         "embedding_dimension": model.embedding_dimension,
+        "routes": [route.value for route in model.routes],
         "min_confidence": model.min_confidence,
         "min_margin": model.min_margin,
         "training_dataset_hash": model.training_dataset_hash,
