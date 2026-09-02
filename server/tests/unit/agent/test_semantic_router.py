@@ -10,6 +10,7 @@ from app.domain.routing import Intent, Route
 from app.infrastructure.business_route_classifier import (
     BusinessRouteClassifier,
     RouteModel,
+    RouteThreshold,
 )
 from app.ports.embeddings import EmbeddingTask
 
@@ -51,8 +52,9 @@ def classifier(
     min_confidence: float = 0.0,
     min_margin: float = 0.0,
 ) -> BusinessRouteClassifier:
+    threshold = RouteThreshold(min_confidence, min_margin)
     model = RouteModel(
-        version=2,
+        version=3,
         embedding_model="test",
         embedding_dimension=2,
         routes=(
@@ -66,8 +68,12 @@ def classifier(
             (-1.0, 0.0),
         ),
         intercepts=(0.0, 0.0, 0.0),
-        min_confidence=min_confidence,
-        min_margin=min_margin,
+        thresholds={
+            "portfolio": threshold,
+            "scheduling": threshold,
+            "scheduling_active": threshold,
+            "conversation": threshold,
+        },
         training_dataset_hash="test",
         seed=42,
     )
