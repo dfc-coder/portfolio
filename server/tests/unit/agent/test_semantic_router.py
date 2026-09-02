@@ -4,10 +4,13 @@ import math
 
 import pytest
 
-from app.agent.router import IntentRouter, SemanticRouter, route_for_intent
+from app.agent.router import SemanticRouter, SupervisedRouteRouter, route_for_intent
 from app.domain.conversation import ActiveWorkflow, ChatTurn, SessionState
 from app.domain.routing import Intent, Route
-from app.infrastructure.intent_classifier import IntentClassifier, IntentModel
+from app.infrastructure.business_route_classifier import (
+    BusinessRouteClassifier,
+    RouteModel,
+)
 from app.ports.embeddings import EmbeddingTask
 
 
@@ -47,15 +50,15 @@ def classifier(
     *,
     min_confidence: float = 0.0,
     min_margin: float = 0.0,
-) -> IntentClassifier:
-    model = IntentModel(
-        version=1,
+) -> BusinessRouteClassifier:
+    model = RouteModel(
+        version=2,
         embedding_model="test",
         embedding_dimension=2,
-        intents=(
-            Intent.CAPABILITY_QUERY,
-            Intent.SCHEDULE_REQUEST,
-            Intent.CONVERSATION,
+        routes=(
+            Route.PORTFOLIO,
+            Route.SCHEDULING,
+            Route.CONVERSATION,
         ),
         coefficients=(
             (3.0, 0.0),
@@ -68,7 +71,7 @@ def classifier(
         training_dataset_hash="test",
         seed=42,
     )
-    return IntentClassifier(model)
+    return BusinessRouteClassifier(model)
 
 
 @pytest.mark.parametrize(
@@ -179,28 +182,28 @@ async def test_route_document_embeddings_are_cached() -> None:
 
 
 @pytest.mark.asyncio
-async def test_intent_router_routes_confident_prediction() -> None:
+async def test_supervised_router_routes_confident_prediction() -> None:
     embeddings = FixedEmbeddings([0.1])
-    router = IntentRouter(embeddings, classifier())
+    router = SupervisedRouteRouter(embeddings, classifier())
 
-    decision = await router.route(SessionState("intent-1"), "¿Qué capacidades tenés?")
+    decision = await router.route(SessionState("route-1"), "¿Qué capacidades tenés?")
 
     assert decision.accepted is True
-    assert decision.intent == Intent.CAPABILITY_QUERY
+    assert decision.intent is None
     assert decision.domain == Route.PORTFOLIO
-    assert decision.source == "intent_classifier"
+    assert decision.source == "route_classifier"
     assert embeddings.query_task == EmbeddingTask.ROUTING
 
 
 @pytest.mark.asyncio
-async def test_intent_router_abstains_when_thresholds_are_not_met() -> None:
+async def test_supervised_router_abstains_when_thresholds_are_not_met() -> None:
     embeddings = FixedEmbeddings([0.1])
-    router = IntentRouter(
+    router = SupervisedRouteRouter(
         embeddings,
         classifier(min_confidence=0.99, min_margin=0.99),
     )
 
-    decision = await router.route(SessionState("intent-2"), "mensaje ambiguo")
+    decision = await router.route(SessionState("route-2"), "mensaje ambiguo")
 
     assert decision.accepted is False
     assert decision.intent is None
@@ -209,10 +212,10 @@ async def test_intent_router_abstains_when_thresholds_are_not_met() -> None:
 
 
 @pytest.mark.asyncio
-async def test_intent_router_uses_structured_scheduling_before_classifier() -> None:
+async def test_supervised_router_uses_structured_scheduling_before_classifier() -> None:
     embeddings = FixedEmbeddings([0.1])
-    router = IntentRouter(embeddings, classifier())
-    state = SessionState("intent-3")
+    router = SupervisedRouteRouter(embeddings, classifier())
+    state = SessionState("route-3")
     state.active_workflow = ActiveWorkflow.SCHEDULING
 
     decision = await router.route(state, "El segundo")
