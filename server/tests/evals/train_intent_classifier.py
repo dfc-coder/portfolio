@@ -10,6 +10,7 @@ from app.domain.routing import Route
 from app.infrastructure.business_route_classifier import (
     BusinessRouteClassifier,
     RouteModel,
+    RouteThreshold,
     save_route_model,
 )
 from tests.evals.intent_metrics import calibrate_thresholds
@@ -52,6 +53,7 @@ def prediction_record(
         "predicted_route": prediction.route.value,
         "accepted": True,
         "critical": bool(record.get("critical", False)),
+        "active_workflow": record.get("active_workflow"),
         "confidence": prediction.confidence,
         "margin": prediction.margin,
         "latency_ms": 0.0,
@@ -93,8 +95,14 @@ def main() -> int:
         missing = sorted(route.value for route in set(Route) - set(routes))
         raise ValueError(f"training data is missing routes: {missing}")
 
+    zero_thresholds = {
+        Route.CONVERSATION.value: RouteThreshold(0.0, 0.0),
+        Route.PORTFOLIO.value: RouteThreshold(0.0, 0.0),
+        Route.SCHEDULING.value: RouteThreshold(0.0, 0.0),
+        "scheduling_active": RouteThreshold(0.0, 0.0),
+    }
     uncalibrated = RouteModel(
-        version=2,
+        version=3,
         embedding_model=train_embedding_model,
         embedding_dimension=dimension,
         routes=routes,
@@ -103,8 +111,7 @@ def main() -> int:
             for row in estimator.coef_.tolist()
         ),
         intercepts=tuple(float(value) for value in estimator.intercept_.tolist()),
-        min_confidence=0.0,
-        min_margin=0.0,
+        thresholds=zero_thresholds,
         training_dataset_hash=hashlib.sha256(
             args.train_cases.read_bytes()
         ).hexdigest(),
@@ -115,7 +122,14 @@ def main() -> int:
         prediction_record(classifier, record)
         for record in validation
     ]
-    min_confidence, min_margin = calibrate_thresholds(validation_records)
+    raw_thresholds = calibrate_thresholds(validation_records)
+    thresholds = {
+        key: RouteThreshold(
+            min_confidence=values[0],
+            min_margin=values[1],
+        )
+        for key, values in raw_thresholds.items()
+    }
 
     calibrated = RouteModel(
         version=uncalibrated.version,
@@ -124,8 +138,7 @@ def main() -> int:
         routes=uncalibrated.routes,
         coefficients=uncalibrated.coefficients,
         intercepts=uncalibrated.intercepts,
-        min_confidence=min_confidence,
-        min_margin=min_margin,
+        thresholds=thresholds,
         training_dataset_hash=uncalibrated.training_dataset_hash,
         seed=uncalibrated.seed,
     )
@@ -137,8 +150,13 @@ def main() -> int:
                 "embedding_model": calibrated.embedding_model,
                 "embedding_dimension": calibrated.embedding_dimension,
                 "routes": [route.value for route in calibrated.routes],
-                "min_confidence": calibrated.min_confidence,
-                "min_margin": calibrated.min_margin,
+                "thresholds": {
+                    key: {
+                        "min_confidence": threshold.min_confidence,
+                        "min_margin": threshold.min_margin,
+                    }
+                    for key, threshold in calibrated.thresholds.items()
+                },
                 "training_dataset_hash": calibrated.training_dataset_hash,
                 "seed": calibrated.seed,
             },
