@@ -7,6 +7,10 @@ COMPOSE_FILE="${COMPOSE_FILE:-$ROOT/compose.yaml}"
 ARTIFACT="${ROUTE_ARTIFACT:-$ROOT/artifacts/business-route-v4.json}"
 TMP_DIR="${ROUTE_TMP_DIR:-/tmp/portfolio-routes}"
 
+if [[ "${1:-}" == "--blind" ]]; then
+  exec bash "$ROOT/tests/evals/run_intent_blind.sh"
+fi
+
 if command -v podman >/dev/null 2>&1; then
   ENGINE=podman
 elif command -v docker >/dev/null 2>&1; then
@@ -72,14 +76,3 @@ PYTHONPATH="$ROOT" uv run --with scikit-learn python tests/evals/train_intent_cl
   api python tests/evals/run_intent_eval.py \
   --cases tests/evals/intents/challenge.jsonl \
   --model "${ARTIFACT#$ROOT/}"
-
-if [[ "${1:-}" == "--blind" ]]; then
-  "${COMPOSE[@]}" run --rm --no-deps \
-    -v "$ROOT:/workspace:Z" \
-    -w /workspace \
-    -e PYTHONPATH=/workspace \
-    api python tests/evals/run_intent_eval.py \
-    --cases tests/evals/intents/blind_test.jsonl \
-    --model "${ARTIFACT#$ROOT/}" \
-    --strict
-fi
