@@ -10,6 +10,7 @@ from app.domain.routing import Route
 DOD_MIN_ROUTE_ACCURACY = 0.95
 DOD_MIN_ROUTE_MACRO_F1 = 0.95
 DOD_MAX_ROUTE_SELECTIVE_RISK = 0.02
+DOD_MIN_OOS_RECALL = 0.95
 DOD_MAX_ROUTING_P95_MS = 100.0
 
 _THRESHOLD_KEYS = (
@@ -159,11 +160,13 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def meets_dod(metrics: dict[str, Any]) -> bool:
+    oos_recall = metrics.get("oos_recall")
     return (
         metrics["route_accuracy"] >= DOD_MIN_ROUTE_ACCURACY
         and metrics["route_macro_f1"] >= DOD_MIN_ROUTE_MACRO_F1
         and metrics["critical_false_scheduling"] == 0
         and metrics["route_selective_risk"] <= DOD_MAX_ROUTE_SELECTIVE_RISK
+        and (oos_recall is None or oos_recall >= DOD_MIN_OOS_RECALL)
         and metrics["latency_ms"]["p95"] <= DOD_MAX_ROUTING_P95_MS
     )
 
