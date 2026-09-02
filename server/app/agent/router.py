@@ -6,8 +6,11 @@ from datetime import date
 
 from app.domain.conversation import ActiveWorkflow, SessionState
 from app.domain.routing import Intent, Route, RoutingDecision
+from app.infrastructure.business_route_classifier import (
+    BusinessRouteClassifier,
+    RoutePrediction,
+)
 from app.infrastructure.embeddings.similarity import cosine_similarity
-from app.infrastructure.intent_classifier import IntentClassifier, IntentPrediction
 from app.ports.embeddings import EmbeddingPort, EmbeddingTask
 from app.scheduling.turn_parser import SchedulingTurnParser
 
@@ -271,13 +274,13 @@ class SemanticRouter:
         )
 
 
-class IntentRouter:
-    """Supervised intent router evaluated before it is promoted to the runtime."""
+class SupervisedRouteRouter:
+    """Supervised business-route classifier evaluated before runtime promotion."""
 
     def __init__(
         self,
         embeddings: EmbeddingPort,
-        classifier: IntentClassifier,
+        classifier: BusinessRouteClassifier,
     ) -> None:
         self._embeddings = embeddings
         self._classifier = classifier
@@ -297,7 +300,7 @@ class IntentRouter:
                 confidence=1.0,
                 margin=1.0,
                 source="deterministic_scheduling",
-                scores={Intent.SCHEDULE_CONTINUE.value: 1.0},
+                scores={Route.SCHEDULING.value: 1.0},
             )
 
         embedding = await self._embeddings.embed_query(
@@ -307,15 +310,15 @@ class IntentRouter:
         prediction = self._classifier.predict(embedding)
         return self._decision(prediction)
 
-    def _decision(self, prediction: IntentPrediction) -> RoutingDecision:
+    def _decision(self, prediction: RoutePrediction) -> RoutingDecision:
         accepted = self._classifier.accepts(prediction)
         return RoutingDecision(
-            domain=route_for_intent(prediction.intent) if accepted else None,
-            intent=prediction.intent if accepted else None,
+            domain=prediction.route if accepted else None,
+            intent=None,
             accepted=accepted,
-            route_key=prediction.intent.value if accepted else "abstain",
+            route_key=prediction.route.value if accepted else "abstain",
             confidence=prediction.confidence,
             margin=prediction.margin,
-            source="intent_classifier" if accepted else "abstain",
+            source="route_classifier" if accepted else "abstain",
             scores=prediction.scores,
         )
