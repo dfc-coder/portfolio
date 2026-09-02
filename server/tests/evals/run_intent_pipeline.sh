@@ -4,8 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ENV_FILE="${ENV_FILE:-$ROOT/.env}"
 COMPOSE_FILE="${COMPOSE_FILE:-$ROOT/compose.yaml}"
-ARTIFACT="${INTENT_ARTIFACT:-$ROOT/artifacts/intent-router-v1.json}"
-TMP_DIR="${INTENT_TMP_DIR:-/tmp/portfolio-intents}"
+ARTIFACT="${ROUTE_ARTIFACT:-$ROOT/artifacts/business-route-v2.json}"
+TMP_DIR="${ROUTE_TMP_DIR:-/tmp/portfolio-routes}"
 
 if command -v podman >/dev/null 2>&1; then
   ENGINE=podman
@@ -22,7 +22,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
 fi
 
 if [[ "$ARTIFACT" != "$ROOT"/* ]]; then
-  echo "INTENT_ARTIFACT must live under $ROOT so the eval container can read it" >&2
+  echo "ROUTE_ARTIFACT must live under $ROOT so the eval container can read it" >&2
   exit 1
 fi
 
