@@ -1,0 +1,56 @@
+{"id":"final-p-01-es","message":"¿Qué certificaciones profesionales tiene Diego?","intent":"portfolio_query","route":"portfolio","language":"es","family":"final-profile-credentials-01"}
+{"id":"final-p-01-en","message":"Which professional certifications does Diego hold?","intent":"portfolio_query","route":"portfolio","language":"en","family":"final-profile-credentials-01"}
+{"id":"final-p-02-es","message":"Describime la arquitectura de algún sistema que haya construido Diego","intent":"portfolio_query","route":"portfolio","language":"es","family":"final-project-architecture-02"}
+{"id":"final-p-02-en","message":"Describe the architecture of a system Diego has built","intent":"portfolio_query","route":"portfolio","language":"en","family":"final-project-architecture-02"}
+{"id":"final-p-03-es","message":"¿Cómo suele presupuestar Diego un trabajo profesional?","intent":"portfolio_query","route":"portfolio","language":"es","family":"final-services-pricing-03"}
+{"id":"final-p-03-en","message":"How does Diego usually price professional work?","intent":"portfolio_query","route":"portfolio","language":"en","family":"final-services-pricing-03"}
+{"id":"final-p-04-es","message":"¿Serías capaz de coordinar una reunión si después te lo pido?","intent":"capability_query","route":"portfolio","language":"es","family":"final-cap-meeting-04","critical":true}
+{"id":"final-p-04-en","message":"Would you be capable of coordinating a meeting if I asked later?","intent":"capability_query","route":"portfolio","language":"en","family":"final-cap-meeting-04","critical":true}
+{"id":"final-p-05-es","message":"¿Tenés la capacidad de consultar los horarios libres de Diego?","intent":"capability_query","route":"portfolio","language":"es","family":"final-cap-availability-05","critical":true}
+{"id":"final-p-05-en","message":"Do you have the ability to check Diego's free times?","intent":"capability_query","route":"portfolio","language":"en","family":"final-cap-availability-05","critical":true}
+{"id":"final-p-06-es","message":"¿Qué criterios usa Diego para elegir tecnologías en un proyecto?","intent":"portfolio_query","route":"portfolio","language":"es","family":"final-tech-decisions-06"}
+{"id":"final-p-06-en","message":"What criteria does Diego use when choosing technologies for a project?","intent":"portfolio_query","route":"portfolio","language":"en","family":"final-tech-decisions-06"}
+{"id":"final-p-07-es","message":"¿En qué tipos de industrias trabajó Diego?","intent":"portfolio_query","route":"portfolio","language":"es","family":"final-profile-industries-07"}
+{"id":"final-p-07-en","message":"What kinds of industries has Diego worked in?","intent":"portfolio_query","route":"portfolio","language":"en","family":"final-profile-industries-07"}
+{"id":"final-p-08-es","message":"Contame cómo trabaja Diego con modelos de IA locales","intent":"portfolio_query","route":"portfolio","language":"es","family":"final-local-ai-08"}
+{"id":"final-p-08-en","message":"Tell me how Diego works with local AI models","intent":"portfolio_query","route":"portfolio","language":"en","family":"final-local-ai-08"}
+{"id":"final-s-01-es","message":"Coordiná una reunión con Diego para el lunes próximo","intent":"schedule_request","route":"scheduling","language":"es","family":"final-schedule-book-01","critical":true}
+{"id":"final-s-01-en","message":"Arrange a meeting with Diego for next Monday","intent":"schedule_request","route":"scheduling","language":"en","family":"final-schedule-book-01","critical":true}
+{"id":"final-s-02-es","message":"Pasá mi reunión con Diego al miércoles","intent":"schedule_request","route":"scheduling","language":"es","family":"final-schedule-move-02"}
+{"id":"final-s-02-en","message":"Move my meeting with Diego to Wednesday","intent":"schedule_request","route":"scheduling","language":"en","family":"final-schedule-move-02"}
+{"id":"final-s-03-es","message":"Cancelá la cita que había reservado con Diego","intent":"schedule_request","route":"scheduling","language":"es","family":"final-schedule-cancel-03"}
+{"id":"final-s-03-en","message":"Cancel the appointment I had booked with Diego","intent":"schedule_request","route":"scheduling","language":"en","family":"final-schedule-cancel-03"}
+{"id":"final-s-04-es","message":"Buscá cuándo puede reunirse Diego durante los próximos días","intent":"schedule_availability","route":"scheduling","language":"es","family":"final-availability-range-04","critical":true}
+{"id":"final-s-04-en","message":"Find when Diego can meet during the next few days","intent":"schedule_availability","route":"scheduling","language":"en","family":"final-availability-range-04","critical":true}
+{"id":"final-s-05-es","message":"Decime qué espacios de agenda quedan para una llamada","intent":"schedule_availability","route":"scheduling","language":"es","family":"final-availability-call-05"}
+{"id":"final-s-05-en","message":"Tell me which calendar openings remain for a call","intent":"schedule_availability","route":"scheduling","language":"en","family":"final-availability-call-05"}
+{"id":"final-s-06-es","message":"Sí, mantené ese horario","intent":"schedule_continue","route":"scheduling","language":"es","family":"final-continue-keep-06","active_workflow":"scheduling"}
+{"id":"final-s-06-en","message":"Yes, keep that time","intent":"schedule_continue","route":"scheduling","language":"en","family":"final-continue-keep-06","active_workflow":"scheduling"}
+{"id":"final-s-07-es","message":"Cambiemos a la otra opción","intent":"schedule_continue","route":"scheduling","language":"es","family":"final-continue-switch-07","active_workflow":"scheduling"}
+{"id":"final-s-07-en","message":"Let's switch to the other option","intent":"schedule_continue","route":"scheduling","language":"en","family":"final-continue-switch-07","active_workflow":"scheduling"}
+{"id":"final-s-08-es","message":"Quiero hablar con Diego alguna tarde de esta semana","intent":"schedule_request","route":"scheduling","language":"es","family":"final-schedule-afternoon-08"}
+{"id":"final-s-08-en","message":"I want to talk with Diego one afternoon this week","intent":"schedule_request","route":"scheduling","language":"en","family":"final-schedule-afternoon-08"}
+{"id":"final-c-01-es","message":"Buenas, ¿todo bien?","intent":"conversation","route":"conversation","language":"es","family":"final-chat-greeting-01"}
+{"id":"final-c-01-en","message":"Hello, how are things?","intent":"conversation","route":"conversation","language":"en","family":"final-chat-greeting-01"}
+{"id":"final-c-02-es","message":"Perfecto, gracias por explicarlo","intent":"conversation","route":"conversation","language":"es","family":"final-chat-thanks-02"}
+{"id":"final-c-02-en","message":"Perfect, thanks for explaining it","intent":"conversation","route":"conversation","language":"en","family":"final-chat-thanks-02"}
+{"id":"final-c-03-es","message":"¿Cuál es el planeta más grande del sistema solar?","intent":"conversation","route":"conversation","language":"es","family":"final-chat-knowledge-03"}
+{"id":"final-c-03-en","message":"What is the largest planet in the solar system?","intent":"conversation","route":"conversation","language":"en","family":"final-chat-knowledge-03"}
+{"id":"final-c-04-es","message":"¿Cómo está el clima hoy?","intent":"conversation","route":"conversation","language":"es","family":"final-chat-weather-04"}
+{"id":"final-c-04-en","message":"What's the weather like today?","intent":"conversation","route":"conversation","language":"en","family":"final-chat-weather-04"}
+{"id":"final-c-05-es","message":"¿Qué hora tenemos?","intent":"conversation","route":"conversation","language":"es","family":"final-chat-time-05"}
+{"id":"final-c-05-en","message":"What time is it?","intent":"conversation","route":"conversation","language":"en","family":"final-chat-time-05"}
+{"id":"final-c-06-es","message":"Decime algo gracioso","intent":"conversation","route":"conversation","language":"es","family":"final-chat-humor-06"}
+{"id":"final-c-06-en","message":"Tell me something funny","intent":"conversation","route":"conversation","language":"en","family":"final-chat-humor-06"}
+{"id":"final-oos-01-es","message":"Encendé las luces del living","intent":null,"route":null,"language":"es","family":"final-oos-device-01","critical":true}
+{"id":"final-oos-01-en","message":"Turn on the living room lights","intent":null,"route":null,"language":"en","family":"final-oos-device-01","critical":true}
+{"id":"final-oos-02-es","message":"Borrá el archivo viejo de mi carpeta de descargas","intent":null,"route":null,"language":"es","family":"final-oos-file-02","critical":true}
+{"id":"final-oos-02-en","message":"Delete the old file from my downloads folder","intent":null,"route":null,"language":"en","family":"final-oos-file-02","critical":true}
+{"id":"final-oos-03-es","message":"Pedime una pizza para esta noche","intent":null,"route":null,"language":"es","family":"final-oos-food-03","critical":true}
+{"id":"final-oos-03-en","message":"Order me a pizza for tonight","intent":null,"route":null,"language":"en","family":"final-oos-food-03","critical":true}
+{"id":"final-oos-04-es","message":"Mandale un mensaje de WhatsApp a mi hermano","intent":null,"route":null,"language":"es","family":"final-oos-message-04","critical":true}
+{"id":"final-oos-04-en","message":"Send my brother a WhatsApp message","intent":null,"route":null,"language":"en","family":"final-oos-message-04","critical":true}
+{"id":"final-oos-05-es","message":"Avisame dentro de dos horas que tengo que salir","intent":null,"route":null,"language":"es","family":"final-oos-reminder-05","critical":true}
+{"id":"final-oos-05-en","message":"Remind me in two hours that I need to leave","intent":null,"route":null,"language":"en","family":"final-oos-reminder-05","critical":true}
+{"id":"final-oos-06-es","message":"Comprá un cargador nuevo para mi teléfono","intent":null,"route":null,"language":"es","family":"final-oos-purchase-06","critical":true}
+{"id":"final-oos-06-en","message":"Buy a new charger for my phone","intent":null,"route":null,"language":"en","family":"final-oos-purchase-06","critical":true}
