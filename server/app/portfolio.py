@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -42,9 +43,15 @@ class Portfolio:
         assert self._vectors is not None
 
         query_vector = (await self._embed([f"{_QUERY_PREFIX}{query.strip()}"]))[0]
+        query_terms = self._terms(query)
         ranked = sorted(
             (
-                (self._cosine(query_vector, vector), source, text)
+                (
+                    len(query_terms & self._terms(text)),
+                    self._cosine(query_vector, vector),
+                    source,
+                    text,
+                )
                 for (source, text), vector in zip(self._documents, self._vectors, strict=True)
             ),
             reverse=True,
@@ -52,11 +59,13 @@ class Portfolio:
 
         facts: list[dict[str, str]] = []
         chars = 0
-        for score, source, text in ranked:
-            if score < self._min_score or len(facts) >= self._max_documents:
+        for lexical_matches, score, source, text in ranked:
+            if len(facts) >= self._max_documents:
                 break
+            if lexical_matches == 0 and score < self._min_score:
+                continue
             if facts and chars + len(text) > self._max_chars:
-                break
+                continue
             facts.append({"source": source, "text": text})
             chars += len(text)
 
@@ -78,9 +87,21 @@ class Portfolio:
                     (f"{section}.{index}", json.dumps(item, ensure_ascii=False))
                     for index, item in enumerate(value)
                 )
-            else:
-                documents.append((section, json.dumps(value, ensure_ascii=False)))
+                continue
+
+            if isinstance(value, dict):
+                documents.extend(
+                    (f"{section}.{key}", json.dumps(item, ensure_ascii=False))
+                    for key, item in value.items()
+                )
+                continue
+
+            documents.append((section, json.dumps(value, ensure_ascii=False)))
         return documents
+
+    @staticmethod
+    def _terms(text: str) -> set[str]:
+        return {term for term in re.findall(r"[\w.+#-]+", text.casefold()) if len(term) >= 3}
 
     @staticmethod
     def _cosine(left: list[float], right: list[float]) -> float:
