@@ -1,6 +1,6 @@
 import type {
+  AgentContextMessage,
   AgentEvent,
-  AgentMessage,
   AgentProvider,
 } from "./useAgentRuntime";
 
@@ -31,18 +31,12 @@ const parseFrame = (raw: string): SseFrame | null => {
 
 async function* streamBusinessAgent(
   question: string,
-  history: ReadonlyArray<AgentMessage>,
+  context: ReadonlyArray<AgentContextMessage>,
 ): AsyncIterable<AgentEvent> {
   const response = await fetch(`${apiBaseUrl()}/v1/chat/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      message: question,
-      history: history.map((message) => ({
-        role: message.role === "agent" ? "assistant" : "user",
-        content: message.text,
-      })),
-    }),
+    body: JSON.stringify({ message: question, context }),
   });
 
   if (!response.ok || !response.body) {
@@ -92,6 +86,12 @@ async function* streamBusinessAgent(
           };
         }
       }
+      if (frame.event === "context" && Array.isArray(payload.messages)) {
+        yield {
+          type: "context",
+          messages: payload.messages as AgentContextMessage[],
+        };
+      }
       if (frame.event === "error") {
         throw new Error(String(payload.message ?? "Business agent unavailable"));
       }
@@ -104,8 +104,8 @@ async function* streamBusinessAgent(
 export const businessAgentProvider: AgentProvider = {
   async *ask(
     question: string,
-    history: ReadonlyArray<AgentMessage>,
+    context: ReadonlyArray<AgentContextMessage>,
   ): AsyncIterable<AgentEvent> {
-    yield* streamBusinessAgent(question, history);
+    yield* streamBusinessAgent(question, context);
   },
 };
