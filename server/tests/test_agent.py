@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.agent import Agent
+from app.prompt import build_messages
 
 
 def tool_delta(
@@ -82,6 +83,18 @@ def returned_context(events):
     payloads = [payload for event, payload in events if event == "context"]
     assert len(payloads) == 1
     return payloads[0]["messages"]
+
+
+def test_prompting_v4_starts_with_direct_task_and_bounds_dynamic_subject() -> None:
+    system = build_messages("Diego", [], "hola")[0]["content"]
+
+    assert system.startswith("Answer the visitor's message directly, accurately, and concisely.")
+    assert "# Context#" in system
+    assert "# Tool strategy#" in system
+    assert "# Response#" in system
+    assert "# Examples#" in system
+    assert "<portfolio_subject>" in system
+    assert "<name>Diego</name>" in system
 
 
 @pytest.mark.asyncio
