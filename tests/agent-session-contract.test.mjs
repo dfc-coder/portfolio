@@ -7,7 +7,7 @@ const root = process.cwd();
 const read = (path) => readFile(resolve(root, path), "utf8");
 
 test("agent remains stateless while round-tripping full tool context", async () => {
-  const provider = await read("src/components/agent/businessAgentProvider.ts");
+  const provider = await read("src/components/agent/portfolioAgentProvider.ts");
   const runtime = await read("src/components/agent/useAgentRuntime.ts");
 
   assert.doesNotMatch(provider, /SESSION_ID|session_id|sessionStorage|SESSION_KEY/);
