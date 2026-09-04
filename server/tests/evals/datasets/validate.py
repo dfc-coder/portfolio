@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections import Counter
 from pathlib import Path
 
 from tests.evals.datasets.common import (
@@ -32,7 +33,7 @@ def overlaps(left: Path, right: Path) -> set[str]:
     return message_set(left) & message_set(right)
 
 
-def validate() -> dict[str, object]:
+def validate(generated: Path | None = None) -> dict[str, object]:
     errors: list[str] = []
     warnings: list[str] = []
     files: dict[str, dict[str, object]] = {}
@@ -74,6 +75,7 @@ def validate() -> dict[str, object]:
 
     train_families = dataset_families(train) | dataset_families(train_oos)
     validation_families = dataset_families(validation)
+    challenge_families = dataset_families(challenge)
     blind_families = dataset_families(blind)
     final_families = dataset_families(final)
     for left_name, left, right_name, right in (
@@ -82,6 +84,7 @@ def validate() -> dict[str, object]:
         ("validation", validation_families, "historical blind", blind_families),
         ("train", train_families, "final holdout", final_families),
         ("validation", validation_families, "final holdout", final_families),
+        ("challenge", challenge_families, "final holdout", final_families),
         ("historical blind", blind_families, "final holdout", final_families),
     ):
         shared = left & right
@@ -91,30 +94,28 @@ def validate() -> dict[str, object]:
                 f"{sorted(shared)!r}"
             )
 
-    generated = GENERATED_ROOT / "routing-candidates.jsonl"
-    if generated.exists():
-        generated_cases = load_intent_cases(generated)
+    candidate = generated or GENERATED_ROOT / "routing-candidates.jsonl"
+    if candidate.exists():
+        generated_cases = load_intent_cases(candidate)
         canonical_messages = {
             normalize_message(case.message)
             for path in canonical_intent_paths()
             for case in load_intent_cases(path)
         }
-        generated_messages = [normalize_message(case.message) for case in generated_cases]
-        duplicate_generated = {
-            message for message in generated_messages if generated_messages.count(message) > 1
-        }
+        counts = Counter(normalize_message(case.message) for case in generated_cases)
+        duplicate_generated = {message for message, count in counts.items() if count > 1}
         if duplicate_generated:
             errors.append(f"generated candidate contains duplicates: {sorted(duplicate_generated)!r}")
-        leaked = set(generated_messages) & canonical_messages
+        leaked = set(counts) & canonical_messages
         if leaked:
             errors.append(f"generated candidate copies canonical messages: {sorted(leaked)!r}")
-        files[str(generated.relative_to(GENERATED_ROOT.parent))] = {
+        files[str(candidate)] = {
             "cases": len(generated_cases),
-            "sha256": sha256_file(generated),
+            "sha256": sha256_file(candidate),
             "status": "candidate_for_review",
         }
     else:
-        warnings.append("no generated routing candidate found; generation is optional")
+        warnings.append(f"generated candidate not found: {candidate}; generation is optional")
 
     return {
         "ok": not errors,
@@ -125,7 +126,8 @@ def validate() -> dict[str, object]:
 
 
 def main() -> int:
-    report = validate()
+    args = parse_args()
+    report = validate(args.generated)
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0 if report["ok"] else 1
 
