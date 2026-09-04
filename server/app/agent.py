@@ -14,6 +14,7 @@ from .prompt import build_messages
 from .tools import TOOLS, run_tool_call
 
 MAX_TOOL_ROUNDS = 6
+MAX_CONTEXT_MESSAGES = 32
 AgentEvent = tuple[str, dict[str, object]]
 
 logger = logging.getLogger(__name__)
@@ -42,11 +43,11 @@ class Agent:
     async def respond(
         self,
         message: str,
-        history: list[dict[str, str]],
+        context: list[dict[str, Any]],
     ) -> AsyncIterator[AgentEvent]:
-        messages: list[dict[str, Any]] = build_messages(
+        messages = build_messages(
             self._subject,
-            history[-6:],
+            _trim_context(context),
             message,
         )
 
@@ -57,7 +58,6 @@ class Agent:
                 model=self._model,
                 messages=messages,
                 tools=TOOLS,
-                tool_choice="auto",
                 parallel_tool_calls=True,
                 temperature=self._temperature,
                 max_tokens=self._max_tokens,
@@ -119,6 +119,7 @@ class Agent:
             if not ordered_calls:
                 if not "".join(content).strip():
                     raise RuntimeError("LLM returned an empty response")
+                yield "context", {"messages": _trim_context(messages[1:])}
                 return
 
             if round_number > MAX_TOOL_ROUNDS:
@@ -155,6 +156,16 @@ class Agent:
             messages.extend(results)
 
         raise RuntimeError("tool loop limit reached")
+
+
+def _trim_context(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if len(messages) <= MAX_CONTEXT_MESSAGES:
+        return messages
+
+    start = len(messages) - MAX_CONTEXT_MESSAGES
+    while start < len(messages) and messages[start].get("role") != "user":
+        start += 1
+    return messages[start:]
 
 
 def _tool_ok(message: dict[str, str]) -> bool:
