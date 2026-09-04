@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import time
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -12,6 +14,8 @@ from .tools import TOOLS, run_tool_call
 
 MAX_TOOL_ROUNDS = 6
 
+logger = logging.getLogger(__name__)
+
 
 class Agent:
     def __init__(
@@ -22,7 +26,7 @@ class Agent:
         *,
         model: str,
         timezone: str,
-        temperature: float = 0.65,
+        temperature: float = 0.2,
         max_tokens: int = 180,
     ) -> None:
         self._subject = subject
@@ -45,7 +49,8 @@ class Agent:
         )
 
         for round_number in range(MAX_TOOL_ROUNDS + 1):
-            response = await self._chat.chat.completions.create(
+            started = time.perf_counter()
+            stream = await self._chat.chat.completions.create(
                 model=self._model,
                 messages=messages,
                 tools=TOOLS,
@@ -53,19 +58,60 @@ class Agent:
                 parallel_tool_calls=True,
                 temperature=self._temperature,
                 max_tokens=self._max_tokens,
+                stream=True,
             )
-            if not response.choices:
-                raise RuntimeError("LLM returned no choices")
 
-            assistant = response.choices[0].message
-            messages.append(_assistant_message(assistant))
+            content: list[str] = []
+            calls: dict[int, dict[str, str]] = {}
+            finish_reason: str | None = None
 
-            calls = assistant.tool_calls or []
-            if not calls:
-                text = assistant.content or ""
-                if not text.strip():
+            async for chunk in stream:
+                if not chunk.choices:
+                    continue
+
+                choice = chunk.choices[0]
+                if choice.finish_reason is not None:
+                    finish_reason = choice.finish_reason
+
+                delta = choice.delta
+                text = delta.content or ""
+                if text:
+                    content.append(text)
+                    yield text
+
+                for call in delta.tool_calls or []:
+                    item = calls.setdefault(
+                        call.index,
+                        {"id": "", "name": "", "arguments": ""},
+                    )
+                    if call.id:
+                        item["id"] += call.id
+                    if call.function:
+                        if call.function.name:
+                            item["name"] += call.function.name
+                        if call.function.arguments:
+                            item["arguments"] += call.function.arguments
+
+            ordered_calls = [calls[index] for index in sorted(calls)]
+            tool_names = [call["name"] for call in ordered_calls]
+            logger.info(
+                "agent round=%s finish=%s tools=%s latency_ms=%d",
+                round_number + 1,
+                finish_reason,
+                ",".join(tool_names) or "-",
+                int((time.perf_counter() - started) * 1000),
+            )
+
+            messages.append(
+                _assistant_message(
+                    "".join(content) or None,
+                    ordered_calls,
+                )
+            )
+
+            if not ordered_calls:
+                if not "".join(content).strip():
                     raise RuntimeError("LLM returned an empty response")
-                yield text
                 return
 
             if round_number == MAX_TOOL_ROUNDS:
@@ -74,13 +120,13 @@ class Agent:
             results = await asyncio.gather(
                 *(
                     run_tool_call(
-                        call.id,
-                        call.function.name,
-                        call.function.arguments,
+                        call["id"],
+                        call["name"],
+                        call["arguments"],
                         self._portfolio,
                         self._timezone,
                     )
-                    for call in calls
+                    for call in ordered_calls
                 )
             )
             messages.extend(results)
@@ -88,23 +134,24 @@ class Agent:
         raise RuntimeError("tool loop limit reached")
 
 
-def _assistant_message(message: Any) -> dict[str, Any]:
-    result: dict[str, Any] = {
+def _assistant_message(
+    content: str | None,
+    calls: list[dict[str, str]],
+) -> dict[str, Any]:
+    message: dict[str, Any] = {
         "role": "assistant",
-        "content": message.content,
+        "content": content,
     }
-
-    if message.tool_calls:
-        result["tool_calls"] = [
+    if calls:
+        message["tool_calls"] = [
             {
-                "id": call.id,
+                "id": call["id"],
                 "type": "function",
                 "function": {
-                    "name": call.function.name,
-                    "arguments": call.function.arguments,
+                    "name": call["name"],
+                    "arguments": call["arguments"],
                 },
             }
-            for call in message.tool_calls
+            for call in calls
         ]
-
-    return result
+    return message

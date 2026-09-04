@@ -24,20 +24,32 @@ def test_tool_schemas_are_explicit_json_schema() -> None:
         assert function["description"]
         assert function["parameters"]["type"] == "object"
         assert function["parameters"]["additionalProperties"] is False
+        assert "title" not in function["parameters"]
 
 
-def test_add_duration_requires_timezone_and_calculates_exactly() -> None:
+def test_add_duration_calculates_date_and_weekday_exactly() -> None:
     result = add_duration_to_datetime(
-        "2030-01-02T10:30:00-03:00",
+        "2026-09-04",
+        default_timezone="America/Argentina/Buenos_Aires",
+        days=15,
+    )
+
+    assert result["date"] == "2026-09-19"
+    assert result["weekday"] == "Saturday"
+    assert result["iso_weekday"] == 6
+    assert result["timezone"] == "America/Argentina/Buenos_Aires"
+
+
+def test_add_duration_accepts_naive_datetime_in_default_timezone() -> None:
+    result = add_duration_to_datetime(
+        "2030-01-02T10:30:00",
+        default_timezone="America/Argentina/Buenos_Aires",
         days=57,
         hours=2,
         minutes=15,
     )
 
-    assert result == {"datetime": "2030-02-28T12:45:00-03:00"}
-
-    with pytest.raises(ValueError, match="timezone"):
-        add_duration_to_datetime("2030-01-02T10:30:00", days=1)
+    assert result["datetime"] == "2030-02-28T12:45:00-03:00"
 
 
 @pytest.mark.asyncio

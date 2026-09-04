@@ -7,18 +7,43 @@ import pytest
 from app.agent import Agent
 
 
-def tool_call(call_id: str, name: str, arguments: dict) -> SimpleNamespace:
+def tool_delta(
+    index: int,
+    *,
+    call_id: str | None = None,
+    name: str | None = None,
+    arguments: str | None = None,
+) -> SimpleNamespace:
     return SimpleNamespace(
+        index=index,
         id=call_id,
-        function=SimpleNamespace(
-            name=name,
-            arguments=json.dumps(arguments),
-        ),
+        function=SimpleNamespace(name=name, arguments=arguments),
     )
 
 
-def message(content=None, tool_calls=None) -> SimpleNamespace:
-    return SimpleNamespace(content=content, tool_calls=tool_calls)
+def chunk(
+    content: str | None = None,
+    *,
+    tool_calls=None,
+    finish_reason: str | None = None,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                delta=SimpleNamespace(content=content, tool_calls=tool_calls),
+                finish_reason=finish_reason,
+            )
+        ]
+    )
+
+
+class FakeStream:
+    def __init__(self, chunks) -> None:
+        self._chunks = chunks
+
+    async def __aiter__(self):
+        for item in self._chunks:
+            yield item
 
 
 class FakeCompletions:
@@ -28,9 +53,7 @@ class FakeCompletions:
 
     async def create(self, **kwargs):
         self.requests.append(copy.deepcopy(kwargs))
-        return SimpleNamespace(
-            choices=[SimpleNamespace(message=next(self._responses), finish_reason="stop")]
-        )
+        return FakeStream(next(self._responses))
 
 
 class FakeChat:
@@ -48,8 +71,8 @@ class FakePortfolio:
 
 
 @pytest.mark.asyncio
-async def test_agent_answers_without_tool_when_none_is_needed() -> None:
-    chat = FakeChat([message("Hola.")])
+async def test_agent_streams_answer_without_tool() -> None:
+    chat = FakeChat([[chunk("Ho"), chunk("la."), chunk(finish_reason="stop")]])
     portfolio = FakePortfolio()
     agent = Agent(
         "Diego",
@@ -59,23 +82,39 @@ async def test_agent_answers_without_tool_when_none_is_needed() -> None:
         timezone="America/Argentina/Buenos_Aires",
     )
 
-    response = "".join([part async for part in agent.respond("hola", [])])
+    parts = [part async for part in agent.respond("hola", [])]
 
-    assert response == "Hola."
+    assert parts == ["Ho", "la."]
     assert portfolio.queries == []
     assert len(chat.chat.completions.requests) == 1
+    assert chat.chat.completions.requests[0]["stream"] is True
 
 
 @pytest.mark.asyncio
-async def test_agent_preserves_tool_call_and_result_messages() -> None:
+async def test_agent_preserves_streamed_tool_call_and_result_messages() -> None:
     chat = FakeChat(
         [
-            message(
-                tool_calls=[
-                    tool_call("call-search", "search_portfolio", {"query": "Rust experience"})
-                ]
-            ),
-            message("El perfil incluye experiencia con Rust."),
+            [
+                chunk(
+                    tool_calls=[
+                        tool_delta(
+                            0,
+                            call_id="call-search",
+                            name="search_portfolio",
+                            arguments='{"query":"Rust',
+                        )
+                    ]
+                ),
+                chunk(
+                    tool_calls=[tool_delta(0, arguments=' experience"}')],
+                    finish_reason="tool_calls",
+                ),
+            ],
+            [
+                chunk("El perfil incluye "),
+                chunk("experiencia con Rust."),
+                chunk(finish_reason="stop"),
+            ],
         ]
     )
     portfolio = FakePortfolio()
@@ -87,9 +126,7 @@ async def test_agent_preserves_tool_call_and_result_messages() -> None:
         timezone="America/Argentina/Buenos_Aires",
     )
 
-    response = "".join(
-        [part async for part in agent.respond("¿Trabajó con Rust?", [])]
-    )
+    response = "".join([part async for part in agent.respond("¿Trabajó con Rust?", [])])
 
     assert response == "El perfil incluye experiencia con Rust."
     assert portfolio.queries == ["Rust experience"]
@@ -106,32 +143,56 @@ async def test_agent_preserves_tool_call_and_result_messages() -> None:
 async def test_agent_runs_multi_round_tool_chain() -> None:
     chat = FakeChat(
         [
-            message(tool_calls=[tool_call("call-now", "get_current_datetime", {})]),
-            message(
-                tool_calls=[
-                    tool_call(
-                        "call-add",
-                        "add_duration_to_datetime",
-                        {
-                            "datetime": "2030-01-01T10:00:00-03:00",
-                            "days": 30,
-                        },
-                    )
-                ]
-            ),
-            message(
-                tool_calls=[
-                    tool_call(
-                        "call-reminder",
-                        "set_reminder_mock",
-                        {
-                            "datetime": "2030-01-31T10:00:00-03:00",
-                            "message": "Revisar el CV",
-                        },
-                    )
-                ]
-            ),
-            message("Recordatorio simulado para el 31 de enero."),
+            [
+                chunk(
+                    tool_calls=[
+                        tool_delta(
+                            0,
+                            call_id="call-now",
+                            name="get_current_datetime",
+                            arguments="{}",
+                        )
+                    ],
+                    finish_reason="tool_calls",
+                )
+            ],
+            [
+                chunk(
+                    tool_calls=[
+                        tool_delta(
+                            0,
+                            call_id="call-add",
+                            name="add_duration_to_datetime",
+                            arguments=json.dumps(
+                                {
+                                    "datetime": "2030-01-01T10:00:00-03:00",
+                                    "days": 30,
+                                }
+                            ),
+                        )
+                    ],
+                    finish_reason="tool_calls",
+                )
+            ],
+            [
+                chunk(
+                    tool_calls=[
+                        tool_delta(
+                            0,
+                            call_id="call-reminder",
+                            name="set_reminder_mock",
+                            arguments=json.dumps(
+                                {
+                                    "datetime": "2030-01-31T10:00:00-03:00",
+                                    "message": "Revisar el CV",
+                                }
+                            ),
+                        )
+                    ],
+                    finish_reason="tool_calls",
+                )
+            ],
+            [chunk("Recordatorio simulado."), chunk(finish_reason="stop")],
         ]
     )
     agent = Agent(
@@ -146,15 +207,11 @@ async def test_agent_runs_multi_round_tool_chain() -> None:
         [part async for part in agent.respond("Recordame en 30 días revisar el CV", [])]
     )
 
-    assert response == "Recordatorio simulado para el 31 de enero."
+    assert response == "Recordatorio simulado."
     assert len(chat.chat.completions.requests) == 4
 
     final_messages = chat.chat.completions.requests[-1]["messages"]
-    tool_ids = [
-        item["tool_call_id"]
-        for item in final_messages
-        if item["role"] == "tool"
-    ]
+    tool_ids = [item["tool_call_id"] for item in final_messages if item["role"] == "tool"]
     assert tool_ids == ["call-now", "call-add", "call-reminder"]
 
 
@@ -162,20 +219,31 @@ async def test_agent_runs_multi_round_tool_chain() -> None:
 async def test_agent_returns_multiple_tool_results_in_one_round() -> None:
     chat = FakeChat(
         [
-            message(
-                tool_calls=[
-                    tool_call("call-search", "search_portfolio", {"query": "Rust"}),
-                    tool_call(
-                        "call-date",
-                        "add_duration_to_datetime",
-                        {
-                            "datetime": "2030-01-01T10:00:00-03:00",
-                            "days": 1,
-                        },
-                    ),
-                ]
-            ),
-            message("Listo."),
+            [
+                chunk(
+                    tool_calls=[
+                        tool_delta(
+                            0,
+                            call_id="call-search",
+                            name="search_portfolio",
+                            arguments='{"query":"Rust"}',
+                        ),
+                        tool_delta(
+                            1,
+                            call_id="call-date",
+                            name="add_duration_to_datetime",
+                            arguments=json.dumps(
+                                {
+                                    "datetime": "2030-01-01T10:00:00-03:00",
+                                    "days": 1,
+                                }
+                            ),
+                        ),
+                    ],
+                    finish_reason="tool_calls",
+                )
+            ],
+            [chunk("Listo."), chunk(finish_reason="stop")],
         ]
     )
     agent = Agent(
