@@ -1,3 +1,4 @@
+import copy
 import json
 from types import SimpleNamespace
 
@@ -26,7 +27,7 @@ class FakeCompletions:
         self.requests = []
 
     async def create(self, **kwargs):
-        self.requests.append(kwargs)
+        self.requests.append(copy.deepcopy(kwargs))
         return SimpleNamespace(
             choices=[SimpleNamespace(message=next(self._responses), finish_reason="stop")]
         )
