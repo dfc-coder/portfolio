@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 from typing import Any
 from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -9,6 +10,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from .portfolio import Portfolio
 
 _WEEKDAYS_ES = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+_DEFAULT_TIMEZONE = "America/Argentina/Buenos_Aires"
 
 SEARCH_PORTFOLIO_SCHEMA = {
     "type": "function",
@@ -57,7 +59,7 @@ GET_CURRENT_DATETIME_SCHEMA = {
                     "type": "string",
                     "description": (
                         "Optional IANA timezone such as America/Argentina/Buenos_Aires. Omit it when the "
-                        "visitor did not request another timezone; the application timezone will be used."
+                        "visitor did not request another timezone; the server default timezone is used."
                     ),
                 }
             },
@@ -83,8 +85,8 @@ ADD_DURATION_TO_DATETIME_SCHEMA = {
                     "type": "string",
                     "description": (
                         "ISO-8601 date or datetime used as the calculation base, for example 2026-09-04 "
-                        "or 2026-09-04T19:00:00-03:00. Date-only or timezone-less values use the "
-                        "application timezone."
+                        "or 2026-09-04T19:00:00-03:00. Date-only or timezone-less values use the server "
+                        "default timezone."
                     ),
                 },
                 "days": {
@@ -153,21 +155,23 @@ async def search_portfolio(portfolio: Portfolio, query: str) -> dict[str, object
     return {"facts": await portfolio.search(query)}
 
 
-def get_current_datetime(timezone: str | None, default_timezone: str) -> dict[str, object]:
-    zone = _zone(timezone or default_timezone)
+def get_current_datetime(timezone: str | None = None) -> dict[str, object]:
+    zone = _zone(timezone or _default_timezone())
     return _datetime_result(dt.datetime.now(zone), zone.key)
 
 
 def add_duration_to_datetime(
     datetime: str,
-    default_timezone: str,
     days: int = 0,
     hours: int = 0,
     minutes: int = 0,
+    *,
+    default_timezone: str | None = None,
 ) -> dict[str, object]:
-    value = _parse_datetime(datetime, default_timezone)
+    timezone = default_timezone or _default_timezone()
+    value = _parse_datetime(datetime, timezone)
     result = value + dt.timedelta(days=days, hours=hours, minutes=minutes)
-    zone_name = getattr(result.tzinfo, "key", None) or result.tzname() or default_timezone
+    zone_name = getattr(result.tzinfo, "key", None) or result.tzname() or timezone
     return _datetime_result(result, zone_name)
 
 
@@ -187,13 +191,12 @@ async def run_tool_call(
     name: str,
     raw_arguments: str,
     portfolio: Portfolio,
-    default_timezone: str,
 ) -> dict[str, str]:
     try:
         payload = json.loads(raw_arguments or "{}")
         if not isinstance(payload, dict):
             raise ValueError("tool arguments must be a JSON object")
-        result = await _run_tool(name, payload, portfolio, default_timezone)
+        result = await _run_tool(name, payload, portfolio)
         body: dict[str, object] = {"ok": True, "result": result}
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
         body = {
@@ -217,7 +220,6 @@ async def _run_tool(
     name: str,
     payload: dict[str, Any],
     portfolio: Portfolio,
-    default_timezone: str,
 ) -> object:
     if name == "search_portfolio":
         _only(payload, {"query"})
@@ -231,7 +233,7 @@ async def _run_tool(
             raise ValueError("timezone must be a string")
         if isinstance(timezone, str) and not timezone.strip():
             raise ValueError("timezone must not be empty")
-        return get_current_datetime(timezone, default_timezone)
+        return get_current_datetime(timezone)
 
     if name == "add_duration_to_datetime":
         _only(payload, {"datetime", "days", "hours", "minutes"})
@@ -247,7 +249,6 @@ async def _run_tool(
         )
         return add_duration_to_datetime(
             datetime,
-            default_timezone,
             days=days,
             hours=hours,
             minutes=minutes,
@@ -309,8 +310,8 @@ def _datetime_result(value: dt.datetime, timezone: str) -> dict[str, object]:
     }
 
 
-def _parse_datetime(value: str, default_timezone: str) -> dt.datetime:
-    zone = _zone(default_timezone)
+def _parse_datetime(value: str, timezone: str) -> dt.datetime:
+    zone = _zone(timezone)
     try:
         if len(value) == 10:
             return dt.datetime.combine(dt.date.fromisoformat(value), dt.time.min, zone)
@@ -332,6 +333,10 @@ def _aware_datetime(value: str) -> dt.datetime:
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise ValueError("datetime must include a timezone offset")
     return parsed
+
+
+def _default_timezone() -> str:
+    return os.getenv("TZ", _DEFAULT_TIMEZONE)
 
 
 def _zone(name: str) -> ZoneInfo:
