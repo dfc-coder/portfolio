@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.agent.context import DEFAULT_PORTFOLIO_PROMPT_VERSION
 from app.agent.representative import BusinessRepresentative
 from app.agent.responder import Responder
 from app.agent.router import SemanticRouter
@@ -87,6 +88,7 @@ def build_runtime(settings: Settings) -> AgentRuntime:
         policy,
         renderer_config,
         scheduler.public_capabilities,
+        portfolio_prompt_version=DEFAULT_PORTFOLIO_PROMPT_VERSION,
     )
     trace_recorder = (
         PocketTraceRecorder(
