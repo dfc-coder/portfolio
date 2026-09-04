@@ -1,6 +1,6 @@
 # Diego Cano Portfolio
 
-Vue 3 + Vite portfolio with a server-side business representative in Chapter 05.
+Vue 3 + Vite portfolio with a server-side Qwen portfolio assistant in Chapter 05.
 
 ## Frontend
 
@@ -13,18 +13,29 @@ pnpm dev
 
 Netlify builds the static frontend with `pnpm build` and publishes `dist`.
 
-Set `VITE_AGENT_API_URL` to the public FastAPI URL. Chapter 05 fails closed when the backend URL is missing; it does not simulate the business representative in the browser.
+Set `VITE_AGENT_API_URL` to the public FastAPI URL. Chapter 05 talks to the server-side portfolio assistant; there is no browser-side model or simulated agent.
 
-## Business representative
+## Portfolio assistant
 
-The backend lives in `server/` and keeps Qwen3.5-2B on the infrastructure through `llama-server`; model weights are never loaded by the browser. It also owns session policy and Google Calendar booking confirmation.
+The backend lives in `server/` and runs Qwen through llama.cpp's OpenAI-compatible API. The agent uses a small bounded multi-tool loop with these capabilities:
+
+```text
+search_portfolio
+get_current_datetime
+add_duration_to_datetime
+set_reminder_mock
+```
+
+The backend is stateless. The browser round-trips a bounded hidden OpenAI-compatible conversation context, including tool calls and tool results. There is no planner, graph, registry, server-side session store, scheduler, calendar integration, or persistent reminder service.
+
+Qwen thinking mode is disabled.
 
 ```bash
 cd server
 cp .env.example .env
 export LLAMA_MODELS_DIR=/absolute/path/to/models
-export LLAMA_MODEL_FILE=Qwen3.5-2B-Q4_K_XL.gguf
-docker compose up --build
+export LLAMA_MODEL_FILE=Qwen3.5-2B-UD-Q6_K_XL.gguf
+make up
 ```
 
-Design and acceptance criteria are in `docs/business-representative/`.
+Architecture notes are in `docs/portfolio-assistant/`.
