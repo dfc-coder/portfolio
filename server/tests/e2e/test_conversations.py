@@ -33,7 +33,7 @@ class FakeLlm:
         del config
         self.stream_calls += 1
         system = messages[0]["content"]
-        assert "RELEVANT_KNOWLEDGE:" in system
+        assert "<relevant_knowledge>" in system
         assert "Applied AI" in system
         yield "Diego trabaja con arquitectura de "
         yield "integraciones y Applied AI."
