@@ -17,6 +17,14 @@ EVAL_CANDIDATE_REPORT ?=
 
 CONTAINER_ENGINE ?= $(shell if command -v podman >/dev/null 2>&1; then echo podman; elif command -v docker >/dev/null 2>&1; then echo docker; fi)
 COMPOSE = $(CONTAINER_ENGINE) compose -f $(COMPOSE_FILE) --env-file $(ENV_FILE)
+HOST_UID := $(shell id -u)
+HOST_GID := $(shell id -g)
+
+ifeq ($(CONTAINER_ENGINE),podman)
+EVAL_COMPOSE_RUN = PODMAN_USERNS=keep-id $(COMPOSE) run --rm --no-deps
+else
+EVAL_COMPOSE_RUN = $(COMPOSE) run --rm --no-deps --user "$(HOST_UID):$(HOST_GID)"
+endif
 
 .PHONY: help env env-check engine-check doctor config \
 	up dev down stop restart reset build rebuild pull ps status \
@@ -174,7 +182,7 @@ eval-dataset-validate: ## Validate canonical eval splits and optional generated 
 
 eval-dataset-generate: up ## Generate routing dataset candidates; never mutates canonical splits
 	@cd "$(ROOT)" && mkdir -p "$$(dirname "$(EVAL_GENERATED)")"
-	@cd "$(ROOT)" && $(COMPOSE) run --rm --no-deps \
+	@cd "$(ROOT)" && $(EVAL_COMPOSE_RUN) \
 		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
 		api python tests/evals/datasets/generate.py \
 		--spec tests/evals/datasets/specs/routing.json \
@@ -183,7 +191,7 @@ eval-dataset-generate: up ## Generate routing dataset candidates; never mutates 
 
 eval-responses: up ## Evaluate response prompts; portfolio defaults to v4 and can be overridden
 	@cd "$(ROOT)" && mkdir -p "$$(dirname "$(EVAL_RESPONSE_REPORT)")"
-	@cd "$(ROOT)" && $(COMPOSE) run --rm --no-deps \
+	@cd "$(ROOT)" && $(EVAL_COMPOSE_RUN) \
 		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
 		api python tests/evals/run_response_eval.py \
 		--cases tests/evals/responses/cases.jsonl \
@@ -192,7 +200,7 @@ eval-responses: up ## Evaluate response prompts; portfolio defaults to v4 and ca
 
 eval-portfolio-prompts: up ## Run portfolio-v1 -> v4 on the same portfolio cases and compare every step
 	@cd "$(ROOT)" && mkdir -p "$(EVAL_PORTFOLIO_PROMPT_DIR)"
-	@cd "$(ROOT)" && $(COMPOSE) run --rm --no-deps \
+	@cd "$(ROOT)" && $(EVAL_COMPOSE_RUN) \
 		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
 		api python tests/evals/run_portfolio_prompt_ladder.py \
 		--cases tests/evals/responses/cases.jsonl \
@@ -221,13 +229,13 @@ eval-routes-final: engine-check env-check ## Evaluate frozen nonlinear artifact 
 
 eval-routing: up ## Run the complete live embedding routing/conversation evaluation
 	@echo "Full routing/conversation eval: all cases run; CRITICAL_REPETITIONS only changes repeated critical cases."
-	@cd "$(ROOT)" && $(COMPOSE) run --rm --no-deps \
+	@cd "$(ROOT)" && $(EVAL_COMPOSE_RUN) \
 		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
 		api python tests/evals/run_live.py --critical-repetitions $(CRITICAL_REPETITIONS)
 
 eval-scheduling: up ## Run the complete SchedulingTurn structured semantic evaluation
 	@echo "Full scheduling eval: all SchedulingTurn cases run; CRITICAL_REPETITIONS only changes repeated critical cases."
-	@cd "$(ROOT)" && $(COMPOSE) run --rm --no-deps \
+	@cd "$(ROOT)" && $(EVAL_COMPOSE_RUN) \
 		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
 		api python tests/evals/run_scheduling_turn_live.py --critical-repetitions $(CRITICAL_REPETITIONS)
 
@@ -235,7 +243,7 @@ eval-live: eval-routing eval-scheduling ## Run all complete live-model evaluatio
 
 eval-smoke: up ## Run a small live-model regression sample with visible per-case progress
 	@echo "Running fast live-model smoke evaluation with per-case progress."
-	@cd "$(ROOT)" && $(COMPOSE) run --rm --no-deps \
+	@cd "$(ROOT)" && $(EVAL_COMPOSE_RUN) \
 		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
 		api python -u tests/evals/run_smoke.py
 
