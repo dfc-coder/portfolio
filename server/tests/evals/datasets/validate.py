@@ -6,6 +6,7 @@ from collections import Counter
 from pathlib import Path
 
 from tests.evals.datasets.common import (
+    EVALS_ROOT,
     GENERATED_ROOT,
     INTENTS_ROOT,
     canonical_intent_paths,
@@ -13,6 +14,7 @@ from tests.evals.datasets.common import (
 )
 from tests.evals.evaluation_report import sha256_file
 from tests.evals.intent_dataset import dataset_families, load_intent_cases
+from tests.evals.responses.grader import load_response_cases
 
 
 def parse_args() -> argparse.Namespace:
@@ -44,6 +46,17 @@ def validate(generated: Path | None = None) -> dict[str, object]:
             "cases": len(cases),
             "sha256": sha256_file(path),
         }
+
+    response_path = EVALS_ROOT / "responses" / "cases.jsonl"
+    response_cases = load_response_cases(response_path)
+    response_counts = Counter(normalize_message(case.message) for case in response_cases)
+    duplicate_responses = {message for message, count in response_counts.items() if count > 1}
+    if duplicate_responses:
+        errors.append(f"response dataset contains duplicate messages: {sorted(duplicate_responses)!r}")
+    files["responses/cases.jsonl"] = {
+        "cases": len(response_cases),
+        "sha256": sha256_file(response_path),
+    }
 
     train = INTENTS_ROOT / "train.jsonl"
     train_oos = INTENTS_ROOT / "train_oos.jsonl"
