@@ -19,7 +19,6 @@ class Config:
     embedding_model: str
     embedding_timeout_seconds: float
     allowed_origins: tuple[str, ...]
-    timezone: str
     generation_temperature: float
     generation_max_tokens: int
     context_max_chars: int
@@ -31,7 +30,7 @@ class Config:
         root = Path(__file__).resolve().parents[1]
         return cls(
             profile_path=Path(
-                os.getenv("BUSINESS_PROFILE_PATH", root / "config" / "business-profile.json")
+                os.getenv("PORTFOLIO_PROFILE_PATH", root / "config" / "portfolio.json")
             ),
             llama_base_url=os.getenv("LLAMA_BASE_URL", "http://llama:8080").rstrip("/"),
             llama_model=os.getenv("LLAMA_MODEL", "Qwen3.5-2B"),
@@ -45,7 +44,6 @@ class Config:
                     "http://localhost:5173,http://127.0.0.1:5173",
                 )
             ),
-            timezone=os.getenv("APP_TIMEZONE", "America/Argentina/Buenos_Aires"),
             generation_temperature=float(os.getenv("GENERATION_TEMPERATURE", "0.20")),
             generation_max_tokens=int(os.getenv("GENERATION_MAX_TOKENS", "180")),
             context_max_chars=int(os.getenv("CONTEXT_MAX_CHARS", "4000")),
