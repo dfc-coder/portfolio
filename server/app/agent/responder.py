@@ -11,7 +11,7 @@ from app.domain.profile import BusinessProfile
 from app.ports.llm import GenerationConfig, GenerationMetadata, GenerationStream, LlmPort
 from app.scheduling.policy import SchedulingPolicy
 
-from .context import DEFAULT_PORTFOLIO_PROMPT_VERSION, ContextAssembler
+from .context import ContextAssembler
 from .stream_guard import StreamGuard, UnsafeStreamOutput
 
 if TYPE_CHECKING:
@@ -41,17 +41,11 @@ class Responder:
         policy: SchedulingPolicy,
         config: GenerationConfig,
         capabilities: tuple[str, ...],
-        *,
-        portfolio_prompt_version: str = DEFAULT_PORTFOLIO_PROMPT_VERSION,
     ) -> None:
         del policy  # Timezone/policy data is already represented in BusinessProfile.
         self._llm = llm
         self._config = config
-        self._context = ContextAssembler(
-            profile,
-            capabilities,
-            portfolio_prompt_version=portfolio_prompt_version,
-        )
+        self._context = ContextAssembler(profile, capabilities)
 
     async def warm(self) -> None:
         await self._context.warm()
