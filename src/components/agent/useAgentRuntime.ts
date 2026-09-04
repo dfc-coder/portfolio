@@ -10,7 +10,16 @@ export interface AgentMessage {
   streaming: boolean;
 }
 
-export type AgentEvent = { type: "token"; text: string };
+export type AgentEvent =
+  | { type: "token"; text: string }
+  | { type: "status"; phase: "thinking" | "responding"; round: number }
+  | {
+      type: "tool";
+      name: string;
+      state: "running" | "done";
+      round: number;
+      ok?: boolean;
+    };
 
 export interface AgentProvider {
   ask(
@@ -50,6 +59,7 @@ export function useAgentRuntime(
   const focused = ref(false);
   const busy = ref(false);
   const error = ref<string | null>(null);
+  const flow = ref<string[]>([]);
   const nextId = shallowRef(1);
 
   let replyId = -1;
@@ -155,12 +165,34 @@ export function useAgentRuntime(
     });
   };
 
+  const addFlow = (step: string) => {
+    if (!step || flow.value.at(-1) === step) return;
+    flow.value.push(step);
+    if (flow.value.length > 8) flow.value.shift();
+  };
+
   const handleEvent = (event: AgentEvent | string): boolean => {
+    if (typeof event !== "string" && event.type === "status") {
+      addFlow(
+        event.phase === "thinking"
+          ? `ROUND ${event.round} / THINKING`
+          : `ROUND ${event.round} / RESPONDING`,
+      );
+      return false;
+    }
+
+    if (typeof event !== "string" && event.type === "tool") {
+      if (event.state === "running") addFlow(`TOOL / ${event.name}`);
+      if (event.state === "done" && event.ok === false) {
+        addFlow(`TOOL ERROR / ${event.name}`);
+      }
+      return false;
+    }
+
     const text = typeof event === "string" ? event : event.text;
     if (!text) return false;
 
     if (replyId < 0) {
-      busy.value = false;
       replyId = push("agent", "", true).id;
     }
 
@@ -175,6 +207,7 @@ export function useAgentRuntime(
 
     draft.value = "";
     error.value = null;
+    flow.value = [];
     push("user", question);
     busy.value = true;
 
@@ -221,6 +254,7 @@ export function useAgentRuntime(
     messages.value = [];
     draft.value = "";
     error.value = null;
+    flow.value = [];
   };
 
   return {
@@ -229,6 +263,7 @@ export function useAgentRuntime(
     focused,
     busy,
     error,
+    flow,
     state,
     canSend,
     send,

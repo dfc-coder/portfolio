@@ -34,10 +34,10 @@ def create_router(agent: Agent) -> APIRouter:
 
         async def events() -> AsyncIterator[str]:
             try:
-                async for text in agent.respond(body.message.strip(), history):
+                async for event, payload in agent.respond(body.message.strip(), history):
                     if await request.is_disconnected():
                         return
-                    yield encode_sse("token", {"text": text})
+                    yield encode_sse(event, payload)
             except Exception:
                 yield encode_sse(
                     "error",

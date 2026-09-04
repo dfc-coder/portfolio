@@ -10,6 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .portfolio import Portfolio
 
+_WEEKDAYS_ES = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+
 
 class ToolArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -85,7 +87,8 @@ get_current_datetime_schema = _schema(
     "get_current_datetime",
     (
         "Return the actual current date and time. Use whenever the answer depends on what date "
-        "or time it is now, including relative requests such as 'in two weeks'."
+        "or time it is now, including relative requests such as 'in two weeks'. The returned "
+        "date and weekday fields are authoritative."
     ),
     CurrentDatetimeArgs,
 )
@@ -94,8 +97,9 @@ add_duration_to_datetime_schema = _schema(
     "add_duration_to_datetime",
     (
         "Add or subtract a duration from a date/datetime and return the exact resulting date and "
-        "weekday. Use for date arithmetic and also to determine the weekday of a known date by "
-        "passing zero duration. Do not calculate calendar dates or weekdays mentally."
+        "weekday. Use for date arithmetic and whenever the visitor asks for a weekday, including "
+        "follow-up questions about a previously mentioned date. Passing zero duration is valid. "
+        "The returned weekday and weekday_es fields are authoritative; never recompute them."
     ),
     AddDurationArgs,
 )
@@ -214,6 +218,7 @@ def _datetime_result(value: dt.datetime, timezone: str) -> dict[str, object]:
         "datetime": value.isoformat(timespec="seconds"),
         "date": value.date().isoformat(),
         "weekday": value.strftime("%A"),
+        "weekday_es": _WEEKDAYS_ES[value.weekday()],
         "iso_weekday": value.isoweekday(),
         "timezone": timezone,
     }

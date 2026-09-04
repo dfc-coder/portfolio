@@ -70,6 +70,28 @@ async function* streamBusinessAgent(
       if (frame.event === "token" && payload.text) {
         yield { type: "token", text: String(payload.text) };
       }
+      if (frame.event === "status") {
+        const phase = String(payload.phase);
+        if (phase === "thinking" || phase === "responding") {
+          yield {
+            type: "status",
+            phase,
+            round: Number(payload.round ?? 0),
+          };
+        }
+      }
+      if (frame.event === "tool" && payload.name) {
+        const state = String(payload.state);
+        if (state === "running" || state === "done") {
+          yield {
+            type: "tool",
+            name: String(payload.name),
+            state,
+            round: Number(payload.round ?? 0),
+            ok: typeof payload.ok === "boolean" ? payload.ok : undefined,
+          };
+        }
+      }
       if (frame.event === "error") {
         throw new Error(String(payload.message ?? "Business agent unavailable"));
       }

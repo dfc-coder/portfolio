@@ -76,6 +76,7 @@ const {
   focused,
   busy,
   error,
+  flow,
   state,
   canSend,
   send,
@@ -115,6 +116,8 @@ const statusLabel = computed(() => {
   if (state.value === "listening") return "LISTENING";
   return "READY";
 });
+
+const activeFlow = computed(() => flow.value.at(-1) ?? "PROCESSING");
 
 const syncVisualPhase = () => {
   const phase: AgentVisualPhase = error.value ? "error" : state.value;
@@ -253,7 +256,13 @@ onBeforeUnmount(() => {
         </article>
 
         <div v-if="busy" class="agent-msg agent-msg--agent agent-msg--pending">
-          <div class="agent-msg__meta"><span>AGENT</span><i /><time>processing</time></div>
+          <div class="agent-msg__meta"><span>AGENT</span><i /><time>{{ activeFlow }}</time></div>
+          <div class="agent-flow" aria-label="Current agent execution flow">
+            <template v-for="(step, index) in flow" :key="`${index}-${step}`">
+              <span>{{ step }}</span>
+              <i v-if="index < flow.length - 1">→</i>
+            </template>
+          </div>
           <div class="agent-dots"><i /><i /><i /></div>
         </div>
       </div>
