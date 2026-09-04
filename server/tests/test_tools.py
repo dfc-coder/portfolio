@@ -36,6 +36,7 @@ def test_add_duration_calculates_date_and_weekday_exactly() -> None:
 
     assert result["date"] == "2026-09-19"
     assert result["weekday"] == "Saturday"
+    assert result["weekday_es"] == "sábado"
     assert result["iso_weekday"] == 6
     assert result["timezone"] == "America/Argentina/Buenos_Aires"
 
