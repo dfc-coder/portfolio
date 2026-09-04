@@ -3,7 +3,7 @@ from collections.abc import AsyncIterator
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.api import create_router
+from app.api.router import create_router
 
 
 class FakeAgent:

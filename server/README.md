@@ -24,16 +24,15 @@ There is no scheduling, calendar integration, action execution, router, planner,
 
 ## App files
 
-- `app/main.py`: builds the application and dependencies.
-- `app/api.py`: exposes the streaming chat endpoint.
+- `app/main.py`: loads the profile and wires the application.
+- `app/api/router.py`: exposes the streaming chat endpoint.
 - `app/agent.py`: owns the single request flow.
 - `app/prompt.py`: canonical production prompt and message construction.
 - `app/search.py`: embeds and retrieves relevant profile facts.
-- `app/profile.py`: loads the JSON profile.
 - `app/sessions.py`: keeps short conversation history in memory.
 - `app/llm.py`: streams responses from llama.cpp.
 - `app/embeddings.py`: talks to the embedding model.
-- `app/settings.py`: environment configuration.
+- `app/config.py`: environment configuration.
 
 ## Run
 

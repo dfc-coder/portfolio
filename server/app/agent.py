@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 
 from .llm import GenerationConfig, LlamaCpp
-from .profile import Profile, profile_name
 from .prompt import build_messages
 from .search import PortfolioSearch
 from .sessions import MemorySessions, Message
@@ -12,13 +11,13 @@ from .sessions import MemorySessions, Message
 class PortfolioAgent:
     def __init__(
         self,
-        profile: Profile,
+        subject: str,
         sessions: MemorySessions,
         search: PortfolioSearch,
         llm: LlamaCpp,
         config: GenerationConfig,
     ) -> None:
-        self._subject = profile_name(profile)
+        self._subject = subject
         self._sessions = sessions
         self._search = search
         self._llm = llm

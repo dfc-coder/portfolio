@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from .embeddings import Embeddings
-from .profile import Profile
+
+Profile = dict[str, Any]
 
 
 @dataclass(frozen=True)
