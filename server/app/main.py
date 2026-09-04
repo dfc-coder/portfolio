@@ -1,74 +1,77 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import create_router
-from app.bootstrap import build_runtime
-from app.infrastructure.config.settings import Settings
-from app.ports.embeddings import EmbeddingPort
-from app.ports.llm import LlmPort
-from app.scheduling.approval import BookingApproval
+from .agent import PortfolioAgent
+from .api import create_router
+from .embeddings import Embeddings
+from .llm import GenerationConfig, LlamaCpp
+from .profile import load_profile
+from .search import PortfolioSearch
+from .sessions import MemorySessions
+from .settings import Settings
 
 
-def create_app(
-    settings: Settings | None = None,
-    agent: Any | None = None,
-    approvals: BookingApproval | None = None,
-) -> FastAPI:
-    resolved = settings or Settings.from_env()
-    llm: LlmPort | None = None
-    embeddings: EmbeddingPort | None = None
-    if agent is None:
-        runtime = build_runtime(resolved)
-        agent = runtime.agent
-        approvals = runtime.approvals
-        llm = runtime.llm
-        embeddings = runtime.embeddings
+def create_app(settings: Settings | None = None) -> FastAPI:
+    settings = settings or Settings.from_env()
+    profile = load_profile(settings.profile_path)
+
+    llm = LlamaCpp(
+        settings.llama_base_url,
+        settings.llama_model,
+        settings.llama_timeout_seconds,
+    )
+    embeddings = Embeddings(
+        settings.embedding_base_url,
+        settings.embedding_model,
+        settings.embedding_timeout_seconds,
+    )
+    search = PortfolioSearch(
+        profile,
+        embeddings,
+        max_chars=settings.context_max_chars,
+        max_documents=settings.context_max_documents,
+        min_score=settings.portfolio_min_score,
+    )
+    sessions = MemorySessions(settings.session_ttl_seconds, settings.session_max_turns)
+    agent = PortfolioAgent(
+        profile,
+        sessions,
+        search,
+        llm,
+        GenerationConfig(
+            temperature=settings.generation_temperature,
+            max_tokens=settings.generation_max_tokens,
+        ),
+    )
 
     @asynccontextmanager
-    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        warm = getattr(agent, "warm", None)
-        if callable(warm):
-            await warm()
+    async def lifespan(_: FastAPI):
+        await agent.warm()
         yield
 
-    app = FastAPI(
-        title="Portfolio Business Representative",
-        version="0.4.0",
-        lifespan=lifespan,
-    )
+    app = FastAPI(title="Portfolio Assistant", version="0.5.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=list(resolved.allowed_origins),
+        allow_origins=list(settings.allowed_origins),
         allow_credentials=False,
-        allow_methods=["POST", "GET", "OPTIONS"],
-        allow_headers=["Content-Type"],
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
-    app.include_router(create_router(agent, approvals))
+    app.include_router(create_router(agent))
 
     @app.get("/health")
-    async def health() -> dict[str, str]:
-        return {"status": "ok"}
+    async def health() -> dict[str, bool]:
+        return {"ok": True}
 
     @app.get("/ready")
-    async def ready() -> dict[str, str]:
-        llama_ready = llm is None or await llm.health()
-        embedding_ready = embeddings is None or await embeddings.health()
-        if not llama_ready or not embedding_ready:
-            return {
-                "status": "degraded",
-                "llama": "ready" if llama_ready else "unavailable",
-                "embedding": "ready" if embedding_ready else "unavailable",
-            }
-        return {
-            "status": "ok",
-            "llama": "ready",
-            "embedding": "ready",
-        }
+    async def ready() -> dict[str, object]:
+        llm_ok, embeddings_ok = await asyncio.gather(llm.health(), embeddings.health())
+        return {"ok": llm_ok and embeddings_ok, "llm": llm_ok, "embeddings": embeddings_ok}
 
     return app
 
