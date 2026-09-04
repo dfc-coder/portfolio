@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -48,8 +50,15 @@ async def run_ladder(
     settings: Settings,
 ) -> dict[str, Any]:
     reports: dict[str, dict[str, Any]] = {}
+    total_versions = len(PORTFOLIO_PROMPT_VERSIONS)
 
-    for version in PORTFOLIO_PROMPT_VERSIONS:
+    for index, version in enumerate(PORTFOLIO_PROMPT_VERSIONS, start=1):
+        started = time.perf_counter()
+        print(
+            f"=== portfolio-{version} ({index}/{total_versions}) ===",
+            file=sys.stderr,
+            flush=True,
+        )
         report = await evaluate(
             cases,
             settings,
@@ -57,7 +66,14 @@ async def run_ladder(
             portfolio_only=True,
         )
         reports[version] = report
-        write_json(output_dir / f"portfolio-{version}.json", report)
+        report_path = output_dir / f"portfolio-{version}.json"
+        write_json(report_path, report)
+        elapsed = time.perf_counter() - started
+        print(
+            f"=== portfolio-{version} complete in {elapsed:.1f}s -> {report_path} ===",
+            file=sys.stderr,
+            flush=True,
+        )
 
     comparisons = [
         compare(reports["v1"], reports["v2"]),
@@ -80,7 +96,9 @@ async def run_ladder(
         "comparisons": comparisons,
         "final_hard_contracts_pass": strict_pass(reports["v4"]),
     }
-    write_json(output_dir / "summary.json", summary)
+    summary_path = output_dir / "summary.json"
+    write_json(summary_path, summary)
+    print(f"summary -> {summary_path}", file=sys.stderr, flush=True)
     return summary
 
 
