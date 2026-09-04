@@ -6,134 +6,146 @@ from typing import Any
 from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
-
 from .portfolio import Portfolio
 
 _WEEKDAYS_ES = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
 
-
-class ToolArgs(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-
-class SearchPortfolioArgs(ToolArgs):
-    query: str = Field(
-        min_length=1,
-        max_length=500,
-        description=(
-            "A concise semantic search query describing the exact professional fact needed, "
-            "for example 'Rust projects', 'AWS experience', or 'education'."
+SEARCH_PORTFOLIO_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "search_portfolio",
+        "description": (
+            "Search the professional portfolio and CV for factual evidence. Use it when the visitor "
+            "asks about the professional's experience, skills, projects, education, certifications, "
+            "services, or background. Do not use it for greetings, thanks, or unrelated small talk. "
+            "It returns relevant profile passages with source identifiers. An empty result means the "
+            "available profile does not confirm the fact; it is not proof that the professional lacks it."
         ),
-    )
-
-
-class CurrentDatetimeArgs(ToolArgs):
-    timezone: str | None = Field(
-        default=None,
-        description=(
-            "Optional IANA timezone such as America/Argentina/Buenos_Aires. Omit it when the "
-            "visitor did not request another timezone; the application timezone will be used."
-        ),
-    )
-
-
-class AddDurationArgs(ToolArgs):
-    datetime: str = Field(
-        description=(
-            "ISO-8601 date or datetime used as the calculation base, for example 2026-09-04 or "
-            "2026-09-04T19:00:00-03:00. Date-only or timezone-less values use the application timezone."
-        )
-    )
-    days: int = Field(default=0, ge=-36500, le=36500, description="Whole days to add or subtract.")
-    hours: int = Field(default=0, ge=-876000, le=876000, description="Whole hours to add or subtract.")
-    minutes: int = Field(
-        default=0,
-        ge=-52560000,
-        le=52560000,
-        description="Whole minutes to add or subtract.",
-    )
-
-
-class SetReminderArgs(ToolArgs):
-    datetime: str = Field(
-        description="Fully resolved ISO-8601 reminder datetime including a timezone offset."
-    )
-    message: str = Field(
-        min_length=1,
-        max_length=500,
-        description="Short text describing what the simulated reminder should say.",
-    )
-
-
-def _schema(name: str, description: str, args: type[ToolArgs]) -> dict[str, Any]:
-    return {
-        "type": "function",
-        "function": {
-            "name": name,
-            "description": description,
-            "parameters": _strip_titles(args.model_json_schema()),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "description": (
+                        "A concise search query for the exact professional fact needed, for example "
+                        "'Rust projects', 'AWS experience', or 'education'."
+                    ),
+                }
+            },
+            "required": ["query"],
+            "additionalProperties": False,
         },
-    }
+    },
+}
 
+GET_CURRENT_DATETIME_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "get_current_datetime",
+        "description": (
+            "Return the actual current date and time for a timezone. Use it whenever the answer depends "
+            "on what date or time it is now, including relative requests such as 'in two weeks'. It "
+            "returns ISO datetime, date, weekday, Spanish weekday, and timezone fields. Treat those "
+            "returned values as authoritative rather than estimating the current time yourself."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "timezone": {
+                    "type": "string",
+                    "description": (
+                        "Optional IANA timezone such as America/Argentina/Buenos_Aires. Omit it when the "
+                        "visitor did not request another timezone; the application timezone will be used."
+                    ),
+                }
+            },
+            "additionalProperties": False,
+        },
+    },
+}
 
-def _strip_titles(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {key: _strip_titles(item) for key, item in value.items() if key != "title"}
-    if isinstance(value, list):
-        return [_strip_titles(item) for item in value]
-    return value
+ADD_DURATION_TO_DATETIME_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "add_duration_to_datetime",
+        "description": (
+            "Add or subtract an exact duration from a supplied date or datetime. Use it for relative-date "
+            "arithmetic and for weekday lookup instead of calculating dates mentally. A zero duration is "
+            "valid when only the weekday of a known date is needed. It returns the exact resulting ISO "
+            "datetime, calendar date, weekday, Spanish weekday, and timezone. Reuse these values exactly."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "datetime": {
+                    "type": "string",
+                    "description": (
+                        "ISO-8601 date or datetime used as the calculation base, for example 2026-09-04 "
+                        "or 2026-09-04T19:00:00-03:00. Date-only or timezone-less values use the "
+                        "application timezone."
+                    ),
+                },
+                "days": {
+                    "type": "integer",
+                    "minimum": -36500,
+                    "maximum": 36500,
+                    "description": "Whole days to add or subtract. Omit for zero.",
+                },
+                "hours": {
+                    "type": "integer",
+                    "minimum": -876000,
+                    "maximum": 876000,
+                    "description": "Whole hours to add or subtract. Omit for zero.",
+                },
+                "minutes": {
+                    "type": "integer",
+                    "minimum": -52560000,
+                    "maximum": 52560000,
+                    "description": "Whole minutes to add or subtract. Omit for zero.",
+                },
+            },
+            "required": ["datetime"],
+            "additionalProperties": False,
+        },
+    },
+}
 
-
-search_portfolio_schema = _schema(
-    "search_portfolio",
-    (
-        "Search the professional portfolio and CV for factual evidence. Use it when the visitor "
-        "asks about the professional's experience, skills, projects, education, certifications, "
-        "services, or background; do not use it for greetings, thanks, or unrelated small talk. "
-        "It returns relevant profile passages with source identifiers. An empty result means the "
-        "available profile does not confirm the fact; it is not proof that the professional lacks it."
-    ),
-    SearchPortfolioArgs,
-)
-
-get_current_datetime_schema = _schema(
-    "get_current_datetime",
-    (
-        "Return the actual current date and time for a timezone. Use it whenever the answer depends "
-        "on what date or time it is now, including relative requests such as 'in two weeks'. It "
-        "returns ISO datetime, date, weekday, Spanish weekday, and timezone fields. Treat those "
-        "returned values as authoritative rather than estimating the current time yourself."
-    ),
-    CurrentDatetimeArgs,
-)
-
-add_duration_to_datetime_schema = _schema(
-    "add_duration_to_datetime",
-    (
-        "Add or subtract an exact duration from a supplied date or datetime. Use it for relative-date "
-        "arithmetic and for weekday lookup instead of calculating dates mentally; a zero duration is "
-        "valid when only the weekday of a known date is needed. It returns the exact resulting ISO "
-        "datetime, calendar date, weekday, Spanish weekday, and timezone. Reuse these values exactly."
-    ),
-    AddDurationArgs,
-)
-
-set_reminder_mock_schema = _schema(
-    "set_reminder_mock",
-    (
-        "Create a simulated reminder after its exact datetime has been resolved. Use it only when the "
-        "visitor explicitly asks to set or create a reminder. It returns a mock reminder identifier "
-        "and the supplied datetime/message, but it does not persist data or schedule a real reminder."
-    ),
-    SetReminderArgs,
-)
+SET_REMINDER_MOCK_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "set_reminder_mock",
+        "description": (
+            "Create a simulated reminder after its exact datetime has been resolved. Use it only when the "
+            "visitor explicitly asks to set or create a reminder. It returns a mock reminder identifier "
+            "and the supplied datetime/message, but it does not persist data or schedule a real reminder."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "datetime": {
+                    "type": "string",
+                    "description": "Fully resolved ISO-8601 reminder datetime including a timezone offset.",
+                },
+                "message": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "description": "Short text describing what the simulated reminder should say.",
+                },
+            },
+            "required": ["datetime", "message"],
+            "additionalProperties": False,
+        },
+    },
+}
 
 TOOLS = [
-    search_portfolio_schema,
-    get_current_datetime_schema,
-    add_duration_to_datetime_schema,
-    set_reminder_mock_schema,
+    SEARCH_PORTFOLIO_SCHEMA,
+    GET_CURRENT_DATETIME_SCHEMA,
+    ADD_DURATION_TO_DATETIME_SCHEMA,
+    SET_REMINDER_MOCK_SCHEMA,
 ]
 
 
@@ -183,7 +195,7 @@ async def run_tool_call(
             raise ValueError("tool arguments must be a JSON object")
         result = await _run_tool(name, payload, portfolio, default_timezone)
         body: dict[str, object] = {"ok": True, "result": result}
-    except (json.JSONDecodeError, ValidationError, ValueError) as exc:
+    except (json.JSONDecodeError, TypeError, ValueError) as exc:
         body = {
             "ok": False,
             "error": {"type": "validation_error", "message": str(exc)},
@@ -208,25 +220,82 @@ async def _run_tool(
     default_timezone: str,
 ) -> object:
     if name == "search_portfolio":
-        args = SearchPortfolioArgs.model_validate(payload)
-        return await search_portfolio(portfolio, args.query)
+        _only(payload, {"query"})
+        query = _required_string(payload, "query", max_length=500)
+        return await search_portfolio(portfolio, query)
 
     if name == "get_current_datetime":
-        args = CurrentDatetimeArgs.model_validate(payload)
-        return get_current_datetime(args.timezone, default_timezone)
+        _only(payload, {"timezone"})
+        timezone = payload.get("timezone")
+        if timezone is not None and not isinstance(timezone, str):
+            raise ValueError("timezone must be a string")
+        if isinstance(timezone, str) and not timezone.strip():
+            raise ValueError("timezone must not be empty")
+        return get_current_datetime(timezone, default_timezone)
 
     if name == "add_duration_to_datetime":
-        args = AddDurationArgs.model_validate(payload)
+        _only(payload, {"datetime", "days", "hours", "minutes"})
+        datetime = _required_string(payload, "datetime")
+        days = _integer(payload, "days", default=0, minimum=-36500, maximum=36500)
+        hours = _integer(payload, "hours", default=0, minimum=-876000, maximum=876000)
+        minutes = _integer(
+            payload,
+            "minutes",
+            default=0,
+            minimum=-52560000,
+            maximum=52560000,
+        )
         return add_duration_to_datetime(
-            default_timezone=default_timezone,
-            **args.model_dump(),
+            datetime,
+            default_timezone,
+            days=days,
+            hours=hours,
+            minutes=minutes,
         )
 
     if name == "set_reminder_mock":
-        args = SetReminderArgs.model_validate(payload)
-        return set_reminder_mock(**args.model_dump())
+        _only(payload, {"datetime", "message"})
+        datetime = _required_string(payload, "datetime")
+        message = _required_string(payload, "message", max_length=500)
+        return set_reminder_mock(datetime, message)
 
     raise ValueError(f"unknown tool: {name}")
+
+
+def _only(payload: dict[str, Any], allowed: set[str]) -> None:
+    extra = set(payload) - allowed
+    if extra:
+        raise ValueError(f"unexpected tool argument: {sorted(extra)[0]}")
+
+
+def _required_string(
+    payload: dict[str, Any],
+    name: str,
+    *,
+    max_length: int | None = None,
+) -> str:
+    value = payload.get(name)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} must be a non-empty string")
+    if max_length is not None and len(value) > max_length:
+        raise ValueError(f"{name} must be at most {max_length} characters")
+    return value
+
+
+def _integer(
+    payload: dict[str, Any],
+    name: str,
+    *,
+    default: int,
+    minimum: int,
+    maximum: int,
+) -> int:
+    value = payload.get(name, default)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{name} must be an integer")
+    if not minimum <= value <= maximum:
+        raise ValueError(f"{name} must be between {minimum} and {maximum}")
+    return value
 
 
 def _datetime_result(value: dt.datetime, timezone: str) -> dict[str, object]:

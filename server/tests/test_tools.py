@@ -21,10 +21,17 @@ def test_tool_schemas_are_explicit_json_schema() -> None:
     ]
     for tool in TOOLS:
         function = tool["function"]
+        parameters = function["parameters"]
+        assert tool["type"] == "function"
         assert function["description"]
-        assert function["parameters"]["type"] == "object"
-        assert function["parameters"]["additionalProperties"] is False
-        assert "title" not in function["parameters"]
+        assert parameters["type"] == "object"
+        assert parameters["additionalProperties"] is False
+        assert "title" not in parameters
+        assert "$defs" not in parameters
+
+    assert TOOLS[0]["function"]["parameters"]["required"] == ["query"]
+    assert TOOLS[2]["function"]["parameters"]["required"] == ["datetime"]
+    assert TOOLS[3]["function"]["parameters"]["required"] == ["datetime", "message"]
 
 
 def test_add_duration_calculates_date_and_weekday_exactly() -> None:
@@ -68,3 +75,35 @@ async def test_tool_validation_error_is_returned_to_model() -> None:
     assert message["tool_call_id"] == "call-1"
     assert body["ok"] is False
     assert body["error"]["type"] == "validation_error"
+
+
+@pytest.mark.asyncio
+async def test_tool_validation_rejects_unknown_arguments() -> None:
+    message = await run_tool_call(
+        "call-2",
+        "search_portfolio",
+        json.dumps({"query": "Rust", "unexpected": True}),
+        FakePortfolio(),
+        "America/Argentina/Buenos_Aires",
+    )
+
+    body = json.loads(message["content"])
+    assert body["ok"] is False
+    assert body["error"]["type"] == "validation_error"
+    assert "unexpected tool argument" in body["error"]["message"]
+
+
+@pytest.mark.asyncio
+async def test_tool_validation_rejects_wrong_integer_type() -> None:
+    message = await run_tool_call(
+        "call-3",
+        "add_duration_to_datetime",
+        json.dumps({"datetime": "2026-09-04", "days": "15"}),
+        FakePortfolio(),
+        "America/Argentina/Buenos_Aires",
+    )
+
+    body = json.loads(message["content"])
+    assert body["ok"] is False
+    assert body["error"]["type"] == "validation_error"
+    assert body["error"]["message"] == "days must be an integer"
