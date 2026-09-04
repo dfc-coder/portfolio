@@ -8,6 +8,8 @@ COMPOSE_FILE ?= $(ROOT)/compose.yaml
 API_URL ?= http://localhost:8000
 UV ?= uv
 CRITICAL_REPETITIONS ?= 5
+EVAL_GENERATED ?= tests/evals/generated/routing-candidates.jsonl
+EVAL_RESPONSE_REPORT ?= tests/evals/reports/responses.json
 
 CONTAINER_ENGINE ?= $(shell if command -v podman >/dev/null 2>&1; then echo podman; elif command -v docker >/dev/null 2>&1; then echo docker; fi)
 COMPOSE = $(CONTAINER_ENGINE) compose -f $(COMPOSE_FILE) --env-file $(ENV_FILE)
@@ -17,13 +19,14 @@ COMPOSE = $(CONTAINER_ENGINE) compose -f $(COMPOSE_FILE) --env-file $(ENV_FILE)
 	logs logs-api logs-llama logs-embedding shell-api \
 	health ready wait-ready \
 	compile test test-unit test-e2e check \
-	eval-routing eval-scheduling eval-live eval-smoke \
+	eval-routing eval-scheduling eval-live eval-smoke eval-safety \
+	eval-dataset-generate eval-dataset-validate eval-responses \
 	eval-intents-challenge eval-intents-blind \
 	eval-routes-v5 eval-routes-final clean model models
 
 help: ## Show available targets
 	@printf "\nPortfolio Business Representative\n\n"
-	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\nTargets:\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\nTargets:\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-24s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@printf "\nOverrides: CONTAINER_ENGINE=podman|docker API_URL=http://... ENV_FILE=/path/.env CRITICAL_REPETITIONS=5\n\n"
 
 env: ## Create .env from .env.example when missing
@@ -161,6 +164,28 @@ test-e2e: ## Run end-to-end agent tests with test extras installed
 	@cd "$(ROOT)" && PYTHONPATH=. $(UV) run --extra test pytest -q tests/e2e
 
 check: compile test ## Run compile + complete test suite
+
+eval-dataset-validate: ## Validate canonical eval splits and optional generated candidate
+	@cd "$(ROOT)" && PYTHONPATH=. $(UV) run --extra test python tests/evals/datasets/validate.py --generated "$(EVAL_GENERATED)"
+
+eval-dataset-generate: up ## Generate routing dataset candidates; never mutates canonical splits
+	@cd "$(ROOT)" && mkdir -p "$$(dirname "$(EVAL_GENERATED)")"
+	@cd "$(ROOT)" && $(COMPOSE) run --rm --no-deps \
+		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
+		api python tests/evals/datasets/generate.py \
+		--spec tests/evals/datasets/specs/routing.json \
+		--output "$(EVAL_GENERATED)"
+	@$(MAKE) --no-print-directory eval-dataset-validate
+
+eval-responses: up ## Evaluate current response prompts with deterministic and semantic graders
+	@cd "$(ROOT)" && mkdir -p "$$(dirname "$(EVAL_RESPONSE_REPORT)")"
+	@cd "$(ROOT)" && $(COMPOSE) run --rm --no-deps \
+		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
+		api python tests/evals/run_response_eval.py \
+		--cases tests/evals/responses/cases.jsonl \
+		--output "$(EVAL_RESPONSE_REPORT)" --strict
+
+eval-safety: test-e2e ## Run deterministic E2E safety and side-effect contracts
 
 eval-intents-challenge: engine-check env-check ## Historical v4 training/challenge pipeline; keep only for comparison
 	@cd "$(ROOT)" && bash tests/evals/run_intent_pipeline.sh
