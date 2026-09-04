@@ -67,7 +67,7 @@ class EvidenceLlm:
 
     async def stream(self, messages, config):  # type: ignore[no-untyped-def]
         del config
-        assert "RELEVANT_KNOWLEDGE:" in messages[0]["content"]
+        assert "<relevant_knowledge>" in messages[0]["content"]
         assert "AWS" in messages[0]["content"]
         yield "Diego tiene experiencia con AWS."
 
