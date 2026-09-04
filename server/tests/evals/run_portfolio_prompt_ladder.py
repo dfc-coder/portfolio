@@ -36,6 +36,21 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def ensure_output_dir_writable(path: Path) -> None:
+    """Fail before expensive model calls when the report directory cannot be written."""
+    path.mkdir(parents=True, exist_ok=True)
+    probe = path / ".write-check"
+    try:
+        probe.write_text("ok\n", encoding="utf-8")
+    except OSError as exc:
+        raise RuntimeError(f"evaluation output directory is not writable: {path}") from exc
+    finally:
+        try:
+            probe.unlink()
+        except FileNotFoundError:
+            pass
+
+
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -49,6 +64,7 @@ async def run_ladder(
     output_dir: Path,
     settings: Settings,
 ) -> dict[str, Any]:
+    ensure_output_dir_writable(output_dir)
     reports: dict[str, dict[str, Any]] = {}
     total_versions = len(PORTFOLIO_PROMPT_VERSIONS)
 
