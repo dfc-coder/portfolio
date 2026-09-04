@@ -70,8 +70,16 @@ class FakePortfolio:
         return [{"source": "projects.0", "text": '{"stack":["Rust"]}'}]
 
 
+def token_text(events) -> str:
+    return "".join(
+        str(payload["text"])
+        for event, payload in events
+        if event == "token"
+    )
+
+
 @pytest.mark.asyncio
-async def test_agent_streams_answer_without_tool() -> None:
+async def test_agent_streams_answer_and_flow_without_tool() -> None:
     chat = FakeChat([[chunk("Ho"), chunk("la."), chunk(finish_reason="stop")]])
     portfolio = FakePortfolio()
     agent = Agent(
@@ -82,16 +90,18 @@ async def test_agent_streams_answer_without_tool() -> None:
         timezone="America/Argentina/Buenos_Aires",
     )
 
-    parts = [part async for part in agent.respond("hola", [])]
+    events = [event async for event in agent.respond("hola", [])]
 
-    assert parts == ["Ho", "la."]
+    assert token_text(events) == "Hola."
+    assert events[0] == ("status", {"phase": "thinking", "round": 1})
+    assert ("status", {"phase": "responding", "round": 1}) in events
     assert portfolio.queries == []
     assert len(chat.chat.completions.requests) == 1
     assert chat.chat.completions.requests[0]["stream"] is True
 
 
 @pytest.mark.asyncio
-async def test_agent_preserves_streamed_tool_call_and_result_messages() -> None:
+async def test_agent_preserves_streamed_tool_call_and_reports_flow() -> None:
     chat = FakeChat(
         [
             [
@@ -126,10 +136,19 @@ async def test_agent_preserves_streamed_tool_call_and_result_messages() -> None:
         timezone="America/Argentina/Buenos_Aires",
     )
 
-    response = "".join([part async for part in agent.respond("¿Trabajó con Rust?", [])])
+    events = [event async for event in agent.respond("¿Trabajó con Rust?", [])]
 
-    assert response == "El perfil incluye experiencia con Rust."
+    assert token_text(events) == "El perfil incluye experiencia con Rust."
     assert portfolio.queries == ["Rust experience"]
+    assert (
+        "tool",
+        {"name": "search_portfolio", "state": "running", "round": 1},
+    ) in events
+    assert (
+        "tool",
+        {"name": "search_portfolio", "state": "done", "ok": True, "round": 1},
+    ) in events
+    assert ("status", {"phase": "thinking", "round": 2}) in events
 
     second_messages = chat.chat.completions.requests[1]["messages"]
     assert second_messages[-2]["role"] == "assistant"
@@ -203,12 +222,24 @@ async def test_agent_runs_multi_round_tool_chain() -> None:
         timezone="America/Argentina/Buenos_Aires",
     )
 
-    response = "".join(
-        [part async for part in agent.respond("Recordame en 30 días revisar el CV", [])]
-    )
+    events = [
+        event
+        async for event in agent.respond("Recordame en 30 días revisar el CV", [])
+    ]
 
-    assert response == "Recordatorio simulado."
+    assert token_text(events) == "Recordatorio simulado."
     assert len(chat.chat.completions.requests) == 4
+
+    running_tools = [
+        payload["name"]
+        for event, payload in events
+        if event == "tool" and payload["state"] == "running"
+    ]
+    assert running_tools == [
+        "get_current_datetime",
+        "add_duration_to_datetime",
+        "set_reminder_mock",
+    ]
 
     final_messages = chat.chat.completions.requests[-1]["messages"]
     tool_ids = [item["tool_call_id"] for item in final_messages if item["role"] == "tool"]
@@ -254,9 +285,9 @@ async def test_agent_returns_multiple_tool_results_in_one_round() -> None:
         timezone="America/Argentina/Buenos_Aires",
     )
 
-    response = "".join([part async for part in agent.respond("consulta mixta", [])])
+    events = [event async for event in agent.respond("consulta mixta", [])]
 
-    assert response == "Listo."
+    assert token_text(events) == "Listo."
     second_messages = chat.chat.completions.requests[1]["messages"]
     assert [item["tool_call_id"] for item in second_messages[-2:]] == [
         "call-search",
