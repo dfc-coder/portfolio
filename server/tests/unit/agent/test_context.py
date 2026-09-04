@@ -74,7 +74,7 @@ def test_portfolio_context_uses_xml_boundaries_and_escapes_dynamic_data(
     assert context.prompt_id == PORTFOLIO_PROMPT_ID
     assert f"<portfolio_subject>\n{profile.owner.name}\n</portfolio_subject>" in context.system_prompt
     assert "<agent_capabilities>" in context.system_prompt
-    assert "<owner_policy>" in context.system_prompt
+    assert "<owner_policy>" not in context.system_prompt
     assert "<runtime_state>" in context.system_prompt
     assert "<relevant_knowledge>" in context.system_prompt
     assert 'source="projects.&quot;0&quot;&amp;test"' in context.system_prompt

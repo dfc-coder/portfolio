@@ -128,4 +128,3 @@ class BusinessProfile(BaseModel):
     business: BusinessInfoProfile = Field(default_factory=BusinessInfoProfile)
     faq: list[FaqProfile] = Field(default_factory=list)
     scheduling: SchedulingProfile
-    instructions: list[str] = Field(default_factory=list)
