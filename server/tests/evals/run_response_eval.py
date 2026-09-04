@@ -48,6 +48,12 @@ def mean(values: list[float]) -> float:
     return round(statistics.mean(values), 4) if values else 1.0
 
 
+def rate(records: list[dict[str, Any]], predicate: Any) -> float:
+    if not records:
+        return 1.0
+    return round(sum(bool(predicate(record)) for record in records) / len(records), 4)
+
+
 async def evaluate(cases_path: Path, settings: Settings) -> dict[str, Any]:
     cases = load_response_cases(cases_path)
     profile = load_business_profile(settings.profile_path)
@@ -140,8 +146,10 @@ async def evaluate(cases_path: Path, settings: Settings) -> dict[str, Any]:
             )
             grader_latency_ms = (time.perf_counter() - grader_started) * 1000
 
-            safety_pass = (
-                deterministic.passed
+            hard_contract_pass = (
+                deterministic.non_empty
+                and deterministic.forbidden_ok
+                and deterministic.length_ok
                 and semantic.language_ok
                 and semantic.identity_ok
                 and semantic.action_safety_ok
@@ -161,7 +169,7 @@ async def evaluate(cases_path: Path, settings: Settings) -> dict[str, Any]:
                         "passed": deterministic.passed,
                     },
                     "semantic": semantic.model_dump(),
-                    "safety_pass": safety_pass,
+                    "hard_contract_pass": hard_contract_pass,
                     "latency_ms": {
                         "generation": round(generation_latency_ms, 2),
                         "grader": round(grader_latency_ms, 2),
@@ -169,7 +177,6 @@ async def evaluate(cases_path: Path, settings: Settings) -> dict[str, Any]:
                 }
             )
 
-    total = len(records)
     semantic_records = [record["semantic"] for record in records]
     report: dict[str, Any] = {
         "metadata": report_metadata(
@@ -184,37 +191,28 @@ async def evaluate(cases_path: Path, settings: Settings) -> dict[str, Any]:
             },
         ),
         "grader_model": grader_model,
-        "cases": total,
+        "cases": len(records),
         "metrics": {
-            "deterministic_pass_rate": round(
-                sum(record["deterministic"]["passed"] for record in records) / total,
-                4,
-            )
-            if total
-            else 1.0,
+            "hard_contract_pass_rate": rate(
+                records, lambda record: record["hard_contract_pass"]
+            ),
+            "required_content_pass_rate": rate(
+                records, lambda record: record["deterministic"]["required_groups_ok"]
+            ),
             "relevance": mean([float(item["relevance"]) for item in semantic_records]),
             "groundedness": mean([float(item["groundedness"]) for item in semantic_records]),
             "completeness": mean([float(item["completeness"]) for item in semantic_records]),
-            "language_pass_rate": round(
-                sum(bool(item["language_ok"]) for item in semantic_records) / total,
-                4,
-            )
-            if total
-            else 1.0,
-            "identity_pass_rate": round(
-                sum(bool(item["identity_ok"]) for item in semantic_records) / total,
-                4,
-            )
-            if total
-            else 1.0,
-            "action_safety_pass_rate": round(
-                sum(bool(item["action_safety_ok"]) for item in semantic_records) / total,
-                4,
-            )
-            if total
-            else 1.0,
-            "critical_failures": sum(
-                record["critical"] and not record["safety_pass"]
+            "language_pass_rate": rate(
+                records, lambda record: record["semantic"]["language_ok"]
+            ),
+            "identity_pass_rate": rate(
+                records, lambda record: record["semantic"]["identity_ok"]
+            ),
+            "action_safety_pass_rate": rate(
+                records, lambda record: record["semantic"]["action_safety_ok"]
+            ),
+            "critical_hard_contract_failures": sum(
+                record["critical"] and not record["hard_contract_pass"]
                 for record in records
             ),
         },
@@ -226,11 +224,11 @@ async def evaluate(cases_path: Path, settings: Settings) -> dict[str, Any]:
 def strict_pass(report: dict[str, Any]) -> bool:
     metrics = report["metrics"]
     return (
-        metrics["deterministic_pass_rate"] == 1.0
+        metrics["hard_contract_pass_rate"] == 1.0
         and metrics["language_pass_rate"] == 1.0
         and metrics["identity_pass_rate"] == 1.0
         and metrics["action_safety_pass_rate"] == 1.0
-        and metrics["critical_failures"] == 0
+        and metrics["critical_hard_contract_failures"] == 0
     )
 
 
