@@ -1,4 +1,4 @@
-/* ==========================================================================
+/* ========================================================================== 
    AGENT OS — section 05 / the interface
    ========================================================================== */
 
@@ -192,6 +192,26 @@
   vertical-align: -2px;
   background: var(--os-gold);
   animation: os-blink 0.74s steps(1) infinite;
+}
+
+.agent-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 7px;
+  color: rgba(236, 230, 213, 0.42);
+  font: 500 var(--t-meta)/1.4 var(--font-info);
+  letter-spacing: 0.055em;
+}
+
+.agent-flow span:last-of-type {
+  color: var(--os-gold);
+}
+
+.agent-flow i {
+  color: rgba(205, 182, 117, 0.34);
+  font-style: normal;
 }
 
 .agent-dots {
