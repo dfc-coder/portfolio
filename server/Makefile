@@ -10,6 +10,8 @@ UV ?= uv
 CRITICAL_REPETITIONS ?= 5
 EVAL_GENERATED ?= tests/evals/generated/routing-candidates.jsonl
 EVAL_RESPONSE_REPORT ?= tests/evals/reports/responses.json
+EVAL_BASELINE_REPORT ?=
+EVAL_CANDIDATE_REPORT ?=
 
 CONTAINER_ENGINE ?= $(shell if command -v podman >/dev/null 2>&1; then echo podman; elif command -v docker >/dev/null 2>&1; then echo docker; fi)
 COMPOSE = $(CONTAINER_ENGINE) compose -f $(COMPOSE_FILE) --env-file $(ENV_FILE)
@@ -20,7 +22,7 @@ COMPOSE = $(CONTAINER_ENGINE) compose -f $(COMPOSE_FILE) --env-file $(ENV_FILE)
 	health ready wait-ready \
 	compile test test-unit test-e2e check \
 	eval-routing eval-scheduling eval-live eval-smoke eval-safety \
-	eval-dataset-generate eval-dataset-validate eval-responses \
+	eval-dataset-generate eval-dataset-validate eval-responses eval-compare \
 	eval-intents-challenge eval-intents-blind \
 	eval-routes-v5 eval-routes-final clean model models
 
@@ -184,6 +186,13 @@ eval-responses: up ## Evaluate current response prompts with deterministic and s
 		api python tests/evals/run_response_eval.py \
 		--cases tests/evals/responses/cases.jsonl \
 		--output "$(EVAL_RESPONSE_REPORT)" --strict
+
+eval-compare: ## Compare shared numeric metrics in two saved evaluation reports
+	@if [ -z "$(EVAL_BASELINE_REPORT)" ] || [ -z "$(EVAL_CANDIDATE_REPORT)" ]; then \
+		echo "Set EVAL_BASELINE_REPORT and EVAL_CANDIDATE_REPORT." >&2; exit 1; \
+	fi
+	@cd "$(ROOT)" && PYTHONPATH=. $(UV) run --extra test python tests/evals/compare_reports.py \
+		--baseline "$(EVAL_BASELINE_REPORT)" --candidate "$(EVAL_CANDIDATE_REPORT)"
 
 eval-safety: test-e2e ## Run deterministic E2E safety and side-effect contracts
 
