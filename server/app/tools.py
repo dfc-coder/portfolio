@@ -74,7 +74,6 @@ def _schema(name: str, description: str, args: type[ToolArgs]) -> dict[str, Any]
             "name": name,
             "description": description,
             "parameters": args.model_json_schema(),
-            "strict": True,
         },
     }
 
