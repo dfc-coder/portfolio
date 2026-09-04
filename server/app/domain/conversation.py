@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from enum import StrEnum
 
-from .routing import RouteDomain
+from .routing import Route
 from .scheduling import OfferedSlot, PendingBooking
 
 
@@ -77,7 +77,7 @@ class SchedulingMemory:
 @dataclass
 class SessionState:
     session_id: str
-    current_focus: RouteDomain = RouteDomain.BUSINESS
+    current_focus: Route = Route.CONVERSATION
     active_workflow: ActiveWorkflow | None = None
     turns: list[ChatTurn] = field(default_factory=list)
     scheduling: SchedulingMemory = field(default_factory=SchedulingMemory)
@@ -85,6 +85,6 @@ class SessionState:
     last_activity: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def reset_scheduling(self) -> None:
-        self.current_focus = RouteDomain.BUSINESS
+        self.current_focus = Route.CONVERSATION
         self.active_workflow = None
         self.scheduling.clear()

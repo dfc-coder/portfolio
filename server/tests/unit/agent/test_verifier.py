@@ -10,7 +10,6 @@ from app.domain.conversation import ActiveWorkflow, SessionState
 from app.domain.profile import BusinessProfile
 from app.domain.routing import RouteRelation
 from app.domain.scheduling import OfferedSlot
-from app.infrastructure.calendar.memory import InMemoryCalendarGateway
 from app.ports.llm import GenerationConfig
 from app.scheduling.policy import SchedulingPolicy
 
@@ -18,7 +17,10 @@ from app.scheduling.policy import SchedulingPolicy
 class OneTurnLlm:
     async def complete(self, messages, config, response_schema=None):  # type: ignore[no-untyped-def]
         del messages, config, response_schema
-        return SchedulingTurn(intent=SchedulingIntent.SELECT, slot_id="S2").model_dump_json()
+        return SchedulingTurn(
+            intent=SchedulingIntent.SELECT,
+            slot_id="S2",
+        ).model_dump_json()
 
     async def stream(self, messages, config):  # type: ignore[no-untyped-def]
         del messages, config
@@ -52,7 +54,6 @@ async def test_scheduler_rejects_unoffered_slot(profile: BusinessProfile) -> Non
     scheduler = Scheduler(
         OneTurnLlm(),
         NeverSlots(),  # type: ignore[arg-type]
-        InMemoryCalendarGateway(),
         policy,
         GenerationConfig(temperature=0.1, max_tokens=96),
     )

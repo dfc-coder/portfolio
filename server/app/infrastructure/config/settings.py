@@ -36,6 +36,7 @@ class Settings:
     embedding_timeout_seconds: float = 30.0
     context_max_chars: int = 4000
     context_max_documents: int = 4
+    portfolio_min_score: float = 0.10
     pockettrace_enabled: bool = False
     pockettrace_url: str = "http://host.containers.internal:4319"
     pockettrace_timeout_seconds: float = 1.0
@@ -76,6 +77,7 @@ class Settings:
             ),
             context_max_chars=int(os.getenv("CONTEXT_MAX_CHARS", "4000")),
             context_max_documents=int(os.getenv("CONTEXT_MAX_DOCUMENTS", "4")),
+            portfolio_min_score=float(os.getenv("PORTFOLIO_MIN_SCORE", "0.10")),
             pockettrace_enabled=_bool(os.getenv("POCKETTRACE_ENABLED", "false")),
             pockettrace_url=os.getenv(
                 "POCKETTRACE_URL", "http://host.containers.internal:4319"

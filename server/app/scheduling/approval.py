@@ -4,9 +4,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from app.domain.scheduling import BookingResult, PendingBooking
-from app.ports.calendar import CalendarPort
 from app.ports.sessions import SessionStorePort
-from app.scheduling.policy import SchedulingPolicy
+
+from .calendar import Calendar
+from .policy import SchedulingPolicy
 
 
 class BookingApprovalError(RuntimeError):
@@ -42,7 +43,7 @@ class BookingApproval:
     def __init__(
         self,
         sessions: SessionStorePort,
-        calendar: CalendarPort,
+        calendar: Calendar,
         policy: SchedulingPolicy,
     ) -> None:
         self._sessions = sessions

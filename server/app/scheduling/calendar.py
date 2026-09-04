@@ -6,7 +6,9 @@ from typing import Protocol
 from app.domain.scheduling import BookingResult, BusyInterval, PendingBooking
 
 
-class CalendarPort(Protocol):
+class Calendar(Protocol):
+    """Calendar boundary required by scheduling capabilities."""
+
     async def busy_intervals(
         self,
         start: datetime,

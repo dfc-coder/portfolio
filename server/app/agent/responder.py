@@ -8,15 +8,15 @@ from typing import TYPE_CHECKING, Any
 
 from app.domain.conversation import SessionState
 from app.domain.profile import BusinessProfile
-from app.ports.embeddings import EmbeddingPort
 from app.ports.llm import GenerationConfig, GenerationMetadata, GenerationStream, LlmPort
 from app.scheduling.policy import SchedulingPolicy
 
-from .context import ContextAssembler, ProfileDocumentIndex, ProfileRetriever
+from .context import DEFAULT_PORTFOLIO_PROMPT_VERSION, ContextAssembler
 from .stream_guard import StreamGuard, UnsafeStreamOutput
 
 if TYPE_CHECKING:
     from app.infrastructure.pockettrace import TurnTrace
+    from app.portfolio.search import Fact
 
 logger = logging.getLogger(__name__)
 
@@ -41,22 +41,17 @@ class Responder:
         policy: SchedulingPolicy,
         config: GenerationConfig,
         capabilities: tuple[str, ...],
-        embeddings: EmbeddingPort,
         *,
-        context_max_chars: int = 4000,
-        context_max_documents: int = 4,
+        portfolio_prompt_version: str = DEFAULT_PORTFOLIO_PROMPT_VERSION,
     ) -> None:
         del policy  # Timezone/policy data is already represented in BusinessProfile.
         self._llm = llm
         self._config = config
-        index = ProfileDocumentIndex(profile)
-        retriever = ProfileRetriever(
-            index,
-            embeddings,
-            max_chars=context_max_chars,
-            max_documents=context_max_documents,
+        self._context = ContextAssembler(
+            profile,
+            capabilities,
+            portfolio_prompt_version=portfolio_prompt_version,
         )
-        self._context = ContextAssembler(profile, capabilities, retriever)
 
     async def warm(self) -> None:
         await self._context.warm()
@@ -65,10 +60,12 @@ class Responder:
         self,
         state: SessionState,
         trace: TurnTrace | None = None,
+        *,
+        evidence: tuple[Fact, ...] = (),
     ) -> AsyncIterator[str]:
         guard = StreamGuard()
         emitted = False
-        context = await self._context.build(state, trace)
+        context = await self._context.build(state, evidence, trace)
         messages = context.messages()
         raw_chunks: list[str] = []
         visible_chunks: list[str] = []
@@ -129,7 +126,10 @@ class Responder:
                     input={"raw_text": "".join(raw_chunks)},
                     output={"accepted": None, "visible_text": "".join(visible_chunks)},
                     status="failed",
-                    error={"kind": "generation_error", "message": "generation did not complete"},
+                    error={
+                        "kind": "generation_error",
+                        "message": "generation did not complete",
+                    },
                 )
             raise
 

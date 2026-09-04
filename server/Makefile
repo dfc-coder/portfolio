@@ -8,21 +8,40 @@ COMPOSE_FILE ?= $(ROOT)/compose.yaml
 API_URL ?= http://localhost:8000
 UV ?= uv
 CRITICAL_REPETITIONS ?= 5
+EVAL_GENERATED ?= tests/evals/generated/routing-candidates.jsonl
+EVAL_RESPONSE_REPORT ?= tests/evals/reports/responses.json
+EVAL_PORTFOLIO_PROMPT_DIR ?= tests/evals/reports/portfolio-prompts
+PORTFOLIO_PROMPT_VERSION ?= v4
+EVAL_BASELINE_REPORT ?=
+EVAL_CANDIDATE_REPORT ?=
 
 CONTAINER_ENGINE ?= $(shell if command -v podman >/dev/null 2>&1; then echo podman; elif command -v docker >/dev/null 2>&1; then echo docker; fi)
 COMPOSE = $(CONTAINER_ENGINE) compose -f $(COMPOSE_FILE) --env-file $(ENV_FILE)
+HOST_UID := $(shell id -u)
+HOST_GID := $(shell id -g)
+
+ifeq ($(CONTAINER_ENGINE),podman)
+# Rootless Podman maps container root to the invoking host user. The image's
+# appuser (UID 10001) cannot create files in a host-owned bind mount.
+EVAL_COMPOSE_RUN = $(COMPOSE) run --rm --no-deps --user 0:0
+else
+EVAL_COMPOSE_RUN = $(COMPOSE) run --rm --no-deps --user "$(HOST_UID):$(HOST_GID)"
+endif
 
 .PHONY: help env env-check engine-check doctor config \
 	up dev down stop restart reset build rebuild pull ps status \
 	logs logs-api logs-llama logs-embedding shell-api \
 	health ready wait-ready \
 	compile test test-unit test-e2e check \
-	eval-routing eval-scheduling eval-live eval-smoke clean model models
+	eval-routing eval-scheduling eval-live eval-smoke eval-safety \
+	eval-dataset-generate eval-dataset-validate eval-responses eval-portfolio-prompts eval-compare \
+	eval-intents-challenge eval-intents-blind \
+	eval-routes-v5 eval-routes-final clean model models
 
 help: ## Show available targets
 	@printf "\nPortfolio Business Representative\n\n"
-	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\nTargets:\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-16s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-	@printf "\nOverrides: CONTAINER_ENGINE=podman|docker API_URL=http://... ENV_FILE=/path/.env CRITICAL_REPETITIONS=5\n\n"
+	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\nTargets:\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-24s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@printf "\nOverrides: CONTAINER_ENGINE=podman|docker API_URL=http://... ENV_FILE=/path/.env CRITICAL_REPETITIONS=5 PORTFOLIO_PROMPT_VERSION=v1|v2|v3|v4\n\n"
 
 env: ## Create .env from .env.example when missing
 	@if [ -f "$(ENV_FILE)" ]; then \
@@ -149,26 +168,76 @@ wait-ready: ## Wait until both models are ready through FastAPI
 compile: ## Compile Python sources and tests
 	@cd "$(ROOT)" && $(UV) run python -m compileall -q app tests
 
-test: ## Run the complete pytest suite
-	@cd "$(ROOT)" && PYTHONPATH=. $(UV) run pytest -q
+test: ## Run the complete pytest suite with test extras installed
+	@cd "$(ROOT)" && PYTHONPATH=. $(UV) run --extra test pytest -q
 
-test-unit: ## Run fast unit tests only
-	@cd "$(ROOT)" && PYTHONPATH=. $(UV) run pytest -q tests/unit
+test-unit: ## Run fast unit tests only with test extras installed
+	@cd "$(ROOT)" && PYTHONPATH=. $(UV) run --extra test pytest -q tests/unit
 
-test-e2e: ## Run end-to-end agent tests
-	@cd "$(ROOT)" && PYTHONPATH=. $(UV) run pytest -q tests/e2e
+test-e2e: ## Run end-to-end agent tests with test extras installed
+	@cd "$(ROOT)" && PYTHONPATH=. $(UV) run --extra test pytest -q tests/e2e
 
 check: compile test ## Run compile + complete test suite
 
+eval-dataset-validate: ## Validate canonical eval splits and optional generated candidate
+	@cd "$(ROOT)" && PYTHONPATH=. $(UV) run --extra test python tests/evals/datasets/validate.py --generated "$(EVAL_GENERATED)"
+
+eval-dataset-generate: up ## Generate routing dataset candidates; never mutates canonical splits
+	@cd "$(ROOT)" && mkdir -p "$$(dirname "$(EVAL_GENERATED)")"
+	@cd "$(ROOT)" && $(EVAL_COMPOSE_RUN) \
+		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
+		api python tests/evals/datasets/generate.py \
+		--spec tests/evals/datasets/specs/routing.json \
+		--output "$(EVAL_GENERATED)"
+	@$(MAKE) --no-print-directory eval-dataset-validate
+
+eval-responses: up ## Evaluate response prompts; portfolio defaults to v4 and can be overridden
+	@cd "$(ROOT)" && mkdir -p "$$(dirname "$(EVAL_RESPONSE_REPORT)")"
+	@cd "$(ROOT)" && $(EVAL_COMPOSE_RUN) \
+		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
+		api python tests/evals/run_response_eval.py \
+		--cases tests/evals/responses/cases.jsonl \
+		--portfolio-prompt-version "$(PORTFOLIO_PROMPT_VERSION)" \
+		--output "$(EVAL_RESPONSE_REPORT)" --strict
+
+eval-portfolio-prompts: up ## Run portfolio-v1 -> v4 on the same portfolio cases and compare every step
+	@cd "$(ROOT)" && mkdir -p "$(EVAL_PORTFOLIO_PROMPT_DIR)"
+	@cd "$(ROOT)" && $(EVAL_COMPOSE_RUN) \
+		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
+		api python -u tests/evals/run_portfolio_prompt_ladder.py \
+		--cases tests/evals/responses/cases.jsonl \
+		--output-dir "$(EVAL_PORTFOLIO_PROMPT_DIR)" --strict
+
+eval-compare: ## Compare shared numeric metrics in two saved evaluation reports
+	@if [ -z "$(EVAL_BASELINE_REPORT)" ] || [ -z "$(EVAL_CANDIDATE_REPORT)" ]; then \
+		echo "Set EVAL_BASELINE_REPORT and EVAL_CANDIDATE_REPORT." >&2; exit 1; \
+	fi
+	@cd "$(ROOT)" && PYTHONPATH=. $(UV) run --extra test python tests/evals/compare_reports.py \
+		--baseline "$(EVAL_BASELINE_REPORT)" --candidate "$(EVAL_CANDIDATE_REPORT)"
+
+eval-safety: test-e2e ## Run deterministic E2E safety and side-effect contracts
+
+eval-intents-challenge: engine-check env-check ## Historical v4 training/challenge pipeline; keep only for comparison
+	@cd "$(ROOT)" && bash tests/evals/run_intent_pipeline.sh
+
+eval-intents-blind: engine-check env-check ## Historical v4 blind gate; already consumed, do not use as a final gate
+	@cd "$(ROOT)" && bash tests/evals/run_intent_pipeline.sh --blind
+
+eval-routes-v5: engine-check env-check ## Train nonlinear 4-class candidate and require challenge + historical blind regression
+	@cd "$(ROOT)" && bash tests/evals/run_nonlinear_route_pipeline.sh
+
+eval-routes-final: engine-check env-check ## Evaluate frozen nonlinear artifact once on final_holdout_v2 without retraining
+	@cd "$(ROOT)" && bash tests/evals/run_nonlinear_route_final.sh
+
 eval-routing: up ## Run the complete live embedding routing/conversation evaluation
 	@echo "Full routing/conversation eval: all cases run; CRITICAL_REPETITIONS only changes repeated critical cases."
-	@cd "$(ROOT)" && $(COMPOSE) run --rm --no-deps \
+	@cd "$(ROOT)" && $(EVAL_COMPOSE_RUN) \
 		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
 		api python tests/evals/run_live.py --critical-repetitions $(CRITICAL_REPETITIONS)
 
 eval-scheduling: up ## Run the complete SchedulingTurn structured semantic evaluation
 	@echo "Full scheduling eval: all SchedulingTurn cases run; CRITICAL_REPETITIONS only changes repeated critical cases."
-	@cd "$(ROOT)" && $(COMPOSE) run --rm --no-deps \
+	@cd "$(ROOT)" && $(EVAL_COMPOSE_RUN) \
 		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
 		api python tests/evals/run_scheduling_turn_live.py --critical-repetitions $(CRITICAL_REPETITIONS)
 
@@ -176,7 +245,7 @@ eval-live: eval-routing eval-scheduling ## Run all complete live-model evaluatio
 
 eval-smoke: up ## Run a small live-model regression sample with visible per-case progress
 	@echo "Running fast live-model smoke evaluation with per-case progress."
-	@cd "$(ROOT)" && $(COMPOSE) run --rm --no-deps \
+	@cd "$(ROOT)" && $(EVAL_COMPOSE_RUN) \
 		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
 		api python -u tests/evals/run_smoke.py
 

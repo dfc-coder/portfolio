@@ -22,8 +22,10 @@ from app.infrastructure.embeddings.llama_cpp import LlamaCppEmbeddingClient
 from app.infrastructure.llm.llama_cpp import LlamaCppClient
 from app.infrastructure.sessions.memory import MemorySessionStore
 from app.ports.llm import GenerationConfig
+from app.portfolio.search import PortfolioSearch
 from app.scheduling.policy import SchedulingPolicy
 from app.scheduling.slots import SlotService
+from tests.evals.evaluation_report import report_metadata
 
 
 def parse_args() -> argparse.Namespace:
@@ -75,10 +77,16 @@ def build_eval_agent(
     calendar = InMemoryCalendarGateway()
     slots = SlotService(calendar, policy)
     router = build_router(embeddings)
+    portfolio = PortfolioSearch(
+        profile,
+        embeddings,
+        max_chars=settings.context_max_chars,
+        max_documents=settings.context_max_documents,
+        min_score=settings.portfolio_min_score,
+    )
     scheduler = Scheduler(
         llm,
         slots,
-        calendar,
         policy,
         GenerationConfig(
             temperature=settings.planner_temperature,
@@ -98,11 +106,18 @@ def build_eval_agent(
             top_k=20,
         ),
         scheduler.public_capabilities,
-        embeddings,
-        context_max_chars=settings.context_max_chars,
-        context_max_documents=settings.context_max_documents,
     )
-    return BusinessRepresentative(sessions, router, scheduler, responder), sessions, calendar
+    return (
+        BusinessRepresentative(
+            sessions,
+            router,
+            portfolio,
+            scheduler,
+            responder,
+        ),
+        sessions,
+        calendar,
+    )
 
 
 async def evaluate_routing(
@@ -127,13 +142,14 @@ async def evaluate_routing(
             started = time.perf_counter()
             decision = await router.route(state, case["message"])
             latency_ms = (time.perf_counter() - started) * 1000
-            correct = (
-                decision.domain.value == case["domain"]
-                and decision.relation.value == case["relation"]
-            )
+            correct = decision.domain.value == case["domain"]
             case_id = case.get("id", case["message"])
             by_case[case_id].append(correct)
-            ranked_scores = sorted(decision.scores.items(), key=lambda item: item[1], reverse=True)
+            ranked_scores = sorted(
+                decision.scores.items(),
+                key=lambda item: item[1],
+                reverse=True,
+            )
             margin = (
                 ranked_scores[0][1] - ranked_scores[1][1]
                 if len(ranked_scores) > 1
@@ -145,9 +161,7 @@ async def evaluate_routing(
                     "message": case["message"],
                     "critical": bool(case.get("critical")),
                     "expected_domain": case["domain"],
-                    "expected_relation": case["relation"],
                     "actual_domain": decision.domain.value,
-                    "actual_relation": decision.relation.value,
                     "source": decision.source,
                     "scores": decision.scores,
                     "margin": round(margin, 6),
@@ -162,15 +176,24 @@ async def evaluate_routing(
     for record in records:
         confusion[record["expected_domain"]][record["actual_domain"]] += 1
 
-    non_scheduling = [record for record in records if record["expected_domain"] != "scheduling"]
+    non_scheduling = [
+        record
+        for record in records
+        if record["expected_domain"] != "scheduling"
+    ]
     false_scheduling = [
-        record for record in non_scheduling if record["actual_domain"] == "scheduling"
+        record
+        for record in non_scheduling
+        if record["actual_domain"] == "scheduling"
     ]
     latencies = [record["latency_ms"] for record in records]
     critical_cases = {
         case_id: outcomes
         for case_id, outcomes in by_case.items()
-        if any(record["case_id"] == case_id and record["critical"] for record in records)
+        if any(
+            record["case_id"] == case_id and record["critical"]
+            for record in records
+        )
     }
 
     return {
@@ -182,7 +205,8 @@ async def evaluate_routing(
             else 0.0
         ),
         "confusion_matrix": {
-            expected: dict(counts) for expected, counts in sorted(confusion.items())
+            expected: dict(counts)
+            for expected, counts in sorted(confusion.items())
         },
         "source_counts": dict(Counter(record["source"] for record in records)),
         "critical_pass_k": {
@@ -220,14 +244,22 @@ async def evaluate_conversations(
             try:
                 for user_message in case["turns"]:
                     _ = "".join(
-                        [chunk async for chunk in agent.respond(session_id, user_message)]
+                        [
+                            chunk
+                            async for chunk in agent.respond(
+                                session_id,
+                                user_message,
+                            )
+                        ]
                     )
             except Exception as exc:  # noqa: BLE001 - eval reports runtime failures
                 error = f"{type(exc).__name__}: {exc}"
 
             state = await sessions.get(session_id)
             booking_count = len(calendar.bookings)
-            active_workflow = state.active_workflow.value if state.active_workflow else None
+            active_workflow = (
+                state.active_workflow.value if state.active_workflow else None
+            )
             expected_booking_count = int(case.get("expected_booking_count", 0))
             expected_active_workflow = case.get("expected_active_workflow")
             correct = (
@@ -256,17 +288,24 @@ async def evaluate_conversations(
     critical_cases = {
         case_id: outcomes
         for case_id, outcomes in by_case.items()
-        if any(record["case_id"] == case_id and record["critical"] for record in records)
+        if any(
+            record["case_id"] == case_id and record["critical"]
+            for record in records
+        )
     }
     unexpected_side_effects = sum(
-        record["expected_booking_count"] == 0 and record["actual_booking_count"] > 0
+        record["expected_booking_count"] == 0
+        and record["actual_booking_count"] > 0
         for record in records
     )
 
     return {
         "runs": len(records),
         "pass_rate": (
-            round(sum(record["correct"] for record in records) / len(records), 4)
+            round(
+                sum(record["correct"] for record in records) / len(records),
+                4,
+            )
             if records
             else 1.0
         ),
@@ -320,11 +359,25 @@ async def main() -> int:
         )
 
     report = {
+        "metadata": report_metadata(
+            dataset=args.cases,
+            candidate_id="live-semantic-runtime-v1",
+            model=settings.llama_model,
+            generation_config={
+                "planner_temperature": settings.planner_temperature,
+                "planner_max_tokens": settings.planner_max_tokens,
+                "renderer_temperature": settings.renderer_temperature,
+                "renderer_max_tokens": settings.renderer_max_tokens,
+                "critical_repetitions": args.critical_repetitions,
+                "embedding_model": settings.embedding_model,
+            },
+        ),
         "routing": routing,
         "conversations": conversations,
     }
     text = json.dumps(report, ensure_ascii=False, indent=2)
     if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(text + "\n", encoding="utf-8")
     print(text)
 

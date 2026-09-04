@@ -1,9 +1,9 @@
 # Portfolio Business Representative
 
-Server-side business representative for a small local Qwen model. The browser never downloads model weights. Two llama.cpp services stay resident:
+Server-side portfolio representative for a small local Qwen model. The browser never downloads model weights. Two llama.cpp services stay resident:
 
-- `llama`: the conversational Qwen model used for scheduling extraction and grounded response generation.
-- `embedding`: Qwen3-Embedding-0.6B used for dense semantic routing and business-profile retrieval.
+- `llama`: conversational Qwen used for scheduling extraction and response generation.
+- `embedding`: Qwen3-Embedding-0.6B used for semantic domain routing and portfolio retrieval.
 
 ## Architecture
 
@@ -11,94 +11,108 @@ Server-side business representative for a small local Qwen model. The browser ne
 visitor
   |
   v
-SemanticRouter
-cached route embeddings + cosine similarity
+BusinessRepresentative
   |
-  +---------------- BUSINESS / GENERAL ----------------+
-  |                                                    |
-  |                                         dense profile retrieval
-  |                                     cached document embeddings
-  |                                                    |
-  |                                                Responder
-  |                                                    |
-  |                                                StreamGuard
-  |                                                    |
-  |                                                   SSE
+  +-- CONVERSATION --------------------> Responder -> StreamGuard -> SSE
   |
-  +---------------- SCHEDULING ------------------------+
+  +-- PORTFOLIO ---> PortfolioSearch --> Responder -> StreamGuard -> SSE
+  |                    |
+  |                    +--> profile knowledge + cached embeddings
+  |
+  +-- SCHEDULING ---> Scheduler
                          |
-                      Scheduler
-                 structured turn extraction
-                         |
-                  SchedulingMemory
-                         |
-              explicit human approval
-                         |
-                    CalendarPort
+                         +--> SlotService --> Calendar
+
+explicit UI approval
+  |
+  v
+BookingApproval --> Calendar --> Google Calendar
 ```
 
-The semantic path intentionally has no cross-encoder reranker, LLM routing judge, topic regex whitelist, vector database, generic tool selector or ReAct loop.
+The server intentionally has no ToolRegistry, ToolExecutor, BaseTool, generic ToolResult, planner, ReAct loop, agent graph, cross-encoder reranker or LLM routing judge.
 
-Static semantic data is embedded once during FastAPI startup:
+## Explicit capabilities
+
+`BusinessRepresentative` is deliberately small and explicit:
 
 ```text
-route descriptions  -> embedding vectors, cached
-business profile    -> document vectors, cached
+SCHEDULING -> Scheduler
+PORTFOLIO  -> PortfolioSearch -> Responder
+otherwise  -> Responder
 ```
 
-The application does not finish startup until those vectors are ready. Each visitor turn then requires only a query embedding plus cosine similarity over the cached vectors.
-
-`server/app/agent` contains:
+`SemanticRouter` returns only one domain:
 
 ```text
-representative.py  thin orchestration
-router.py          BUSINESS / SCHEDULING / GENERAL dense routing
-context.py         cached dense profile retrieval + prompt assembly
-scheduler.py       meeting workflow + hard write invariants
-responder.py       grounded knowledge streaming
-stream_guard.py    narrow rolling output safety boundary
-similarity.py      cosine similarity
+CONVERSATION
+PORTFOLIO
+SCHEDULING
 ```
 
-External boundaries remain separated under `ports/` and `infrastructure/`.
+It does not select Python functions or tool names.
 
-## Scheduling model
+`PortfolioSearch` exposes a stable business API:
 
-Scheduling is represented by facts in `SchedulingMemory` rather than a conversational FSM. Free-form chat text never writes to Calendar. A prepared booking requires explicit approval through the UI before the deterministic booking boundary can run.
+```python
+search(query: str) -> SearchResult
+```
 
-A business/general interruption does not clear scheduling memory, so the visitor can resume the meeting later.
+`SearchResult` contains concrete `Fact` values with `text` and `source`. The current backend flattens `business-profile.json`, embeds documents once, and performs local cosine retrieval. A future vector database or document backend can replace that implementation without changing the capability API.
+
+`Responder` receives evidence. It does not own retrieval and does not know where facts came from.
 
 ## Routing and retrieval
 
-`SemanticRouter` compares the latest visitor turn with cached semantic route descriptions. During an active meeting task the descriptions become scheduling continuation versus business/general interruption.
+Static route descriptions and portfolio documents are embedded once and cached. Each visitor turn uses a query embedding plus cosine similarity against cached vectors.
 
-Business questions use the same embedding service against the structured business profile. Profile document embeddings are computed during startup and reused for the process lifetime. The query is compared locally with cosine similarity and only the top documents that fit the context budget are sent to the conversational model.
+For short portfolio follow-ups, the search query may include recent visitor turns. Previous assistant text is deliberately excluded so generated text cannot become retrieval evidence.
 
-No profile document is pairwise reranked by another language model on every turn.
+`PORTFOLIO_MIN_SCORE` controls the minimum similarity required for a retrieved document to become supported evidence. If no fact survives, the response prompt exposes `RELEVANT_KNOWLEDGE=<none>` and requires abstention rather than invention.
 
-## Safe real streaming
+## Scheduling and Calendar
 
-Business/general answers use llama.cpp streaming end-to-end. `StreamGuard` keeps a small rolling holdback and blocks narrow operational claims such as owner impersonation or claiming an external action completed when it was not verified.
+Scheduling is represented by facts in `SchedulingMemory` rather than a conversational FSM.
+
+`Scheduler` prepares scheduling state and pending bookings but does not receive Calendar directly and cannot write events. Availability is read through `SlotService` and the scheduling-owned `Calendar` boundary.
+
+A free-form message such as "sí, confirmo" cannot authorize a write. A prepared booking crosses the side-effect boundary only through the explicit UI approval endpoint handled by `BookingApproval`, which validates the pending booking before calling Calendar.
+
+Portfolio or conversational interruptions do not clear active scheduling memory.
+
+## Safe streaming
+
+`Responder` streams from llama.cpp end-to-end. `StreamGuard` remains a narrow output safety boundary for unverified operational claims, but authorization comes from control flow rather than generated text filtering.
+
+## Package layout
+
+```text
+app/api                       HTTP, SSE and approval endpoints
+app/agent                     representative, router, scheduler, responder, guard
+app/portfolio                 PortfolioSearch and concrete result types
+app/domain                    conversation/profile/routing/scheduling data
+app/scheduling                Calendar boundary, policy, slots, approval
+app/infrastructure/knowledge  current profile retrieval backend
+app/infrastructure            llama.cpp, embeddings, Calendar gateways, tracing, config, sessions
+app/bootstrap.py              dependency composition
+```
+
+There is intentionally no `tools/` package. Native function calling or MCP can be introduced later as thin adapters over the explicit capabilities.
 
 ## Optional PocketTrace observability
 
-PocketTrace is strictly optional and never becomes a functional dependency of the agent.
+PocketTrace is optional and never becomes a functional dependency.
 
 ```env
 POCKETTRACE_ENABLED=false
 ```
 
-With `POCKETTRACE_ENABLED=false` (the default), `PocketTraceRecorder` is not instantiated: the agent does not create trace snapshots and does not make HTTP calls to PocketTrace.
-
-Enable it explicitly for local development when trace-level diagnostics are needed:
+Enable it explicitly for local diagnostics:
 
 ```env
 POCKETTRACE_ENABLED=true
 POCKETTRACE_URL=http://host.containers.internal:4319
 POCKETTRACE_TIMEOUT_SECONDS=1.0
 ```
-
-This can remain `false` in production or in any environment where trace payload capture is not desired.
 
 ## Required models
 
@@ -157,4 +171,4 @@ GOOGLE_REFRESH_TOKEN=...
 make check
 ```
 
-Regression coverage includes semantic routing, scheduling interruption/resume, invalid slot rejection, explicit-approval Calendar writes, capability-aware answers, cached profile retrieval and guarded real streaming.
+Regression coverage includes domain-only routing, explicit portfolio retrieval, evidence-only response context, scheduling interruption/resume, explicit-approval Calendar writes and guarded real streaming.

@@ -1,0 +1,30 @@
+{"id":"val-pq-01-es","message":"¿Qué experiencia profesional tiene Diego con sistemas distribuidos?","intent":"portfolio_query","route":"portfolio","language":"es","family":"validation-profile-distributed-01"}
+{"id":"val-pq-01-en","message":"What professional experience does Diego have with distributed systems?","intent":"portfolio_query","route":"portfolio","language":"en","family":"validation-profile-distributed-01"}
+{"id":"val-pq-02-es","message":"Quiero conocer el stack de los proyectos de Diego","intent":"portfolio_query","route":"portfolio","language":"es","family":"validation-profile-stack-02"}
+{"id":"val-pq-02-en","message":"I want to know the stack used in Diego's projects","intent":"portfolio_query","route":"portfolio","language":"en","family":"validation-profile-stack-02"}
+{"id":"val-pq-03-es","message":"¿Qué costo tiene contratar los servicios profesionales de Diego?","intent":"portfolio_query","route":"portfolio","language":"es","family":"validation-profile-pricing-03"}
+{"id":"val-pq-03-en","message":"What does it cost to hire Diego for professional services?","intent":"portfolio_query","route":"portfolio","language":"en","family":"validation-profile-pricing-03"}
+{"id":"val-cap-01-es","message":"¿Este asistente puede reservar reuniones?","intent":"capability_query","route":"portfolio","language":"es","family":"validation-cap-meeting-01","critical":true}
+{"id":"val-cap-01-en","message":"Can this assistant reserve meetings?","intent":"capability_query","route":"portfolio","language":"en","family":"validation-cap-meeting-01","critical":true}
+{"id":"val-cap-02-es","message":"¿Podés revisar un calendario si te lo pido?","intent":"capability_query","route":"portfolio","language":"es","family":"validation-cap-calendar-02","critical":true}
+{"id":"val-cap-02-en","message":"Can you inspect calendar availability if I ask?","intent":"capability_query","route":"portfolio","language":"en","family":"validation-cap-calendar-02","critical":true}
+{"id":"val-req-01-es","message":"Coordiname media hora con Diego","intent":"schedule_request","route":"scheduling","language":"es","family":"validation-request-duration-01","critical":true}
+{"id":"val-req-01-en","message":"Arrange half an hour with Diego for me","intent":"schedule_request","route":"scheduling","language":"en","family":"validation-request-duration-01","critical":true}
+{"id":"val-req-02-es","message":"Quiero mover mi cita con Diego","intent":"schedule_request","route":"scheduling","language":"es","family":"validation-request-move-02"}
+{"id":"val-req-02-en","message":"I want to move my appointment with Diego","intent":"schedule_request","route":"scheduling","language":"en","family":"validation-request-move-02"}
+{"id":"val-av-01-es","message":"Averiguá cuándo puede atenderme Diego el martes","intent":"schedule_availability","route":"scheduling","language":"es","family":"validation-availability-tuesday-01","critical":true}
+{"id":"val-av-01-en","message":"Find out when Diego can meet me on Tuesday","intent":"schedule_availability","route":"scheduling","language":"en","family":"validation-availability-tuesday-01","critical":true}
+{"id":"val-av-02-es","message":"¿Qué espacios libres tiene Diego en su agenda?","intent":"schedule_availability","route":"scheduling","language":"es","family":"validation-availability-openings-02"}
+{"id":"val-av-02-en","message":"Which openings does Diego have in his schedule?","intent":"schedule_availability","route":"scheduling","language":"en","family":"validation-availability-openings-02"}
+{"id":"val-cont-01-es","message":"Dale, confirmemos eso","intent":"schedule_continue","route":"scheduling","language":"es","family":"validation-continue-confirm-01","active_workflow":"scheduling"}
+{"id":"val-cont-01-en","message":"Okay, let's confirm that","intent":"schedule_continue","route":"scheduling","language":"en","family":"validation-continue-confirm-01","active_workflow":"scheduling"}
+{"id":"val-cont-02-es","message":"Mejor dejemos sin efecto la reserva","intent":"schedule_continue","route":"scheduling","language":"es","family":"validation-continue-cancel-02","active_workflow":"scheduling"}
+{"id":"val-cont-02-en","message":"Let's drop the booking instead","intent":"schedule_continue","route":"scheduling","language":"en","family":"validation-continue-cancel-02","active_workflow":"scheduling"}
+{"id":"val-chat-01-es","message":"¿Cuál es la capital de Uruguay?","intent":"conversation","route":"conversation","language":"es","family":"validation-chat-general-01"}
+{"id":"val-chat-01-en","message":"What is the capital of Uruguay?","intent":"conversation","route":"conversation","language":"en","family":"validation-chat-general-01"}
+{"id":"val-chat-02-es","message":"Gracias, eso era todo","intent":"conversation","route":"conversation","language":"es","family":"validation-chat-thanks-02"}
+{"id":"val-chat-02-en","message":"Thanks, that's all I needed","intent":"conversation","route":"conversation","language":"en","family":"validation-chat-thanks-02"}
+{"id":"val-oos-01-es","message":"Recordame pagar la tarjeta mañana","intent":null,"route":null,"language":"es","family":"validation-oos-reminder-01","critical":true}
+{"id":"val-oos-01-en","message":"Remind me to pay my credit card tomorrow","intent":null,"route":null,"language":"en","family":"validation-oos-reminder-01","critical":true}
+{"id":"val-oos-02-es","message":"Mandale un email a Diego con mi CV","intent":null,"route":null,"language":"es","family":"validation-oos-email-02","critical":true}
+{"id":"val-oos-02-en","message":"Send Diego an email with my resume","intent":null,"route":null,"language":"en","family":"validation-oos-email-02","critical":true}

@@ -1,0 +1,56 @@
+{
+  "name": "routing-augmentation-v1",
+  "languages": ["es", "en"],
+  "examples_per_language": 4,
+  "families": [
+    {
+      "name": "capability-meeting",
+      "intent": "capability_query",
+      "route": "portfolio",
+      "critical": true,
+      "description": "Questions asking whether the assistant is able to coordinate or schedule meetings, without requesting that it actually do so now."
+    },
+    {
+      "name": "capability-availability",
+      "intent": "capability_query",
+      "route": "portfolio",
+      "critical": true,
+      "description": "Questions asking whether the assistant can inspect Diego's availability, without requesting an availability lookup now."
+    },
+    {
+      "name": "scheduling-request",
+      "intent": "schedule_request",
+      "route": "scheduling",
+      "critical": true,
+      "description": "Direct requests to arrange, move, cancel or book a meeting with Diego."
+    },
+    {
+      "name": "scheduling-availability",
+      "intent": "schedule_availability",
+      "route": "scheduling",
+      "critical": true,
+      "description": "Direct requests to inspect Diego's free times or calendar availability."
+    },
+    {
+      "name": "portfolio-work",
+      "intent": "portfolio_query",
+      "route": "portfolio",
+      "critical": false,
+      "description": "Questions about Diego's professional work, architecture, experience, projects, technologies, services or pricing model."
+    },
+    {
+      "name": "conversation-general",
+      "intent": "conversation",
+      "route": "conversation",
+      "critical": false,
+      "description": "Ordinary conversation unrelated to Diego's portfolio or scheduling, such as greetings, thanks or general knowledge questions."
+    },
+    {
+      "name": "oos-side-effect",
+      "intent": null,
+      "route": null,
+      "critical": true,
+      "description": "Requests for unsupported external actions such as purchases, messages, reminders, device control, file changes or travel booking."
+    }
+  ]
+}

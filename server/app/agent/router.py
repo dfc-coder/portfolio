@@ -2,100 +2,191 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from datetime import date
 
 from app.domain.conversation import ActiveWorkflow, SessionState
-from app.domain.routing import RouteDomain, RouteRelation, RoutingDecision
+from app.domain.routing import Intent, Route, RoutingDecision
+from app.infrastructure.business_route_classifier import (
+    BusinessRouteClassifier,
+    RoutePrediction,
+)
+from app.infrastructure.embeddings.similarity import cosine_similarity
 from app.ports.embeddings import EmbeddingPort, EmbeddingTask
-
-from .similarity import cosine_similarity
+from app.scheduling.turn_parser import SchedulingTurnParser
 
 
 @dataclass(frozen=True)
-class Route:
+class _Candidate:
     key: str
-    domain: RouteDomain
-    relation: RouteRelation
+    domain: Route
     description: str
 
 
 _NEW_ROUTES = (
-    Route(
-        "business",
-        RouteDomain.BUSINESS,
-        RouteRelation.NEW,
+    _Candidate(
+        "portfolio_professional",
+        Route.PORTFOLIO,
         (
-            "A visitor asks about Diego's professional background, experience, projects, "
-            "technologies, skills, services, credentials, rates, clients or capabilities."
+            "A question about Diego as a professional: his background, experience, "
+            "technologies, integrations, architecture, skills, credentials, languages, "
+            "clients or professional technical work."
         ),
     ),
-    Route(
-        "scheduling",
-        RouteDomain.SCHEDULING,
-        RouteRelation.NEW,
+    _Candidate(
+        "scheduling_action",
+        Route.SCHEDULING,
         (
-            "A visitor wants to arrange, reschedule or cancel a meeting with Diego, check real "
-            "calendar availability, choose a meeting time, or provide meeting details."
+            "A request or instruction to actually arrange, book, reschedule or cancel "
+            "a meeting or call with Diego."
         ),
     ),
-    Route(
-        "general",
-        RouteDomain.GENERAL,
-        RouteRelation.NEW,
+    _Candidate(
+        "conversation_general",
+        Route.CONVERSATION,
         (
-            "A greeting, small talk, casual conversation, or a question unrelated to Diego's "
-            "professional profile and unrelated to arranging a meeting."
+            "General conversation unrelated to Diego's professional profile and unrelated "
+            "to arranging a meeting, such as greetings, thanks, jokes, weather, current "
+            "time or general knowledge."
+        ),
+    ),
+    _Candidate(
+        "portfolio_projects",
+        Route.PORTFOLIO,
+        (
+            "A question about one of Diego's projects or implementations: project details, "
+            "architecture, stack, programming language, MCP servers, APIs, integrations "
+            "or implementation decisions."
+        ),
+    ),
+    _Candidate(
+        "portfolio_capabilities",
+        Route.PORTFOLIO,
+        (
+            "A question asking what Diego or this representative can do, what tools or "
+            "capabilities it supports, or whether it is able to perform an action. "
+            "This asks about a capability; it does not request that action now."
+        ),
+    ),
+    _Candidate(
+        "portfolio_technical_approach",
+        Route.PORTFOLIO,
+        (
+            "A question about Diego's technical approach or expertise, including APIs, "
+            "integrations, local models, LLM systems, architecture and security."
+        ),
+    ),
+    _Candidate(
+        "scheduling_availability",
+        Route.SCHEDULING,
+        (
+            "A request to check actual calendar availability or available meeting times "
+            "or slots for a particular day, date or date range."
+        ),
+    ),
+    _Candidate(
+        "scheduling_contact",
+        Route.SCHEDULING,
+        (
+            "A request to actually speak, talk, call or meet with Diego, especially on "
+            "a concrete day, date or time."
+        ),
+    ),
+    _Candidate(
+        "conversation_unrelated",
+        Route.CONVERSATION,
+        (
+            "A question unrelated to Diego and unrelated to meeting logistics, such as "
+            "the current time, weather, sports, definitions, general knowledge or casual chat."
         ),
     ),
 )
 
 _ACTIVE_SCHEDULING_ROUTES = (
-    Route(
-        "business_interrupt",
-        RouteDomain.BUSINESS,
-        RouteRelation.INTERRUPT,
+    _Candidate(
+        "portfolio_during_scheduling",
+        Route.PORTFOLIO,
         (
-            "A professional question about Diego's work, projects, technologies, experience, "
-            "skills, services or credentials while a meeting workflow is already active."
+            "While scheduling is active, the visitor switches to a professional question "
+            "about Diego's experience, technologies, skills, architecture or work."
         ),
     ),
-    Route(
+    _Candidate(
         "scheduling_continue",
-        RouteDomain.SCHEDULING,
-        RouteRelation.CONTINUE,
+        Route.SCHEDULING,
         (
-            "A continuation of the active meeting workflow, such as providing a date, email, "
-            "meeting subject, selecting a proposed slot, changing a time, or cancelling it."
+            "While scheduling is active, the visitor continues the meeting logistics, "
+            "including choosing or changing meeting details, confirmation, rescheduling "
+            "or cancellation."
         ),
     ),
-    Route(
-        "general_interrupt",
-        RouteDomain.GENERAL,
-        RouteRelation.INTERRUPT,
+    _Candidate(
+        "conversation_during_scheduling",
+        Route.CONVERSATION,
         (
-            "A greeting, small talk or unrelated conversation while a meeting workflow is active. "
-            "The existing meeting state must be preserved."
+            "While scheduling is active, the visitor switches to unrelated casual "
+            "conversation such as greetings, thanks, jokes or small talk."
+        ),
+    ),
+    _Candidate(
+        "portfolio_capabilities_during_scheduling",
+        Route.PORTFOLIO,
+        (
+            "While scheduling is active, the visitor asks what Diego or this representative "
+            "can do, what tools it supports or what capabilities are available. "
+            "This is not meeting logistics."
+        ),
+    ),
+    _Candidate(
+        "portfolio_projects_during_scheduling",
+        Route.PORTFOLIO,
+        (
+            "While scheduling is active, the visitor asks about Diego's projects, "
+            "technologies, APIs, integrations, architecture or technical expertise."
+        ),
+    ),
+    _Candidate(
+        "conversation_general_during_scheduling",
+        Route.CONVERSATION,
+        (
+            "While scheduling is active, the visitor asks an unrelated general question "
+            "such as the current time, weather, general knowledge or another casual topic."
         ),
     ),
 )
 
-_FALLBACK_ROUTES = (
-    Route(
-        "business_fallback",
-        RouteDomain.BUSINESS,
-        RouteRelation.NEW,
-        _NEW_ROUTES[0].description,
-    ),
-    Route(
-        "general_fallback",
-        RouteDomain.GENERAL,
-        RouteRelation.NEW,
-        _NEW_ROUTES[2].description,
-    ),
-)
+
+_INTENT_ROUTES = {
+    Intent.PORTFOLIO_QUERY: Route.PORTFOLIO,
+    Intent.CAPABILITY_QUERY: Route.PORTFOLIO,
+    Intent.SCHEDULE_REQUEST: Route.SCHEDULING,
+    Intent.SCHEDULE_AVAILABILITY: Route.SCHEDULING,
+    Intent.SCHEDULE_CONTINUE: Route.SCHEDULING,
+    Intent.CONVERSATION: Route.CONVERSATION,
+}
+
+
+def route_for_intent(intent: Intent) -> Route:
+    return _INTENT_ROUTES[intent]
+
+
+def _has_explicit_scheduling_fields(user_message: str) -> bool:
+    """Reuse the scheduling parser's deterministic extractors; do not add routing regexes."""
+    text = user_message.strip()
+    start_date, _ = SchedulingTurnParser._extract_dates(text, date.today())
+    return any(
+        value is not None
+        for value in (
+            SchedulingTurnParser._extract_email(text),
+            SchedulingTurnParser._extract_slot(text),
+            start_date,
+            SchedulingTurnParser._extract_name(text),
+            SchedulingTurnParser._extract_subject(text),
+        )
+    )
 
 
 class SemanticRouter:
-    """Three-way semantic routing using the same dense embeddings as profile retrieval."""
+    """Embedding baseline. It never dispatches Python capabilities."""
 
     def __init__(self, embeddings: EmbeddingPort) -> None:
         self._embeddings = embeddings
@@ -103,11 +194,23 @@ class SemanticRouter:
         self._index_lock = asyncio.Lock()
 
     async def warm(self) -> None:
-        await self._ensure_route_vectors(
-            _NEW_ROUTES + _ACTIVE_SCHEDULING_ROUTES + _FALLBACK_ROUTES
-        )
+        await self._ensure_route_vectors(_NEW_ROUTES + _ACTIVE_SCHEDULING_ROUTES)
 
     async def route(self, state: SessionState, user_message: str) -> RoutingDecision:
+        if (
+            state.active_workflow == ActiveWorkflow.SCHEDULING
+            and _has_explicit_scheduling_fields(user_message)
+        ):
+            return RoutingDecision(
+                domain=Route.SCHEDULING,
+                intent=Intent.SCHEDULE_CONTINUE,
+                route_key="scheduling_explicit",
+                confidence=1.0,
+                margin=1.0,
+                source="deterministic_scheduling",
+                scores={Intent.SCHEDULE_CONTINUE.value: 1.0},
+            )
+
         routes = (
             _ACTIVE_SCHEDULING_ROUTES
             if state.active_workflow == ActiveWorkflow.SCHEDULING
@@ -115,22 +218,10 @@ class SemanticRouter:
         )
         return await self._choose(user_message, routes)
 
-    async def route_non_scheduling(
-        self,
-        state: SessionState,
-        user_message: str,
-    ) -> RoutingDecision:
-        relation = RouteRelation.INTERRUPT if state.active_workflow else RouteRelation.NEW
-        routes = tuple(
-            Route(route.key, route.domain, relation, route.description)
-            for route in _FALLBACK_ROUTES
-        )
-        return await self._choose(user_message, routes)
-
     async def _choose(
         self,
         user_message: str,
-        routes: tuple[Route, ...],
+        routes: tuple[_Candidate, ...],
     ) -> RoutingDecision:
         await self._ensure_route_vectors(routes)
         query_vector = await self._embeddings.embed_query(
@@ -145,7 +236,7 @@ class SemanticRouter:
         chosen = routes[best_index]
         return self._decision(chosen, scores[best_index], routes, scores)
 
-    async def _ensure_route_vectors(self, routes: tuple[Route, ...]) -> None:
+    async def _ensure_route_vectors(self, routes: tuple[_Candidate, ...]) -> None:
         missing = [route for route in routes if route.key not in self._route_vectors]
         if not missing:
             return
@@ -163,19 +254,104 @@ class SemanticRouter:
 
     @staticmethod
     def _decision(
-        route: Route,
+        route: _Candidate,
         confidence: float,
-        routes: tuple[Route, ...],
+        routes: tuple[_Candidate, ...],
         scores: list[float],
     ) -> RoutingDecision:
+        ranked = sorted(scores, reverse=True)
+        margin = ranked[0] - ranked[1] if len(ranked) > 1 else 1.0
         return RoutingDecision(
             domain=route.domain,
-            relation=route.relation,
             route_key=route.key,
             confidence=max(0.0, min(1.0, confidence)),
+            margin=max(0.0, min(1.0, margin)),
             source="embedding",
             scores={
                 item.key: score
                 for item, score in zip(routes, scores, strict=True)
             },
+        )
+
+
+class SupervisedRouteRouter:
+    """Supervised route head plus a narrow learned scheduling-capability boundary."""
+
+    def __init__(
+        self,
+        embeddings: EmbeddingPort,
+        classifier: BusinessRouteClassifier,
+    ) -> None:
+        self._embeddings = embeddings
+        self._classifier = classifier
+
+    async def warm(self) -> None:
+        return None
+
+    async def route(self, state: SessionState, user_message: str) -> RoutingDecision:
+        if (
+            state.active_workflow == ActiveWorkflow.SCHEDULING
+            and _has_explicit_scheduling_fields(user_message)
+        ):
+            return RoutingDecision(
+                domain=Route.SCHEDULING,
+                intent=Intent.SCHEDULE_CONTINUE,
+                route_key="scheduling_explicit",
+                confidence=1.0,
+                margin=1.0,
+                source="deterministic_scheduling",
+                scores={Route.SCHEDULING.value: 1.0},
+            )
+
+        embedding = await self._embeddings.embed_query(
+            user_message,
+            EmbeddingTask.ROUTING,
+        )
+        prediction = self._classifier.predict(embedding)
+
+        if (
+            state.active_workflow != ActiveWorkflow.SCHEDULING
+            and prediction.route == Route.SCHEDULING
+        ):
+            boundary = self._classifier.predict_scheduling_boundary(embedding)
+            if self._classifier.accepts_capability_override(boundary):
+                return RoutingDecision(
+                    domain=Route.PORTFOLIO,
+                    intent=Intent.CAPABILITY_QUERY,
+                    accepted=True,
+                    route_key="scheduling_capability",
+                    confidence=boundary.confidence,
+                    margin=boundary.margin,
+                    source="capability_boundary",
+                    scores={
+                        **prediction.scores,
+                        **{
+                            f"boundary_{key}": value
+                            for key, value in boundary.scores.items()
+                        },
+                    },
+                )
+
+        return self._decision(state, prediction)
+
+    def _decision(
+        self,
+        state: SessionState,
+        prediction: RoutePrediction,
+    ) -> RoutingDecision:
+        accepted = self._classifier.accepts(
+            prediction,
+            active_scheduling=(
+                state.active_workflow == ActiveWorkflow.SCHEDULING
+            ),
+        )
+        return RoutingDecision(
+            domain=prediction.route if accepted else None,
+            intent=None,
+            accepted=accepted,
+            route_key=prediction.route.value if accepted else "abstain",
+            confidence=prediction.confidence,
+            margin=prediction.margin,
+            source="route_classifier" if accepted else "abstain",
+            scores=prediction.scores,
         )
