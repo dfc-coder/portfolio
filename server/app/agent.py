@@ -51,7 +51,8 @@ class Agent:
             message,
         )
 
-        for round_number in range(1, MAX_TOOL_ROUNDS + 2):
+        round_number = 1
+        while True:
             yield "status", {"phase": "thinking", "round": round_number}
             started = time.perf_counter()
             stream = await self._chat.chat.completions.create(
@@ -99,6 +100,7 @@ class Agent:
                         if call.function.arguments:
                             item["arguments"] += call.function.arguments
 
+            text = "".join(content)
             ordered_calls = [calls[index] for index in sorted(calls)]
             tool_names = [call["name"] for call in ordered_calls]
             logger.info(
@@ -109,15 +111,11 @@ class Agent:
                 int((time.perf_counter() - started) * 1000),
             )
 
-            messages.append(
-                _assistant_message(
-                    "".join(content) or None,
-                    ordered_calls,
-                )
-            )
+            _validate_model_round(finish_reason, ordered_calls)
+            messages.append(_assistant_message(text or None, ordered_calls))
 
             if not ordered_calls:
-                if not "".join(content).strip():
+                if not text.strip():
                     raise RuntimeError("LLM returned an empty response")
                 yield "context", {"messages": _trim_context(messages[1:])}
                 return
@@ -154,8 +152,21 @@ class Agent:
                 }
 
             messages.extend(results)
+            round_number += 1
 
-        raise RuntimeError("tool loop limit reached")
+
+def _validate_model_round(
+    finish_reason: str | None,
+    calls: list[dict[str, str]],
+) -> None:
+    if finish_reason == "tool_calls" and not calls:
+        raise RuntimeError("model finished with tool_calls but returned no tool calls")
+
+    if calls and finish_reason not in (None, "tool_calls"):
+        logger.warning(
+            "model returned tool calls with unexpected finish_reason=%s",
+            finish_reason,
+        )
 
 
 def _trim_context(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
