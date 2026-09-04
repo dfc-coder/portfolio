@@ -6,13 +6,17 @@ import test from "node:test";
 const root = process.cwd();
 const read = (path) => readFile(resolve(root, path), "utf8");
 
-test("agent request is stateless and sends visible conversation history", async () => {
+test("agent remains stateless while round-tripping full tool context", async () => {
   const provider = await read("src/components/agent/businessAgentProvider.ts");
+  const runtime = await read("src/components/agent/useAgentRuntime.ts");
 
   assert.doesNotMatch(provider, /SESSION_ID|session_id|sessionStorage|SESSION_KEY/);
-  assert.match(provider, /history: history\.map/);
-  assert.match(provider, /message\.role === "agent" \? "assistant" : "user"/);
-  assert.match(provider, /content: message\.text/);
+  assert.match(provider, /JSON\.stringify\(\{ message: question, context \}\)/);
+  assert.match(provider, /frame\.event === "context"/);
+  assert.match(runtime, /const context = shallowRef<AgentContextMessage\[]>\(\[\]\)/);
+  assert.match(runtime, /provider\.ask\(question, context\.value\)/);
+  assert.match(runtime, /context\.value = event\.messages/);
+  assert.doesNotMatch(provider, /history: history\.map/);
 });
 
 test("BDD: network chunks are presented at a stable UI-controlled pace", async () => {
@@ -153,8 +157,9 @@ test("BDD: the interface remains restrained around the expressive orb", async ()
 
   assert.match(os, /READY/);
   assert.match(os, /LISTENING/);
-  assert.match(os, /THINKING/);
+  assert.match(os, /WORKING/);
   assert.match(os, /SPEAKING/);
+  assert.match(os, /EXECUTION/);
   assert.match(os, /const engageAgent = \(\) =>/);
   assert.match(os, /pulseAgentInteraction\(0\.82\)/);
   assert.match(os, /inputEl\.value\?\.focus\(\)/);
