@@ -1,25 +1,27 @@
 # Intent routing datasets
 
-These splits are intentionally separated so routing changes are measured without tuning against the final holdout.
+These files are evaluation/training data. Production routing does not import this package.
 
-- `train.jsonl`: supervised examples used to fit the linear classifier. Contains only known intents.
-- `validation.jsonl`: used to calibrate confidence and margin thresholds. Contains known intents and explicit out-of-scope cases.
-- `challenge.jsonl`: the 70 historical routing cases already used during semantic-router development. It is a regression/development set, not a generalization claim.
-- `blind_test.jsonl`: frozen holdout used only after implementation, training data and thresholds are frozen. Do not use its failures to tune the same experiment.
+- `train.jsonl`: supported-route training examples.
+- `train_oos.jsonl`: explicit out-of-scope examples for the current nonlinear routing candidate.
+- `validation.jsonl`: development/calibration data.
+- `challenge.jsonl`: historical 70-case development regression set.
+- `blind_test.jsonl`: consumed historical blind set. Keep it only as regression evidence; it is no longer an unseen gate.
+- `final_holdout_v2.jsonl`: frozen final acceptance set for the current nonlinear candidate. Do not train, calibrate or generate from it.
 
-An out-of-scope case is represented with both `intent` and `route` set to `null`. OOS is not trained as another business intent; it is an abstention target.
+A dataset OOS case uses both `intent` and `route` as `null`. The nonlinear evaluator may represent that internally as an `oos` class, but OOS is not a production business route. At runtime it means abstention and no business capability invocation.
 
 Normal development loop:
 
 ```bash
-make check
-make eval-intents-challenge
+make eval-dataset-validate
+make eval-routes-v5
 ```
 
-Final holdout gate, only after the experiment is frozen:
+Run the final holdout only after the candidate artifact and thresholds are frozen:
 
 ```bash
-make eval-intents-blind
+make eval-routes-final
 ```
 
-The blind command trains only from `train.jsonl`, calibrates only from `validation.jsonl`, then evaluates the frozen holdout with the Definition of Done gates.
+After a final holdout has been used to guide changes, it is consumed and must not be presented again as unseen evidence for the next candidate.
