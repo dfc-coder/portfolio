@@ -25,6 +25,7 @@ from app.ports.llm import GenerationConfig
 from app.portfolio.search import PortfolioSearch
 from app.scheduling.policy import SchedulingPolicy
 from app.scheduling.slots import SlotService
+from tests.evals.evaluation_report import report_metadata
 
 
 def parse_args() -> argparse.Namespace:
@@ -358,11 +359,25 @@ async def main() -> int:
         )
 
     report = {
+        "metadata": report_metadata(
+            dataset=args.cases,
+            candidate_id="live-semantic-runtime-v1",
+            model=settings.llama_model,
+            generation_config={
+                "planner_temperature": settings.planner_temperature,
+                "planner_max_tokens": settings.planner_max_tokens,
+                "renderer_temperature": settings.renderer_temperature,
+                "renderer_max_tokens": settings.renderer_max_tokens,
+                "critical_repetitions": args.critical_repetitions,
+                "embedding_model": settings.embedding_model,
+            },
+        ),
         "routing": routing,
         "conversations": conversations,
     }
     text = json.dumps(report, ensure_ascii=False, indent=2)
     if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(text + "\n", encoding="utf-8")
     print(text)
 
