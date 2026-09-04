@@ -19,6 +19,7 @@ class Config:
     embedding_model: str
     embedding_timeout_seconds: float
     allowed_origins: tuple[str, ...]
+    timezone: str
     generation_temperature: float
     generation_max_tokens: int
     context_max_chars: int
@@ -44,6 +45,7 @@ class Config:
                     "http://localhost:5173,http://127.0.0.1:5173",
                 )
             ),
+            timezone=os.getenv("APP_TIMEZONE", "America/Argentina/Buenos_Aires"),
             generation_temperature=float(os.getenv("GENERATION_TEMPERATURE", "0.65")),
             generation_max_tokens=int(os.getenv("GENERATION_MAX_TOKENS", "180")),
             context_max_chars=int(os.getenv("CONTEXT_MAX_CHARS", "4000")),

@@ -1,15 +1,21 @@
 # Portfolio Assistant
 
-Current scope: answer questions about Diego Cano's portfolio and CV.
+Current scope: answer portfolio/CV questions and exercise a minimal multi-tool agent loop.
 
 ```text
-visitor → API → PortfolioAgent → OpenAI SDK → llama.cpp/Qwen → response
-                         ↓
-                    profile retrieval
+visitor
+  -> API
+  -> Agent
+      -> Qwen
+      -> tool_calls?
+          -> search_portfolio
+          -> get_current_datetime
+          -> add_duration_to_datetime
+          -> set_reminder_mock
+      -> tool results
+      -> repeat until final answer
 ```
 
-The browser sends the visible conversation history with each request. The server keeps no conversation state.
+The agent loop is explicit and bounded. OpenAI-compatible tool schemas describe each function, Pydantic validates generated arguments before execution, and each tool result is returned with its matching `tool_call_id`.
 
-There is no scheduling, calendar, action execution, planner, router, tool framework, custom model client or custom embedding client.
-
-The profile JSON is the factual source. The production prompt defines response behavior.
+There is no planner, graph, registry, scheduler, calendar integration or persistent reminder service. `set_reminder_mock` is a stateless simulation used only to validate multi-round tool behavior.

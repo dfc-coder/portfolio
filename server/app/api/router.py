@@ -8,7 +8,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app.agent import PortfolioAgent
+from app.agent import Agent
 
 
 class ChatMessage(BaseModel):
@@ -25,7 +25,7 @@ def encode_sse(event: str, payload: dict[str, object]) -> str:
     return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
-def create_router(agent: PortfolioAgent) -> APIRouter:
+def create_router(agent: Agent) -> APIRouter:
     router = APIRouter()
 
     @router.post("/v1/chat/stream")
@@ -34,10 +34,10 @@ def create_router(agent: PortfolioAgent) -> APIRouter:
 
         async def events() -> AsyncIterator[str]:
             try:
-                async for token in agent.respond(body.message.strip(), history):
+                async for text in agent.respond(body.message.strip(), history):
                     if await request.is_disconnected():
                         return
-                    yield encode_sse("token", {"text": token})
+                    yield encode_sse("token", {"text": text})
             except Exception:
                 yield encode_sse(
                     "error",
