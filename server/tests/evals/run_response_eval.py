@@ -5,6 +5,7 @@ import asyncio
 import json
 import os
 import statistics
+import sys
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -188,15 +189,28 @@ async def run_eval(
 ) -> list[dict[str, Any]]:
     """Run every response case and collect one structured result per case."""
     records: list[dict[str, Any]] = []
-    for case in cases:
-        records.append(
-            await run_test_case(
-                case,
-                responder=responder,
-                portfolio=portfolio,
-                grader_llm=grader_llm,
-                portfolio_prompt_version=portfolio_prompt_version,
-            )
+    total = len(cases)
+    for index, case in enumerate(cases, start=1):
+        print(
+            f"[{portfolio_prompt_version}] case {index}/{total} {case.case_id} ...",
+            file=sys.stderr,
+            flush=True,
+        )
+        record = await run_test_case(
+            case,
+            responder=responder,
+            portfolio=portfolio,
+            grader_llm=grader_llm,
+            portfolio_prompt_version=portfolio_prompt_version,
+        )
+        records.append(record)
+        latency = record["latency_ms"]
+        print(
+            f"[{portfolio_prompt_version}] case {index}/{total} {case.case_id} "
+            f"done generation={latency['generation']:.0f}ms grader={latency['grader']:.0f}ms "
+            f"hard={'PASS' if record['hard_contract_pass'] else 'FAIL'}",
+            file=sys.stderr,
+            flush=True,
         )
     return records
 
