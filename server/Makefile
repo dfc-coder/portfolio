@@ -10,8 +10,6 @@ UV ?= uv
 CRITICAL_REPETITIONS ?= 5
 EVAL_GENERATED ?= tests/evals/generated/routing-candidates.jsonl
 EVAL_RESPONSE_REPORT ?= tests/evals/reports/responses.json
-EVAL_PORTFOLIO_PROMPT_DIR ?= tests/evals/reports/portfolio-prompts
-PORTFOLIO_PROMPT_VERSION ?= v4
 EVAL_BASELINE_REPORT ?=
 EVAL_CANDIDATE_REPORT ?=
 
@@ -34,14 +32,14 @@ endif
 	health ready wait-ready \
 	compile test test-unit test-e2e check \
 	eval-routing eval-scheduling eval-live eval-smoke eval-safety \
-	eval-dataset-generate eval-dataset-validate eval-responses eval-portfolio-prompts eval-compare \
+	eval-dataset-generate eval-dataset-validate eval-responses eval-compare \
 	eval-intents-challenge eval-intents-blind \
 	eval-routes-v5 eval-routes-final clean model models
 
 help: ## Show available targets
 	@printf "\nPortfolio Business Representative\n\n"
 	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\nTargets:\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-24s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-	@printf "\nOverrides: CONTAINER_ENGINE=podman|docker API_URL=http://... ENV_FILE=/path/.env CRITICAL_REPETITIONS=5 PORTFOLIO_PROMPT_VERSION=v1|v2|v3|v4\n\n"
+	@printf "\nOverrides: CONTAINER_ENGINE=podman|docker API_URL=http://... ENV_FILE=/path/.env CRITICAL_REPETITIONS=5\n\n"
 
 env: ## Create .env from .env.example when missing
 	@if [ -f "$(ENV_FILE)" ]; then \
@@ -191,22 +189,13 @@ eval-dataset-generate: up ## Generate routing dataset candidates; never mutates 
 		--output "$(EVAL_GENERATED)"
 	@$(MAKE) --no-print-directory eval-dataset-validate
 
-eval-responses: up ## Evaluate response prompts; portfolio defaults to v4 and can be overridden
+eval-responses: up ## Evaluate the current production response behavior
 	@cd "$(ROOT)" && mkdir -p "$$(dirname "$(EVAL_RESPONSE_REPORT)")"
 	@cd "$(ROOT)" && $(EVAL_COMPOSE_RUN) \
 		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
 		api python tests/evals/run_response_eval.py \
 		--cases tests/evals/responses/cases.jsonl \
-		--portfolio-prompt-version "$(PORTFOLIO_PROMPT_VERSION)" \
 		--output "$(EVAL_RESPONSE_REPORT)" --strict
-
-eval-portfolio-prompts: up ## Run portfolio-v1 -> v4 on the same portfolio cases and compare every step
-	@cd "$(ROOT)" && mkdir -p "$(EVAL_PORTFOLIO_PROMPT_DIR)"
-	@cd "$(ROOT)" && $(EVAL_COMPOSE_RUN) \
-		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
-		api python -u tests/evals/run_portfolio_prompt_ladder.py \
-		--cases tests/evals/responses/cases.jsonl \
-		--output-dir "$(EVAL_PORTFOLIO_PROMPT_DIR)" --strict
 
 eval-compare: ## Compare shared numeric metrics in two saved evaluation reports
 	@if [ -z "$(EVAL_BASELINE_REPORT)" ] || [ -z "$(EVAL_CANDIDATE_REPORT)" ]; then \
