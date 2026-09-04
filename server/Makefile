@@ -21,7 +21,9 @@ HOST_UID := $(shell id -u)
 HOST_GID := $(shell id -g)
 
 ifeq ($(CONTAINER_ENGINE),podman)
-EVAL_COMPOSE_RUN = PODMAN_USERNS=keep-id $(COMPOSE) run --rm --no-deps
+# Rootless Podman maps container root to the invoking host user. The image's
+# appuser (UID 10001) cannot create files in a host-owned bind mount.
+EVAL_COMPOSE_RUN = $(COMPOSE) run --rm --no-deps --user 0:0
 else
 EVAL_COMPOSE_RUN = $(COMPOSE) run --rm --no-deps --user "$(HOST_UID):$(HOST_GID)"
 endif
@@ -202,7 +204,7 @@ eval-portfolio-prompts: up ## Run portfolio-v1 -> v4 on the same portfolio cases
 	@cd "$(ROOT)" && mkdir -p "$(EVAL_PORTFOLIO_PROMPT_DIR)"
 	@cd "$(ROOT)" && $(EVAL_COMPOSE_RUN) \
 		-v "$(ROOT):/workspace:Z" -w /workspace -e PYTHONPATH=/workspace \
-		api python tests/evals/run_portfolio_prompt_ladder.py \
+		api python -u tests/evals/run_portfolio_prompt_ladder.py \
 		--cases tests/evals/responses/cases.jsonl \
 		--output-dir "$(EVAL_PORTFOLIO_PROMPT_DIR)" --strict
 
