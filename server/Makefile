@@ -33,7 +33,6 @@ endif
 	compile test test-unit test-e2e check \
 	eval-routing eval-scheduling eval-live eval-smoke eval-safety \
 	eval-dataset-generate eval-dataset-validate eval-responses eval-compare \
-	eval-intents-challenge eval-intents-blind \
 	eval-routes-v5 eval-routes-final clean model models
 
 help: ## Show available targets
@@ -205,12 +204,6 @@ eval-compare: ## Compare shared numeric metrics in two saved evaluation reports
 		--baseline "$(EVAL_BASELINE_REPORT)" --candidate "$(EVAL_CANDIDATE_REPORT)"
 
 eval-safety: test-e2e ## Run deterministic E2E safety and side-effect contracts
-
-eval-intents-challenge: engine-check env-check ## Historical v4 training/challenge pipeline; keep only for comparison
-	@cd "$(ROOT)" && bash tests/evals/run_intent_pipeline.sh
-
-eval-intents-blind: engine-check env-check ## Historical v4 blind gate; already consumed, do not use as a final gate
-	@cd "$(ROOT)" && bash tests/evals/run_intent_pipeline.sh --blind
 
 eval-routes-v5: engine-check env-check ## Train nonlinear 4-class candidate and require challenge + historical blind regression
 	@cd "$(ROOT)" && bash tests/evals/run_nonlinear_route_pipeline.sh

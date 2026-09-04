@@ -9,17 +9,13 @@ from typing import Any
 
 import httpx
 
-from app.agent.nonlinear_router import NonlinearRouteRouter
 from app.domain.conversation import ActiveWorkflow, SessionState
 from app.infrastructure.config.settings import Settings
 from app.infrastructure.embeddings.llama_cpp import LlamaCppEmbeddingClient
-from app.infrastructure.nonlinear_route_classifier import (
-    NonlinearRouteClassifier,
-    load_nonlinear_route_model,
-)
 from tests.evals.evaluation_report import report_metadata
 from tests.evals.intent_dataset import load_intent_cases
 from tests.evals.intent_metrics import meets_dod, summarize
+from tests.evals.routing.nonlinear import NonlinearRouteClassifier, NonlinearRouteRouter, load_nonlinear_route_model
 
 
 def parse_args() -> argparse.Namespace:
@@ -31,88 +27,26 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-async def evaluate(
-    cases_path: Path,
-    model_path: Path,
-    settings: Settings,
-) -> dict[str, Any]:
+async def evaluate(cases_path: Path, model_path: Path, settings: Settings) -> dict[str, Any]:
     cases = load_intent_cases(cases_path)
     model = load_nonlinear_route_model(model_path)
     if model.embedding_model != settings.embedding_model:
-        raise ValueError(
-            "route artifact embedding model mismatch: "
-            f"artifact={model.embedding_model}, runtime={settings.embedding_model}"
-        )
-
+        raise ValueError(f"route artifact embedding model mismatch: artifact={model.embedding_model}, runtime={settings.embedding_model}")
     async with httpx.AsyncClient(timeout=settings.embedding_timeout_seconds) as http:
-        embeddings = LlamaCppEmbeddingClient(
-            settings.embedding_base_url,
-            settings.embedding_model,
-            settings.embedding_timeout_seconds,
-            client=http,
-        )
+        embeddings = LlamaCppEmbeddingClient(settings.embedding_base_url, settings.embedding_model, settings.embedding_timeout_seconds, client=http)
         router = NonlinearRouteRouter(embeddings, NonlinearRouteClassifier(model))
         records: list[dict[str, Any]] = []
-
         for case in cases:
             state = SessionState(session_id=f"nonlinear-route-eval-{case.case_id}")
             if case.active_workflow == "scheduling":
                 state.active_workflow = ActiveWorkflow.SCHEDULING
-
             started = time.perf_counter()
             decision = await router.route(state, case.message)
             latency_ms = (time.perf_counter() - started) * 1000
-            records.append(
-                {
-                    "case_id": case.case_id,
-                    "message": case.message,
-                    "language": case.language,
-                    "family": case.family,
-                    "critical": case.critical,
-                    "active_workflow": case.active_workflow,
-                    "expected_intent": (
-                        case.intent.value if case.intent is not None else None
-                    ),
-                    "predicted_intent": (
-                        decision.intent.value if decision.intent is not None else None
-                    ),
-                    "expected_route": case.route,
-                    "predicted_route": (
-                        decision.domain.value if decision.domain is not None else None
-                    ),
-                    "accepted": decision.accepted,
-                    "confidence": round(decision.confidence, 6),
-                    "margin": round(decision.margin, 6),
-                    "source": decision.source,
-                    "scores": decision.scores,
-                    "latency_ms": round(latency_ms, 2),
-                }
-            )
-
+            records.append({"case_id": case.case_id, "message": case.message, "language": case.language, "family": case.family, "critical": case.critical, "active_workflow": case.active_workflow, "expected_intent": case.intent.value if case.intent is not None else None, "predicted_intent": decision.intent.value if decision.intent is not None else None, "expected_route": case.route, "predicted_route": decision.domain.value if decision.domain is not None else None, "accepted": decision.accepted, "confidence": round(decision.confidence, 6), "margin": round(decision.margin, 6), "source": decision.source, "scores": decision.scores, "latency_ms": round(latency_ms, 2)})
     metrics = summarize(records)
-    metrics["metadata"] = report_metadata(
-        dataset=cases_path,
-        candidate_id=f"nonlinear-route-v{model.version}",
-        model=model.embedding_model,
-        seed=model.seed,
-    )
-    metrics["model"] = {
-        "artifact": str(model_path),
-        "version": model.version,
-        "embedding_model": model.embedding_model,
-        "embedding_dimension": model.embedding_dimension,
-        "labels": list(model.labels),
-        "hidden_dimension": len(model.hidden_bias),
-        "thresholds": {
-            key: {
-                "min_confidence": threshold.min_confidence,
-                "min_margin": threshold.min_margin,
-            }
-            for key, threshold in model.thresholds.items()
-        },
-        "training_dataset_hash": model.training_dataset_hash,
-        "seed": model.seed,
-    }
+    metrics["metadata"] = report_metadata(dataset=cases_path, candidate_id=f"nonlinear-route-v{model.version}", model=model.embedding_model, seed=model.seed)
+    metrics["model"] = {"artifact": str(model_path), "version": model.version, "embedding_model": model.embedding_model, "embedding_dimension": model.embedding_dimension, "labels": list(model.labels), "hidden_dimension": len(model.hidden_bias), "thresholds": {key: {"min_confidence": threshold.min_confidence, "min_margin": threshold.min_margin} for key, threshold in model.thresholds.items()}, "training_dataset_hash": model.training_dataset_hash, "seed": model.seed}
     return metrics
 
 

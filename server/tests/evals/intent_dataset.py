@@ -4,8 +4,17 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.agent.router import route_for_intent
-from app.domain.routing import Intent
+from app.domain.routing import Intent, Route
+
+
+_INTENT_ROUTES = {
+    Intent.PORTFOLIO_QUERY: Route.PORTFOLIO,
+    Intent.CAPABILITY_QUERY: Route.PORTFOLIO,
+    Intent.SCHEDULE_REQUEST: Route.SCHEDULING,
+    Intent.SCHEDULE_AVAILABILITY: Route.SCHEDULING,
+    Intent.SCHEDULE_CONTINUE: Route.SCHEDULING,
+    Intent.CONVERSATION: Route.CONVERSATION,
+}
 
 
 @dataclass(frozen=True)
@@ -24,13 +33,15 @@ class IntentCase:
         return self.intent is None
 
 
+def route_for_intent(intent: Intent) -> Route:
+    """Dataset mapping; runtime routing does not depend on leaf intent labels."""
+    return _INTENT_ROUTES[intent]
+
+
 def load_intent_cases(path: Path) -> list[IntentCase]:
     cases: list[IntentCase] = []
     seen_ids: set[str] = set()
-    for line_number, raw in enumerate(
-        path.read_text(encoding="utf-8").splitlines(),
-        start=1,
-    ):
+    for line_number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         line = raw.strip()
         if not line:
             continue
@@ -41,14 +52,9 @@ def load_intent_cases(path: Path) -> list[IntentCase]:
             intent = Intent(raw_intent) if raw_intent is not None else None
             route = str(raw_route) if raw_route is not None else None
             case = IntentCase(
-                case_id=str(payload["id"]),
-                message=str(payload["message"]).strip(),
-                intent=intent,
-                route=route,
-                language=str(payload["language"]),
-                family=str(payload["family"]),
-                critical=bool(payload.get("critical", False)),
-                active_workflow=payload.get("active_workflow"),
+                case_id=str(payload["id"]), message=str(payload["message"]).strip(), intent=intent,
+                route=route, language=str(payload["language"]), family=str(payload["family"]),
+                critical=bool(payload.get("critical", False)), active_workflow=payload.get("active_workflow"),
             )
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
             raise ValueError(f"invalid intent case at {path}:{line_number}: {exc}") from exc
@@ -62,14 +68,9 @@ def load_intent_cases(path: Path) -> list[IntentCase]:
         if not case.family:
             raise ValueError(f"empty family at {path}:{line_number}")
         if (case.intent is None) != (case.route is None):
-            raise ValueError(
-                f"OOS cases require both intent and route to be null at {path}:{line_number}"
-            )
+            raise ValueError(f"OOS cases require both intent and route to be null at {path}:{line_number}")
         if case.intent is not None and route_for_intent(case.intent).value != case.route:
-            raise ValueError(
-                f"intent/route mismatch at {path}:{line_number}: "
-                f"{case.intent.value} -> {route_for_intent(case.intent).value}, got {case.route}"
-            )
+            raise ValueError(f"intent/route mismatch at {path}:{line_number}: {case.intent.value} -> {route_for_intent(case.intent).value}, got {case.route}")
         if case.active_workflow not in {None, "scheduling"}:
             raise ValueError(f"unsupported active_workflow at {path}:{line_number}")
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from datetime import time
 from typing import Any
 
@@ -130,22 +129,3 @@ class BusinessProfile(BaseModel):
     faq: list[FaqProfile] = Field(default_factory=list)
     scheduling: SchedulingProfile
     instructions: list[str] = Field(default_factory=list)
-
-    def prompt_context(self) -> str:
-        payload = {
-            "owner": self.owner.model_dump(),
-            "representative": self.representative.model_dump(),
-            "positioning": self.positioning.model_dump(),
-            "experience": [item.model_dump() for item in self.experience],
-            "professional_experience": [item.model_dump() for item in self.professional_experience],
-            "skills": self.skills.model_dump(),
-            "services": [service.model_dump() for service in self.services],
-            "projects": [project.model_dump() for project in self.projects],
-            "education": [item.model_dump() for item in self.education],
-            "certifications": [item.model_dump() for item in self.certifications],
-            "languages": [item.model_dump() for item in self.languages],
-            "business": self.business.model_dump(),
-            "faq": [item.model_dump() for item in self.faq],
-            "instructions": self.instructions,
-        }
-        return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))

@@ -2,7 +2,7 @@
 
 Server-side portfolio representative for a small local Qwen model. The browser never downloads model weights. Two llama.cpp services stay resident:
 
-- `llama`: conversational Qwen used for scheduling extraction and response generation.
+- `llama`: conversational Qwen used for ambiguous scheduling interpretation and response generation.
 - `embedding`: Qwen3-Embedding-0.6B used for semantic domain routing and portfolio retrieval.
 
 ## Architecture
@@ -41,7 +41,7 @@ PORTFOLIO  -> PortfolioSearch -> Responder
 otherwise  -> Responder
 ```
 
-`SemanticRouter` returns only one domain:
+Production uses one `SemanticRouter`, which returns only one domain:
 
 ```text
 CONVERSATION
@@ -49,7 +49,7 @@ PORTFOLIO
 SCHEDULING
 ```
 
-It does not select Python functions or tool names.
+It does not select Python functions or tool names. Alternative routing candidates belong under `tests/evals/` until they pass the acceptance gates and are deliberately promoted into production.
 
 `PortfolioSearch` exposes a stable business API:
 
@@ -67,11 +67,21 @@ Static route descriptions and portfolio documents are embedded once and cached. 
 
 For short portfolio follow-ups, the search query may include recent visitor turns. Previous assistant text is deliberately excluded so generated text cannot become retrieval evidence.
 
-`PORTFOLIO_MIN_SCORE` controls the minimum similarity required for a retrieved document to become supported evidence. If no fact survives, the response prompt exposes `RELEVANT_KNOWLEDGE=<none>` and requires abstention rather than invention.
+`PORTFOLIO_MIN_SCORE` controls the minimum similarity required for a retrieved document to become supported evidence. If no fact survives, the response context contains:
+
+```xml
+<relevant_knowledge>
+<none />
+</relevant_knowledge>
+```
+
+and the production prompt requires abstention rather than invention.
 
 ## Scheduling and Calendar
 
 Scheduling is represented by facts in `SchedulingMemory` rather than a conversational FSM.
+
+`SchedulingTurnParser` is deterministic-first: dates, emails, slot references and explicit meeting details are parsed in code; genuinely ambiguous scheduling text may use a small structured LLM fallback.
 
 `Scheduler` prepares scheduling state and pending bookings but does not receive Calendar directly and cannot write events. Availability is read through `SlotService` and the scheduling-owned `Calendar` boundary.
 
@@ -87,13 +97,14 @@ Portfolio or conversational interruptions do not clear active scheduling memory.
 
 ```text
 app/api                       HTTP, SSE and approval endpoints
-app/agent                     representative, router, scheduler, responder, guard
+app/agent                     production representative, router, scheduler, responder and guard
 app/portfolio                 PortfolioSearch and concrete result types
 app/domain                    conversation/profile/routing/scheduling data
 app/scheduling                Calendar boundary, policy, slots, approval
 app/infrastructure/knowledge  current profile retrieval backend
 app/infrastructure            llama.cpp, embeddings, Calendar gateways, tracing, config, sessions
 app/bootstrap.py              dependency composition
+tests/evals                   evaluation data, graders and non-production routing candidates
 ```
 
 There is intentionally no `tools/` package. Native function calling or MCP can be introduced later as thin adapters over the explicit capabilities.
@@ -129,7 +140,7 @@ The embedding server starts with:
 --embedding --pooling last
 ```
 
-No Python ML runtime or vector database is required; both models run through llama.cpp.
+No Python ML runtime or vector database is required by production; both production models run through llama.cpp. Offline evaluation/training may install development-only ML dependencies explicitly.
 
 ## Run locally
 
