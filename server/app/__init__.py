@@ -1,1 +1,1 @@
-"""Portfolio business representative backend."""
+"""Minimal portfolio/CV assistant backend."""
