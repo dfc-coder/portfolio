@@ -11,7 +11,7 @@ POST /v1/chat/stream
           -> final answer
           -> or tool_calls
               -> execute tools
-              -> append tool results
+              -> append assistant tool_calls + matching tool results
               -> Qwen again
   -> SSE response
 ```
@@ -33,15 +33,15 @@ set_reminder_mock
 app/main.py        # composition and FastAPI
 app/api/router.py  # HTTP/SSE boundary
 app/agent.py       # explicit bounded tool loop
-app/tools.py       # schemas, validation and tool dispatch
+app/tools.py       # explicit schemas, validation and tool execution
 app/portfolio.py   # portfolio retrieval
 app/prompt.py      # production prompt
-app/config.py      # environment configuration
+app/config.py      # application environment configuration
 ```
 
-There is no planner, graph, tool registry, agent framework or server-side conversation store.
+There is no planner, graph, tool registry, agent framework or server-side conversation store. The browser round-trips a bounded hidden OpenAI-compatible conversation context with each request, including assistant `tool_calls`, tool results, and final assistant messages.
 
-The browser sends visible conversation history with each request. Tool-call messages are kept only inside the current request while the agent loop is running.
+Date/time fallback configuration belongs to the date capability through the standard `TZ` environment variable. It is not Agent state. Qwen thinking mode is disabled; operational model execution is reported separately from model reasoning.
 
 ## Run
 
