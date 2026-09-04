@@ -122,16 +122,11 @@ class ContextAssembler:
             f"<capability>{self._xml_text(item)}</capability>"
             for item in capabilities
         )
-        policy_items = "\n".join(
-            f"<instruction>{self._xml_text(item)}</instruction>"
-            for item in profile.instructions
-        )
         return (
             f"{PORTFOLIO_PROMPT}\n\n"
             f"<portfolio_subject>\n{self._xml_text(profile.owner.name)}\n</portfolio_subject>\n"
             f"<timezone>\n{self._xml_text(profile.scheduling.timezone)}\n</timezone>\n"
-            f"<agent_capabilities>\n{capability_items}\n</agent_capabilities>\n"
-            f"<owner_policy>\n{policy_items}\n</owner_policy>"
+            f"<agent_capabilities>\n{capability_items}\n</agent_capabilities>"
         )
 
     def _runtime_state(self, state: SessionState) -> str:
