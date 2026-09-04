@@ -16,6 +16,7 @@ There is no eval registry, plugin system, DAG, experiment database or prompt-man
 make eval-dataset-validate
 make eval-dataset-generate
 make eval-responses
+make eval-portfolio-prompts
 make eval-safety
 make eval-routing
 make eval-scheduling
@@ -69,6 +70,42 @@ Generation runs one family/language batch at a time, rejects exact normalized du
 Semantic quality dimensions are reported independently. Until a stable baseline exists, only deterministic, language, identity and action-safety properties are strict gates.
 
 Prompt IDs are versioned in `app/agent/context.py` and recorded in response-eval records so prompt changes can be compared reproducibly without a prompt framework.
+
+### Portfolio prompt progression
+
+The portfolio response prompt is intentionally implemented as four concrete versions:
+
+```text
+portfolio-v1  previous baseline
+portfolio-v2  task-first / clear-direct
+portfolio-v3  v2 semantics + XML boundaries for dynamic data
+portfolio-v4  v3 + three synthetic few-shot behavior examples
+```
+
+`portfolio-v4` is the production default.
+
+`make eval-portfolio-prompts` evaluates only portfolio response cases for all four versions in that exact order. Unchanged conversation cases are excluded from the ladder so they do not dilute prompt-version metrics.
+
+The ladder writes:
+
+```text
+tests/evals/reports/portfolio-prompts/
+  portfolio-v1.json
+  portfolio-v2.json
+  portfolio-v3.json
+  portfolio-v4.json
+  summary.json
+```
+
+The summary compares `v1 -> v2`, `v2 -> v3`, `v3 -> v4`, and `v1 -> v4`. Earlier versions remain measurable baselines; the strict ladder gate applies only to the final `portfolio-v4` hard contracts.
+
+A single version can be run through the full response evaluator with:
+
+```bash
+make eval-responses PORTFOLIO_PROMPT_VERSION=v2
+```
+
+Few-shot examples are synthetic behavior demonstrations. They must not be copied from the frozen final holdout or from a consumed blind set.
 
 ## Reproducibility
 
