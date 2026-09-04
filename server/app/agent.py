@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from collections.abc import AsyncIterator
@@ -13,6 +14,7 @@ from .prompt import build_messages
 from .tools import TOOLS, run_tool_call
 
 MAX_TOOL_ROUNDS = 6
+AgentEvent = tuple[str, dict[str, object]]
 
 logger = logging.getLogger(__name__)
 
@@ -41,14 +43,15 @@ class Agent:
         self,
         message: str,
         history: list[dict[str, str]],
-    ) -> AsyncIterator[str]:
+    ) -> AsyncIterator[AgentEvent]:
         messages: list[dict[str, Any]] = build_messages(
             self._subject,
             history[-6:],
             message,
         )
 
-        for round_number in range(MAX_TOOL_ROUNDS + 1):
+        for round_number in range(1, MAX_TOOL_ROUNDS + 2):
+            yield "status", {"phase": "thinking", "round": round_number}
             started = time.perf_counter()
             stream = await self._chat.chat.completions.create(
                 model=self._model,
@@ -64,6 +67,7 @@ class Agent:
             content: list[str] = []
             calls: dict[int, dict[str, str]] = {}
             finish_reason: str | None = None
+            responding = False
 
             async for chunk in stream:
                 if not chunk.choices:
@@ -76,8 +80,11 @@ class Agent:
                 delta = choice.delta
                 text = delta.content or ""
                 if text:
+                    if not responding:
+                        responding = True
+                        yield "status", {"phase": "responding", "round": round_number}
                     content.append(text)
-                    yield text
+                    yield "token", {"text": text}
 
                 for call in delta.tool_calls or []:
                     item = calls.setdefault(
@@ -96,7 +103,7 @@ class Agent:
             tool_names = [call["name"] for call in ordered_calls]
             logger.info(
                 "agent round=%s finish=%s tools=%s latency_ms=%d",
-                round_number + 1,
+                round_number,
                 finish_reason,
                 ",".join(tool_names) or "-",
                 int((time.perf_counter() - started) * 1000),
@@ -114,8 +121,15 @@ class Agent:
                     raise RuntimeError("LLM returned an empty response")
                 return
 
-            if round_number == MAX_TOOL_ROUNDS:
+            if round_number > MAX_TOOL_ROUNDS:
                 raise RuntimeError("tool loop limit reached")
+
+            for call in ordered_calls:
+                yield "tool", {
+                    "name": call["name"],
+                    "state": "running",
+                    "round": round_number,
+                }
 
             results = await asyncio.gather(
                 *(
@@ -129,9 +143,26 @@ class Agent:
                     for call in ordered_calls
                 )
             )
+
+            for call, result in zip(ordered_calls, results, strict=True):
+                yield "tool", {
+                    "name": call["name"],
+                    "state": "done",
+                    "ok": _tool_ok(result),
+                    "round": round_number,
+                }
+
             messages.extend(results)
 
         raise RuntimeError("tool loop limit reached")
+
+
+def _tool_ok(message: dict[str, str]) -> bool:
+    try:
+        body = json.loads(message["content"])
+    except (KeyError, json.JSONDecodeError, TypeError):
+        return False
+    return bool(body.get("ok"))
 
 
 def _assistant_message(
