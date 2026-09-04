@@ -44,7 +44,7 @@ class Agent:
             message,
         )
 
-        for _ in range(MAX_TOOL_ROUNDS):
+        for round_number in range(MAX_TOOL_ROUNDS + 1):
             response = await self._chat.chat.completions.create(
                 model=self._model,
                 messages=messages,
@@ -67,6 +67,9 @@ class Agent:
                     raise RuntimeError("LLM returned an empty response")
                 yield text
                 return
+
+            if round_number == MAX_TOOL_ROUNDS:
+                raise RuntimeError("tool loop limit reached")
 
             results = await asyncio.gather(
                 *(
