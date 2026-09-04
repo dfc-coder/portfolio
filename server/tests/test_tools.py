@@ -60,6 +60,15 @@ def test_add_duration_accepts_naive_datetime_in_default_timezone() -> None:
     assert result["datetime"] == "2030-02-28T12:45:00-03:00"
 
 
+def test_date_capability_owns_server_timezone(monkeypatch) -> None:
+    monkeypatch.setenv("TZ", "UTC")
+
+    result = add_duration_to_datetime("2026-09-04", days=1)
+
+    assert result["datetime"] == "2026-09-05T00:00:00+00:00"
+    assert result["timezone"] == "UTC"
+
+
 @pytest.mark.asyncio
 async def test_tool_validation_error_is_returned_to_model() -> None:
     message = await run_tool_call(
