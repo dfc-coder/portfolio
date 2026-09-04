@@ -7,6 +7,8 @@ dist/
 .DS_Store
 server/models/
 server/artifacts/
+server/tests/evals/generated/*.jsonl
+server/tests/evals/reports/
 *.gguf
 __pycache__/
 .pytest_cache/
