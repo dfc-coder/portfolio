@@ -106,13 +106,12 @@ async def test_agent_streams_answer_and_flow_without_tool() -> None:
         chat,
         portfolio,
         model="qwen",
-        timezone="America/Argentina/Buenos_Aires",
     )
 
     events = [event async for event in agent.respond("hola", [])]
 
     assert token_text(events) == "Hola."
-    assert events[0] == ("status", {"phase": "thinking", "round": 1})
+    assert events[0] == ("status", {"phase": "model", "round": 1})
     assert ("status", {"phase": "responding", "round": 1}) in events
     assert portfolio.queries == []
     assert returned_context(events)[-1] == {"role": "assistant", "content": "Hola."}
@@ -154,7 +153,6 @@ async def test_agent_preserves_streamed_tool_call_and_reports_flow() -> None:
         chat,
         portfolio,
         model="qwen",
-        timezone="America/Argentina/Buenos_Aires",
     )
 
     events = [event async for event in agent.respond("¿Trabajó con Rust?", [])]
@@ -169,7 +167,7 @@ async def test_agent_preserves_streamed_tool_call_and_reports_flow() -> None:
         "tool",
         {"name": "search_portfolio", "state": "done", "ok": True, "round": 1},
     ) in events
-    assert ("status", {"phase": "thinking", "round": 2}) in events
+    assert ("status", {"phase": "model", "round": 2}) in events
 
     second_messages = chat.chat.completions.requests[1]["messages"]
     assert second_messages[-2]["role"] == "assistant"
@@ -244,7 +242,6 @@ async def test_agent_runs_multi_round_tool_chain() -> None:
         chat,
         FakePortfolio(),
         model="qwen",
-        timezone="America/Argentina/Buenos_Aires",
     )
 
     events = [
@@ -307,7 +304,6 @@ async def test_agent_returns_multiple_tool_results_in_one_round() -> None:
         chat,
         FakePortfolio(),
         model="qwen",
-        timezone="America/Argentina/Buenos_Aires",
     )
 
     events = [event async for event in agent.respond("consulta mixta", [])]
@@ -357,7 +353,6 @@ async def test_agent_carries_tool_results_into_follow_up_turn() -> None:
         chat,
         FakePortfolio(),
         model="qwen",
-        timezone="America/Argentina/Buenos_Aires",
     )
 
     first_events = [

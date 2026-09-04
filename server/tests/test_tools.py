@@ -37,8 +37,8 @@ def test_tool_schemas_are_explicit_json_schema() -> None:
 def test_add_duration_calculates_date_and_weekday_exactly() -> None:
     result = add_duration_to_datetime(
         "2026-09-04",
-        default_timezone="America/Argentina/Buenos_Aires",
         days=15,
+        default_timezone="America/Argentina/Buenos_Aires",
     )
 
     assert result["date"] == "2026-09-19"
@@ -51,13 +51,22 @@ def test_add_duration_calculates_date_and_weekday_exactly() -> None:
 def test_add_duration_accepts_naive_datetime_in_default_timezone() -> None:
     result = add_duration_to_datetime(
         "2030-01-02T10:30:00",
-        default_timezone="America/Argentina/Buenos_Aires",
         days=57,
         hours=2,
         minutes=15,
+        default_timezone="America/Argentina/Buenos_Aires",
     )
 
     assert result["datetime"] == "2030-02-28T12:45:00-03:00"
+
+
+def test_date_capability_owns_server_timezone(monkeypatch) -> None:
+    monkeypatch.setenv("TZ", "UTC")
+
+    result = add_duration_to_datetime("2026-09-04", days=1)
+
+    assert result["datetime"] == "2026-09-05T00:00:00+00:00"
+    assert result["timezone"] == "UTC"
 
 
 @pytest.mark.asyncio
@@ -67,7 +76,6 @@ async def test_tool_validation_error_is_returned_to_model() -> None:
         "add_duration_to_datetime",
         json.dumps({"datetime": "not-a-date", "days": 2}),
         FakePortfolio(),
-        "America/Argentina/Buenos_Aires",
     )
 
     body = json.loads(message["content"])
@@ -84,7 +92,6 @@ async def test_tool_validation_rejects_unknown_arguments() -> None:
         "search_portfolio",
         json.dumps({"query": "Rust", "unexpected": True}),
         FakePortfolio(),
-        "America/Argentina/Buenos_Aires",
     )
 
     body = json.loads(message["content"])
@@ -100,7 +107,6 @@ async def test_tool_validation_rejects_wrong_integer_type() -> None:
         "add_duration_to_datetime",
         json.dumps({"datetime": "2026-09-04", "days": "15"}),
         FakePortfolio(),
-        "America/Argentina/Buenos_Aires",
     )
 
     body = json.loads(message["content"])

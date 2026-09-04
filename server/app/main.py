@@ -18,7 +18,7 @@ def _load_profile(path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as handle:
         profile = json.load(handle)
     if not isinstance(profile, dict):
-        raise ValueError("business profile must be a JSON object")
+        raise ValueError("portfolio profile must be a JSON object")
     return profile
 
 
@@ -39,7 +39,7 @@ def create_app(config: Config | None = None, agent: Agent | None = None) -> Fast
         profile = _load_profile(config.profile_path)
         owner = profile.get("owner")
         if not isinstance(owner, dict) or not isinstance(owner.get("name"), str):
-            raise ValueError("business profile is missing owner.name")
+            raise ValueError("portfolio profile is missing owner.name")
 
         chat = _client(config.llama_base_url, config.llama_timeout_seconds)
         embeddings = _client(config.embedding_base_url, config.embedding_timeout_seconds)
@@ -58,7 +58,6 @@ def create_app(config: Config | None = None, agent: Agent | None = None) -> Fast
             chat,
             portfolio,
             model=config.llama_model,
-            timezone=config.timezone,
             temperature=config.generation_temperature,
             max_tokens=config.generation_max_tokens,
         )

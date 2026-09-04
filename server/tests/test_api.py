@@ -15,7 +15,7 @@ class FakeAgent:
     ) -> AsyncIterator[tuple[str, dict[str, object]]]:
         assert message == "hola"
         assert context == [{"role": "assistant", "content": "antes"}]
-        yield "status", {"phase": "thinking", "round": 1}
+        yield "status", {"phase": "model", "round": 1}
         yield "tool", {"name": "get_current_datetime", "state": "running", "round": 1}
         yield "token", {"text": "respuesta"}
         yield "context", {
@@ -42,7 +42,7 @@ def test_chat_stream_contract() -> None:
 
     assert response.status_code == 200
     assert 'event: status' in response.text
-    assert '"phase": "thinking"' in response.text
+    assert '"phase": "model"' in response.text
     assert 'event: tool' in response.text
     assert '"name": "get_current_datetime"' in response.text
     assert 'event: token' in response.text

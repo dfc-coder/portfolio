@@ -7,14 +7,14 @@ import {
   setAgentVisualPhase,
   type AgentVisualPhase,
 } from "../../graphics/stageGraphics";
-import { businessAgentProvider } from "./businessAgentProvider";
+import { portfolioAgentProvider } from "./portfolioAgentProvider";
 import { useAgentRuntime, type AgentProvider } from "./useAgentRuntime";
 
 const props = withDefaults(
   defineProps<{
     provider?: AgentProvider;
   }>(),
-  { provider: () => businessAgentProvider },
+  { provider: () => portfolioAgentProvider },
 );
 
 const laneEl = ref<HTMLElement | null>(null);
@@ -111,15 +111,20 @@ const linesOf = (text: string): Line[] =>
 
 const statusLabel = computed(() => {
   if (error.value) return "DEGRADED";
-  if (state.value === "thinking") return "WORKING";
+  if (state.value === "working") return "WORKING";
   if (state.value === "speaking") return "SPEAKING";
   if (state.value === "listening") return "LISTENING";
   return "READY";
 });
 
+const visualPhase = (): AgentVisualPhase => {
+  if (error.value) return "error";
+  if (state.value === "working") return "thinking";
+  return state.value;
+};
+
 const syncVisualPhase = () => {
-  const phase: AgentVisualPhase = error.value ? "error" : state.value;
-  setAgentVisualPhase(phase);
+  setAgentVisualPhase(visualPhase());
 };
 
 const phaseImpulse = (phase: AgentVisualPhase) => {
@@ -158,9 +163,9 @@ const startPrompt = (prompt: string) => {
 
 watch(
   state,
-  (next) => {
+  () => {
     syncVisualPhase();
-    pulseAgentVisual(phaseImpulse(next));
+    pulseAgentVisual(phaseImpulse(visualPhase()));
   },
   { immediate: true },
 );

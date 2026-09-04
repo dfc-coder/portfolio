@@ -28,7 +28,6 @@ class Agent:
         portfolio: Portfolio,
         *,
         model: str,
-        timezone: str,
         temperature: float = 0.2,
         max_tokens: int = 180,
     ) -> None:
@@ -36,7 +35,6 @@ class Agent:
         self._chat = chat
         self._portfolio = portfolio
         self._model = model
-        self._timezone = timezone
         self._temperature = temperature
         self._max_tokens = max_tokens
 
@@ -53,7 +51,7 @@ class Agent:
 
         round_number = 1
         while True:
-            yield "status", {"phase": "thinking", "round": round_number}
+            yield "status", {"phase": "model", "round": round_number}
             started = time.perf_counter()
             stream = await self._chat.chat.completions.create(
                 model=self._model,
@@ -137,7 +135,6 @@ class Agent:
                         call["name"],
                         call["arguments"],
                         self._portfolio,
-                        self._timezone,
                     )
                     for call in ordered_calls
                 )

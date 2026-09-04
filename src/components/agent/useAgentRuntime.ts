@@ -13,7 +13,7 @@ export interface AgentMessage {
 
 export type AgentEvent =
   | { type: "token"; text: string }
-  | { type: "status"; phase: "thinking" | "responding"; round: number }
+  | { type: "status"; phase: "model" | "responding"; round: number }
   | {
       type: "tool";
       name: string;
@@ -30,15 +30,13 @@ export interface AgentProvider {
   ): AsyncIterable<AgentEvent | string>;
 }
 
-export type RuntimeState = "idle" | "listening" | "thinking" | "speaking";
+export type RuntimeState = "idle" | "listening" | "working" | "speaking";
 
-const TZ = "America/Argentina/Buenos_Aires";
 const PRESENTATION_BASE_CPS = 52;
 const PRESENTATION_MAX_CPS = 92;
 const PRESENTATION_MAX_BATCH = 4;
 
 const timeFormatter = new Intl.DateTimeFormat("en-GB", {
-  timeZone: TZ,
   hour12: false,
   hour: "2-digit",
   minute: "2-digit",
@@ -74,7 +72,7 @@ export function useAgentRuntime(
 
   const state = computed<RuntimeState>(() => {
     if (messages.value.some((message) => message.streaming)) return "speaking";
-    if (busy.value) return "thinking";
+    if (busy.value) return "working";
     if (focused.value || draft.value.length > 0) return "listening";
     return "idle";
   });
@@ -177,7 +175,7 @@ export function useAgentRuntime(
   const handleEvent = (event: AgentEvent | string): boolean => {
     if (typeof event !== "string" && event.type === "status") {
       addFlow(
-        event.phase === "thinking"
+        event.phase === "model"
           ? `MODEL / ROUND ${event.round}`
           : `RESPONSE / ROUND ${event.round}`,
       );

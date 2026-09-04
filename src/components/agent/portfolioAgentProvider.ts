@@ -29,7 +29,7 @@ const parseFrame = (raw: string): SseFrame | null => {
   return data.length > 0 ? { event, data: data.join("\n") } : null;
 };
 
-async function* streamBusinessAgent(
+async function* streamPortfolioAgent(
   question: string,
   context: ReadonlyArray<AgentContextMessage>,
 ): AsyncIterable<AgentEvent> {
@@ -40,7 +40,7 @@ async function* streamBusinessAgent(
   });
 
   if (!response.ok || !response.body) {
-    throw new Error(`Business agent request failed with HTTP ${response.status}`);
+    throw new Error(`Portfolio agent request failed with HTTP ${response.status}`);
   }
 
   const reader = response.body.getReader();
@@ -66,7 +66,7 @@ async function* streamBusinessAgent(
       }
       if (frame.event === "status") {
         const phase = String(payload.phase);
-        if (phase === "thinking" || phase === "responding") {
+        if (phase === "model" || phase === "responding") {
           yield {
             type: "status",
             phase,
@@ -93,7 +93,7 @@ async function* streamBusinessAgent(
         };
       }
       if (frame.event === "error") {
-        throw new Error(String(payload.message ?? "Business agent unavailable"));
+        throw new Error(String(payload.message ?? "Portfolio agent unavailable"));
       }
     }
 
@@ -101,11 +101,11 @@ async function* streamBusinessAgent(
   }
 }
 
-export const businessAgentProvider: AgentProvider = {
+export const portfolioAgentProvider: AgentProvider = {
   async *ask(
     question: string,
     context: ReadonlyArray<AgentContextMessage>,
   ): AsyncIterable<AgentEvent> {
-    yield* streamBusinessAgent(question, context);
+    yield* streamPortfolioAgent(question, context);
   },
 };

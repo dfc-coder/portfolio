@@ -1,9 +1,9 @@
-name: Business Representative CI
+name: Portfolio Assistant CI
 
 on:
   push:
     branches:
-      - agent/chapter-03-systems-refinement
+      - develop
     paths:
       - "server/**"
       - "src/**"
@@ -13,8 +13,10 @@ on:
       - "pnpm-workspace.yaml"
       - "tsconfig.json"
       - "vite.config.ts"
-      - ".github/workflows/business-representative.yml"
+      - ".github/workflows/portfolio-assistant.yml"
   pull_request:
+    branches:
+      - develop
     paths:
       - "server/**"
       - "src/**"
@@ -24,7 +26,7 @@ on:
       - "pnpm-workspace.yaml"
       - "tsconfig.json"
       - "vite.config.ts"
-      - ".github/workflows/business-representative.yml"
+      - ".github/workflows/portfolio-assistant.yml"
 
 permissions:
   contents: read
