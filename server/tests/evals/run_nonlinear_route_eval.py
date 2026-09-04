@@ -17,6 +17,7 @@ from app.infrastructure.nonlinear_route_classifier import (
     NonlinearRouteClassifier,
     load_nonlinear_route_model,
 )
+from tests.evals.evaluation_report import report_metadata
 from tests.evals.intent_dataset import load_intent_cases
 from tests.evals.intent_metrics import meets_dod, summarize
 
@@ -89,8 +90,14 @@ async def evaluate(
             )
 
     metrics = summarize(records)
-    metrics["dataset"] = str(cases_path)
+    metrics["metadata"] = report_metadata(
+        dataset=cases_path,
+        candidate_id=f"nonlinear-route-v{model.version}",
+        model=model.embedding_model,
+        seed=model.seed,
+    )
     metrics["model"] = {
+        "artifact": str(model_path),
         "version": model.version,
         "embedding_model": model.embedding_model,
         "embedding_dimension": model.embedding_dimension,
@@ -115,6 +122,7 @@ async def main() -> int:
     report = await evaluate(args.cases, args.model, settings)
     text = json.dumps(report, ensure_ascii=False, indent=2)
     if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(text + "\n", encoding="utf-8")
     print(text)
     return 0 if meets_dod(report) or not args.strict else 1
