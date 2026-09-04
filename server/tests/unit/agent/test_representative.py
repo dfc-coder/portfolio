@@ -11,7 +11,6 @@ from app.domain.routing import Route, RouteRelation, RoutingDecision
 from app.infrastructure.sessions.memory import MemorySessionStore
 from app.ports.llm import GenerationConfig
 from app.portfolio.search import Fact, SearchResult
-from app.scheduling.policy import SchedulingPolicy
 
 
 class StaticRouter:
@@ -113,7 +112,6 @@ async def test_portfolio_route_searches_explicit_capability_and_preserves_schedu
     responder = Responder(
         EvidenceLlm(),  # type: ignore[arg-type]
         profile,
-        SchedulingPolicy(profile.scheduling),
         GenerationConfig(temperature=0.0, max_tokens=80),
         (),
     )

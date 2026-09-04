@@ -48,7 +48,6 @@ class BusinessRepresentative:
         await asyncio.gather(
             self._router.warm(),
             self._portfolio.warm(),
-            self._responder.warm(),
         )
 
     async def respond(self, session_id: str, user_message: str) -> AsyncIterator[str]:

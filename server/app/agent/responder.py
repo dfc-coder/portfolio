@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any
 from app.domain.conversation import SessionState
 from app.domain.profile import BusinessProfile
 from app.ports.llm import GenerationConfig, GenerationMetadata, GenerationStream, LlmPort
-from app.scheduling.policy import SchedulingPolicy
 
 from .context import ContextAssembler
 from .stream_guard import StreamGuard, UnsafeStreamOutput
@@ -38,17 +37,12 @@ class Responder:
         self,
         llm: LlmPort,
         profile: BusinessProfile,
-        policy: SchedulingPolicy,
         config: GenerationConfig,
         capabilities: tuple[str, ...],
     ) -> None:
-        del policy  # Timezone/policy data is already represented in BusinessProfile.
         self._llm = llm
         self._config = config
         self._context = ContextAssembler(profile, capabilities)
-
-    async def warm(self) -> None:
-        await self._context.warm()
 
     async def stream(
         self,
@@ -59,7 +53,7 @@ class Responder:
     ) -> AsyncIterator[str]:
         guard = StreamGuard()
         emitted = False
-        context = await self._context.build(state, evidence, trace)
+        context = self._context.build(state, evidence, trace)
         messages = context.messages()
         raw_chunks: list[str] = []
         visible_chunks: list[str] = []
