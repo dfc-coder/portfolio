@@ -2,12 +2,14 @@
 
 Current scope: answer questions about Diego Cano's portfolio and CV.
 
-The runtime is intentionally limited to retrieval and response generation:
-
 ```text
-visitor → API → PortfolioAgent → PortfolioSearch → prompt → Qwen → response
+visitor → API → PortfolioAgent → OpenAI SDK → llama.cpp/Qwen → response
+                         ↓
+                    profile retrieval
 ```
 
-There is no scheduling, calendar integration, action execution, planner, tool registry, router or agent graph in the current product.
+The browser sends the visible conversation history with each request. The server keeps no conversation state.
 
-The profile JSON is the factual source. The production prompt defines response behavior. Python owns transport, short conversation history, retrieval and model I/O.
+There is no scheduling, calendar, action execution, planner, router, tool framework, custom model client or custom embedding client.
+
+The profile JSON is the factual source. The production prompt defines response behavior.

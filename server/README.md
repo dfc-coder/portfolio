@@ -1,42 +1,37 @@
-# Portfolio Assistant
+# Portfolio assistant
 
-The server has one job: answer questions about the portfolio/CV using the configured profile.
+This server does one thing: answer questions about the portfolio/CV from the supplied profile.
 
-## Flow
+## Runtime flow
 
 ```text
 POST /v1/chat/stream
-        ↓
-PortfolioAgent
-        ↓
-PortfolioSearch ──→ Embeddings
-        ↓
-relevant profile facts
-        ↓
-build_messages()
-        ↓
-Qwen / llama.cpp
-        ↓
-SSE tokens
+  -> PortfolioAgent
+      -> OpenAI SDK -> llama.cpp embeddings -> relevant profile facts
+      -> prompt + history + facts
+      -> OpenAI SDK -> llama.cpp/Qwen chat stream
+  -> SSE tokens
 ```
 
-There is no scheduling, calendar integration, action execution, router, planner, tool framework or agent graph.
+## Application files
 
-## App files
+```text
+app/main.py        # composition and FastAPI
+app/api/router.py  # HTTP/SSE boundary
+app/agent.py       # retrieval + response flow
+app/prompt.py      # production prompt
+app/config.py      # environment configuration
+```
 
-- `app/main.py`: loads the profile and wires the application.
-- `app/api/router.py`: exposes the streaming chat endpoint.
-- `app/agent.py`: owns the single request flow.
-- `app/prompt.py`: canonical production prompt and message construction.
-- `app/search.py`: embeds and retrieves relevant profile facts.
-- `app/sessions.py`: keeps short conversation history in memory.
-- `app/llm.py`: streams responses from llama.cpp.
-- `app/embeddings.py`: talks to the embedding model.
-- `app/config.py`: environment configuration.
+There is no router, scheduler, calendar, tool framework, server-side conversation store, custom LLM client or custom embedding client.
+
+The browser sends the visible conversation history with each request, so the server remains stateless between turns.
 
 ## Run
 
 ```bash
-make test
+cp .env.example .env
 make up
 ```
+
+API: `http://localhost:8000`

@@ -1,40 +1,62 @@
+from types import SimpleNamespace
+
 import pytest
 
 from app.agent import PortfolioAgent
-from app.llm import GenerationConfig
-from app.search import Fact
-from app.sessions import MemorySessions
 
 
-class FakeSearch:
-    async def warm(self) -> None:
-        pass
+class FakeEmbeddings:
+    async def create(self, *, model: str, input: list[str]):
+        data = []
+        for index, text in enumerate(input):
+            vector = [1.0, 0.0] if "Rust" in text or text.startswith("Instruct:") else [0.0, 1.0]
+            data.append(SimpleNamespace(index=index, embedding=vector))
+        return SimpleNamespace(data=data)
 
-    async def search(self, query: str) -> tuple[Fact, ...]:
-        return (Fact(source="skills", text='{"programming_languages":["Rust"]}'),)
+
+class FakeCompletions:
+    def __init__(self) -> None:
+        self.messages = []
+
+    async def create(self, **kwargs):
+        self.messages = kwargs["messages"]
+
+        async def stream():
+            yield SimpleNamespace(
+                choices=[SimpleNamespace(delta=SimpleNamespace(content="Incluye Rust."))]
+            )
+
+        return stream()
 
 
-class FakeLlm:
-    async def stream(self, messages, config):
-        assert "Rust" in messages[0]["content"]
-        yield "El perfil incluye experiencia con Rust."
+class FakeClient:
+    def __init__(self) -> None:
+        self.embeddings = FakeEmbeddings()
+        self.chat = SimpleNamespace(completions=FakeCompletions())
 
 
 @pytest.mark.asyncio
-async def test_agent_retrieves_answers_and_keeps_history() -> None:
-    sessions = MemorySessions(max_turns=8)
+async def test_agent_retrieves_profile_and_streams_answer() -> None:
+    profile = {
+        "owner": {"name": "Diego"},
+        "projects": [{"name": "PocketTrace", "stack": ["Rust"]}],
+    }
+    chat = FakeClient()
+    embeddings = FakeClient()
     agent = PortfolioAgent(
         "Diego",
-        sessions,
-        FakeSearch(),
-        FakeLlm(),
-        GenerationConfig(),
+        profile,
+        chat,
+        embeddings,
+        chat_model="qwen",
+        embedding_model="qwen-embed",
+        min_score=0.5,
     )
 
     response = "".join(
-        [chunk async for chunk in agent.respond("session-123", "¿Trabajó con Rust?")]
+        [chunk async for chunk in agent.respond("¿Trabajó con Rust?", [])]
     )
 
-    assert response == "El perfil incluye experiencia con Rust."
-    async with sessions.open("session-123") as session:
-        assert [turn.role for turn in session.turns] == ["user", "assistant"]
+    assert response == "Incluye Rust."
+    assert "Rust" in chat.chat.completions.messages[0]["content"]
+    assert chat.chat.completions.messages[-1]["content"] == "¿Trabajó con Rust?"

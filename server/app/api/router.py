@@ -1,21 +1,24 @@
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import AsyncIterator
+from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.agent import PortfolioAgent
 
-_SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{8,96}$")
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=4000)
 
 
 class ChatRequest(BaseModel):
-    session_id: str = Field(min_length=8, max_length=96)
     message: str = Field(min_length=1, max_length=2000)
+    history: list[ChatMessage] = Field(default_factory=list, max_length=8)
 
 
 def encode_sse(event: str, payload: dict[str, object]) -> str:
@@ -27,17 +30,14 @@ def create_router(agent: PortfolioAgent) -> APIRouter:
 
     @router.post("/v1/chat/stream")
     async def chat(body: ChatRequest, request: Request) -> StreamingResponse:
-        if not _SESSION_RE.fullmatch(body.session_id):
-            raise HTTPException(status_code=422, detail="Invalid session_id")
+        history = [item.model_dump() for item in body.history]
 
         async def events() -> AsyncIterator[str]:
-            yield encode_sse("ready", {"session_id": body.session_id})
             try:
-                async for token in agent.respond(body.session_id, body.message.strip()):
+                async for token in agent.respond(body.message.strip(), history):
                     if await request.is_disconnected():
                         return
                     yield encode_sse("token", {"text": token})
-                yield encode_sse("done", {})
             except Exception:
                 yield encode_sse(
                     "error",

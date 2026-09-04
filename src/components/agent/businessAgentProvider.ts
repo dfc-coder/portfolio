@@ -4,8 +4,6 @@ import type {
   AgentProvider,
 } from "./useAgentRuntime";
 
-const SESSION_ID = `web-${crypto.randomUUID()}`;
-
 const apiBaseUrl = (): string => {
   const configured = import.meta.env.VITE_AGENT_API_URL?.trim();
   if (!configured) {
@@ -33,13 +31,17 @@ const parseFrame = (raw: string): SseFrame | null => {
 
 async function* streamBusinessAgent(
   question: string,
+  history: ReadonlyArray<AgentMessage>,
 ): AsyncIterable<AgentEvent> {
   const response = await fetch(`${apiBaseUrl()}/v1/chat/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      session_id: SESSION_ID,
       message: question,
+      history: history.map((message) => ({
+        role: message.role === "agent" ? "assistant" : "user",
+        content: message.text,
+      })),
     }),
   });
 
@@ -80,8 +82,8 @@ async function* streamBusinessAgent(
 export const businessAgentProvider: AgentProvider = {
   async *ask(
     question: string,
-    _history: ReadonlyArray<AgentMessage>,
+    history: ReadonlyArray<AgentMessage>,
   ): AsyncIterable<AgentEvent> {
-    yield* streamBusinessAgent(question);
+    yield* streamBusinessAgent(question, history);
   },
 };
