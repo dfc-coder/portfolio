@@ -7,7 +7,13 @@ from app.api.router import create_router
 
 
 class FakeAgent:
-    async def respond(self, session_id: str, user_message: str) -> AsyncIterator[str]:
+    async def respond(
+        self,
+        message: str,
+        history: list[dict[str, str]],
+    ) -> AsyncIterator[str]:
+        assert message == "hola"
+        assert history == [{"role": "user", "content": "antes"}]
         yield "respuesta"
 
 
@@ -18,10 +24,12 @@ def test_chat_stream_contract() -> None:
 
     response = client.post(
         "/v1/chat/stream",
-        json={"session_id": "session-123", "message": "hola"},
+        json={
+            "message": "hola",
+            "history": [{"role": "user", "content": "antes"}],
+        },
     )
 
     assert response.status_code == 200
-    assert "event: ready" in response.text
+    assert 'event: token' in response.text
     assert '"text": "respuesta"' in response.text
-    assert "event: done" in response.text

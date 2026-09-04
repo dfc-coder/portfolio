@@ -6,12 +6,13 @@ import test from "node:test";
 const root = process.cwd();
 const read = (path) => readFile(resolve(root, path), "utf8");
 
-test("agent session lifetime matches the visible page conversation", async () => {
+test("agent request is stateless and sends visible conversation history", async () => {
   const provider = await read("src/components/agent/businessAgentProvider.ts");
 
-  assert.match(provider, /const SESSION_ID = `web-\$\{crypto\.randomUUID\(\)\}`;/);
-  assert.doesNotMatch(provider, /sessionStorage|SESSION_KEY|getItem\(|setItem\(/);
-  assert.equal((provider.match(/session_id: SESSION_ID/g) ?? []).length, 1);
+  assert.doesNotMatch(provider, /SESSION_ID|session_id|sessionStorage|SESSION_KEY/);
+  assert.match(provider, /history: history\.map/);
+  assert.match(provider, /message\.role === "agent" \? "assistant" : "user"/);
+  assert.match(provider, /content: message\.text/);
 });
 
 test("BDD: network chunks are presented at a stable UI-controlled pace", async () => {

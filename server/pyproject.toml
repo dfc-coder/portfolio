@@ -5,17 +5,18 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "portfolio-business-representative"
 version = "0.1.0"
-description = "Server-side portfolio representative with explicit business capabilities"
+description = "Minimal portfolio and CV assistant"
 requires-python = ">=3.13,<3.14"
 dependencies = [
   "fastapi>=0.116,<1",
-  "httpx>=0.28,<1",
+  "openai>=3.8,<4",
   "pydantic>=2.11,<3",
   "uvicorn[standard]>=0.35,<1"
 ]
 
 [project.optional-dependencies]
 test = [
+  "httpx>=0.28,<1",
   "pytest>=8.4,<9",
   "pytest-asyncio>=1.1,<2"
 ]
