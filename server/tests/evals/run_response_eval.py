@@ -12,7 +12,11 @@ from typing import Any
 
 import httpx
 
-from app.agent.context import prompt_id_for
+from app.agent.context import (
+    DEFAULT_PORTFOLIO_PROMPT_VERSION,
+    PORTFOLIO_PROMPT_VERSIONS,
+    prompt_id_for,
+)
 from app.agent.responder import Responder
 from app.agent.scheduler import Scheduler
 from app.domain.conversation import ChatTurn, SessionState
@@ -48,6 +52,16 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("tests/evals/responses/cases.jsonl"),
     )
+    parser.add_argument(
+        "--portfolio-prompt-version",
+        choices=PORTFOLIO_PROMPT_VERSIONS,
+        default=DEFAULT_PORTFOLIO_PROMPT_VERSION,
+    )
+    parser.add_argument(
+        "--portfolio-only",
+        action="store_true",
+        help="Evaluate only portfolio response cases so prompt-version comparisons are not diluted by unchanged conversation cases.",
+    )
     parser.add_argument("--output", type=Path)
     parser.add_argument("--strict", action="store_true")
     return parser.parse_args()
@@ -68,6 +82,7 @@ async def run_prompt(
     *,
     responder: Responder,
     portfolio: PortfolioSearch,
+    portfolio_prompt_version: str = DEFAULT_PORTFOLIO_PROMPT_VERSION,
 ) -> PromptRun:
     """Run one response case through the real response path."""
     route = Route(case.route)
@@ -94,7 +109,7 @@ async def run_prompt(
     return PromptRun(
         response=response,
         evidence=evidence,
-        prompt_id=prompt_id_for(route),
+        prompt_id=prompt_id_for(route, portfolio_prompt_version),
         generation_latency_ms=generation_latency_ms,
     )
 
@@ -105,12 +120,14 @@ async def run_test_case(
     responder: Responder,
     portfolio: PortfolioSearch,
     grader_llm: LlmPort,
+    portfolio_prompt_version: str = DEFAULT_PORTFOLIO_PROMPT_VERSION,
 ) -> dict[str, Any]:
     """Run one case, grade its output, and return a structured result."""
     prompt_run = await run_prompt(
         case,
         responder=responder,
         portfolio=portfolio,
+        portfolio_prompt_version=portfolio_prompt_version,
     )
 
     deterministic = deterministic_grade(case, prompt_run.response)
@@ -167,6 +184,7 @@ async def run_eval(
     responder: Responder,
     portfolio: PortfolioSearch,
     grader_llm: LlmPort,
+    portfolio_prompt_version: str = DEFAULT_PORTFOLIO_PROMPT_VERSION,
 ) -> list[dict[str, Any]]:
     """Run every response case and collect one structured result per case."""
     records: list[dict[str, Any]] = []
@@ -177,13 +195,25 @@ async def run_eval(
                 responder=responder,
                 portfolio=portfolio,
                 grader_llm=grader_llm,
+                portfolio_prompt_version=portfolio_prompt_version,
             )
         )
     return records
 
 
-async def evaluate(cases_path: Path, settings: Settings) -> dict[str, Any]:
+async def evaluate(
+    cases_path: Path,
+    settings: Settings,
+    *,
+    portfolio_prompt_version: str = DEFAULT_PORTFOLIO_PROMPT_VERSION,
+    portfolio_only: bool = False,
+) -> dict[str, Any]:
     cases = load_response_cases(cases_path)
+    if portfolio_only:
+        cases = [case for case in cases if case.route == Route.PORTFOLIO.value]
+    if not cases:
+        raise ValueError("response evaluation selected no cases")
+
     profile = load_business_profile(settings.profile_path)
     policy = SchedulingPolicy(profile.scheduling)
     generation_config = GenerationConfig(
@@ -232,6 +262,7 @@ async def evaluate(cases_path: Path, settings: Settings) -> dict[str, Any]:
             policy,
             generation_config,
             Scheduler.PUBLIC_CAPABILITIES,
+            portfolio_prompt_version=portfolio_prompt_version,
         )
         await portfolio.warm()
 
@@ -240,13 +271,20 @@ async def evaluate(cases_path: Path, settings: Settings) -> dict[str, Any]:
             responder=responder,
             portfolio=portfolio,
             grader_llm=grader_llm,
+            portfolio_prompt_version=portfolio_prompt_version,
         )
 
     semantic_records = [record["semantic"] for record in records]
+    portfolio_prompt_id = prompt_id_for(Route.PORTFOLIO, portfolio_prompt_version)
+    candidate_id = (
+        portfolio_prompt_id
+        if portfolio_only
+        else f"response-prompts-{portfolio_prompt_id}"
+    )
     report: dict[str, Any] = {
         "metadata": report_metadata(
             dataset=cases_path,
-            candidate_id="response-prompts-v1",
+            candidate_id=candidate_id,
             model=settings.llama_model,
             generation_config={
                 "temperature": generation_config.temperature,
@@ -255,6 +293,11 @@ async def evaluate(cases_path: Path, settings: Settings) -> dict[str, Any]:
                 "top_k": generation_config.top_k,
             },
         ),
+        "prompt_versions": {
+            "conversation": prompt_id_for(Route.CONVERSATION),
+            "portfolio": portfolio_prompt_id,
+        },
+        "scope": "portfolio" if portfolio_only else "all_response_routes",
         "grader_model": grader_model,
         "cases": len(records),
         "metrics": {
@@ -300,7 +343,12 @@ def strict_pass(report: dict[str, Any]) -> bool:
 async def main() -> int:
     args = parse_args()
     settings = Settings.from_env()
-    report = await evaluate(args.cases, settings)
+    report = await evaluate(
+        args.cases,
+        settings,
+        portfolio_prompt_version=args.portfolio_prompt_version,
+        portfolio_only=args.portfolio_only,
+    )
     text = json.dumps(report, ensure_ascii=False, indent=2)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
