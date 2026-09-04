@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator
-from typing import Literal
+from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
@@ -11,14 +11,9 @@ from pydantic import BaseModel, Field
 from app.agent import Agent
 
 
-class ChatMessage(BaseModel):
-    role: Literal["user", "assistant"]
-    content: str = Field(min_length=1, max_length=4000)
-
-
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
-    history: list[ChatMessage] = Field(default_factory=list, max_length=8)
+    context: list[dict[str, Any]] = Field(default_factory=list, max_length=32)
 
 
 def encode_sse(event: str, payload: dict[str, object]) -> str:
@@ -30,11 +25,9 @@ def create_router(agent: Agent) -> APIRouter:
 
     @router.post("/v1/chat/stream")
     async def chat(body: ChatRequest, request: Request) -> StreamingResponse:
-        history = [item.model_dump() for item in body.history]
-
         async def events() -> AsyncIterator[str]:
             try:
-                async for event, payload in agent.respond(body.message.strip(), history):
+                async for event, payload in agent.respond(body.message.strip(), body.context):
                     if await request.is_disconnected():
                         return
                     yield encode_sse(event, payload)
