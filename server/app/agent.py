@@ -1,141 +1,107 @@
 from __future__ import annotations
 
-import json
+import asyncio
 from collections.abc import AsyncIterator
 from typing import Any
 
 from openai import AsyncOpenAI
 
+from .portfolio import Portfolio
 from .prompt import build_messages
+from .tools import TOOLS, run_tool_call
 
-Profile = dict[str, Any]
-Fact = tuple[str, str]
-
-_QUERY_PREFIX = (
-    "Instruct: Given a visitor question about a professional portfolio, retrieve profile "
-    "passages containing the facts needed to answer it.\nQuery: "
-)
+MAX_TOOL_ROUNDS = 6
 
 
-class PortfolioAgent:
+class Agent:
     def __init__(
         self,
         subject: str,
-        profile: Profile,
         chat: AsyncOpenAI,
-        embeddings: AsyncOpenAI,
+        portfolio: Portfolio,
         *,
-        chat_model: str,
-        embedding_model: str,
+        model: str,
+        timezone: str,
         temperature: float = 0.65,
         max_tokens: int = 180,
-        max_chars: int = 4000,
-        max_documents: int = 4,
-        min_score: float = 0.10,
     ) -> None:
         self._subject = subject
         self._chat = chat
-        self._embeddings = embeddings
-        self._chat_model = chat_model
-        self._embedding_model = embedding_model
+        self._portfolio = portfolio
+        self._model = model
+        self._timezone = timezone
         self._temperature = temperature
         self._max_tokens = max_tokens
-        self._max_chars = max_chars
-        self._max_documents = max_documents
-        self._min_score = min_score
-        self._documents = self._build_documents(profile)
-        self._vectors: list[list[float]] | None = None
-
-    async def warm(self) -> None:
-        if self._vectors is None:
-            self._vectors = await self._embed([text for _, text in self._documents])
 
     async def respond(
         self,
         message: str,
         history: list[dict[str, str]],
     ) -> AsyncIterator[str]:
-        query = "\n".join(
-            [
-                *(
-                    item["content"]
-                    for item in history[-6:]
-                    if item["role"] == "user"
-                ),
-                message,
-            ]
-        )[-2000:]
-        evidence = await self._search(query)
-        messages = build_messages(self._subject, history[-6:], message, evidence)
-
-        stream = await self._chat.chat.completions.create(
-            model=self._chat_model,
-            messages=messages,
-            temperature=self._temperature,
-            max_tokens=self._max_tokens,
-            stream=True,
+        messages: list[dict[str, Any]] = build_messages(
+            self._subject,
+            history[-6:],
+            message,
         )
 
-        emitted = False
-        async for chunk in stream:
-            if not chunk.choices:
-                continue
-            text = chunk.choices[0].delta.content or ""
-            if text:
-                emitted = True
+        for _ in range(MAX_TOOL_ROUNDS):
+            response = await self._chat.chat.completions.create(
+                model=self._model,
+                messages=messages,
+                tools=TOOLS,
+                tool_choice="auto",
+                parallel_tool_calls=True,
+                temperature=self._temperature,
+                max_tokens=self._max_tokens,
+            )
+            if not response.choices:
+                raise RuntimeError("LLM returned no choices")
+
+            assistant = response.choices[0].message
+            messages.append(_assistant_message(assistant))
+
+            calls = assistant.tool_calls or []
+            if not calls:
+                text = assistant.content or ""
+                if not text.strip():
+                    raise RuntimeError("LLM returned an empty response")
                 yield text
+                return
 
-        if not emitted:
-            raise RuntimeError("LLM returned an empty response")
-
-    async def _search(self, query: str) -> list[Fact]:
-        await self.warm()
-        assert self._vectors is not None
-        query_vector = (await self._embed([f"{_QUERY_PREFIX}{query.strip()}"]))[0]
-        ranked = sorted(
-            (
-                (self._cosine(query_vector, vector), source, text)
-                for (source, text), vector in zip(self._documents, self._vectors, strict=True)
-            ),
-            reverse=True,
-        )
-
-        facts: list[Fact] = []
-        chars = 0
-        for score, source, text in ranked:
-            if score < self._min_score or len(facts) >= self._max_documents:
-                break
-            if facts and chars + len(text) > self._max_chars:
-                break
-            facts.append((source, text))
-            chars += len(text)
-        return facts
-
-    async def _embed(self, texts: list[str]) -> list[list[float]]:
-        response = await self._embeddings.embeddings.create(
-            model=self._embedding_model,
-            input=texts,
-        )
-        return [item.embedding for item in sorted(response.data, key=lambda item: item.index)]
-
-    @staticmethod
-    def _build_documents(profile: Profile) -> list[Fact]:
-        documents: list[Fact] = []
-        for section, value in profile.items():
-            if isinstance(value, list):
-                documents.extend(
-                    (f"{section}.{index}", json.dumps(item, ensure_ascii=False))
-                    for index, item in enumerate(value)
+            results = await asyncio.gather(
+                *(
+                    run_tool_call(
+                        call.id,
+                        call.function.name,
+                        call.function.arguments,
+                        self._portfolio,
+                        self._timezone,
+                    )
+                    for call in calls
                 )
-            else:
-                documents.append((section, json.dumps(value, ensure_ascii=False)))
-        return documents
+            )
+            messages.extend(results)
 
-    @staticmethod
-    def _cosine(left: list[float], right: list[float]) -> float:
-        if len(left) != len(right) or not left:
-            return 0.0
-        dot = sum(a * b for a, b in zip(left, right, strict=True))
-        left_norm = sum(value * value for value in left) ** 0.5
-        right_norm = sum(value * value for value in right) ** 0.5
-        return dot / (left_norm * right_norm) if left_norm and right_norm else 0.0
+        raise RuntimeError("tool loop limit reached")
+
+
+def _assistant_message(message: Any) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "role": "assistant",
+        "content": message.content,
+    }
+
+    if message.tool_calls:
+        result["tool_calls"] = [
+            {
+                "id": call.id,
+                "type": "function",
+                "function": {
+                    "name": call.function.name,
+                    "arguments": call.function.arguments,
+                },
+            }
+            for call in message.tool_calls
+        ]
+
+    return result
