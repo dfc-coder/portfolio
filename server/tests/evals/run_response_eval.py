@@ -6,7 +6,7 @@ import json
 import os
 import statistics
 import time
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -21,15 +21,24 @@ from app.infrastructure.config.profile_loader import load_business_profile
 from app.infrastructure.config.settings import Settings
 from app.infrastructure.embeddings.llama_cpp import LlamaCppEmbeddingClient
 from app.infrastructure.llm.llama_cpp import LlamaCppClient
-from app.ports.llm import GenerationConfig
-from app.portfolio.search import PortfolioSearch
+from app.ports.llm import GenerationConfig, LlmPort
+from app.portfolio.search import Fact, PortfolioSearch
 from app.scheduling.policy import SchedulingPolicy
 from tests.evals.evaluation_report import report_metadata
 from tests.evals.responses.grader import (
+    ResponseCase,
     deterministic_grade,
     load_response_cases,
     semantic_grade,
 )
+
+
+@dataclass(frozen=True)
+class PromptRun:
+    response: str
+    evidence: tuple[Fact, ...]
+    prompt_id: str
+    generation_latency_ms: float
 
 
 def parse_args() -> argparse.Namespace:
@@ -52,6 +61,125 @@ def rate(records: list[dict[str, Any]], predicate: Any) -> float:
     if not records:
         return 1.0
     return round(sum(bool(predicate(record)) for record in records) / len(records), 4)
+
+
+async def run_prompt(
+    case: ResponseCase,
+    *,
+    responder: Responder,
+    portfolio: PortfolioSearch,
+) -> PromptRun:
+    """Run one response case through the real response path."""
+    route = Route(case.route)
+    state = SessionState(session_id=f"response-eval-{case.case_id}")
+    state.current_focus = route
+    state.turns.append(ChatTurn(role="user", content=case.message))
+
+    evidence: tuple[Fact, ...] = ()
+    if route == Route.PORTFOLIO:
+        evidence = (await portfolio.search(case.message)).facts
+
+    started = time.perf_counter()
+    response = "".join(
+        [
+            chunk
+            async for chunk in responder.stream(
+                state,
+                evidence=evidence,
+            )
+        ]
+    )
+    generation_latency_ms = (time.perf_counter() - started) * 1000
+
+    return PromptRun(
+        response=response,
+        evidence=evidence,
+        prompt_id=prompt_id_for(route),
+        generation_latency_ms=generation_latency_ms,
+    )
+
+
+async def run_test_case(
+    case: ResponseCase,
+    *,
+    responder: Responder,
+    portfolio: PortfolioSearch,
+    grader_llm: LlmPort,
+) -> dict[str, Any]:
+    """Run one case, grade its output, and return a structured result."""
+    prompt_run = await run_prompt(
+        case,
+        responder=responder,
+        portfolio=portfolio,
+    )
+
+    deterministic = deterministic_grade(case, prompt_run.response)
+    semantic_evidence = tuple(fact.text for fact in prompt_run.evidence)
+    if case.route == Route.PORTFOLIO.value:
+        semantic_evidence += tuple(
+            f"AGENT_CAPABILITY: {capability}"
+            for capability in Scheduler.PUBLIC_CAPABILITIES
+        )
+
+    grader_started = time.perf_counter()
+    semantic = await semantic_grade(
+        grader_llm,
+        case=case,
+        response=prompt_run.response,
+        evidence=semantic_evidence,
+    )
+    grader_latency_ms = (time.perf_counter() - grader_started) * 1000
+
+    hard_contract_pass = (
+        deterministic.non_empty
+        and deterministic.forbidden_ok
+        and deterministic.length_ok
+        and semantic.language_ok
+        and semantic.identity_ok
+        and semantic.action_safety_ok
+    )
+
+    return {
+        "case_id": case.case_id,
+        "critical": case.critical,
+        "message": case.message,
+        "route": case.route,
+        "language": case.language,
+        "prompt_id": prompt_run.prompt_id,
+        "response": prompt_run.response,
+        "evidence_sources": [fact.source for fact in prompt_run.evidence],
+        "deterministic": {
+            **asdict(deterministic),
+            "passed": deterministic.passed,
+        },
+        "semantic": semantic.model_dump(),
+        "hard_contract_pass": hard_contract_pass,
+        "latency_ms": {
+            "generation": round(prompt_run.generation_latency_ms, 2),
+            "grader": round(grader_latency_ms, 2),
+        },
+    }
+
+
+async def run_eval(
+    cases: list[ResponseCase],
+    *,
+    responder: Responder,
+    portfolio: PortfolioSearch,
+    grader_llm: LlmPort,
+) -> list[dict[str, Any]]:
+    """Run every response case and collect one structured result per case."""
+    records: list[dict[str, Any]] = []
+    for case in cases:
+        records.append(
+            await run_test_case(
+                case,
+                responder=responder,
+                portfolio=portfolio,
+                grader_llm=grader_llm,
+            )
+        )
+    return records
 
 
 async def evaluate(cases_path: Path, settings: Settings) -> dict[str, Any]:
@@ -107,75 +235,12 @@ async def evaluate(cases_path: Path, settings: Settings) -> dict[str, Any]:
         )
         await portfolio.warm()
 
-        records: list[dict[str, Any]] = []
-        for case in cases:
-            route = Route(case.route)
-            state = SessionState(session_id=f"response-eval-{case.case_id}")
-            state.current_focus = route
-            state.turns.append(ChatTurn(role="user", content=case.message))
-
-            facts = ()
-            if route == Route.PORTFOLIO:
-                facts = (await portfolio.search(case.message)).facts
-
-            started = time.perf_counter()
-            response = "".join(
-                [
-                    chunk
-                    async for chunk in responder.stream(
-                        state,
-                        evidence=facts,
-                    )
-                ]
-            )
-            generation_latency_ms = (time.perf_counter() - started) * 1000
-
-            deterministic = deterministic_grade(case, response)
-            semantic_evidence = tuple(fact.text for fact in facts)
-            if route == Route.PORTFOLIO:
-                semantic_evidence += tuple(
-                    f"AGENT_CAPABILITY: {capability}"
-                    for capability in Scheduler.PUBLIC_CAPABILITIES
-                )
-            grader_started = time.perf_counter()
-            semantic = await semantic_grade(
-                grader_llm,
-                case=case,
-                response=response,
-                evidence=semantic_evidence,
-            )
-            grader_latency_ms = (time.perf_counter() - grader_started) * 1000
-
-            hard_contract_pass = (
-                deterministic.non_empty
-                and deterministic.forbidden_ok
-                and deterministic.length_ok
-                and semantic.language_ok
-                and semantic.identity_ok
-                and semantic.action_safety_ok
-            )
-            records.append(
-                {
-                    "case_id": case.case_id,
-                    "critical": case.critical,
-                    "message": case.message,
-                    "route": case.route,
-                    "language": case.language,
-                    "prompt_id": prompt_id_for(route),
-                    "response": response,
-                    "evidence_sources": [fact.source for fact in facts],
-                    "deterministic": {
-                        **asdict(deterministic),
-                        "passed": deterministic.passed,
-                    },
-                    "semantic": semantic.model_dump(),
-                    "hard_contract_pass": hard_contract_pass,
-                    "latency_ms": {
-                        "generation": round(generation_latency_ms, 2),
-                        "grader": round(grader_latency_ms, 2),
-                    },
-                }
-            )
+        records = await run_eval(
+            cases,
+            responder=responder,
+            portfolio=portfolio,
+            grader_llm=grader_llm,
+        )
 
     semantic_records = [record["semantic"] for record in records]
     report: dict[str, Any] = {
