@@ -1,6 +1,7 @@
 import { computed, ref, shallowRef } from "vue";
 
 export type AgentRole = "user" | "agent";
+export type AgentContextMessage = Record<string, unknown>;
 
 export interface AgentMessage {
   id: number;
@@ -19,12 +20,13 @@ export type AgentEvent =
       state: "running" | "done";
       round: number;
       ok?: boolean;
-    };
+    }
+  | { type: "context"; messages: AgentContextMessage[] };
 
 export interface AgentProvider {
   ask(
     question: string,
-    history: ReadonlyArray<AgentMessage>,
+    context: ReadonlyArray<AgentContextMessage>,
   ): AsyncIterable<AgentEvent | string>;
 }
 
@@ -60,6 +62,7 @@ export function useAgentRuntime(
   const busy = ref(false);
   const error = ref<string | null>(null);
   const flow = ref<string[]>([]);
+  const context = shallowRef<AgentContextMessage[]>([]);
   const nextId = shallowRef(1);
 
   let replyId = -1;
@@ -175,8 +178,8 @@ export function useAgentRuntime(
     if (typeof event !== "string" && event.type === "status") {
       addFlow(
         event.phase === "thinking"
-          ? `ROUND ${event.round} / THINKING`
-          : `ROUND ${event.round} / RESPONDING`,
+          ? `MODEL / ROUND ${event.round}`
+          : `RESPONSE / ROUND ${event.round}`,
       );
       return false;
     }
@@ -186,6 +189,11 @@ export function useAgentRuntime(
       if (event.state === "done" && event.ok === false) {
         addFlow(`TOOL ERROR / ${event.name}`);
       }
+      return false;
+    }
+
+    if (typeof event !== "string" && event.type === "context") {
+      context.value = event.messages;
       return false;
     }
 
@@ -211,7 +219,6 @@ export function useAgentRuntime(
     push("user", question);
     busy.value = true;
 
-    const history = messages.value.slice(0, -1);
     replyId = -1;
     presentationQueue = "";
     presentationBudget = 0;
@@ -219,7 +226,7 @@ export function useAgentRuntime(
     let receivedContent = false;
 
     try {
-      for await (const event of provider.ask(question, history)) {
+      for await (const event of provider.ask(question, context.value)) {
         receivedContent = handleEvent(event) || receivedContent;
       }
 
@@ -252,6 +259,7 @@ export function useAgentRuntime(
     drainResolver = null;
     resolve?.();
     messages.value = [];
+    context.value = [];
     draft.value = "";
     error.value = null;
     flow.value = [];

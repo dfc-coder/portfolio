@@ -21,37 +21,49 @@ class SearchPortfolioArgs(ToolArgs):
     query: str = Field(
         min_length=1,
         max_length=500,
-        description="Portfolio/CV facts or topic to search for.",
+        description=(
+            "A concise semantic search query describing the exact professional fact needed, "
+            "for example 'Rust projects', 'AWS experience', or 'education'."
+        ),
     )
 
 
 class CurrentDatetimeArgs(ToolArgs):
     timezone: str | None = Field(
         default=None,
-        description="Optional IANA timezone. Omit it to use the application timezone.",
+        description=(
+            "Optional IANA timezone such as America/Argentina/Buenos_Aires. Omit it when the "
+            "visitor did not request another timezone; the application timezone will be used."
+        ),
     )
 
 
 class AddDurationArgs(ToolArgs):
     datetime: str = Field(
         description=(
-            "ISO-8601 date or datetime. Date-only or timezone-less values use the "
-            "application timezone."
+            "ISO-8601 date or datetime used as the calculation base, for example 2026-09-04 or "
+            "2026-09-04T19:00:00-03:00. Date-only or timezone-less values use the application timezone."
         )
     )
-    days: int = Field(default=0, ge=-36500, le=36500, description="Whole days to add.")
-    hours: int = Field(default=0, ge=-876000, le=876000, description="Whole hours to add.")
+    days: int = Field(default=0, ge=-36500, le=36500, description="Whole days to add or subtract.")
+    hours: int = Field(default=0, ge=-876000, le=876000, description="Whole hours to add or subtract.")
     minutes: int = Field(
         default=0,
         ge=-52560000,
         le=52560000,
-        description="Whole minutes to add.",
+        description="Whole minutes to add or subtract.",
     )
 
 
 class SetReminderArgs(ToolArgs):
-    datetime: str = Field(description="ISO-8601 datetime including a timezone offset.")
-    message: str = Field(min_length=1, max_length=500, description="Reminder text.")
+    datetime: str = Field(
+        description="Fully resolved ISO-8601 reminder datetime including a timezone offset."
+    )
+    message: str = Field(
+        min_length=1,
+        max_length=500,
+        description="Short text describing what the simulated reminder should say.",
+    )
 
 
 def _schema(name: str, description: str, args: type[ToolArgs]) -> dict[str, Any]:
@@ -76,9 +88,11 @@ def _strip_titles(value: Any) -> Any:
 search_portfolio_schema = _schema(
     "search_portfolio",
     (
-        "Search the professional portfolio/CV for factual evidence. Use only when the visitor "
-        "explicitly asks about the professional's experience, skills, projects, education, "
-        "certifications, services or background. Do not use for greetings, thanks or small talk."
+        "Search the professional portfolio and CV for factual evidence. Use it when the visitor "
+        "asks about the professional's experience, skills, projects, education, certifications, "
+        "services, or background; do not use it for greetings, thanks, or unrelated small talk. "
+        "It returns relevant profile passages with source identifiers. An empty result means the "
+        "available profile does not confirm the fact; it is not proof that the professional lacks it."
     ),
     SearchPortfolioArgs,
 )
@@ -86,9 +100,10 @@ search_portfolio_schema = _schema(
 get_current_datetime_schema = _schema(
     "get_current_datetime",
     (
-        "Return the actual current date and time. Use whenever the answer depends on what date "
-        "or time it is now, including relative requests such as 'in two weeks'. The returned "
-        "date and weekday fields are authoritative."
+        "Return the actual current date and time for a timezone. Use it whenever the answer depends "
+        "on what date or time it is now, including relative requests such as 'in two weeks'. It "
+        "returns ISO datetime, date, weekday, Spanish weekday, and timezone fields. Treat those "
+        "returned values as authoritative rather than estimating the current time yourself."
     ),
     CurrentDatetimeArgs,
 )
@@ -96,10 +111,10 @@ get_current_datetime_schema = _schema(
 add_duration_to_datetime_schema = _schema(
     "add_duration_to_datetime",
     (
-        "Add or subtract a duration from a date/datetime and return the exact resulting date and "
-        "weekday. Use for date arithmetic and whenever the visitor asks for a weekday, including "
-        "follow-up questions about a previously mentioned date. Passing zero duration is valid. "
-        "The returned weekday and weekday_es fields are authoritative; never recompute them."
+        "Add or subtract an exact duration from a supplied date or datetime. Use it for relative-date "
+        "arithmetic and for weekday lookup instead of calculating dates mentally; a zero duration is "
+        "valid when only the weekday of a known date is needed. It returns the exact resulting ISO "
+        "datetime, calendar date, weekday, Spanish weekday, and timezone. Reuse these values exactly."
     ),
     AddDurationArgs,
 )
@@ -107,8 +122,9 @@ add_duration_to_datetime_schema = _schema(
 set_reminder_mock_schema = _schema(
     "set_reminder_mock",
     (
-        "Create a simulated reminder after its datetime is fully resolved. It does not persist "
-        "anything or create a real reminder."
+        "Create a simulated reminder after its exact datetime has been resolved. Use it only when the "
+        "visitor explicitly asks to set or create a reminder. It returns a mock reminder identifier "
+        "and the supplied datetime/message, but it does not persist data or schedule a real reminder."
     ),
     SetReminderArgs,
 )
