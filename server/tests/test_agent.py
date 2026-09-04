@@ -24,7 +24,7 @@ class FakeLlm:
 async def test_agent_retrieves_answers_and_keeps_history() -> None:
     sessions = MemorySessions(max_turns=8)
     agent = PortfolioAgent(
-        {"owner": {"name": "Diego"}},
+        "Diego",
         sessions,
         FakeSearch(),
         FakeLlm(),
