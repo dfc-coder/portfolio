@@ -111,13 +111,11 @@ const linesOf = (text: string): Line[] =>
 
 const statusLabel = computed(() => {
   if (error.value) return "DEGRADED";
-  if (state.value === "thinking") return "THINKING";
+  if (state.value === "thinking") return "WORKING";
   if (state.value === "speaking") return "SPEAKING";
   if (state.value === "listening") return "LISTENING";
   return "READY";
 });
-
-const activeFlow = computed(() => flow.value.at(-1) ?? "PROCESSING");
 
 const syncVisualPhase = () => {
   const phase: AgentVisualPhase = error.value ? "error" : state.value;
@@ -256,7 +254,7 @@ onBeforeUnmount(() => {
         </article>
 
         <div v-if="busy" class="agent-msg agent-msg--agent agent-msg--pending">
-          <div class="agent-msg__meta"><span>AGENT</span><i /><time>{{ activeFlow }}</time></div>
+          <div class="agent-msg__meta"><span>AGENT</span><i /><time>EXECUTION</time></div>
           <div class="agent-flow" aria-label="Current agent execution flow">
             <template v-for="(step, index) in flow" :key="`${index}-${step}`">
               <span>{{ step }}</span>
