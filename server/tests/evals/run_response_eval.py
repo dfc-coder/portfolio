@@ -13,11 +13,7 @@ from typing import Any
 
 import httpx
 
-from app.agent.context import (
-    DEFAULT_PORTFOLIO_PROMPT_VERSION,
-    PORTFOLIO_PROMPT_VERSIONS,
-    prompt_id_for,
-)
+from app.agent.prompts import CONVERSATION_PROMPT_ID, PORTFOLIO_PROMPT_ID
 from app.agent.responder import Responder
 from app.agent.scheduler import Scheduler
 from app.domain.conversation import ChatTurn, SessionState
@@ -47,21 +43,16 @@ class PromptRun:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Evaluate response prompt quality.")
+    parser = argparse.ArgumentParser(description="Evaluate current response quality.")
     parser.add_argument(
         "--cases",
         type=Path,
         default=Path("tests/evals/responses/cases.jsonl"),
     )
     parser.add_argument(
-        "--portfolio-prompt-version",
-        choices=PORTFOLIO_PROMPT_VERSIONS,
-        default=DEFAULT_PORTFOLIO_PROMPT_VERSION,
-    )
-    parser.add_argument(
         "--portfolio-only",
         action="store_true",
-        help="Evaluate only portfolio response cases so prompt-version comparisons are not diluted by unchanged conversation cases.",
+        help="Evaluate only portfolio response cases.",
     )
     parser.add_argument("--output", type=Path)
     parser.add_argument("--strict", action="store_true")
@@ -78,14 +69,17 @@ def rate(records: list[dict[str, Any]], predicate: Any) -> float:
     return round(sum(bool(predicate(record)) for record in records) / len(records), 4)
 
 
+def prompt_id_for(route: Route) -> str:
+    return PORTFOLIO_PROMPT_ID if route == Route.PORTFOLIO else CONVERSATION_PROMPT_ID
+
+
 async def run_prompt(
     case: ResponseCase,
     *,
     responder: Responder,
     portfolio: PortfolioSearch,
-    portfolio_prompt_version: str = DEFAULT_PORTFOLIO_PROMPT_VERSION,
 ) -> PromptRun:
-    """Run one response case through the real response path."""
+    """Run one response case through the same path used by the agent."""
     route = Route(case.route)
     state = SessionState(session_id=f"response-eval-{case.case_id}")
     state.current_focus = route
@@ -110,7 +104,7 @@ async def run_prompt(
     return PromptRun(
         response=response,
         evidence=evidence,
-        prompt_id=prompt_id_for(route, portfolio_prompt_version),
+        prompt_id=prompt_id_for(route),
         generation_latency_ms=generation_latency_ms,
     )
 
@@ -121,14 +115,12 @@ async def run_test_case(
     responder: Responder,
     portfolio: PortfolioSearch,
     grader_llm: LlmPort,
-    portfolio_prompt_version: str = DEFAULT_PORTFOLIO_PROMPT_VERSION,
 ) -> dict[str, Any]:
     """Run one case, grade its output, and return a structured result."""
     prompt_run = await run_prompt(
         case,
         responder=responder,
         portfolio=portfolio,
-        portfolio_prompt_version=portfolio_prompt_version,
     )
 
     deterministic = deterministic_grade(case, prompt_run.response)
@@ -185,14 +177,13 @@ async def run_eval(
     responder: Responder,
     portfolio: PortfolioSearch,
     grader_llm: LlmPort,
-    portfolio_prompt_version: str = DEFAULT_PORTFOLIO_PROMPT_VERSION,
 ) -> list[dict[str, Any]]:
     """Run every response case and collect one structured result per case."""
     records: list[dict[str, Any]] = []
     total = len(cases)
     for index, case in enumerate(cases, start=1):
         print(
-            f"[{portfolio_prompt_version}] case {index}/{total} {case.case_id} ...",
+            f"[response] case {index}/{total} {case.case_id} ...",
             file=sys.stderr,
             flush=True,
         )
@@ -201,12 +192,11 @@ async def run_eval(
             responder=responder,
             portfolio=portfolio,
             grader_llm=grader_llm,
-            portfolio_prompt_version=portfolio_prompt_version,
         )
         records.append(record)
         latency = record["latency_ms"]
         print(
-            f"[{portfolio_prompt_version}] case {index}/{total} {case.case_id} "
+            f"[response] case {index}/{total} {case.case_id} "
             f"done generation={latency['generation']:.0f}ms grader={latency['grader']:.0f}ms "
             f"hard={'PASS' if record['hard_contract_pass'] else 'FAIL'}",
             file=sys.stderr,
@@ -219,7 +209,6 @@ async def evaluate(
     cases_path: Path,
     settings: Settings,
     *,
-    portfolio_prompt_version: str = DEFAULT_PORTFOLIO_PROMPT_VERSION,
     portfolio_only: bool = False,
 ) -> dict[str, Any]:
     cases = load_response_cases(cases_path)
@@ -276,7 +265,6 @@ async def evaluate(
             policy,
             generation_config,
             Scheduler.PUBLIC_CAPABILITIES,
-            portfolio_prompt_version=portfolio_prompt_version,
         )
         await portfolio.warm()
 
@@ -285,16 +273,10 @@ async def evaluate(
             responder=responder,
             portfolio=portfolio,
             grader_llm=grader_llm,
-            portfolio_prompt_version=portfolio_prompt_version,
         )
 
     semantic_records = [record["semantic"] for record in records]
-    portfolio_prompt_id = prompt_id_for(Route.PORTFOLIO, portfolio_prompt_version)
-    candidate_id = (
-        portfolio_prompt_id
-        if portfolio_only
-        else f"response-prompts-{portfolio_prompt_id}"
-    )
+    candidate_id = PORTFOLIO_PROMPT_ID if portfolio_only else "current-response-prompts"
     report: dict[str, Any] = {
         "metadata": report_metadata(
             dataset=cases_path,
@@ -307,9 +289,9 @@ async def evaluate(
                 "top_k": generation_config.top_k,
             },
         ),
-        "prompt_versions": {
-            "conversation": prompt_id_for(Route.CONVERSATION),
-            "portfolio": portfolio_prompt_id,
+        "prompts": {
+            "conversation": CONVERSATION_PROMPT_ID,
+            "portfolio": PORTFOLIO_PROMPT_ID,
         },
         "scope": "portfolio" if portfolio_only else "all_response_routes",
         "grader_model": grader_model,
@@ -360,7 +342,6 @@ async def main() -> int:
     report = await evaluate(
         args.cases,
         settings,
-        portfolio_prompt_version=args.portfolio_prompt_version,
         portfolio_only=args.portfolio_only,
     )
     text = json.dumps(report, ensure_ascii=False, indent=2)

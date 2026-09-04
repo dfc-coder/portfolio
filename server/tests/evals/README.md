@@ -5,7 +5,7 @@ Evaluation is development infrastructure. Production code does not depend on `te
 The workflow is intentionally simple:
 
 ```text
-spec -> dataset -> candidate -> execution -> metrics -> decision
+spec -> dataset -> execution -> metrics -> decision
 ```
 
 There is no eval registry, plugin system, DAG, experiment database or prompt-management framework.
@@ -16,7 +16,6 @@ There is no eval registry, plugin system, DAG, experiment database or prompt-man
 make eval-dataset-validate
 make eval-dataset-generate
 make eval-responses
-make eval-portfolio-prompts
 make eval-safety
 make eval-routing
 make eval-scheduling
@@ -60,55 +59,19 @@ Generation runs one family/language batch at a time, rejects exact normalized du
 
 ## Response evaluation
 
-`responses/cases.jsonl` contains prompt-response contracts for `CONVERSATION` and `PORTFOLIO`.
+`responses/cases.jsonl` contains response contracts for `CONVERSATION` and `PORTFOLIO`.
 
-`run_response_eval.py` executes the real `Responder` with current Qwen generation settings and current portfolio retrieval. It applies two graders:
+`run_response_eval.py` executes the same current `Responder` and current portfolio retrieval used by the agent. It applies two graders:
 
 1. deterministic checks for required content, forbidden claims and response length;
 2. a structured semantic grader for relevance, groundedness, completeness, language, identity and action safety.
 
-Semantic quality dimensions are reported independently. Until a stable baseline exists, only deterministic, language, identity and action-safety properties are strict gates.
+Semantic quality dimensions are reported independently. Deterministic, language, identity and action-safety properties remain strict gates.
 
-Prompt IDs are versioned in `app/agent/context.py` and recorded in response-eval records so prompt changes can be compared reproducibly without a prompt framework.
-
-### Portfolio prompt progression
-
-The portfolio response prompt is intentionally implemented as four concrete versions:
-
-```text
-portfolio-v1  previous baseline
-portfolio-v2  task-first / clear-direct
-portfolio-v3  v2 semantics + XML boundaries for dynamic data
-portfolio-v4  v3 + three synthetic few-shot behavior examples
-```
-
-`portfolio-v4` is the production default.
-
-`make eval-portfolio-prompts` evaluates only portfolio response cases for all four versions in that exact order. Unchanged conversation cases are excluded from the ladder so they do not dilute prompt-version metrics.
-
-The ladder writes:
-
-```text
-tests/evals/reports/portfolio-prompts/
-  portfolio-v1.json
-  portfolio-v2.json
-  portfolio-v3.json
-  portfolio-v4.json
-  summary.json
-```
-
-The summary compares `v1 -> v2`, `v2 -> v3`, `v3 -> v4`, and `v1 -> v4`. Earlier versions remain measurable baselines; the strict ladder gate applies only to the final `portfolio-v4` hard contracts.
-
-A single version can be run through the full response evaluator with:
-
-```bash
-make eval-responses PORTFOLIO_PROMPT_VERSION=v2
-```
-
-Few-shot examples are synthetic behavior demonstrations. They must not be copied from the frozen final holdout or from a consumed blind set.
+Prompt IDs from `app/agent/prompts.py` are recorded for traceability. The evaluator does not select historical prompt versions and production does not contain prompt experiment switches.
 
 ## Reproducibility
 
 New evaluation reports include dataset hash, git commit, candidate ID, model, timestamp and relevant generation settings.
 
-A failed evaluation is evidence, not an instruction to patch a benchmark sentence. Fix semantic families, representation gaps, implementation bugs or requirements; do not add lexical rules for individual cases.
+A failed evaluation is evidence about the current agent. Fix semantic families, representation gaps, implementation bugs or requirements; do not patch individual benchmark sentences.
