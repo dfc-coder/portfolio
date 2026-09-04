@@ -74,23 +74,11 @@ async def test_run_prompt_retrieves_portfolio_evidence_before_generation() -> No
     )
 
     assert result.response == "Respuesta de prueba"
-    assert result.prompt_id == "portfolio-v4"
+    assert result.prompt_id == "portfolio-agent-v1"
     assert portfolio.queries == [case.message]
     assert result.evidence[0].source == "profile.skills"
     assert responder.calls[0][0].turns[-1].content == case.message
     assert responder.calls[0][1] == result.evidence
-
-
-@pytest.mark.asyncio
-async def test_run_prompt_records_selected_portfolio_prompt_version() -> None:
-    result = await run_prompt(  # type: ignore[arg-type]
-        make_case("portfolio-2", "portfolio", "¿Trabaja con MuleSoft?"),
-        responder=FakeResponder(),
-        portfolio=FakePortfolio(),
-        portfolio_prompt_version="v2",
-    )
-
-    assert result.prompt_id == "portfolio-v2"
 
 
 @pytest.mark.asyncio
@@ -108,7 +96,6 @@ async def test_run_eval_returns_one_graded_record_per_case() -> None:
         responder=responder,
         portfolio=portfolio,
         grader_llm=grader,
-        portfolio_prompt_version="v3",
     )
 
     assert [record["case_id"] for record in records] == [
@@ -118,7 +105,7 @@ async def test_run_eval_returns_one_graded_record_per_case() -> None:
     assert all(record["response"] == "Respuesta de prueba" for record in records)
     assert all(record["hard_contract_pass"] for record in records)
     assert records[0]["prompt_id"] == "conversation-v1"
-    assert records[1]["prompt_id"] == "portfolio-v3"
+    assert records[1]["prompt_id"] == "portfolio-agent-v1"
     assert portfolio.queries == ["¿Trabaja con MuleSoft?"]
     assert records[0]["evidence_sources"] == []
     assert records[1]["evidence_sources"] == ["profile.skills"]
