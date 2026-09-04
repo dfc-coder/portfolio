@@ -17,9 +17,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+CONVERSATION_PROMPT_ID = "conversation-v1"
+PORTFOLIO_PROMPT_ID = "portfolio-v1"
+
 
 @dataclass(frozen=True)
 class AgentContext:
+    prompt_id: str
     system_prompt: str
     history: tuple[ChatTurn, ...]
     document_ids: tuple[str, ...]
@@ -57,6 +61,10 @@ Keep normal answers under 120 words unless the visitor asks for detail.
 """
 
 
+def prompt_id_for(route: Route) -> str:
+    return PORTFOLIO_PROMPT_ID if route == Route.PORTFOLIO else CONVERSATION_PROMPT_ID
+
+
 class ContextAssembler:
     """Build response prompts from runtime state and explicit evidence."""
 
@@ -91,6 +99,7 @@ class ContextAssembler:
     ) -> AgentContext:
         started = time.perf_counter()
         dynamic_parts = [self._runtime_state(state)]
+        prompt_id = prompt_id_for(state.current_focus)
 
         if state.current_focus == Route.PORTFOLIO:
             dynamic_parts.append(
@@ -106,7 +115,8 @@ class ContextAssembler:
         knowledge_chars = sum(len(fact.text) for fact in evidence)
 
         logger.info(
-            "context assembled focus=%s documents=%s knowledge_chars=%s history_turns=%s",
+            "context assembled prompt=%s focus=%s documents=%s knowledge_chars=%s history_turns=%s",
+            prompt_id,
             state.current_focus.value,
             document_ids,
             knowledge_chars,
@@ -121,12 +131,14 @@ class ContextAssembler:
                     "available_history_turns": len(state.turns),
                 },
                 output={
+                    "prompt_id": prompt_id,
                     "selected_documents": list(document_ids),
                     "knowledge_chars": knowledge_chars,
                     "history_turns": len(history),
                 },
             )
         return AgentContext(
+            prompt_id=prompt_id,
             system_prompt=system_prompt,
             history=history,
             document_ids=document_ids,
