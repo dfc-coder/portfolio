@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from app.agent.context import ContextAssembler
+from app.agent.context import (
+    CONVERSATION_PROMPT_ID,
+    PORTFOLIO_PROMPT_ID,
+    ContextAssembler,
+)
 from app.domain.conversation import ChatTurn, SessionState
 from app.domain.profile import BusinessProfile
 from app.domain.routing import Route
@@ -27,6 +31,7 @@ async def test_conversation_context_does_not_expose_portfolio_identity(
 
     context = await assembler.build(state)
 
+    assert context.prompt_id == CONVERSATION_PROMPT_ID
     assert context.document_ids == ()
     assert "\nRELEVANT_KNOWLEDGE:\n" not in context.system_prompt
     assert profile.owner.name not in context.system_prompt
@@ -60,6 +65,7 @@ async def test_portfolio_context_contains_only_supplied_evidence(
 
     context = await assembler.build(state, evidence)
 
+    assert context.prompt_id == PORTFOLIO_PROMPT_ID
     assert context.document_ids == ("projects.0",)
     assert f"PORTFOLIO_SUBJECT={profile.owner.name}" in context.system_prompt
     assert "PORTFOLIO_SUBJECT is the professional being discussed" in context.system_prompt
@@ -79,6 +85,7 @@ async def test_portfolio_context_marks_missing_evidence_explicitly(
 
     context = await assembler.build(state)
 
+    assert context.prompt_id == PORTFOLIO_PROMPT_ID
     assert "RELEVANT_KNOWLEDGE:\n<none>" in context.system_prompt
     assert context.document_ids == ()
     assert context.knowledge_chars == 0
