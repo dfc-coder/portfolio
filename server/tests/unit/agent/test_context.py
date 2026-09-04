@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
 from app.agent.context import ContextAssembler
 from app.agent.prompts import (
     CONVERSATION_PROMPT_ID,
@@ -21,8 +19,7 @@ def make_assembler(profile: BusinessProfile) -> ContextAssembler:
     )
 
 
-@pytest.mark.asyncio
-async def test_conversation_context_is_small_and_does_not_expose_portfolio_data(
+def test_conversation_context_is_small_and_does_not_expose_portfolio_data(
     profile: BusinessProfile,
 ) -> None:
     assembler = make_assembler(profile)
@@ -30,7 +27,7 @@ async def test_conversation_context_is_small_and_does_not_expose_portfolio_data(
     state.current_focus = Route.CONVERSATION
     state.turns.append(ChatTurn(role="user", content="Hola"))
 
-    context = await assembler.build(state)
+    context = assembler.build(state)
 
     assert context.prompt_id == CONVERSATION_PROMPT_ID
     assert context.document_ids == ()
@@ -58,8 +55,7 @@ def test_portfolio_prompt_is_one_canonical_production_prompt() -> None:
     assert "teams, documents, contact channels or external sources" in PORTFOLIO_PROMPT
 
 
-@pytest.mark.asyncio
-async def test_portfolio_context_uses_xml_boundaries_and_escapes_dynamic_data(
+def test_portfolio_context_uses_xml_boundaries_and_escapes_dynamic_data(
     profile: BusinessProfile,
 ) -> None:
     assembler = make_assembler(profile)
@@ -73,7 +69,7 @@ async def test_portfolio_context_uses_xml_boundaries_and_escapes_dynamic_data(
         ),
     )
 
-    context = await assembler.build(state, evidence)
+    context = assembler.build(state, evidence)
 
     assert context.prompt_id == PORTFOLIO_PROMPT_ID
     assert f"<portfolio_subject>\n{profile.owner.name}\n</portfolio_subject>" in context.system_prompt
@@ -87,8 +83,7 @@ async def test_portfolio_context_uses_xml_boundaries_and_escapes_dynamic_data(
     assert context.system_prompt.count("<example>") == 3
 
 
-@pytest.mark.asyncio
-async def test_portfolio_context_marks_missing_evidence_explicitly(
+def test_portfolio_context_marks_missing_evidence_explicitly(
     profile: BusinessProfile,
 ) -> None:
     assembler = make_assembler(profile)
@@ -96,7 +91,7 @@ async def test_portfolio_context_marks_missing_evidence_explicitly(
     state.current_focus = Route.PORTFOLIO
     state.turns.append(ChatTurn(role="user", content="¿Tiene certificación XYZ?"))
 
-    context = await assembler.build(state)
+    context = assembler.build(state)
 
     assert context.prompt_id == PORTFOLIO_PROMPT_ID
     assert "<relevant_knowledge>\n<none />\n</relevant_knowledge>" in context.system_prompt

@@ -84,9 +84,8 @@ def build_runtime(settings: Settings) -> AgentRuntime:
     responder = Responder(
         llm,
         profile,
-        policy,
         renderer_config,
-        scheduler.public_capabilities,
+        Scheduler.PUBLIC_CAPABILITIES,
     )
     trace_recorder = (
         PocketTraceRecorder(
@@ -112,11 +111,3 @@ def build_runtime(settings: Settings) -> AgentRuntime:
         llm=llm,
         embeddings=embeddings,
     )
-
-
-def build_agent(
-    settings: Settings,
-) -> tuple[BusinessRepresentative, LlamaCppClient, LlamaCppEmbeddingClient]:
-    """Compatibility helper for callers that only need the conversational agent."""
-    runtime = build_runtime(settings)
-    return runtime.agent, runtime.llm, runtime.embeddings

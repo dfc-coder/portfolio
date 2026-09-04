@@ -57,10 +57,7 @@ class ContextAssembler:
         self._history_turns = max(1, history_turns)
         self._portfolio_prefix = self._portfolio_context(profile, capabilities)
 
-    async def warm(self) -> None:
-        return None
-
-    async def build(
+    def build(
         self,
         state: SessionState,
         evidence: tuple[Fact, ...] = (),

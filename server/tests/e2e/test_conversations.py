@@ -121,9 +121,8 @@ def build_agent(profile: BusinessProfile):
     responder = Responder(
         llm,
         profile,
-        policy,
         GenerationConfig(temperature=0.65, max_tokens=180),
-        scheduler.public_capabilities,
+        Scheduler.PUBLIC_CAPABILITIES,
     )
     router = SequenceRouter(
         [
@@ -215,9 +214,8 @@ async def test_unrecognized_scheduling_turn_does_not_fall_through_or_write_calen
     responder = Responder(
         llm,
         profile,
-        policy,
         GenerationConfig(temperature=0.65, max_tokens=180),
-        scheduler.public_capabilities,
+        Scheduler.PUBLIC_CAPABILITIES,
     )
     agent = BusinessRepresentative(
         sessions,

@@ -72,10 +72,6 @@ class Scheduler:
         self._policy = policy
         self._parser = SchedulingTurnParser(llm, policy, config)
 
-    @property
-    def public_capabilities(self) -> tuple[str, ...]:
-        return self.PUBLIC_CAPABILITIES
-
     async def handle(
         self,
         state: SessionState,
@@ -84,21 +80,8 @@ class Scheduler:
     ) -> SchedulerReply:
         spanish = self._is_spanish(user_message)
         memory = state.scheduling
+        turn = await self._parser.parse(state, user_message, relation)
 
-        if (
-            state.active_workflow == ActiveWorkflow.SCHEDULING
-            and self._policy.is_rejection(user_message)
-        ):
-            state.reset_scheduling()
-            return SchedulerReply(
-                text=(
-                    "Cancelado. No se creó ninguna reunión."
-                    if spanish
-                    else "Cancelled. No meeting was created."
-                )
-            )
-
-        turn = await self._interpret(state, user_message, relation)
         if turn.intent == SchedulingIntent.OTHER:
             return SchedulerReply(
                 text=(
@@ -200,14 +183,6 @@ class Scheduler:
         return SchedulerReply(
             text=self._approval_required(memory.pending_booking, spanish)
         )
-
-    async def _interpret(
-        self,
-        state: SessionState,
-        user_message: str,
-        relation: RouteRelation,
-    ) -> SchedulingTurn:
-        return await self._parser.parse(state, user_message, relation)
 
     @staticmethod
     def _apply_turn(state: SessionState, turn: SchedulingTurn) -> None:

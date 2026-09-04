@@ -15,7 +15,6 @@ from app.ports.llm import (
     GenerationTimings,
     TokenUsage,
 )
-from app.scheduling.policy import SchedulingPolicy
 
 
 class FakeGenerationStream:
@@ -67,7 +66,6 @@ async def test_generation_metadata_reaches_trace_without_changing_visible_stream
     responder = Responder(
         FakeLlm(),  # type: ignore[arg-type]
         profile,
-        SchedulingPolicy(profile.scheduling),
         GenerationConfig(temperature=0.65, max_tokens=180),
         (),
     )

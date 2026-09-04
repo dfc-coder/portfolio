@@ -24,7 +24,6 @@ from app.infrastructure.embeddings.llama_cpp import LlamaCppEmbeddingClient
 from app.infrastructure.llm.llama_cpp import LlamaCppClient
 from app.ports.llm import GenerationConfig, LlmPort
 from app.portfolio.search import Fact, PortfolioSearch
-from app.scheduling.policy import SchedulingPolicy
 from tests.evals.evaluation_report import report_metadata
 from tests.evals.responses.grader import (
     ResponseCase,
@@ -218,7 +217,6 @@ async def evaluate(
         raise ValueError("response evaluation selected no cases")
 
     profile = load_business_profile(settings.profile_path)
-    policy = SchedulingPolicy(profile.scheduling)
     generation_config = GenerationConfig(
         temperature=settings.renderer_temperature,
         max_tokens=settings.renderer_max_tokens,
@@ -262,7 +260,6 @@ async def evaluate(
         responder = Responder(
             response_llm,
             profile,
-            policy,
             generation_config,
             Scheduler.PUBLIC_CAPABILITIES,
         )
