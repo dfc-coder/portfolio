@@ -31,6 +31,7 @@ import "./components/narrative/narrative-progress-rail.css";
 import "./styles/mobile-hero-layout.css";
 import "./styles/mobile-trajectory-layout.css";
 import "./styles/mobile-systems-layout.css";
+import "./components/agent/agent-mobile.css";
 
 document.documentElement.classList.add("creative-hero-pending");
 

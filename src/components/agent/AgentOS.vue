@@ -188,6 +188,7 @@ onBeforeUnmount(() => {
   <section
     class="agent-os"
     :data-state="error ? 'error' : state"
+    :data-has-messages="messages.length > 0 ? 'true' : 'false'"
     aria-label="Agent — ask about Diego's work"
   >
     <h2 class="ref-marker"><span>05</span><i aria-hidden="true" /><span>THE INTERFACE</span></h2>
