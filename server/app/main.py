@@ -59,6 +59,11 @@ def create_app(config: Config | None = None, agent: Agent | None = None) -> Fast
             portfolio,
             model=config.llama_model,
             temperature=config.generation_temperature,
+            top_p=config.generation_top_p,
+            top_k=config.generation_top_k,
+            min_p=config.generation_min_p,
+            presence_penalty=config.generation_presence_penalty,
+            repeat_penalty=config.generation_repeat_penalty,
             max_tokens=config.generation_max_tokens,
         )
 
