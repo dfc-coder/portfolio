@@ -6,16 +6,20 @@ import test from "node:test";
 const root = process.cwd();
 const read = (path) => readFile(resolve(root, path), "utf8");
 
-test("agent remains stateless while round-tripping full tool context", async () => {
+test("agent keeps a server conversation id while retaining context fallback", async () => {
   const provider = await read("src/components/agent/portfolioAgentProvider.ts");
   const runtime = await read("src/components/agent/useAgentRuntime.ts");
 
-  assert.doesNotMatch(provider, /SESSION_ID|session_id|sessionStorage|SESSION_KEY/);
-  assert.match(provider, /JSON\.stringify\(\{ message: question, context \}\)/);
+  assert.match(provider, /conversation_id: conversationId/);
+  assert.match(provider, /frame\.event === "conversation"/);
   assert.match(provider, /frame\.event === "context"/);
   assert.match(runtime, /const context = shallowRef<AgentContextMessage\[]>\(\[\]\)/);
-  assert.match(runtime, /provider\.ask\(question, context\.value\)/);
+  assert.match(runtime, /const conversationId = shallowRef<string \| null>\(null\)/);
+  assert.match(runtime, /conversationId\.value = event\.conversationId/);
   assert.match(runtime, /context\.value = event\.messages/);
+  assert.match(runtime, /conversationId\.value/);
+  assert.match(runtime, /conversationId\.value = null/);
+  assert.doesNotMatch(provider, /sessionStorage|localStorage/);
   assert.doesNotMatch(provider, /history: history\.map/);
 });
 
