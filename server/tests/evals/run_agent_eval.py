@@ -56,6 +56,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--results", type=Path, default=DEFAULT_RESULTS)
     parser.add_argument("--qwencloud", type=Path, default=DEFAULT_QWENCLOUD)
     parser.add_argument("--timeout", type=float, default=120.0)
+    parser.add_argument(
+        "--case",
+        dest="case_ids",
+        action="append",
+        default=[],
+        help="Run only the named case. Repeat this option to select multiple cases.",
+    )
     parser.add_argument("--strict", action="store_true")
     return parser.parse_args()
 
@@ -95,6 +102,19 @@ def load_cases(path: Path) -> list[EvalCase]:
         raise ValueError(f"No cases found in {path}")
 
     return cases
+
+
+def select_cases(cases: list[EvalCase], case_ids: list[str]) -> list[EvalCase]:
+    if not case_ids:
+        return cases
+
+    requested = set(case_ids)
+    available = {case.case_id for case in cases}
+    missing = sorted(requested - available)
+    if missing:
+        raise ValueError(f"Unknown eval case(s): {', '.join(missing)}")
+
+    return [case for case in cases if case.case_id in requested]
 
 
 async def run_agent(
@@ -354,7 +374,7 @@ def print_summary(summary: dict[str, Any]) -> None:
 
 async def async_main() -> int:
     args = parse_args()
-    cases = load_cases(args.cases)
+    cases = select_cases(load_cases(args.cases), args.case_ids)
     results = await evaluate_all(cases, base_url=args.base_url, timeout=args.timeout)
     summary = write_outputs(
         results,
