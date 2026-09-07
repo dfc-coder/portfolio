@@ -78,14 +78,17 @@ def test_shift_datetime_accepts_naive_datetime_in_default_timezone() -> None:
 
 
 def test_get_relative_datetime_uses_current_time(monkeypatch) -> None:
-    class FixedDateTime:
-        @classmethod
-        def now(cls, zone):
-            import datetime as dt
-
-            return dt.datetime(2026, 9, 7, 13, 0, 0, tzinfo=zone)
-
-    monkeypatch.setattr("app.tools.dt.datetime", FixedDateTime)
+    monkeypatch.setattr(
+        "app.tools.get_current_datetime",
+        lambda timezone=None: {
+            "datetime": "2026-09-07T13:00:00-03:00",
+            "date": "2026-09-07",
+            "weekday": "Monday",
+            "weekday_es": "lunes",
+            "iso_weekday": 1,
+            "timezone": timezone or "America/Argentina/Buenos_Aires",
+        },
+    )
 
     result = get_relative_datetime(
         days=1,
