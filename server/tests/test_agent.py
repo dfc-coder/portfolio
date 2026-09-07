@@ -185,7 +185,7 @@ async def test_agent_preserves_streamed_tool_call_and_reports_flow() -> None:
 
 
 @pytest.mark.asyncio
-async def test_agent_runs_multi_round_relative_reminder_chain() -> None:
+async def test_agent_runs_generic_multi_round_tool_chain() -> None:
     chat = FakeChat(
         [
             [
@@ -197,9 +197,9 @@ async def test_agent_runs_multi_round_relative_reminder_chain() -> None:
                             name="resolve_datetime",
                             arguments=json.dumps(
                                 {
-                                    "base": "now",
-                                    "offset": 30,
-                                    "unit": "minutes",
+                                    "reference": "2026-09-04T19:00:00-03:00",
+                                    "offset": 15,
+                                    "unit": "days",
                                 }
                             ),
                         )
@@ -216,7 +216,9 @@ async def test_agent_runs_multi_round_relative_reminder_chain() -> None:
                             name="set_reminder_mock",
                             arguments=json.dumps(
                                 {
-                                    "datetime": "2030-01-01T10:30:00-03:00",
+                                    "reference": "2026-09-19T19:00:00-03:00",
+                                    "offset": 0,
+                                    "unit": "minutes",
                                     "message": "Revisar el CV",
                                 }
                             ),
@@ -237,7 +239,10 @@ async def test_agent_runs_multi_round_relative_reminder_chain() -> None:
 
     events = [
         event
-        async for event in agent.respond("Recordame en 30 minutos revisar el CV", [])
+        async for event in agent.respond(
+            "Calculá 15 días después de 2026-09-04T19:00:00-03:00 y usá esa fecha para un recordatorio del CV",
+            [],
+        )
     ]
 
     assert token_text(events) == "Recordatorio simulado."
@@ -277,7 +282,7 @@ async def test_agent_returns_multiple_tool_results_in_one_round() -> None:
                             name="resolve_datetime",
                             arguments=json.dumps(
                                 {
-                                    "base": "now",
+                                    "reference": "now",
                                     "offset": 0,
                                     "unit": "days",
                                 }
@@ -320,8 +325,7 @@ async def test_agent_carries_tool_results_into_follow_up_turn() -> None:
                             name="resolve_datetime",
                             arguments=json.dumps(
                                 {
-                                    "base": "provided",
-                                    "datetime": "2026-09-04T19:00:00-03:00",
+                                    "reference": "2026-09-04T19:00:00-03:00",
                                     "offset": 15,
                                     "unit": "days",
                                 }
