@@ -95,6 +95,9 @@ class Agent:
         )
         trace.data["capability_gate"] = decision.trace()
 
+        successful_calls: dict[tuple[str, str], dict[str, str]] = {}
+        force_answer = False
+
         try:
             round_number = 1
             while True:
@@ -126,7 +129,7 @@ class Agent:
                     "stream_options": {"include_usage": True},
                     "extra_body": extra_body,
                 }
-                if eligible_tools:
+                if eligible_tools and not force_answer:
                     request["tools"] = eligible_tools
                     request["parallel_tool_calls"] = True
 
@@ -220,6 +223,14 @@ class Agent:
                         )
                     return
 
+                repeated_results = _reused_successful_results(ordered_calls, successful_calls)
+                if repeated_results is not None:
+                    round_trace["tool_calls"] = [item[1] for item in repeated_results]
+                    messages.extend(item[0] for item in repeated_results)
+                    force_answer = True
+                    round_number += 1
+                    continue
+
                 if round_number > MAX_TOOL_ROUNDS:
                     raise RuntimeError("tool loop limit reached")
 
@@ -246,6 +257,8 @@ class Agent:
                         "ok": _tool_ok(result),
                         "round": round_number,
                     }
+                    if _tool_ok(result):
+                        successful_calls[_call_signature(call)] = result
 
                 messages.extend(results)
                 round_number += 1
@@ -284,6 +297,63 @@ async def _run_traced_tool(
         "result_raw": content,
         "result": parse_json(content),
     }
+
+
+def _reused_successful_results(
+    calls: list[dict[str, str]],
+    successful_calls: dict[tuple[str, str], dict[str, str]],
+) -> list[tuple[dict[str, str], dict[str, object]]] | None:
+    if not calls:
+        return None
+
+    signatures = [_call_signature(call) for call in calls]
+    if not all(signature in successful_calls for signature in signatures):
+        return None
+
+    reused: list[tuple[dict[str, str], dict[str, object]]] = []
+    now = utc_now()
+    for call, signature in zip(calls, signatures, strict=True):
+        previous = successful_calls[signature]
+        result = {
+            "role": "tool",
+            "tool_call_id": call["id"],
+            "content": previous["content"],
+        }
+        reused.append(
+            (
+                result,
+                {
+                    "id": call["id"],
+                    "name": call["name"],
+                    "arguments_raw": call["arguments"],
+                    "arguments": parse_json(call["arguments"]),
+                    "started_at": now,
+                    "finished_at": now,
+                    "duration_ms": 0.0,
+                    "ok": True,
+                    "reused": True,
+                    "result_raw": previous["content"],
+                    "result": parse_json(previous["content"]),
+                },
+            )
+        )
+    return reused
+
+
+def _call_signature(call: dict[str, str]) -> tuple[str, str]:
+    raw_arguments = call["arguments"]
+    try:
+        arguments = json.loads(raw_arguments or "{}")
+    except json.JSONDecodeError:
+        canonical = raw_arguments
+    else:
+        canonical = json.dumps(
+            arguments,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    return call["name"], canonical
 
 
 def _record_chunk_metadata(response: dict[str, Any], metadata: dict[str, Any]) -> None:
