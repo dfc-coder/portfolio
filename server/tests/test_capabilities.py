@@ -48,7 +48,7 @@ async def test_capability_selector_can_return_no_tools() -> None:
     request = chat.completions.requests[0]
     assert request["temperature"] == 0
     assert request["parallel_tool_calls"] is False
-    assert request["tool_choice"]["function"]["name"] == "select_capabilities"
+    assert request["tool_choice"] == "required"
     assert [tool["function"]["name"] for tool in request["tools"]] == [
         "select_capabilities"
     ]
