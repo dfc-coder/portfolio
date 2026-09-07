@@ -20,6 +20,11 @@ class Config:
     embedding_timeout_seconds: float
     allowed_origins: tuple[str, ...]
     generation_temperature: float
+    generation_top_p: float
+    generation_top_k: int
+    generation_min_p: float
+    generation_presence_penalty: float
+    generation_repeat_penalty: float
     generation_max_tokens: int
     context_max_chars: int
     context_max_documents: int
@@ -44,8 +49,15 @@ class Config:
                     "http://localhost:5173,http://127.0.0.1:5173",
                 )
             ),
-            generation_temperature=float(os.getenv("GENERATION_TEMPERATURE", "0.20")),
-            generation_max_tokens=int(os.getenv("GENERATION_MAX_TOKENS", "180")),
+            generation_temperature=float(os.getenv("GENERATION_TEMPERATURE", "0.70")),
+            generation_top_p=float(os.getenv("GENERATION_TOP_P", "0.80")),
+            generation_top_k=int(os.getenv("GENERATION_TOP_K", "20")),
+            generation_min_p=float(os.getenv("GENERATION_MIN_P", "0.0")),
+            generation_presence_penalty=float(
+                os.getenv("GENERATION_PRESENCE_PENALTY", "1.5")
+            ),
+            generation_repeat_penalty=float(os.getenv("GENERATION_REPEAT_PENALTY", "1.0")),
+            generation_max_tokens=int(os.getenv("GENERATION_MAX_TOKENS", "256")),
             context_max_chars=int(os.getenv("CONTEXT_MAX_CHARS", "4000")),
             context_max_documents=int(os.getenv("CONTEXT_MAX_DOCUMENTS", "4")),
             portfolio_min_score=float(os.getenv("PORTFOLIO_MIN_SCORE", "0.10")),
