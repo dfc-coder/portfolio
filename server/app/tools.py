@@ -12,16 +12,16 @@ from .portfolio import Portfolio
 _WEEKDAYS_ES = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
 _DEFAULT_TIMEZONE = "America/Argentina/Buenos_Aires"
 _OFFSET_UNITS = ("minutes", "hours", "days", "weeks")
-_BASES = ("now", "provided")
 
 SEARCH_PORTFOLIO_SCHEMA = {
     "type": "function",
     "function": {
         "name": "search_portfolio",
         "description": (
-            "Search the professional portfolio and CV for factual evidence about experience, skills, "
-            "projects, education, certifications, services, or background. Returns relevant passages "
-            "with source identifiers. An empty result means the available portfolio does not confirm the fact."
+            "Search the professional portfolio and CV for factual evidence specifically about the portfolio "
+            "subject's experience, skills, projects, education, certifications, services, or background. "
+            "Use it only for factual questions about the portfolio subject. Do not use it for general "
+            "conversation, jokes, creative requests, definitions, or general knowledge."
         ),
         "parameters": {
             "type": "object",
@@ -44,32 +44,27 @@ RESOLVE_DATETIME_SCHEMA = {
     "function": {
         "name": "resolve_datetime",
         "description": (
-            "Read-only date and time resolver. Use it for current, relative, or supplied calendar "
-            "date/time questions, including weekday questions. It returns deterministic date/time values "
-            "and never creates reminders or performs another action."
+            "Read-only date and time resolver for current, relative, or explicitly supplied calendar "
+            "date/time questions, including weekday questions. It never creates reminders."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "base": {
-                    "type": "string",
-                    "enum": list(_BASES),
-                    "description": (
-                        "Use now when the request is anchored to the current moment, including today, "
-                        "tomorrow, yesterday, or a duration from now. Use provided only when the request "
-                        "contains an explicit ISO-8601 date or datetime."
-                    ),
-                },
-                "datetime": {
+                "reference": {
                     "type": "string",
                     "description": (
-                        "ISO-8601 date or datetime copied from the request. Required when base is provided; "
-                        "omit when base is now."
+                        "Temporal anchor. Use the literal value 'now' only when the request contains no "
+                        "explicit calendar date or datetime. When the request contains an explicit calendar "
+                        "date or datetime, normalize that value to ISO-8601 and put it here. For a date-only "
+                        "request use YYYY-MM-DD. Never replace an explicit date with an offset from now."
                     ),
                 },
                 "offset": {
                     "type": "integer",
-                    "description": "Signed quantity applied to the base. Use 0 when no shift is requested.",
+                    "description": (
+                        "Signed quantity applied to reference. Preserve the requested duration; use 0 when "
+                        "the request asks only about the reference itself."
+                    ),
                 },
                 "unit": {
                     "type": "string",
@@ -81,7 +76,7 @@ RESOLVE_DATETIME_SCHEMA = {
                     "description": "Optional IANA timezone. Omit to use the server timezone.",
                 },
             },
-            "required": ["base", "offset", "unit"],
+            "required": ["reference", "offset", "unit"],
             "additionalProperties": False,
         },
     },
@@ -92,19 +87,33 @@ SET_REMINDER_MOCK_SCHEMA = {
     "function": {
         "name": "set_reminder_mock",
         "description": (
-            "Create a simulated, non-persistent reminder at an absolute ISO-8601 datetime. "
-            "No real notification is scheduled or sent. For a relative reminder, first call "
-            "resolve_datetime to obtain the absolute target datetime, then call this function with that result."
+            "Create a simulated, non-persistent reminder. Use this action for every request that asks to "
+            "create a reminder, whether its schedule is relative or absolute. It resolves its own temporal "
+            "reference; a separate read-only date-resolution call is unnecessary. No real notification is "
+            "scheduled or sent."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "datetime": {
+                "reference": {
                     "type": "string",
                     "description": (
-                        "Absolute ISO-8601 reminder datetime copied from the request or from a prior "
-                        "resolve_datetime result. Do not invent an absolute datetime from relative language."
+                        "Reminder time anchor. Use the literal value 'now' for a relative reminder. When the "
+                        "request supplies an explicit calendar date or datetime, normalize it to ISO-8601 "
+                        "and put it here."
                     ),
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": (
+                        "Signed quantity applied to reference. Preserve the requested duration; use 0 for "
+                        "an explicit absolute reminder time."
+                    ),
+                },
+                "unit": {
+                    "type": "string",
+                    "enum": list(_OFFSET_UNITS),
+                    "description": "Offset unit: minutes, hours, days, or weeks.",
                 },
                 "message": {
                     "type": "string",
@@ -112,8 +121,12 @@ SET_REMINDER_MOCK_SCHEMA = {
                     "maxLength": 500,
                     "description": "Reminder text without scheduling instructions.",
                 },
+                "timezone": {
+                    "type": "string",
+                    "description": "Optional IANA timezone. Omit to use the server timezone.",
+                },
             },
-            "required": ["datetime", "message"],
+            "required": ["reference", "offset", "unit", "message"],
             "additionalProperties": False,
         },
     },
@@ -131,34 +144,24 @@ async def search_portfolio(portfolio: Portfolio, query: str) -> dict[str, object
 
 
 def resolve_datetime(
-    base: str,
+    reference: str,
     offset: int,
     unit: str,
-    datetime: str | None = None,
     timezone: str | None = None,
 ) -> dict[str, object]:
-    zone_name = timezone or _default_timezone()
-
-    if base == "now":
-        if datetime is not None:
-            raise ValueError("datetime must be omitted when base is now")
-        zone = _zone(zone_name)
-        value = dt.datetime.now(zone)
-        result_timezone = zone.key
-    elif base == "provided":
-        if datetime is None:
-            raise ValueError("datetime is required when base is provided")
-        value = _parse_datetime(datetime, zone_name)
-        result_timezone = _timezone_name(value, zone_name)
-    else:
-        raise ValueError(f"base must be one of: {', '.join(_BASES)}")
-
-    shifted = value + _offset_delta(offset, unit)
-    return _datetime_result(shifted, result_timezone)
+    value, zone_name = _resolve_reference(reference, timezone)
+    return _datetime_result(value + _offset_delta(offset, unit), zone_name)
 
 
-def set_reminder_mock(datetime: str, message: str) -> dict[str, object]:
-    return _reminder_result(_aware_datetime(datetime), message)
+def set_reminder_mock(
+    reference: str,
+    offset: int,
+    unit: str,
+    message: str,
+    timezone: str | None = None,
+) -> dict[str, object]:
+    value, _ = _resolve_reference(reference, timezone)
+    return _reminder_result(value + _offset_delta(offset, unit), message)
 
 
 async def run_tool_call(
@@ -204,10 +207,9 @@ async def _run_tool(
         )
 
     if name == "resolve_datetime":
-        _only(payload, {"base", "datetime", "offset", "unit", "timezone"})
+        _only(payload, {"reference", "offset", "unit", "timezone"})
         return resolve_datetime(
-            base=_required_choice(payload, "base", _BASES),
-            datetime=_optional_string(payload, "datetime"),
+            reference=_required_string(payload, "reference", max_length=100),
             offset=_required_integer(
                 payload,
                 "offset",
@@ -219,13 +221,31 @@ async def _run_tool(
         )
 
     if name == "set_reminder_mock":
-        _only(payload, {"datetime", "message"})
+        _only(payload, {"reference", "offset", "unit", "message", "timezone"})
         return set_reminder_mock(
-            _required_string(payload, "datetime"),
-            _required_string(payload, "message", max_length=500),
+            reference=_required_string(payload, "reference", max_length=100),
+            offset=_required_integer(
+                payload,
+                "offset",
+                minimum=-52560000,
+                maximum=52560000,
+            ),
+            unit=_required_choice(payload, "unit", _OFFSET_UNITS),
+            message=_required_string(payload, "message", max_length=500),
+            timezone=_optional_timezone(payload),
         )
 
     raise ValueError(f"unknown tool: {name}")
+
+
+def _resolve_reference(reference: str, timezone: str | None) -> tuple[dt.datetime, str]:
+    zone_name = timezone or _default_timezone()
+    if reference == "now":
+        zone = _zone(zone_name)
+        return dt.datetime.now(zone), zone.key
+
+    value = _parse_datetime(reference, zone_name)
+    return value, _timezone_name(value, zone_name)
 
 
 def _offset_delta(offset: int, unit: str) -> dt.timedelta:
@@ -247,15 +267,6 @@ def _optional_timezone(payload: dict[str, Any]) -> str | None:
     if not isinstance(timezone, str) or not timezone.strip():
         raise ValueError("timezone must be a non-empty string")
     return timezone
-
-
-def _optional_string(payload: dict[str, Any], name: str) -> str | None:
-    value = payload.get(name)
-    if value is None:
-        return None
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"{name} must be a non-empty string")
-    return value
 
 
 def _only(payload: dict[str, Any], allowed: set[str]) -> None:
@@ -339,21 +350,10 @@ def _parse_datetime(value: str, timezone: str) -> dt.datetime:
             return dt.datetime.combine(dt.date.fromisoformat(value), dt.time.min, zone)
         parsed = dt.datetime.fromisoformat(value)
     except ValueError as exc:
-        raise ValueError("datetime must be valid ISO-8601") from exc
+        raise ValueError("reference must be 'now' or valid ISO-8601") from exc
 
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         return parsed.replace(tzinfo=zone)
-    return parsed
-
-
-def _aware_datetime(value: str) -> dt.datetime:
-    try:
-        parsed = dt.datetime.fromisoformat(value)
-    except ValueError as exc:
-        raise ValueError("datetime must be valid ISO-8601") from exc
-
-    if parsed.tzinfo is None or parsed.utcoffset() is None:
-        raise ValueError("datetime must include a timezone offset")
     return parsed
 
 
