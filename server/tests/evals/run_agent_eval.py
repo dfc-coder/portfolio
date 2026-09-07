@@ -57,6 +57,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--qwencloud", type=Path, default=DEFAULT_QWENCLOUD)
     parser.add_argument("--timeout", type=float, default=120.0)
     parser.add_argument(
+        "--health-timeout",
+        type=float,
+        default=120.0,
+        help="Maximum seconds to wait for GET /health before starting the evaluation.",
+    )
+    parser.add_argument(
         "--case",
         dest="case_ids",
         action="append",
@@ -115,6 +121,31 @@ def select_cases(cases: list[EvalCase], case_ids: list[str]) -> list[EvalCase]:
         raise ValueError(f"Unknown eval case(s): {', '.join(missing)}")
 
     return [case for case in cases if case.case_id in requested]
+
+
+async def wait_for_agent_api(base_url: str, timeout: float) -> None:
+    url = f"{base_url.rstrip('/')}/health"
+    deadline = time.monotonic() + timeout
+    last_error = "not ready"
+
+    async with httpx.AsyncClient(timeout=httpx.Timeout(2.0)) as client:
+        while True:
+            try:
+                response = await client.get(url)
+                response.raise_for_status()
+                payload = response.json()
+                if isinstance(payload, dict) and payload.get("ok") is True:
+                    return
+                last_error = f"unexpected health response: {payload!r}"
+            except (httpx.HTTPError, ValueError) as exc:
+                last_error = f"{type(exc).__name__}: {exc}"
+
+            if time.monotonic() >= deadline:
+                raise RuntimeError(
+                    f"agent API did not become ready within {timeout:.0f}s: {last_error}"
+                )
+
+            await asyncio.sleep(1.0)
 
 
 async def run_agent(
@@ -375,6 +406,11 @@ def print_summary(summary: dict[str, Any]) -> None:
 async def async_main() -> int:
     args = parse_args()
     cases = select_cases(load_cases(args.cases), args.case_ids)
+
+    print(f"waiting for agent API: {args.base_url.rstrip('/')}/health")
+    await wait_for_agent_api(args.base_url, args.health_timeout)
+    print("agent API ready")
+
     results = await evaluate_all(cases, base_url=args.base_url, timeout=args.timeout)
     summary = write_outputs(
         results,
