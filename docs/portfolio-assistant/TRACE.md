@@ -12,7 +12,8 @@ One trace represents one visitor turn and contains:
 turn
   input
   model configuration
-  tool schemas presented to the model
+  capability gate decision
+  eligible tool schemas presented to the model
   round 1
     exact request messages
     provider response metadata
@@ -32,6 +33,8 @@ turn
   error
 ```
 
+The `tools` field contains only the tool schemas that were eligible for the turn. A tool outside this set is rejected before execution even if a provider were to return such a call.
+
 ## Top-level fields
 
 ```json
@@ -48,6 +51,12 @@ turn
   "model": {
     "name": "Qwen3.5-2B",
     "generation": {}
+  },
+  "capability_gate": {
+    "eligible": ["portfolio"],
+    "latency_ms": 0.0,
+    "finish_reason": "tool_calls",
+    "usage": {}
   },
   "tools": [],
   "rounds": [],
@@ -125,11 +134,14 @@ Every executed tool call is represented once:
 This is the data needed to distinguish:
 
 ```text
+capability eligibility
+  Was the tool even allowed for this turn?
+
 tool decision accuracy
   Did the model call a tool when required?
 
 tool selection accuracy
-  Did it choose the correct tool?
+  Did it choose the correct eligible tool?
 
 parameter extraction accuracy
   Did it generate the correct argument names and values?
@@ -142,6 +154,12 @@ end-to-end success
 ```
 
 A tool execution that returns `ok=true` does not imply that the model supplied correct arguments. Those are separate measurements.
+
+## Conversation context
+
+The API now associates turns with a `conversation_id`. The server stores the complete OpenAI-compatible context returned by the agent, including assistant tool calls and matching tool results. The client still round-trips the latest context as a recovery seed, so a server process restart does not force an invalid partial tool history into a live session.
+
+Conversation history is trimmed only at user-message boundaries so a stored context never starts in the middle of an assistant-tool-result sequence.
 
 ## Security
 
