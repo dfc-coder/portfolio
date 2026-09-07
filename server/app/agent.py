@@ -28,14 +28,24 @@ class Agent:
         portfolio: Portfolio,
         *,
         model: str,
-        temperature: float = 0.2,
-        max_tokens: int = 180,
+        temperature: float = 0.7,
+        top_p: float = 0.8,
+        top_k: int = 20,
+        min_p: float = 0.0,
+        presence_penalty: float = 1.5,
+        repeat_penalty: float = 1.0,
+        max_tokens: int = 256,
     ) -> None:
         self._subject = subject
         self._chat = chat
         self._portfolio = portfolio
         self._model = model
         self._temperature = temperature
+        self._top_p = top_p
+        self._top_k = top_k
+        self._min_p = min_p
+        self._presence_penalty = presence_penalty
+        self._repeat_penalty = repeat_penalty
         self._max_tokens = max_tokens
 
     async def respond(
@@ -59,8 +69,15 @@ class Agent:
                 tools=TOOLS,
                 parallel_tool_calls=True,
                 temperature=self._temperature,
+                top_p=self._top_p,
+                presence_penalty=self._presence_penalty,
                 max_tokens=self._max_tokens,
                 stream=True,
+                extra_body={
+                    "top_k": self._top_k,
+                    "min_p": self._min_p,
+                    "repeat_penalty": self._repeat_penalty,
+                },
             )
 
             content: list[str] = []
