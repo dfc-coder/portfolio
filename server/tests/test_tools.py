@@ -37,44 +37,50 @@ def test_tool_schemas_are_small_and_explicit() -> None:
         assert "$defs" not in parameters
 
     resolve_parameters = TOOLS[1]["function"]["parameters"]
-    assert resolve_parameters["required"] == ["base", "offset", "unit"]
-    assert resolve_parameters["properties"]["base"]["enum"] == ["now", "provided"]
+    assert resolve_parameters["required"] == ["reference", "offset", "unit"]
     assert resolve_parameters["properties"]["unit"]["enum"] == [
         "minutes",
         "hours",
         "days",
         "weeks",
     ]
-    assert TOOLS[2]["function"]["parameters"]["required"] == ["datetime", "message"]
+
+    reminder_parameters = TOOLS[2]["function"]["parameters"]
+    assert reminder_parameters["required"] == [
+        "reference",
+        "offset",
+        "unit",
+        "message",
+    ]
 
 
-def test_resolve_datetime_uses_current_time_as_base() -> None:
+def test_resolve_datetime_uses_now_reference() -> None:
     zone = ZoneInfo("America/Argentina/Buenos_Aires")
     before = dt.datetime.now(zone) + dt.timedelta(days=1)
 
     result = resolve_datetime(
-        base="now",
+        reference="now",
         offset=1,
         unit="days",
-        timezone="America/Argentina/Buenos_Aires",
+        timezone=zone.key,
     )
 
     after = dt.datetime.now(zone) + dt.timedelta(days=1)
     actual = dt.datetime.fromisoformat(str(result["datetime"]))
     assert before.replace(microsecond=0) <= actual <= after.replace(microsecond=0)
-    assert result["timezone"] == "America/Argentina/Buenos_Aires"
+    assert result["timezone"] == zone.key
 
 
 def test_resolve_datetime_supports_equivalent_duration_units() -> None:
     zone = ZoneInfo("America/Argentina/Buenos_Aires")
     one = resolve_datetime(
-        base="now",
+        reference="now",
         offset=2,
         unit="hours",
         timezone=zone.key,
     )
     two = resolve_datetime(
-        base="now",
+        reference="now",
         offset=120,
         unit="minutes",
         timezone=zone.key,
@@ -85,10 +91,9 @@ def test_resolve_datetime_supports_equivalent_duration_units() -> None:
     assert abs((first - second).total_seconds()) <= 1
 
 
-def test_resolve_datetime_handles_supplied_date_without_arithmetic() -> None:
+def test_resolve_datetime_uses_explicit_reference_without_arithmetic() -> None:
     result = resolve_datetime(
-        base="provided",
-        datetime="2026-12-25",
+        reference="2026-12-25",
         offset=0,
         unit="days",
         timezone="America/Argentina/Buenos_Aires",
@@ -100,32 +105,37 @@ def test_resolve_datetime_handles_supplied_date_without_arithmetic() -> None:
     assert result["iso_weekday"] == 5
 
 
-def test_resolve_datetime_requires_base_consistency() -> None:
-    with pytest.raises(ValueError, match="omitted"):
-        resolve_datetime(
-            base="now",
-            datetime="2026-12-25",
-            offset=0,
-            unit="days",
-        )
+def test_relative_reminder_resolves_schedule_in_one_call() -> None:
+    zone = ZoneInfo("America/Argentina/Buenos_Aires")
+    before = dt.datetime.now(zone) + dt.timedelta(minutes=30)
 
-    with pytest.raises(ValueError, match="required"):
-        resolve_datetime(
-            base="provided",
-            offset=0,
-            unit="days",
-        )
-
-
-def test_reminder_result_is_explicitly_simulated() -> None:
     result = set_reminder_mock(
-        "2026-09-10T15:00:00-03:00",
-        "Revisar demo",
+        reference="now",
+        offset=30,
+        unit="minutes",
+        message="Revisar portfolio",
+        timezone=zone.key,
+    )
+
+    after = dt.datetime.now(zone) + dt.timedelta(minutes=30)
+    actual = dt.datetime.fromisoformat(str(result["datetime"]))
+    assert before.replace(microsecond=0) <= actual <= after.replace(microsecond=0)
+    assert result["message"] == "Revisar portfolio"
+    assert result["status"] == "simulated_only"
+    assert result["persisted"] is False
+    assert result["will_notify"] is False
+
+
+def test_explicit_reminder_uses_explicit_reference() -> None:
+    result = set_reminder_mock(
+        reference="2026-09-10T15:00:00-03:00",
+        offset=0,
+        unit="minutes",
+        message="Revisar demo",
     )
 
     assert result["datetime"] == "2026-09-10T15:00:00-03:00"
     assert result["message"] == "Revisar demo"
-    assert result["status"] == "simulated_only"
     assert result["persisted"] is False
     assert result["will_notify"] is False
 
@@ -135,7 +145,7 @@ async def test_model_resolve_contract_accepts_relative_time() -> None:
     message = await run_tool_call(
         "call-resolve",
         "resolve_datetime",
-        json.dumps({"base": "now", "offset": 1, "unit": "weeks"}),
+        json.dumps({"reference": "now", "offset": 1, "unit": "weeks"}),
         FakePortfolio(),
     )
 
@@ -147,14 +157,13 @@ async def test_model_resolve_contract_accepts_relative_time() -> None:
 
 
 @pytest.mark.asyncio
-async def test_model_resolve_contract_accepts_supplied_date() -> None:
+async def test_model_resolve_contract_accepts_explicit_date() -> None:
     message = await run_tool_call(
         "call-date",
         "resolve_datetime",
         json.dumps(
             {
-                "base": "provided",
-                "datetime": "2026-01-01",
+                "reference": "2026-01-01",
                 "offset": 0,
                 "unit": "days",
             }
@@ -168,25 +177,40 @@ async def test_model_resolve_contract_accepts_supplied_date() -> None:
 
 
 @pytest.mark.asyncio
-async def test_tool_validation_rejects_invented_datetime_for_now_base() -> None:
+async def test_model_reminder_contract_accepts_relative_schedule() -> None:
     message = await run_tool_call(
-        "call-bad-base",
-        "resolve_datetime",
+        "call-reminder",
+        "set_reminder_mock",
         json.dumps(
             {
-                "base": "now",
-                "datetime": "2024-12-17",
-                "offset": -1,
-                "unit": "days",
+                "reference": "now",
+                "offset": 2,
+                "unit": "hours",
+                "message": "Enviar CV",
             }
         ),
         FakePortfolio(),
     )
 
     body = json.loads(message["content"])
+    assert body["ok"] is True
+    assert body["result"]["message"] == "Enviar CV"
+    assert body["result"]["will_notify"] is False
+
+
+@pytest.mark.asyncio
+async def test_tool_validation_rejects_invalid_reference() -> None:
+    message = await run_tool_call(
+        "call-reference",
+        "resolve_datetime",
+        json.dumps({"reference": "not-a-date", "offset": 0, "unit": "days"}),
+        FakePortfolio(),
+    )
+
+    body = json.loads(message["content"])
     assert body["ok"] is False
     assert body["error"]["type"] == "validation_error"
-    assert "omitted" in body["error"]["message"]
+    assert "reference" in body["error"]["message"]
 
 
 @pytest.mark.asyncio
@@ -209,7 +233,7 @@ async def test_tool_validation_rejects_wrong_offset_type() -> None:
     message = await run_tool_call(
         "call-offset",
         "resolve_datetime",
-        json.dumps({"base": "now", "offset": "15", "unit": "days"}),
+        json.dumps({"reference": "now", "offset": "15", "unit": "days"}),
         FakePortfolio(),
     )
 
@@ -224,7 +248,7 @@ async def test_tool_validation_rejects_unknown_unit() -> None:
     message = await run_tool_call(
         "call-unit",
         "resolve_datetime",
-        json.dumps({"base": "now", "offset": 2, "unit": "fortnights"}),
+        json.dumps({"reference": "now", "offset": 2, "unit": "fortnights"}),
         FakePortfolio(),
     )
 
