@@ -51,10 +51,9 @@ GET_CURRENT_DATETIME_SCHEMA = {
             "requested answer depends on the present date or time, such as 'what date is it today?', "
             "'what time is it now?', 'tomorrow', 'yesterday', 'in 2 hours', or 'in 7 days'. This function "
             "does not perform relative date/time arithmetic. For a relative calculation, use the returned "
-            "datetime as the base for add_duration_to_datetime before answering. Do not use this function "
-            "for a fully specified calendar date, general knowledge, greetings, small talk, portfolio "
-            "questions, or capability questions. The returned date, time, weekday, and timezone are "
-            "authoritative."
+            "datetime as the base for shift_datetime before answering. Do not use this function for a "
+            "fully specified calendar date, general knowledge, greetings, small talk, portfolio questions, "
+            "or capability questions. The returned date, time, weekday, and timezone are authoritative."
         ),
         "parameters": {
             "type": "object",
@@ -72,20 +71,19 @@ GET_CURRENT_DATETIME_SCHEMA = {
     },
 }
 
-ADD_DURATION_TO_DATETIME_SCHEMA = {
+SHIFT_DATETIME_SCHEMA = {
     "type": "function",
     "function": {
-        "name": "add_duration_to_datetime",
+        "name": "shift_datetime",
         "description": (
-            "Deterministically shift a supplied date or datetime by a signed duration and return the "
-            "resulting datetime, calendar date, and weekday. Use positive values to move forward and "
-            "negative values to move backward. Use this function for relative date/time arithmetic such "
-            "as tomorrow, yesterday, 'in 15 days', '2 hours ago', or next week. Also use it to determine "
-            "the weekday of a fully specified date; a zero duration is valid for that purpose. When the "
-            "calculation is relative to the present, first obtain the actual current datetime with "
-            "get_current_datetime and pass that exact datetime as the base. When the visitor already "
-            "provides a fully specified date or datetime, use it directly and do not obtain the current "
-            "datetime. Do not calculate dates or weekdays mentally. Reuse the returned values exactly."
+            "Move a supplied date or datetime forward or backward by a signed duration. Use this function "
+            "only for date/time arithmetic such as tomorrow, yesterday, 'in 15 days', '2 hours ago', or "
+            "next week. Positive values move forward and negative values move backward. When the calculation "
+            "is relative to the present, first obtain the actual current datetime with get_current_datetime "
+            "and pass that exact datetime as the base. When the visitor already supplies the base date or "
+            "datetime, use it directly. Do not use this function only to look up the weekday of an explicit "
+            "date; use get_datetime_weekday for that. Do not calculate date shifts mentally. Reuse the "
+            "returned values exactly."
         ),
         "parameters": {
             "type": "object",
@@ -103,8 +101,8 @@ ADD_DURATION_TO_DATETIME_SCHEMA = {
                     "minimum": -36500,
                     "maximum": 36500,
                     "description": (
-                        "Signed number of whole days to shift. Positive adds days; negative subtracts "
-                        "days. Omit for zero."
+                        "Signed number of whole days to shift. Positive moves forward; negative moves "
+                        "backward. Omit for zero."
                     ),
                 },
                 "hours": {
@@ -112,8 +110,8 @@ ADD_DURATION_TO_DATETIME_SCHEMA = {
                     "minimum": -876000,
                     "maximum": 876000,
                     "description": (
-                        "Signed number of whole hours to shift. Positive adds hours; negative subtracts "
-                        "hours. Omit for zero."
+                        "Signed number of whole hours to shift. Positive moves forward; negative moves "
+                        "backward. Omit for zero."
                     ),
                 },
                 "minutes": {
@@ -121,10 +119,39 @@ ADD_DURATION_TO_DATETIME_SCHEMA = {
                     "minimum": -52560000,
                     "maximum": 52560000,
                     "description": (
-                        "Signed number of whole minutes to shift. Positive adds minutes; negative "
-                        "subtracts minutes. Omit for zero."
+                        "Signed number of whole minutes to shift. Positive moves forward; negative moves "
+                        "backward. Omit for zero."
                     ),
                 },
+            },
+            "required": ["datetime"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+GET_DATETIME_WEEKDAY_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "get_datetime_weekday",
+        "description": (
+            "Return the weekday for a supplied explicit date or datetime. Use this function when the "
+            "visitor asks which weekday a known calendar date falls on, for example 'what weekday is "
+            "2026-12-25?'. The input date or datetime must already be known. This function does not obtain "
+            "the current time and does not add or subtract durations. Do not call get_current_datetime when "
+            "the visitor already supplied the date. Treat the returned weekday as authoritative."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "datetime": {
+                    "type": "string",
+                    "description": (
+                        "ISO-8601 date or datetime whose weekday is required, for example 2026-12-25 or "
+                        "2026-12-25T15:00:00-03:00. Date-only or timezone-less values use the server "
+                        "default timezone."
+                    ),
+                }
             },
             "required": ["datetime"],
             "additionalProperties": False,
@@ -141,10 +168,10 @@ SET_REMINDER_MOCK_SCHEMA = {
             "this function only when the visitor explicitly asks to create or set a reminder. A reminder "
             "request is not complete until this function has been called. The datetime argument must "
             "already be fully resolved. If the visitor specifies a relative time such as 'in 30 minutes', "
-            "'in 2 hours', or 'in 7 days', first resolve the absolute datetime using the available "
-            "date/time functions, then call this function. If the visitor already supplies a complete "
-            "ISO-8601 datetime, call this function directly. Do not merely tell the visitor when the "
-            "reminder would occur. This function does not persist data and does not schedule a real "
+            "'in 2 hours', or 'in 7 days', first obtain the present datetime when needed and resolve the "
+            "absolute datetime with shift_datetime, then call this function. If the visitor already supplies "
+            "a complete ISO-8601 datetime, call this function directly. Do not merely tell the visitor when "
+            "the reminder would occur. This function does not persist data and does not schedule a real "
             "reminder."
         ),
         "parameters": {
@@ -173,7 +200,8 @@ SET_REMINDER_MOCK_SCHEMA = {
 TOOLS = [
     SEARCH_PORTFOLIO_SCHEMA,
     GET_CURRENT_DATETIME_SCHEMA,
-    ADD_DURATION_TO_DATETIME_SCHEMA,
+    SHIFT_DATETIME_SCHEMA,
+    GET_DATETIME_WEEKDAY_SCHEMA,
     SET_REMINDER_MOCK_SCHEMA,
 ]
 
@@ -187,7 +215,7 @@ def get_current_datetime(timezone: str | None = None) -> dict[str, object]:
     return _datetime_result(dt.datetime.now(zone), zone.key)
 
 
-def add_duration_to_datetime(
+def shift_datetime(
     datetime: str,
     days: int = 0,
     hours: int = 0,
@@ -200,6 +228,17 @@ def add_duration_to_datetime(
     result = value + dt.timedelta(days=days, hours=hours, minutes=minutes)
     zone_name = getattr(result.tzinfo, "key", None) or result.tzname() or timezone
     return _datetime_result(result, zone_name)
+
+
+def get_datetime_weekday(
+    datetime: str,
+    *,
+    default_timezone: str | None = None,
+) -> dict[str, object]:
+    timezone = default_timezone or _default_timezone()
+    value = _parse_datetime(datetime, timezone)
+    zone_name = getattr(value.tzinfo, "key", None) or value.tzname() or timezone
+    return _datetime_result(value, zone_name)
 
 
 def set_reminder_mock(datetime: str, message: str) -> dict[str, object]:
@@ -262,7 +301,7 @@ async def _run_tool(
             raise ValueError("timezone must not be empty")
         return get_current_datetime(timezone)
 
-    if name == "add_duration_to_datetime":
+    if name == "shift_datetime":
         _only(payload, {"datetime", "days", "hours", "minutes"})
         datetime = _required_string(payload, "datetime")
         days = _integer(payload, "days", default=0, minimum=-36500, maximum=36500)
@@ -274,12 +313,17 @@ async def _run_tool(
             minimum=-52560000,
             maximum=52560000,
         )
-        return add_duration_to_datetime(
+        return shift_datetime(
             datetime,
             days=days,
             hours=hours,
             minutes=minutes,
         )
+
+    if name == "get_datetime_weekday":
+        _only(payload, {"datetime"})
+        datetime = _required_string(payload, "datetime")
+        return get_datetime_weekday(datetime)
 
     if name == "set_reminder_mock":
         _only(payload, {"datetime", "message"})
