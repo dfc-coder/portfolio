@@ -94,8 +94,9 @@ def test_prompt_keeps_tool_mechanics_out_of_system_instructions() -> None:
     assert "#Examples#" in system
     assert "#Tool strategy#" not in system
     assert "get_current_datetime" not in system
+    assert "get_datetime_from_now" not in system
     assert "shift_datetime" not in system
-    assert "get_datetime_weekday" not in system
+    assert "get_weekday_for_explicit_date" not in system
     assert "set_reminder_mock" not in system
     assert "<portfolio_subject>" in system
     assert "<name>Diego</name>" in system
@@ -212,7 +213,8 @@ async def test_agent_runs_multi_round_tool_chain() -> None:
                             arguments=json.dumps(
                                 {
                                     "datetime": "2030-01-01T10:00:00-03:00",
-                                    "days": 30,
+                                    "offset": 30,
+                                    "unit": "days",
                                 }
                             ),
                         )
@@ -292,7 +294,8 @@ async def test_agent_returns_multiple_tool_results_in_one_round() -> None:
                             arguments=json.dumps(
                                 {
                                     "datetime": "2030-01-01T10:00:00-03:00",
-                                    "days": 1,
+                                    "offset": 1,
+                                    "unit": "days",
                                 }
                             ),
                         ),
@@ -334,7 +337,8 @@ async def test_agent_carries_tool_results_into_follow_up_turn() -> None:
                             arguments=json.dumps(
                                 {
                                     "datetime": "2026-09-04T19:00:00-03:00",
-                                    "days": 15,
+                                    "offset": 15,
+                                    "unit": "days",
                                 }
                             ),
                         )
