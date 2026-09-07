@@ -19,12 +19,20 @@ DEFAULT_CASES = Path(__file__).with_name("agent_cases.jsonl")
 DEFAULT_RESULTS = Path(__file__).with_name("results") / "latest.json"
 DEFAULT_QWENCLOUD = Path(__file__).with_name("results") / "qwencloud.jsonl"
 SERVER_ENV = Path(__file__).resolve().parents[2] / ".env"
+_DURATION_SECONDS = {
+    "minutes": 60,
+    "hours": 3600,
+    "days": 86400,
+    "weeks": 604800,
+}
 
 
 @dataclass(frozen=True)
 class ExpectedCall:
     name: str
     arguments: dict[str, Any] | None
+    duration_seconds: int | None
+    datetime_from_call: int | None
 
 
 @dataclass(frozen=True)
@@ -43,6 +51,7 @@ class ObservedCall:
     name: str
     arguments: dict[str, Any] | None
     ok: bool | None
+    result: dict[str, Any] | None
 
 
 @dataclass(frozen=True)
@@ -101,14 +110,39 @@ def load_cases(path: Path) -> list[EvalCase]:
         if call_order not in {"exact", "any"}:
             raise ValueError(f"Invalid call_order for {case_id}: {call_order!r}")
 
-        expected_calls = []
+        expected_calls: list[ExpectedCall] = []
         for item in payload.get("expected_calls", []):
             if not isinstance(item, dict) or not isinstance(item.get("name"), str):
                 raise ValueError(f"Invalid expected call for {case_id}: {item!r}")
+
             arguments = item.get("arguments")
             if arguments is not None and not isinstance(arguments, dict):
                 raise ValueError(f"Invalid expected arguments for {case_id}: {arguments!r}")
-            expected_calls.append(ExpectedCall(name=item["name"], arguments=arguments))
+
+            duration_seconds = item.get("duration_seconds")
+            if duration_seconds is not None and not isinstance(duration_seconds, int):
+                raise ValueError(
+                    f"Invalid expected duration_seconds for {case_id}: {duration_seconds!r}"
+                )
+
+            datetime_from_call = item.get("datetime_from_call")
+            if datetime_from_call is not None and not isinstance(datetime_from_call, int):
+                raise ValueError(
+                    f"Invalid datetime_from_call for {case_id}: {datetime_from_call!r}"
+                )
+            if call_order == "any" and datetime_from_call is not None:
+                raise ValueError(
+                    f"datetime_from_call requires exact call order for {case_id}"
+                )
+
+            expected_calls.append(
+                ExpectedCall(
+                    name=item["name"],
+                    arguments=arguments,
+                    duration_seconds=duration_seconds,
+                    datetime_from_call=datetime_from_call,
+                )
+            )
 
         cases.append(
             EvalCase(
@@ -186,7 +220,12 @@ async def run_agent(
                 output_parts.append(str(payload.get("text", "")))
             elif event_name == "tool" and payload.get("state") == "running":
                 streamed_tools.append(
-                    ObservedCall(name=str(payload.get("name", "")), arguments=None, ok=None)
+                    ObservedCall(
+                        name=str(payload.get("name", "")),
+                        arguments=None,
+                        ok=None,
+                        result=None,
+                    )
                 )
             elif event_name == "trace":
                 trace = payload
@@ -211,11 +250,16 @@ def _calls_from_trace(trace: dict[str, Any]) -> list[ObservedCall]:
     for round_trace in trace.get("rounds", []):
         for call in round_trace.get("tool_calls", []):
             arguments = call.get("arguments")
+            result = call.get("result")
+            if isinstance(result, dict) and isinstance(result.get("result"), dict):
+                result = result["result"]
+
             calls.append(
                 ObservedCall(
                     name=str(call.get("name", "")),
                     arguments=arguments if isinstance(arguments, dict) else None,
                     ok=bool(call.get("ok")),
+                    result=result if isinstance(result, dict) else None,
                 )
             )
     return calls
@@ -229,12 +273,53 @@ def _selection_matches(case: EvalCase, calls: list[ObservedCall]) -> bool:
     return expected == actual
 
 
-def _arguments_subset(expected: dict[str, Any] | None, actual: dict[str, Any] | None) -> bool:
+def _duration_seconds(arguments: dict[str, Any] | None) -> int | None:
+    if not arguments:
+        return None
+
+    offset = arguments.get("offset")
+    unit = arguments.get("unit")
+    if isinstance(offset, bool) or not isinstance(offset, int):
+        return None
+    if unit not in _DURATION_SECONDS:
+        return None
+    return offset * _DURATION_SECONDS[str(unit)]
+
+
+def _arguments_subset(
+    expected: dict[str, Any] | None,
+    actual: dict[str, Any] | None,
+) -> bool:
     if expected is None:
         return True
     if actual is None:
         return False
     return all(actual.get(key) == value for key, value in expected.items())
+
+
+def _call_arguments_match(
+    expected: ExpectedCall,
+    actual: ObservedCall,
+    calls: list[ObservedCall],
+) -> bool:
+    if not _arguments_subset(expected.arguments, actual.arguments):
+        return False
+
+    if expected.duration_seconds is not None:
+        if _duration_seconds(actual.arguments) != expected.duration_seconds:
+            return False
+
+    if expected.datetime_from_call is not None:
+        source_index = expected.datetime_from_call
+        if source_index < 0 or source_index >= len(calls):
+            return False
+        source = calls[source_index]
+        source_datetime = (source.result or {}).get("datetime")
+        actual_datetime = (actual.arguments or {}).get("datetime")
+        if not isinstance(source_datetime, str) or actual_datetime != source_datetime:
+            return False
+
+    return True
 
 
 def _arguments_match(case: EvalCase, calls: list[ObservedCall]) -> bool:
@@ -243,7 +328,7 @@ def _arguments_match(case: EvalCase, calls: list[ObservedCall]) -> bool:
 
     if case.call_order == "exact":
         return all(
-            _arguments_subset(expected.arguments, actual.arguments)
+            _call_arguments_match(expected, actual, calls)
             for expected, actual in zip(case.expected_calls, calls, strict=True)
         )
 
@@ -254,7 +339,7 @@ def _arguments_match(case: EvalCase, calls: list[ObservedCall]) -> bool:
                 i
                 for i, actual in enumerate(remaining)
                 if actual.name == expected.name
-                and _arguments_subset(expected.arguments, actual.arguments)
+                and _call_arguments_match(expected, actual, calls)
             ),
             None,
         )
@@ -289,7 +374,7 @@ def evaluate_case(case: EvalCase, run: AgentRun) -> CaseResult:
     elif not arguments_correct:
         reasons.append(
             "arguments expected="
-            f"{[call.arguments for call in case.expected_calls]!r} "
+            f"{[_expected_call_payload(call) for call in case.expected_calls]!r} "
             f"actual={[call.arguments for call in run.calls]!r}"
         )
 
@@ -306,6 +391,17 @@ def evaluate_case(case: EvalCase, run: AgentRun) -> CaseResult:
         execution_correct=execution_correct,
         reasons=reasons,
     )
+
+
+def _expected_call_payload(call: ExpectedCall) -> dict[str, Any]:
+    payload: dict[str, Any] = {"name": call.name}
+    if call.arguments is not None:
+        payload["arguments"] = call.arguments
+    if call.duration_seconds is not None:
+        payload["duration_seconds"] = call.duration_seconds
+    if call.datetime_from_call is not None:
+        payload["datetime_from_call"] = call.datetime_from_call
+    return payload
 
 
 async def evaluate_all(
@@ -354,7 +450,12 @@ def build_summary(results: list[CaseResult]) -> dict[str, Any]:
     parameter_cases = [
         result
         for result in results
-        if any(call.arguments is not None for call in result.case.expected_calls)
+        if any(
+            call.arguments is not None
+            or call.duration_seconds is not None
+            or call.datetime_from_call is not None
+            for call in result.case.expected_calls
+        )
     ]
     parameter_correct = sum(result.arguments_correct for result in parameter_cases)
     latencies = [result.run.latency_ms for result in results if result.run.latency_ms > 0]
@@ -424,11 +525,16 @@ def write_outputs(
                 "passed": result.passed,
                 "reasons": result.reasons,
                 "expected_calls": [
-                    {"name": call.name, "arguments": call.arguments}
+                    _expected_call_payload(call)
                     for call in result.case.expected_calls
                 ],
                 "actual_calls": [
-                    {"name": call.name, "arguments": call.arguments, "ok": call.ok}
+                    {
+                        "name": call.name,
+                        "arguments": call.arguments,
+                        "ok": call.ok,
+                        "result": call.result,
+                    }
                     for call in result.run.calls
                 ],
                 "latency_ms": round(result.run.latency_ms, 2),
