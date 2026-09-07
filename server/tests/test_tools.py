@@ -25,7 +25,7 @@ def test_tool_schemas_are_explicit_json_schema() -> None:
         "get_current_datetime",
         "get_relative_datetime",
         "shift_datetime",
-        "get_datetime_weekday",
+        "get_weekday_for_explicit_date",
         "set_reminder_mock",
         "set_relative_reminder_mock",
     ]
