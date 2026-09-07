@@ -11,6 +11,7 @@ from .portfolio import Portfolio
 
 _WEEKDAYS_ES = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
 _DEFAULT_TIMEZONE = "America/Argentina/Buenos_Aires"
+_OFFSET_UNITS = ("minutes", "hours", "days", "weeks")
 
 SEARCH_PORTFOLIO_SCHEMA = {
     "type": "function",
@@ -42,19 +43,15 @@ GET_CURRENT_DATETIME_SCHEMA = {
     "function": {
         "name": "get_current_datetime",
         "description": (
-            "Return the actual current date and time. Use only for requests about now or today with no "
-            "temporal offset. For tomorrow, yesterday, next week, or any offset from now, use "
-            "get_relative_datetime."
+            "Return the actual current date and time. This capability represents the current moment only "
+            "and performs no date arithmetic."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "timezone": {
                     "type": "string",
-                    "description": (
-                        "Optional IANA timezone such as America/Argentina/Buenos_Aires. "
-                        "Omit to use the server timezone."
-                    ),
+                    "description": "Optional IANA timezone. Omit to use the server timezone.",
                 }
             },
             "additionalProperties": False,
@@ -67,37 +64,35 @@ GET_RELATIVE_DATETIME_SCHEMA = {
     "function": {
         "name": "get_relative_datetime",
         "description": (
-            "Resolve a date or time at a non-zero offset from the actual current moment. Preferred for "
-            "tomorrow, yesterday, next week, in N days or hours, N days or hours ago, and the weekday of "
-            "a relative date. Requires at least one non-zero days, hours, or minutes value. If the request "
-            "supplies an explicit base date or datetime, use shift_datetime instead."
+            "Return the date, time, and weekday at a signed offset from the actual current moment. "
+            "Use the same unit stated by the request instead of converting it. "
+            "Tomorrow is offset 1 day; yesterday is offset -1 day."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "days": {
-                    "type": "integer",
-                    "minimum": -36500,
-                    "maximum": 36500,
-                    "description": "Signed whole-day offset from now.",
-                },
-                "hours": {
-                    "type": "integer",
-                    "minimum": -876000,
-                    "maximum": 876000,
-                    "description": "Signed whole-hour offset from now.",
-                },
-                "minutes": {
+                "offset": {
                     "type": "integer",
                     "minimum": -52560000,
                     "maximum": 52560000,
-                    "description": "Signed whole-minute offset from now.",
+                    "description": (
+                        "Signed quantity from now. Preserve the request magnitude: "
+                        "in 2 hours uses 2, one week uses 1, 30 minutes ago uses -30."
+                    ),
+                },
+                "unit": {
+                    "type": "string",
+                    "enum": list(_OFFSET_UNITS),
+                    "description": (
+                        "Unit stated by the request. Choose exactly one of minutes, hours, days, or weeks."
+                    ),
                 },
                 "timezone": {
                     "type": "string",
                     "description": "Optional IANA timezone. Omit to use the server timezone.",
                 },
             },
+            "required": ["offset", "unit"],
             "additionalProperties": False,
         },
     },
@@ -108,41 +103,30 @@ SHIFT_DATETIME_SCHEMA = {
     "function": {
         "name": "shift_datetime",
         "description": (
-            "Shift an explicit date or datetime by a non-zero duration. Preferred only when the request "
-            "contains both a concrete base date or datetime and arithmetic such as '5 days after 2026-12-25'. "
-            "Requires datetime plus at least one non-zero days, hours, or minutes value. For offsets from the "
-            "actual current moment, use get_relative_datetime."
+            "Return details for a date or datetime supplied by the request after applying a signed offset. "
+            "The base datetime must come from the request. Use offset 0 when only resolving the supplied "
+            "date or weekday. Preserve the request unit instead of converting it."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "datetime": {
                     "type": "string",
-                    "description": (
-                        "Explicit ISO-8601 base date or datetime, for example 2026-12-25 or "
-                        "2026-09-07T12:30:00-03:00."
-                    ),
+                    "description": "ISO-8601 base date or datetime copied from the request.",
                 },
-                "days": {
-                    "type": "integer",
-                    "minimum": -36500,
-                    "maximum": 36500,
-                    "description": "Signed whole-day offset from the explicit base.",
-                },
-                "hours": {
-                    "type": "integer",
-                    "minimum": -876000,
-                    "maximum": 876000,
-                    "description": "Signed whole-hour offset from the explicit base.",
-                },
-                "minutes": {
+                "offset": {
                     "type": "integer",
                     "minimum": -52560000,
                     "maximum": 52560000,
-                    "description": "Signed whole-minute offset from the explicit base.",
+                    "description": "Signed quantity applied to the supplied base datetime.",
+                },
+                "unit": {
+                    "type": "string",
+                    "enum": list(_OFFSET_UNITS),
+                    "description": "Unit for the offset: minutes, hours, days, or weeks.",
                 },
             },
-            "required": ["datetime"],
+            "required": ["datetime", "offset", "unit"],
             "additionalProperties": False,
         },
     },
@@ -153,16 +137,15 @@ GET_WEEKDAY_FOR_EXPLICIT_DATE_SCHEMA = {
     "function": {
         "name": "get_weekday_for_explicit_date",
         "description": (
-            "Return the weekday for an exact calendar date supplied by the request. Use only when a concrete "
-            "YYYY-MM-DD date is present and no date arithmetic is requested. Relative dates such as yesterday "
-            "or tomorrow belong to get_relative_datetime."
+            "Return the weekday for an exact calendar date that appears in the request. "
+            "The date argument must be copied from the request, not inferred from relative language."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "date": {
                     "type": "string",
-                    "description": "Explicit ISO-8601 calendar date in YYYY-MM-DD form, for example 2026-12-25.",
+                    "description": "Exact ISO-8601 YYYY-MM-DD calendar date copied from the request.",
                 }
             },
             "required": ["date"],
@@ -176,25 +159,21 @@ SET_REMINDER_MOCK_SCHEMA = {
     "function": {
         "name": "set_reminder_mock",
         "description": (
-            "Create a simulated, non-persistent reminder at an explicit absolute datetime supplied by the "
-            "request. Use only when the request contains the exact ISO-8601 reminder datetime with a timezone "
-            "offset. Relative reminders belong to set_relative_reminder_mock."
+            "Simulate a non-persistent reminder at an absolute datetime supplied by the request. "
+            "No real notification is scheduled or sent."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "datetime": {
                     "type": "string",
-                    "description": (
-                        "Absolute ISO-8601 reminder datetime with timezone offset, "
-                        "for example 2026-09-10T15:00:00-03:00."
-                    ),
+                    "description": "Absolute ISO-8601 reminder datetime copied from the request.",
                 },
                 "message": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 500,
-                    "description": "Reminder text.",
+                    "description": "Reminder text without scheduling instructions.",
                 },
             },
             "required": ["datetime", "message"],
@@ -208,9 +187,9 @@ SET_RELATIVE_REMINDER_MOCK_SCHEMA = {
     "function": {
         "name": "set_relative_reminder_mock",
         "description": (
-            "Create a simulated, non-persistent reminder at a non-zero offset from the actual current moment. "
-            "Preferred for requests such as 'remind me in 30 minutes', 'in 2 hours', or 'in 7 days'. Requires "
-            "a message and at least one non-zero days, hours, or minutes value."
+            "Simulate a non-persistent reminder at a signed offset from the actual current moment. "
+            "No real notification is scheduled or sent. Preserve the request magnitude and unit instead "
+            "of converting between minutes, hours, days, and weeks."
         ),
         "parameters": {
             "type": "object",
@@ -219,32 +198,28 @@ SET_RELATIVE_REMINDER_MOCK_SCHEMA = {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 500,
-                    "description": "Reminder text.",
+                    "description": "Reminder text without the relative scheduling phrase.",
                 },
-                "days": {
-                    "type": "integer",
-                    "minimum": -36500,
-                    "maximum": 36500,
-                    "description": "Signed whole-day offset from now.",
-                },
-                "hours": {
-                    "type": "integer",
-                    "minimum": -876000,
-                    "maximum": 876000,
-                    "description": "Signed whole-hour offset from now.",
-                },
-                "minutes": {
+                "offset": {
                     "type": "integer",
                     "minimum": -52560000,
                     "maximum": 52560000,
-                    "description": "Signed whole-minute offset from now.",
+                    "description": (
+                        "Signed quantity from now. In 30 minutes uses 30; in 2 hours uses 2; "
+                        "in 7 days uses 7."
+                    ),
+                },
+                "unit": {
+                    "type": "string",
+                    "enum": list(_OFFSET_UNITS),
+                    "description": "Unit stated by the request: minutes, hours, days, or weeks.",
                 },
                 "timezone": {
                     "type": "string",
                     "description": "Optional IANA timezone. Omit to use the server timezone.",
                 },
             },
-            "required": ["message"],
+            "required": ["message", "offset", "unit"],
             "additionalProperties": False,
         },
     },
@@ -274,10 +249,11 @@ def get_relative_datetime(
     days: int = 0,
     hours: int = 0,
     minutes: int = 0,
+    weeks: int = 0,
     timezone: str | None = None,
 ) -> dict[str, object]:
-    _require_offset(days, hours, minutes)
-    value, zone_name = _datetime_from_now(days, hours, minutes, timezone)
+    _require_offset(days, hours, minutes, weeks)
+    value, zone_name = _datetime_from_now(days, hours, minutes, weeks, timezone)
     return _datetime_result(value, zone_name)
 
 
@@ -286,13 +262,13 @@ def shift_datetime(
     days: int = 0,
     hours: int = 0,
     minutes: int = 0,
+    weeks: int = 0,
     *,
     default_timezone: str | None = None,
 ) -> dict[str, object]:
-    _require_offset(days, hours, minutes)
     timezone = default_timezone or _default_timezone()
     value = _parse_datetime(datetime, timezone)
-    shifted = value + dt.timedelta(days=days, hours=hours, minutes=minutes)
+    shifted = value + dt.timedelta(weeks=weeks, days=days, hours=hours, minutes=minutes)
     return _datetime_result(shifted, _timezone_name(shifted, timezone))
 
 
@@ -318,10 +294,11 @@ def set_relative_reminder_mock(
     days: int = 0,
     hours: int = 0,
     minutes: int = 0,
+    weeks: int = 0,
     timezone: str | None = None,
 ) -> dict[str, object]:
-    _require_offset(days, hours, minutes)
-    value, _ = _datetime_from_now(days, hours, minutes, timezone)
+    _require_offset(days, hours, minutes, weeks)
+    value, _ = _datetime_from_now(days, hours, minutes, weeks, timezone)
     return _reminder_result(value, message)
 
 
@@ -370,24 +347,16 @@ async def _run_tool(
         return get_current_datetime(_optional_timezone(payload))
 
     if name == "get_relative_datetime":
-        _only(payload, {"days", "hours", "minutes", "timezone"})
-        days, hours, minutes = _duration(payload)
+        duration = _model_duration(payload, allow_timezone=True)
         return get_relative_datetime(
-            days=days,
-            hours=hours,
-            minutes=minutes,
+            **duration,
             timezone=_optional_timezone(payload),
         )
 
     if name == "shift_datetime":
-        _only(payload, {"datetime", "days", "hours", "minutes"})
-        days, hours, minutes = _duration(payload)
-        return shift_datetime(
-            _required_string(payload, "datetime"),
-            days=days,
-            hours=hours,
-            minutes=minutes,
-        )
+        datetime_value = _required_string(payload, "datetime")
+        duration = _model_duration(payload, required={"datetime"})
+        return shift_datetime(datetime_value, **duration)
 
     if name == "get_weekday_for_explicit_date":
         _only(payload, {"date"})
@@ -401,27 +370,60 @@ async def _run_tool(
         )
 
     if name == "set_relative_reminder_mock":
-        _only(payload, {"message", "days", "hours", "minutes", "timezone"})
-        days, hours, minutes = _duration(payload)
+        message = _required_string(payload, "message", max_length=500)
+        duration = _model_duration(payload, required={"message"}, allow_timezone=True)
         return set_relative_reminder_mock(
-            _required_string(payload, "message", max_length=500),
-            days=days,
-            hours=hours,
-            minutes=minutes,
+            message,
+            **duration,
             timezone=_optional_timezone(payload),
         )
 
     raise ValueError(f"unknown tool: {name}")
 
 
+def _model_duration(
+    payload: dict[str, Any],
+    *,
+    required: set[str] | None = None,
+    allow_timezone: bool = False,
+) -> dict[str, int]:
+    required = required or set()
+    allowed = required | {"offset", "unit"}
+    if allow_timezone:
+        allowed.add("timezone")
+
+    legacy = {"days", "hours", "minutes"}
+    if not ({"offset", "unit"} & set(payload)) and (legacy & set(payload)):
+        legacy_allowed = required | legacy
+        if allow_timezone:
+            legacy_allowed.add("timezone")
+        _only(payload, legacy_allowed)
+        days, hours, minutes = _duration(payload)
+        _require_offset(days, hours, minutes, 0)
+        return {"days": days, "hours": hours, "minutes": minutes}
+
+    _only(payload, allowed)
+    offset = _required_integer(payload, "offset", minimum=-52560000, maximum=52560000)
+    unit = _required_unit(payload)
+    if offset == 0 and required != {"datetime"}:
+        raise ValueError("offset must be non-zero")
+    return {unit: offset}
+
+
 def _datetime_from_now(
     days: int,
     hours: int,
     minutes: int,
+    weeks: int,
     timezone: str | None,
 ) -> tuple[dt.datetime, str]:
     zone = _zone(timezone or _default_timezone())
-    value = dt.datetime.now(zone) + dt.timedelta(days=days, hours=hours, minutes=minutes)
+    value = dt.datetime.now(zone) + dt.timedelta(
+        weeks=weeks,
+        days=days,
+        hours=hours,
+        minutes=minutes,
+    )
     return value, zone.key
 
 
@@ -433,9 +435,28 @@ def _duration(payload: dict[str, Any]) -> tuple[int, int, int]:
     )
 
 
-def _require_offset(days: int, hours: int, minutes: int) -> None:
-    if days == 0 and hours == 0 and minutes == 0:
+def _require_offset(days: int, hours: int, minutes: int, weeks: int) -> None:
+    if days == 0 and hours == 0 and minutes == 0 and weeks == 0:
         raise ValueError("at least one non-zero time offset is required")
+
+
+def _required_integer(
+    payload: dict[str, Any],
+    name: str,
+    *,
+    minimum: int,
+    maximum: int,
+) -> int:
+    if name not in payload:
+        raise ValueError(f"{name} is required")
+    return _integer(payload, name, default=0, minimum=minimum, maximum=maximum)
+
+
+def _required_unit(payload: dict[str, Any]) -> str:
+    value = payload.get("unit")
+    if value not in _OFFSET_UNITS:
+        raise ValueError(f"unit must be one of: {', '.join(_OFFSET_UNITS)}")
+    return str(value)
 
 
 def _optional_timezone(payload: dict[str, Any]) -> str | None:
@@ -488,8 +509,9 @@ def _reminder_result(value: dt.datetime, message: str) -> dict[str, object]:
         "reminder_id": f"mock-{uuid4()}",
         "datetime": value.isoformat(timespec="seconds"),
         "message": message,
-        "status": "mock_created",
+        "status": "simulated_only",
         "persisted": False,
+        "will_notify": False,
     }
 
 
