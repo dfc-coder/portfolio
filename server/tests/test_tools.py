@@ -43,10 +43,17 @@ def test_tool_schemas_are_explicit_json_schema() -> None:
         assert "$defs" not in parameters
 
     assert TOOLS[0]["function"]["parameters"]["required"] == ["query"]
-    assert TOOLS[3]["function"]["parameters"]["required"] == ["datetime"]
+    assert TOOLS[2]["function"]["parameters"]["required"] == ["offset", "unit"]
+    assert TOOLS[3]["function"]["parameters"]["required"] == ["datetime", "offset", "unit"]
     assert TOOLS[4]["function"]["parameters"]["required"] == ["date"]
     assert TOOLS[5]["function"]["parameters"]["required"] == ["datetime", "message"]
-    assert TOOLS[6]["function"]["parameters"]["required"] == ["message"]
+    assert TOOLS[6]["function"]["parameters"]["required"] == ["message", "offset", "unit"]
+
+    for index in (2, 3, 6):
+        unit = TOOLS[index]["function"]["parameters"]["properties"]["unit"]
+        assert unit["enum"] == ["minutes", "hours", "days", "weeks"]
+
+    assert "2026-" not in json.dumps(TOOLS, ensure_ascii=False)
 
 
 def test_shift_datetime_moves_forward_and_backward_exactly() -> None:
@@ -95,6 +102,20 @@ def test_get_relative_datetime_uses_current_time() -> None:
     assert result["timezone"] == "America/Argentina/Buenos_Aires"
 
 
+def test_get_relative_datetime_supports_weeks_without_model_conversion() -> None:
+    zone = ZoneInfo("America/Argentina/Buenos_Aires")
+    before = dt.datetime.now(zone) + dt.timedelta(weeks=1)
+
+    result = get_relative_datetime(
+        weeks=1,
+        timezone="America/Argentina/Buenos_Aires",
+    )
+
+    after = dt.datetime.now(zone) + dt.timedelta(weeks=1)
+    actual = dt.datetime.fromisoformat(str(result["datetime"]))
+    assert before.replace(microsecond=0) <= actual <= after.replace(microsecond=0)
+
+
 def test_get_weekday_for_explicit_date_has_no_relative_arithmetic() -> None:
     result = get_weekday_for_explicit_date(
         "2026-12-25",
@@ -122,14 +143,22 @@ def test_relative_reminder_resolves_target_from_now() -> None:
     assert before.replace(microsecond=0) <= actual <= after.replace(microsecond=0)
     assert result["message"] == "Enviar el CV"
     assert result["persisted"] is False
+    assert result["will_notify"] is False
 
 
-def test_relative_and_shift_capabilities_require_an_offset() -> None:
+def test_relative_capability_requires_an_offset() -> None:
     with pytest.raises(ValueError, match="non-zero time offset"):
         get_relative_datetime()
 
-    with pytest.raises(ValueError, match="non-zero time offset"):
-        shift_datetime("2026-09-04")
+
+def test_shift_datetime_can_resolve_an_explicit_base_without_moving_it() -> None:
+    result = shift_datetime(
+        "2026-09-04",
+        default_timezone="America/Argentina/Buenos_Aires",
+    )
+
+    assert result["date"] == "2026-09-04"
+    assert result["weekday_es"] == "viernes"
 
 
 def test_date_capability_owns_server_timezone(monkeypatch) -> None:
@@ -142,11 +171,27 @@ def test_date_capability_owns_server_timezone(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_model_relative_contract_preserves_request_unit() -> None:
+    message = await run_tool_call(
+        "call-relative",
+        "get_relative_datetime",
+        json.dumps({"offset": 1, "unit": "weeks"}),
+        FakePortfolio(),
+    )
+
+    body = json.loads(message["content"])
+    assert body["ok"] is True
+    target = dt.datetime.fromisoformat(body["result"]["datetime"])
+    now = dt.datetime.now(target.tzinfo)
+    assert dt.timedelta(days=6, hours=23) < target - now < dt.timedelta(days=7, minutes=1)
+
+
+@pytest.mark.asyncio
 async def test_tool_validation_error_is_returned_to_model() -> None:
     message = await run_tool_call(
         "call-1",
         "shift_datetime",
-        json.dumps({"datetime": "not-a-date", "days": 2}),
+        json.dumps({"datetime": "not-a-date", "offset": 2, "unit": "days"}),
         FakePortfolio(),
     )
 
@@ -177,11 +222,26 @@ async def test_tool_validation_rejects_wrong_integer_type() -> None:
     message = await run_tool_call(
         "call-3",
         "get_relative_datetime",
-        json.dumps({"days": "15"}),
+        json.dumps({"offset": "15", "unit": "days"}),
         FakePortfolio(),
     )
 
     body = json.loads(message["content"])
     assert body["ok"] is False
     assert body["error"]["type"] == "validation_error"
-    assert body["error"]["message"] == "days must be an integer"
+    assert body["error"]["message"] == "offset must be an integer"
+
+
+@pytest.mark.asyncio
+async def test_tool_validation_rejects_unknown_unit() -> None:
+    message = await run_tool_call(
+        "call-4",
+        "set_relative_reminder_mock",
+        json.dumps({"message": "Enviar CV", "offset": 2, "unit": "fortnights"}),
+        FakePortfolio(),
+    )
+
+    body = json.loads(message["content"])
+    assert body["ok"] is False
+    assert body["error"]["type"] == "validation_error"
+    assert "unit must be one of" in body["error"]["message"]
