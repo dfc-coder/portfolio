@@ -9,6 +9,13 @@ def _csv(value: str) -> tuple[str, ...]:
     return tuple(item.strip() for item in value.split(",") if item.strip())
 
 
+def _optional(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
 @dataclass(frozen=True)
 class Config:
     profile_path: Path
@@ -19,6 +26,7 @@ class Config:
     embedding_model: str
     embedding_timeout_seconds: float
     allowed_origins: tuple[str, ...]
+    diagnostics_token: str | None
     generation_temperature: float
     generation_top_p: float
     generation_top_k: int
@@ -49,6 +57,7 @@ class Config:
                     "http://localhost:5173,http://127.0.0.1:5173",
                 )
             ),
+            diagnostics_token=_optional(os.getenv("AGENT_DIAGNOSTICS_TOKEN")),
             generation_temperature=float(os.getenv("GENERATION_TEMPERATURE", "0.70")),
             generation_top_p=float(os.getenv("GENERATION_TOP_P", "0.80")),
             generation_top_k=int(os.getenv("GENERATION_TOP_K", "20")),
