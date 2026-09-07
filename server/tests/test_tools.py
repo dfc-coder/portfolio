@@ -6,7 +6,7 @@ import pytest
 
 from app.tools import (
     TOOLS,
-    get_relative_datetime,
+    get_datetime_from_now,
     get_weekday_for_explicit_date,
     run_tool_call,
     set_relative_reminder_mock,
@@ -25,7 +25,7 @@ def test_tool_schemas_are_explicit_json_schema() -> None:
     assert names == [
         "search_portfolio",
         "get_current_datetime",
-        "get_relative_datetime",
+        "get_datetime_from_now",
         "shift_datetime",
         "get_weekday_for_explicit_date",
         "set_reminder_mock",
@@ -50,8 +50,10 @@ def test_tool_schemas_are_explicit_json_schema() -> None:
     assert TOOLS[6]["function"]["parameters"]["required"] == ["message", "offset", "unit"]
 
     for index in (2, 3, 6):
-        unit = TOOLS[index]["function"]["parameters"]["properties"]["unit"]
-        assert unit["enum"] == ["minutes", "hours", "days", "weeks"]
+        properties = TOOLS[index]["function"]["parameters"]["properties"]
+        assert properties["unit"]["enum"] == ["minutes", "hours", "days", "weeks"]
+        assert "minimum" not in properties["offset"]
+        assert "maximum" not in properties["offset"]
 
     assert "2026-" not in json.dumps(TOOLS, ensure_ascii=False)
 
@@ -87,11 +89,11 @@ def test_shift_datetime_accepts_naive_datetime_in_default_timezone() -> None:
     assert result["datetime"] == "2030-02-28T12:45:00-03:00"
 
 
-def test_get_relative_datetime_uses_current_time() -> None:
+def test_get_datetime_from_now_uses_current_time() -> None:
     zone = ZoneInfo("America/Argentina/Buenos_Aires")
     before = dt.datetime.now(zone) + dt.timedelta(days=1)
 
-    result = get_relative_datetime(
+    result = get_datetime_from_now(
         days=1,
         timezone="America/Argentina/Buenos_Aires",
     )
@@ -102,11 +104,11 @@ def test_get_relative_datetime_uses_current_time() -> None:
     assert result["timezone"] == "America/Argentina/Buenos_Aires"
 
 
-def test_get_relative_datetime_supports_weeks_without_model_conversion() -> None:
+def test_get_datetime_from_now_supports_weeks_without_model_conversion() -> None:
     zone = ZoneInfo("America/Argentina/Buenos_Aires")
     before = dt.datetime.now(zone) + dt.timedelta(weeks=1)
 
-    result = get_relative_datetime(
+    result = get_datetime_from_now(
         weeks=1,
         timezone="America/Argentina/Buenos_Aires",
     )
@@ -146,9 +148,9 @@ def test_relative_reminder_resolves_target_from_now() -> None:
     assert result["will_notify"] is False
 
 
-def test_relative_capability_requires_an_offset() -> None:
+def test_from_now_capability_requires_an_offset() -> None:
     with pytest.raises(ValueError, match="non-zero time offset"):
-        get_relative_datetime()
+        get_datetime_from_now()
 
 
 def test_shift_datetime_can_resolve_an_explicit_base_without_moving_it() -> None:
@@ -171,10 +173,10 @@ def test_date_capability_owns_server_timezone(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_model_relative_contract_preserves_request_unit() -> None:
+async def test_model_from_now_contract_preserves_request_unit() -> None:
     message = await run_tool_call(
         "call-relative",
-        "get_relative_datetime",
+        "get_datetime_from_now",
         json.dumps({"offset": 1, "unit": "weeks"}),
         FakePortfolio(),
     )
@@ -221,7 +223,7 @@ async def test_tool_validation_rejects_unknown_arguments() -> None:
 async def test_tool_validation_rejects_wrong_integer_type() -> None:
     message = await run_tool_call(
         "call-3",
-        "get_relative_datetime",
+        "get_datetime_from_now",
         json.dumps({"offset": "15", "unit": "days"}),
         FakePortfolio(),
     )
