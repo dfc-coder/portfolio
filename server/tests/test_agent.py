@@ -93,10 +93,8 @@ def test_prompt_keeps_tool_mechanics_out_of_system_instructions() -> None:
     assert "#Response#" in system
     assert "#Examples#" in system
     assert "#Tool strategy#" not in system
-    assert "get_current_datetime" not in system
-    assert "get_datetime_from_now" not in system
-    assert "shift_datetime" not in system
-    assert "get_weekday_for_explicit_date" not in system
+    assert "search_portfolio" not in system
+    assert "resolve_datetime" not in system
     assert "set_reminder_mock" not in system
     assert "<portfolio_subject>" in system
     assert "<name>Diego</name>" in system
@@ -187,7 +185,7 @@ async def test_agent_preserves_streamed_tool_call_and_reports_flow() -> None:
 
 
 @pytest.mark.asyncio
-async def test_agent_runs_multi_round_tool_chain() -> None:
+async def test_agent_runs_multi_round_relative_reminder_chain() -> None:
     chat = FakeChat(
         [
             [
@@ -195,26 +193,13 @@ async def test_agent_runs_multi_round_tool_chain() -> None:
                     tool_calls=[
                         tool_delta(
                             0,
-                            call_id="call-now",
-                            name="get_current_datetime",
-                            arguments="{}",
-                        )
-                    ],
-                    finish_reason="tool_calls",
-                )
-            ],
-            [
-                chunk(
-                    tool_calls=[
-                        tool_delta(
-                            0,
-                            call_id="call-shift",
-                            name="shift_datetime",
+                            call_id="call-resolve",
+                            name="resolve_datetime",
                             arguments=json.dumps(
                                 {
-                                    "datetime": "2030-01-01T10:00:00-03:00",
+                                    "base": "now",
                                     "offset": 30,
-                                    "unit": "days",
+                                    "unit": "minutes",
                                 }
                             ),
                         )
@@ -231,7 +216,7 @@ async def test_agent_runs_multi_round_tool_chain() -> None:
                             name="set_reminder_mock",
                             arguments=json.dumps(
                                 {
-                                    "datetime": "2030-01-31T10:00:00-03:00",
+                                    "datetime": "2030-01-01T10:30:00-03:00",
                                     "message": "Revisar el CV",
                                 }
                             ),
@@ -252,11 +237,11 @@ async def test_agent_runs_multi_round_tool_chain() -> None:
 
     events = [
         event
-        async for event in agent.respond("Recordame en 30 días revisar el CV", [])
+        async for event in agent.respond("Recordame en 30 minutos revisar el CV", [])
     ]
 
     assert token_text(events) == "Recordatorio simulado."
-    assert len(chat.chat.completions.requests) == 4
+    assert len(chat.chat.completions.requests) == 3
 
     running_tools = [
         payload["name"]
@@ -264,14 +249,13 @@ async def test_agent_runs_multi_round_tool_chain() -> None:
         if event == "tool" and payload["state"] == "running"
     ]
     assert running_tools == [
-        "get_current_datetime",
-        "shift_datetime",
+        "resolve_datetime",
         "set_reminder_mock",
     ]
 
     final_messages = chat.chat.completions.requests[-1]["messages"]
     tool_ids = [item["tool_call_id"] for item in final_messages if item["role"] == "tool"]
-    assert tool_ids == ["call-now", "call-shift", "call-reminder"]
+    assert tool_ids == ["call-resolve", "call-reminder"]
 
 
 @pytest.mark.asyncio
@@ -290,11 +274,11 @@ async def test_agent_returns_multiple_tool_results_in_one_round() -> None:
                         tool_delta(
                             1,
                             call_id="call-date",
-                            name="shift_datetime",
+                            name="resolve_datetime",
                             arguments=json.dumps(
                                 {
-                                    "datetime": "2030-01-01T10:00:00-03:00",
-                                    "offset": 1,
+                                    "base": "now",
+                                    "offset": 0,
                                     "unit": "days",
                                 }
                             ),
@@ -333,9 +317,10 @@ async def test_agent_carries_tool_results_into_follow_up_turn() -> None:
                         tool_delta(
                             0,
                             call_id="call-date",
-                            name="shift_datetime",
+                            name="resolve_datetime",
                             arguments=json.dumps(
                                 {
+                                    "base": "provided",
                                     "datetime": "2026-09-04T19:00:00-03:00",
                                     "offset": 15,
                                     "unit": "days",
