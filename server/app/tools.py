@@ -59,22 +59,20 @@ GET_CURRENT_DATETIME_SCHEMA = {
     },
 }
 
-GET_RELATIVE_DATETIME_SCHEMA = {
+GET_DATETIME_FROM_NOW_SCHEMA = {
     "type": "function",
     "function": {
-        "name": "get_relative_datetime",
+        "name": "get_datetime_from_now",
         "description": (
             "Return the date, time, and weekday at a signed offset from the actual current moment. "
-            "Use the same unit stated by the request instead of converting it. "
-            "Tomorrow is offset 1 day; yesterday is offset -1 day."
+            "The base is always now. Preserve the magnitude and unit stated by the request instead of "
+            "converting between units. Tomorrow is offset 1 day; yesterday is offset -1 day."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "offset": {
                     "type": "integer",
-                    "minimum": -52560000,
-                    "maximum": 52560000,
                     "description": (
                         "Signed quantity from now. Preserve the request magnitude: "
                         "in 2 hours uses 2, one week uses 1, 30 minutes ago uses -30."
@@ -103,9 +101,9 @@ SHIFT_DATETIME_SCHEMA = {
     "function": {
         "name": "shift_datetime",
         "description": (
-            "Return details for a date or datetime supplied by the request after applying a signed offset. "
-            "The base datetime must come from the request. Use offset 0 when only resolving the supplied "
-            "date or weekday. Preserve the request unit instead of converting it."
+            "Shift a date or datetime supplied by the request by a signed non-zero offset. "
+            "The base datetime must come from the request, and the request must ask for date arithmetic. "
+            "Preserve the magnitude and unit stated by the request instead of converting between units."
         ),
         "parameters": {
             "type": "object",
@@ -116,14 +114,12 @@ SHIFT_DATETIME_SCHEMA = {
                 },
                 "offset": {
                     "type": "integer",
-                    "minimum": -52560000,
-                    "maximum": 52560000,
                     "description": "Signed quantity applied to the supplied base datetime.",
                 },
                 "unit": {
                     "type": "string",
                     "enum": list(_OFFSET_UNITS),
-                    "description": "Unit for the offset: minutes, hours, days, or weeks.",
+                    "description": "Unit stated by the request: minutes, hours, days, or weeks.",
                 },
             },
             "required": ["datetime", "offset", "unit"],
@@ -202,8 +198,6 @@ SET_RELATIVE_REMINDER_MOCK_SCHEMA = {
                 },
                 "offset": {
                     "type": "integer",
-                    "minimum": -52560000,
-                    "maximum": 52560000,
                     "description": (
                         "Signed quantity from now. In 30 minutes uses 30; in 2 hours uses 2; "
                         "in 7 days uses 7."
@@ -228,7 +222,7 @@ SET_RELATIVE_REMINDER_MOCK_SCHEMA = {
 TOOLS = [
     SEARCH_PORTFOLIO_SCHEMA,
     GET_CURRENT_DATETIME_SCHEMA,
-    GET_RELATIVE_DATETIME_SCHEMA,
+    GET_DATETIME_FROM_NOW_SCHEMA,
     SHIFT_DATETIME_SCHEMA,
     GET_WEEKDAY_FOR_EXPLICIT_DATE_SCHEMA,
     SET_REMINDER_MOCK_SCHEMA,
@@ -245,7 +239,7 @@ def get_current_datetime(timezone: str | None = None) -> dict[str, object]:
     return _datetime_result(dt.datetime.now(zone), zone.key)
 
 
-def get_relative_datetime(
+def get_datetime_from_now(
     days: int = 0,
     hours: int = 0,
     minutes: int = 0,
@@ -346,9 +340,9 @@ async def _run_tool(
         _only(payload, {"timezone"})
         return get_current_datetime(_optional_timezone(payload))
 
-    if name == "get_relative_datetime":
+    if name == "get_datetime_from_now":
         duration = _model_duration(payload, allow_timezone=True)
-        return get_relative_datetime(
+        return get_datetime_from_now(
             **duration,
             timezone=_optional_timezone(payload),
         )
@@ -392,20 +386,10 @@ def _model_duration(
     if allow_timezone:
         allowed.add("timezone")
 
-    legacy = {"days", "hours", "minutes"}
-    if not ({"offset", "unit"} & set(payload)) and (legacy & set(payload)):
-        legacy_allowed = required | legacy
-        if allow_timezone:
-            legacy_allowed.add("timezone")
-        _only(payload, legacy_allowed)
-        days, hours, minutes = _duration(payload)
-        _require_offset(days, hours, minutes, 0)
-        return {"days": days, "hours": hours, "minutes": minutes}
-
     _only(payload, allowed)
     offset = _required_integer(payload, "offset", minimum=-52560000, maximum=52560000)
     unit = _required_unit(payload)
-    if offset == 0 and required != {"datetime"}:
+    if offset == 0:
         raise ValueError("offset must be non-zero")
     return {unit: offset}
 
@@ -425,14 +409,6 @@ def _datetime_from_now(
         minutes=minutes,
     )
     return value, zone.key
-
-
-def _duration(payload: dict[str, Any]) -> tuple[int, int, int]:
-    return (
-        _integer(payload, "days", default=0, minimum=-36500, maximum=36500),
-        _integer(payload, "hours", default=0, minimum=-876000, maximum=876000),
-        _integer(payload, "minutes", default=0, minimum=-52560000, maximum=52560000),
-    )
 
 
 def _require_offset(days: int, hours: int, minutes: int, weeks: int) -> None:
