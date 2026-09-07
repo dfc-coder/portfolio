@@ -6,199 +6,172 @@ Branch: `feat/agent-live-eval`
 
 ## 1. Problem
 
-The traced live evaluation showed three independent failure classes:
+The live traces showed that the reliability issue was not a Python execution bug and not a multi-round runtime bug.
 
-1. **Tool selection** — choosing the wrong capability.
-2. **Parameter extraction** — choosing the right capability but encoding the requested value in the wrong slot.
-3. **Tool execution** — deterministic validation or execution failure after a call is produced.
+The failure was caused by an unnecessarily overlapping model-facing tool surface.
 
-The previous evaluator only checked tool names and execution status, so calls such as `2 hours -> days=2` could be reported as successful.
-
-## 2. Trace-backed diagnosis
-
-The failures are not caused by the deterministic datetime implementation and are not primarily a multi-round limitation.
-
-Observed examples:
+With seven tools, Qwen had to distinguish between multiple capabilities that could all appear relevant to the same temporal request:
 
 ```text
-"tomorrow"
-  -> get_current_datetime {}
-  -> wrong tool selection
-
-"yesterday"
-  -> get_weekday_for_explicit_date {date: 2026-12-24}
-  -> wrong tool + invented date
-
-"one week"
-  -> get_relative_datetime {days: 1}
-  -> correct capability, wrong slot representation
-
-"in 2 hours"
-  -> set_relative_reminder_mock {days: 2}
-  -> correct capability, wrong unit
-
-"in 30 minutes"
-  -> set_relative_reminder_mock {days: 0}
-  -> validation failure
-  -> next model round retries with {minutes: 30}
-  -> succeeds
-```
-
-The `30 minutes` recovery proves that the existing model/tool loop can execute multi-round correction. The failure is therefore upstream in the model-facing capability contract.
-
-The old temporal contract exposed several optional numeric fields:
-
-```text
-days?
-hours?
-minutes?
-```
-
-with no required duration field and no `weeks` unit. The runtime then imposed an additional invariant that the schema did not express: at least one offset had to be non-zero.
-
-That representation created two problems:
-
-- **slot ambiguity:** the model had to choose which numeric field represented the unit;
-- **forced conversion:** `one week` had to be converted by the model into `days=7`.
-
-Concrete calendar values inside schema descriptions also leaked anchors into a small model. A relative request for `yesterday` produced `2026-12-24`, immediately adjacent to the old schema example `2026-12-25`.
-
-## 3. Design principles
-
-The correction follows the same principles used for small, maintainable Go APIs:
-
-- one concept has one representation;
-- required state is structurally required;
-- names describe the operation rather than an internal classification;
-- validation stays deterministic;
-- prefer explicit code over generic frameworks;
-- do not add a router when the tool contract itself can be made clear;
-- do not duplicate tool descriptions in the system prompt;
-- avoid hidden conversions when the caller can state the original unit directly.
-
-No planner, graph, semantic router, tool registry, schema factory, or message keyword routing is introduced.
-
-## 4. Architecture
-
-The runtime remains:
-
-```text
-visitor
-  -> API
-  -> Agent
-      -> Qwen + tool schemas
-      -> tool_calls?
-          -> execute requested tools
-          -> append assistant tool_calls + matching tool results
-          -> repeat
-      -> final answer
-```
-
-The model chooses capabilities and arguments. Python validates and executes them.
-
-## 5. Model-facing tools
-
-The agent exposes seven tools:
-
-```text
-search_portfolio
 get_current_datetime
 get_datetime_from_now
 shift_datetime
 get_weekday_for_explicit_date
 set_reminder_mock
 set_relative_reminder_mock
+search_portfolio
 ```
 
-### `get_current_datetime`
+The traces showed concrete collisions:
 
 ```text
-base: actual current moment
-offset: none
+tomorrow
+-> get_current_datetime
+
+yesterday weekday
+-> get_weekday_for_explicit_date with an invented date
+
+one week
+-> get_current_datetime
+
+remind me in 30 minutes
+-> get_datetime_from_now, then stop
+
+remind me in 2 hours
+-> get_datetime_from_now
+-> set_reminder_mock
 ```
 
-Used for the current moment only. It performs no date arithmetic.
+The last case is important: Qwen successfully completed a dependent multi-round workflow. The generic `Agent` loop is therefore capable of multi-round tool execution.
 
-### `get_datetime_from_now`
+The tool surface, not the loop, was the primary design problem.
+
+## 2. Design principles
+
+The correction follows the same public design philosophy that makes Go APIs easy to reason about:
+
+- small public surface;
+- one obvious operation for one responsibility;
+- explicit data contracts;
+- no router when the API itself can be simpler;
+- no framework or registry to hide three straightforward operations;
+- deterministic validation in code;
+- model reasoning only where natural-language interpretation is unavoidable;
+- observable failures instead of silent normalization.
+
+A little implementation code is preferable to multiple overlapping public abstractions.
+
+## 3. Decision
+
+Reduce the model-facing tool surface from seven tools to three:
 
 ```text
-base: actual current moment
-offset: required
+search_portfolio
+resolve_datetime
+set_reminder_mock
 ```
 
-Arguments:
+This is not a routing optimization. It is an API correction.
+
+The model still chooses tools directly from their schemas. There is no semantic router, keyword matching, planner, graph, or additional LLM call.
+
+## 4. Tool contracts
+
+### 4.1 `search_portfolio`
+
+Responsibility:
+
+> Retrieve factual evidence from the portfolio/CV.
+
+It remains unchanged.
+
+### 4.2 `resolve_datetime`
+
+Responsibility:
+
+> Deterministically resolve current, relative, or supplied date/time values.
+
+It is read-only.
+
+Schema shape:
 
 ```json
 {
-  "offset": 1,
-  "unit": "weeks"
+  "base": "now | provided",
+  "datetime": "optional ISO-8601 input",
+  "offset": 0,
+  "unit": "minutes | hours | days | weeks",
+  "timezone": "optional IANA timezone"
 }
 ```
 
-`unit` is one of:
+Rules:
 
 ```text
-minutes
-hours
-days
-weeks
+base=now
+    datetime must be omitted
+
+base=provided
+    datetime must be copied from the request
+
+offset=0
+    no arithmetic
+
+offset!=0
+    shift the selected base
 ```
 
-The request magnitude and unit are preserved:
+Examples of semantics:
 
 ```text
-tomorrow       -> {offset: 1,  unit: days}
-yesterday      -> {offset: -1, unit: days}
-one week       -> {offset: 1,  unit: weeks}
-two hours      -> {offset: 2,  unit: hours}
-30 minutes ago -> {offset: -30, unit: minutes}
+today
+-> base=now, offset=0
+
+tomorrow
+-> base=now, +1 day
+
+yesterday
+-> base=now, -1 day
+
+one week from now
+-> base=now, +1 week
+   or any semantically equivalent duration
+
+weekday of a supplied date
+-> base=provided, datetime=<supplied date>, offset=0
+
+five days after a supplied date
+-> base=provided, datetime=<supplied date>, +5 days
 ```
 
-The model does not convert weeks to days or hours to minutes.
+The evaluator compares duration semantics, not a preferred serialization. `2 hours` and `120 minutes` are equivalent.
 
-### `get_weekday_for_explicit_date`
+### 4.3 `set_reminder_mock`
+
+Responsibility:
+
+> Create a simulated reminder for an absolute datetime.
+
+It does not resolve relative time.
+
+For an explicit absolute reminder:
 
 ```text
-base: exact YYYY-MM-DD copied from the request
-offset: none
+user
+-> set_reminder_mock
 ```
 
-The schema contains no concrete example date that the model can copy or transform.
-
-### `shift_datetime`
+For a relative reminder:
 
 ```text
-base: explicit date/datetime copied from the request
-offset: required
+user
+-> resolve_datetime
+-> set_reminder_mock
 ```
 
-Arguments:
+This is a real dependency and therefore a valid multi-round workflow.
 
-```json
-{
-  "datetime": "<ISO-8601 value from the request>",
-  "offset": 5,
-  "unit": "days"
-}
-```
-
-This tool exists only for arithmetic on a supplied base date. It does not overlap with explicit weekday lookup.
-
-### Reminder tools
-
-`set_reminder_mock` accepts an absolute datetime supplied by the request.
-
-`set_relative_reminder_mock` uses the same `offset + unit` representation as `get_datetime_from_now`:
-
-```json
-{
-  "message": "Enviar el CV",
-  "offset": 2,
-  "unit": "hours"
-}
-```
-
-Reminder results explicitly state:
+The reminder result explicitly states:
 
 ```json
 {
@@ -208,88 +181,178 @@ Reminder results explicitly state:
 }
 ```
 
-## 6. Runtime validation
+No real notification is created.
 
-JSON Schema defines the shape that Qwen sees:
+## 5. Why the previous design failed
 
-- required fields;
-- argument types;
-- unit enum;
-- no additional properties.
+### 5.1 Tool-selection overlap
 
-Python owns deterministic bounds and semantic invariants:
-
-- `offset` must be an integer;
-- `offset` must be non-zero for model-facing arithmetic calls;
-- unit must be supported;
-- datetime strings must parse;
-- absolute reminder datetimes must contain a timezone offset.
-
-Large numeric min/max rules are intentionally kept out of model-facing schemas. This avoids generating unnecessarily large llama.cpp grammar productions while preserving the same runtime protection.
-
-## 7. Evaluator
-
-The evaluator consumes the diagnostic trace and represents a call as one object:
+The traces proved that descriptions alone were not enough to make Qwen consistently distinguish:
 
 ```text
-ObservedCall
-  name
-  arguments
-  ok
+current moment
+relative moment
+weekday
+date arithmetic
+relative reminder
 ```
 
-Cases declare `expected_calls` instead of parallel expected/forbidden lists.
+because several tools represented overlapping portions of the same temporal domain.
 
-Example:
+Adding more prose to each schema would increase instruction density without removing the competing affordances.
 
-```json
-{
-  "expected_calls": [
-    {
-      "name": "get_datetime_from_now",
-      "arguments": {
-        "offset": 1,
-        "unit": "weeks"
-      }
-    }
-  ]
-}
-```
+The correction removes the overlap.
 
-The runner reports separately:
+### 5.2 Parameter representation
+
+The previous `days/hours/minutes` contract encoded the unit in the property name.
+
+The intermediate `offset + unit` contract was structurally better, but the evaluator incorrectly treated equivalent representations as different:
 
 ```text
-tool selection accuracy
-parameter extraction accuracy
-tool execution success
-overall pass rate
+2 hours
+120 minutes
 ```
 
-A correct tool with incorrect arguments is a failed case.
+For correctness, these represent the same duration.
 
-## 8. Acceptance criteria
+The runtime keeps `offset + unit`; the evaluator normalizes them to seconds when comparing expected behavior.
 
-The focused smoke must show all ten cases passing with:
+### 5.3 Multi-round
+
+The traces do not support the claim that Qwen3.5-2B cannot execute multi-round workflows.
+
+A reminder case successfully executed:
 
 ```text
-tool selection: 10/10
-parameter extraction: all parameterized cases correct
-tool execution success: 10/10
-overall: 10/10
+resolve relative target
+-> create absolute reminder
+-> final response
 ```
 
-Only after that focused regression passes should the complete 50-case checkpoint be run.
+Therefore multi-round remains part of the architecture when a real data dependency exists.
 
-## 9. Out of scope
+## 6. Runtime architecture
 
-This correction does not change:
+Unchanged:
 
-- the system prompt into a tool-routing prompt;
-- sampling settings;
-- model size;
-- llama.cpp serving architecture;
-- conversation persistence;
-- PocketTrace integration;
-- tool count through a router or retriever.
+```text
+visitor
+  -> API
+  -> Agent
+      -> Qwen + tool schemas
+      -> tool call?
+          -> Python validates and executes
+          -> assistant tool call + tool result appended
+          -> next model round
+      -> final answer
+```
 
-Those remain independent concerns and must not be mixed into this correction without evidence.
+`Agent` remains generic.
+
+It does not know that a reminder needs a date calculation.
+
+That behavior comes from the model-facing tool contracts.
+
+## 7. Final-answer grounding
+
+The traces also exposed a separate issue: Qwen could receive a correct structured result and then alter or contradict it in natural language.
+
+Examples included:
+
+```text
+tool result: will_notify=false
+final answer: notification will be sent automatically
+```
+
+The global prompt therefore contains only shared result-grounding policy:
+
+```text
+Use exact values returned by external capabilities.
+Do not recalculate, replace, or contradict them.
+Do not claim side effects beyond what a capability result confirms.
+```
+
+This is not a duplicate of any tool schema. It is a general response invariant.
+
+## 8. Evaluation contract
+
+The local evaluator now separates:
+
+```text
+tool selection
+parameter extraction
+tool execution
+answer presence
+```
+
+It also validates:
+
+### Semantic duration equivalence
+
+```text
+2 hours == 120 minutes
+1 week == 7 days
+```
+
+### Multi-round value propagation
+
+For relative reminders:
+
+```text
+resolve_datetime.result.datetime
+==
+set_reminder_mock.arguments.datetime
+```
+
+A reminder that uses an invented target datetime fails even if both tools execute successfully.
+
+## 9. Non-goals
+
+This correction does not add:
+
+- router;
+- planner;
+- graph;
+- dynamic tool retrieval;
+- tool registry;
+- server-side semantic keyword rules;
+- model upgrade;
+- sampling changes;
+- PocketTrace as a correctness dependency.
+
+## 10. Model-facing surface
+
+Final surface for the current agent scope:
+
+```text
+1. search_portfolio
+2. resolve_datetime
+3. set_reminder_mock
+```
+
+Three tools are sufficient for the current requirements.
+
+Additional tools should be added only when a genuinely new external capability exists, not to represent another linguistic variation of an existing operation.
+
+## 11. Validation
+
+Run:
+
+```bash
+cd server
+make check
+make down
+make up
+make eval-smoke
+```
+
+The smoke is the immediate regression gate.
+
+After the smoke is clean, run the full 50-case checkpoint:
+
+```bash
+make eval-strict
+```
+
+The local live run remains the source of truth for tool calls, arguments, execution results, round sequencing, provider metadata, and latency.
