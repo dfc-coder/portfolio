@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from app.tools import TOOLS, add_duration_to_datetime, run_tool_call
+from app.tools import TOOLS, get_datetime_weekday, run_tool_call, shift_datetime
 
 
 class FakePortfolio:
@@ -16,7 +16,8 @@ def test_tool_schemas_are_explicit_json_schema() -> None:
     assert names == [
         "search_portfolio",
         "get_current_datetime",
-        "add_duration_to_datetime",
+        "shift_datetime",
+        "get_datetime_weekday",
         "set_reminder_mock",
     ]
     for tool in TOOLS:
@@ -31,25 +32,31 @@ def test_tool_schemas_are_explicit_json_schema() -> None:
 
     assert TOOLS[0]["function"]["parameters"]["required"] == ["query"]
     assert TOOLS[2]["function"]["parameters"]["required"] == ["datetime"]
-    assert TOOLS[3]["function"]["parameters"]["required"] == ["datetime", "message"]
+    assert TOOLS[3]["function"]["parameters"]["required"] == ["datetime"]
+    assert TOOLS[4]["function"]["parameters"]["required"] == ["datetime", "message"]
 
 
-def test_add_duration_calculates_date_and_weekday_exactly() -> None:
-    result = add_duration_to_datetime(
+def test_shift_datetime_moves_forward_and_backward_exactly() -> None:
+    forward = shift_datetime(
         "2026-09-04",
         days=15,
         default_timezone="America/Argentina/Buenos_Aires",
     )
+    backward = shift_datetime(
+        "2026-09-04",
+        days=-1,
+        default_timezone="America/Argentina/Buenos_Aires",
+    )
 
-    assert result["date"] == "2026-09-19"
-    assert result["weekday"] == "Saturday"
-    assert result["weekday_es"] == "sábado"
-    assert result["iso_weekday"] == 6
-    assert result["timezone"] == "America/Argentina/Buenos_Aires"
+    assert forward["date"] == "2026-09-19"
+    assert forward["weekday"] == "Saturday"
+    assert forward["weekday_es"] == "sábado"
+    assert forward["iso_weekday"] == 6
+    assert backward["date"] == "2026-09-03"
 
 
-def test_add_duration_accepts_naive_datetime_in_default_timezone() -> None:
-    result = add_duration_to_datetime(
+def test_shift_datetime_accepts_naive_datetime_in_default_timezone() -> None:
+    result = shift_datetime(
         "2030-01-02T10:30:00",
         days=57,
         hours=2,
@@ -60,10 +67,22 @@ def test_add_duration_accepts_naive_datetime_in_default_timezone() -> None:
     assert result["datetime"] == "2030-02-28T12:45:00-03:00"
 
 
+def test_get_datetime_weekday_uses_explicit_date_without_arithmetic() -> None:
+    result = get_datetime_weekday(
+        "2026-12-25",
+        default_timezone="America/Argentina/Buenos_Aires",
+    )
+
+    assert result["date"] == "2026-12-25"
+    assert result["weekday"] == "Friday"
+    assert result["weekday_es"] == "viernes"
+    assert result["iso_weekday"] == 5
+
+
 def test_date_capability_owns_server_timezone(monkeypatch) -> None:
     monkeypatch.setenv("TZ", "UTC")
 
-    result = add_duration_to_datetime("2026-09-04", days=1)
+    result = shift_datetime("2026-09-04", days=1)
 
     assert result["datetime"] == "2026-09-05T00:00:00+00:00"
     assert result["timezone"] == "UTC"
@@ -73,7 +92,7 @@ def test_date_capability_owns_server_timezone(monkeypatch) -> None:
 async def test_tool_validation_error_is_returned_to_model() -> None:
     message = await run_tool_call(
         "call-1",
-        "add_duration_to_datetime",
+        "shift_datetime",
         json.dumps({"datetime": "not-a-date", "days": 2}),
         FakePortfolio(),
     )
@@ -104,7 +123,7 @@ async def test_tool_validation_rejects_unknown_arguments() -> None:
 async def test_tool_validation_rejects_wrong_integer_type() -> None:
     message = await run_tool_call(
         "call-3",
-        "add_duration_to_datetime",
+        "shift_datetime",
         json.dumps({"datetime": "2026-09-04", "days": "15"}),
         FakePortfolio(),
     )
