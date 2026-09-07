@@ -94,10 +94,7 @@ class ModelCapabilitySelector:
                 {"role": "user", "content": _gate_input(message, context)},
             ],
             tools=[_GATE_TOOL],
-            tool_choice={
-                "type": "function",
-                "function": {"name": "select_capabilities"},
-            },
+            tool_choice="required",
             parallel_tool_calls=False,
             temperature=0,
             max_tokens=64,
