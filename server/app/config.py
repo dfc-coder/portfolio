@@ -58,12 +58,12 @@ class Config:
                 )
             ),
             diagnostics_token=_optional(os.getenv("AGENT_DIAGNOSTICS_TOKEN")),
-            generation_temperature=float(os.getenv("GENERATION_TEMPERATURE", "0.70")),
-            generation_top_p=float(os.getenv("GENERATION_TOP_P", "0.80")),
-            generation_top_k=int(os.getenv("GENERATION_TOP_K", "20")),
+            generation_temperature=float(os.getenv("GENERATION_TEMPERATURE", "0.0")),
+            generation_top_p=float(os.getenv("GENERATION_TOP_P", "1.0")),
+            generation_top_k=int(os.getenv("GENERATION_TOP_K", "1")),
             generation_min_p=float(os.getenv("GENERATION_MIN_P", "0.0")),
             generation_presence_penalty=float(
-                os.getenv("GENERATION_PRESENCE_PENALTY", "1.5")
+                os.getenv("GENERATION_PRESENCE_PENALTY", "0.0")
             ),
             generation_repeat_penalty=float(os.getenv("GENERATION_REPEAT_PENALTY", "1.0")),
             generation_max_tokens=int(os.getenv("GENERATION_MAX_TOKENS", "256")),
