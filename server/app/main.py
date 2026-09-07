@@ -83,7 +83,7 @@ def create_app(config: Config | None = None, agent: Agent | None = None) -> Fast
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    app.include_router(create_router(agent))
+    app.include_router(create_router(agent, diagnostics_token=config.diagnostics_token))
 
     @app.get("/health")
     async def health() -> dict[str, bool]:
