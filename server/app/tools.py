@@ -47,10 +47,14 @@ GET_CURRENT_DATETIME_SCHEMA = {
     "function": {
         "name": "get_current_datetime",
         "description": (
-            "Return the actual current date and time for a timezone. Use it whenever the answer depends "
-            "on what date or time it is now, including relative requests such as 'in two weeks'. It "
-            "returns ISO datetime, date, weekday, Spanish weekday, and timezone fields. Treat those "
-            "returned values as authoritative rather than estimating the current time yourself."
+            "Return the actual current date and time for a timezone. Use this function only when the "
+            "requested answer depends on the present date or time, such as 'what date is it today?', "
+            "'what time is it now?', 'tomorrow', 'yesterday', 'in 2 hours', or 'in 7 days'. This function "
+            "does not perform relative date/time arithmetic. For a relative calculation, use the returned "
+            "datetime as the base for add_duration_to_datetime before answering. Do not use this function "
+            "for a fully specified calendar date, general knowledge, greetings, small talk, portfolio "
+            "questions, or capability questions. The returned date, time, weekday, and timezone are "
+            "authoritative."
         ),
         "parameters": {
             "type": "object",
@@ -73,10 +77,15 @@ ADD_DURATION_TO_DATETIME_SCHEMA = {
     "function": {
         "name": "add_duration_to_datetime",
         "description": (
-            "Add or subtract an exact duration from a supplied date or datetime. Use it for relative-date "
-            "arithmetic and for weekday lookup instead of calculating dates mentally. A zero duration is "
-            "valid when only the weekday of a known date is needed. It returns the exact resulting ISO "
-            "datetime, calendar date, weekday, Spanish weekday, and timezone. Reuse these values exactly."
+            "Deterministically shift a supplied date or datetime by a signed duration and return the "
+            "resulting datetime, calendar date, and weekday. Use positive values to move forward and "
+            "negative values to move backward. Use this function for relative date/time arithmetic such "
+            "as tomorrow, yesterday, 'in 15 days', '2 hours ago', or next week. Also use it to determine "
+            "the weekday of a fully specified date; a zero duration is valid for that purpose. When the "
+            "calculation is relative to the present, first obtain the actual current datetime with "
+            "get_current_datetime and pass that exact datetime as the base. When the visitor already "
+            "provides a fully specified date or datetime, use it directly and do not obtain the current "
+            "datetime. Do not calculate dates or weekdays mentally. Reuse the returned values exactly."
         ),
         "parameters": {
             "type": "object",
@@ -84,8 +93,8 @@ ADD_DURATION_TO_DATETIME_SCHEMA = {
                 "datetime": {
                     "type": "string",
                     "description": (
-                        "ISO-8601 date or datetime used as the calculation base, for example 2026-09-04 "
-                        "or 2026-09-04T19:00:00-03:00. Date-only or timezone-less values use the server "
+                        "ISO-8601 base date or datetime, for example 2026-12-25 or "
+                        "2026-09-07T12:30:00-03:00. Date-only or timezone-less values use the server "
                         "default timezone."
                     ),
                 },
@@ -93,19 +102,28 @@ ADD_DURATION_TO_DATETIME_SCHEMA = {
                     "type": "integer",
                     "minimum": -36500,
                     "maximum": 36500,
-                    "description": "Whole days to add or subtract. Omit for zero.",
+                    "description": (
+                        "Signed number of whole days to shift. Positive adds days; negative subtracts "
+                        "days. Omit for zero."
+                    ),
                 },
                 "hours": {
                     "type": "integer",
                     "minimum": -876000,
                     "maximum": 876000,
-                    "description": "Whole hours to add or subtract. Omit for zero.",
+                    "description": (
+                        "Signed number of whole hours to shift. Positive adds hours; negative subtracts "
+                        "hours. Omit for zero."
+                    ),
                 },
                 "minutes": {
                     "type": "integer",
                     "minimum": -52560000,
                     "maximum": 52560000,
-                    "description": "Whole minutes to add or subtract. Omit for zero.",
+                    "description": (
+                        "Signed number of whole minutes to shift. Positive adds minutes; negative "
+                        "subtracts minutes. Omit for zero."
+                    ),
                 },
             },
             "required": ["datetime"],
@@ -119,16 +137,25 @@ SET_REMINDER_MOCK_SCHEMA = {
     "function": {
         "name": "set_reminder_mock",
         "description": (
-            "Create a simulated reminder after its exact datetime has been resolved. Use it only when the "
-            "visitor explicitly asks to set or create a reminder. It returns a mock reminder identifier "
-            "and the supplied datetime/message, but it does not persist data or schedule a real reminder."
+            "Create a simulated, non-persistent reminder for an already resolved absolute datetime. Use "
+            "this function only when the visitor explicitly asks to create or set a reminder. A reminder "
+            "request is not complete until this function has been called. The datetime argument must "
+            "already be fully resolved. If the visitor specifies a relative time such as 'in 30 minutes', "
+            "'in 2 hours', or 'in 7 days', first resolve the absolute datetime using the available "
+            "date/time functions, then call this function. If the visitor already supplies a complete "
+            "ISO-8601 datetime, call this function directly. Do not merely tell the visitor when the "
+            "reminder would occur. This function does not persist data and does not schedule a real "
+            "reminder."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "datetime": {
                     "type": "string",
-                    "description": "Fully resolved ISO-8601 reminder datetime including a timezone offset.",
+                    "description": (
+                        "Fully resolved ISO-8601 reminder datetime including a timezone offset, for "
+                        "example 2026-09-10T15:00:00-03:00."
+                    ),
                 },
                 "message": {
                     "type": "string",
