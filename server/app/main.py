@@ -75,7 +75,7 @@ def create_app(config: Config | None = None, agent: Agent | None = None) -> Fast
         for client in clients:
             await client.close()
 
-    app = FastAPI(title="Portfolio Assistant", version="0.8.1", lifespan=lifespan)
+    app = FastAPI(title="Portfolio Assistant", version="0.8.2", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(config.allowed_origins),
