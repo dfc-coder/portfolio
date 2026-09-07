@@ -6,64 +6,54 @@ Branch: `feat/agent-live-eval`
 
 ## 1. Problem
 
-The live traces showed that the reliability issue was not a Python execution bug and not a multi-round runtime bug.
+The live traces separated four different failure modes that had previously been conflated:
 
-The failure was caused by an unnecessarily overlapping model-facing tool surface.
+1. deciding whether any tool is needed;
+2. selecting the correct capability;
+3. extracting the correct arguments;
+4. producing a final answer consistent with the tool result.
 
-With seven tools, Qwen had to distinguish between multiple capabilities that could all appear relevant to the same temporal request:
-
-```text
-get_current_datetime
-get_datetime_from_now
-shift_datetime
-get_weekday_for_explicit_date
-set_reminder_mock
-set_relative_reminder_mock
-search_portfolio
-```
-
-The traces showed concrete collisions:
+The latest traced smoke after reducing the public tool surface to three operations still exposed two structural problems:
 
 ```text
-tomorrow
--> get_current_datetime
+general joke
+-> search_portfolio twice
 
-yesterday weekday
--> get_weekday_for_explicit_date with an invented date
+explicit date
+-> resolve_datetime(base=now, huge offset)
 
-one week
--> get_current_datetime
-
-remind me in 30 minutes
--> get_datetime_from_now, then stop
-
-remind me in 2 hours
--> get_datetime_from_now
--> set_reminder_mock
+relative reminder
+-> resolve_datetime
+-> sometimes stops before creating the reminder
 ```
 
-The last case is important: Qwen successfully completed a dependent multi-round workflow. The generic `Agent` loop is therefore capable of multi-round tool execution.
+The explicit-date failures were not Python failures. The model-facing contract required `base`, `offset`, and `unit`, but made `datetime` only conditionally required in prose. Qwen could therefore emit a structurally valid `base=now` call while omitting the explicit date and trying to convert that date into a large offset.
 
-The tool surface, not the loop, was the primary design problem.
+The reminder traces also proved two things at once:
+
+- Qwen3.5-2B can execute dependent multi-round tool workflows;
+- a simple relative reminder should not require an artificial read-then-write chain when one action can resolve its own schedule deterministically.
+
+The generic `Agent` loop is therefore retained. The correction is in the capability contracts.
 
 ## 2. Design principles
 
-The correction follows the same public design philosophy that makes Go APIs easy to reason about:
+The design follows the same public principles that make Go APIs easy to reason about:
 
 - small public surface;
 - one obvious operation for one responsibility;
-- explicit data contracts;
-- no router when the API itself can be simpler;
-- no framework or registry to hide three straightforward operations;
+- one representation for one concept;
+- required state should be structurally required, not hidden in prose;
+- no artificial workflow when one operation owns the behavior;
 - deterministic validation in code;
-- model reasoning only where natural-language interpretation is unavoidable;
+- no router, planner, graph, registry, or semantic keyword rules;
 - observable failures instead of silent normalization.
 
-A little implementation code is preferable to multiple overlapping public abstractions.
+A small explicit API is preferred over more instructions explaining an ambiguous API.
 
-## 3. Decision
+## 3. Model-facing surface
 
-Reduce the model-facing tool surface from seven tools to three:
+The current scope requires three tools:
 
 ```text
 search_portfolio
@@ -71,107 +61,122 @@ resolve_datetime
 set_reminder_mock
 ```
 
-This is not a routing optimization. It is an API correction.
+The model chooses them directly from their schemas.
 
-The model still chooses tools directly from their schemas. There is no semantic router, keyword matching, planner, graph, or additional LLM call.
+## 4. Shared temporal representation
 
-## 4. Tool contracts
-
-### 4.1 `search_portfolio`
-
-Responsibility:
-
-> Retrieve factual evidence from the portfolio/CV.
-
-It remains unchanged.
-
-### 4.2 `resolve_datetime`
-
-Responsibility:
-
-> Deterministically resolve current, relative, or supplied date/time values.
-
-It is read-only.
-
-Schema shape:
+Both temporal tools use the same anchor representation:
 
 ```json
 {
-  "base": "now | provided",
-  "datetime": "optional ISO-8601 input",
+  "reference": "now | ISO-8601 date/datetime",
   "offset": 0,
-  "unit": "minutes | hours | days | weeks",
-  "timezone": "optional IANA timezone"
+  "unit": "minutes | hours | days | weeks"
 }
 ```
 
 Rules:
 
 ```text
-base=now
-    datetime must be omitted
+reference="now"
+    the request contains no explicit calendar date/datetime
 
-base=provided
-    datetime must be copied from the request
+reference=<ISO-8601 value>
+    the request contains an explicit calendar date/datetime
 
 offset=0
-    no arithmetic
+    resolve the reference itself
 
 offset!=0
-    shift the selected base
+    shift the reference by the signed duration
 ```
 
-Examples of semantics:
+There is no separate `base` classifier and no conditionally required `datetime` field.
+
+This matters because an explicit date can no longer be represented as:
 
 ```text
-today
--> base=now, offset=0
-
-tomorrow
--> base=now, +1 day
-
-yesterday
--> base=now, -1 day
-
-one week from now
--> base=now, +1 week
-   or any semantically equivalent duration
-
-weekday of a supplied date
--> base=provided, datetime=<supplied date>, offset=0
-
-five days after a supplied date
--> base=provided, datetime=<supplied date>, +5 days
+base=now
++ invented offset
++ omitted datetime
 ```
 
-The evaluator compares duration semantics, not a preferred serialization. `2 hours` and `120 minutes` are equivalent.
+The explicit date itself must occupy the required `reference` slot.
 
-### 4.3 `set_reminder_mock`
+## 5. Tool contracts
+
+### 5.1 `search_portfolio`
 
 Responsibility:
 
-> Create a simulated reminder for an absolute datetime.
+> Retrieve factual evidence specifically about the portfolio subject.
 
-It does not resolve relative time.
+Its schema explicitly excludes general conversation, jokes, creative requests, definitions, and generic knowledge. This boundary belongs in the tool schema because it defines the tool's applicability.
 
-For an explicit absolute reminder:
+### 5.2 `resolve_datetime`
+
+Responsibility:
+
+> Resolve a date/time value without side effects.
+
+Examples:
 
 ```text
-user
--> set_reminder_mock
+today
+-> reference="now", offset=0
+
+tomorrow
+-> reference="now", offset=1, unit="days"
+
+yesterday
+-> reference="now", offset=-1, unit="days"
+
+one week from now
+-> reference="now", offset=1, unit="weeks"
+   or any semantically equivalent duration
+
+weekday of 2026-12-25
+-> reference="2026-12-25", offset=0
+
+five days after 2026-12-25
+-> reference="2026-12-25", offset=5, unit="days"
 ```
 
-For a relative reminder:
+The model may normalize equivalent durations differently. The evaluator compares duration semantics rather than serialization.
+
+### 5.3 `set_reminder_mock`
+
+Responsibility:
+
+> Create a simulated reminder and resolve its schedule in the same operation.
+
+Relative reminder:
 
 ```text
-user
--> resolve_datetime
--> set_reminder_mock
+remind me in 30 minutes
+-> set_reminder_mock(
+     reference="now",
+     offset=30,
+     unit="minutes",
+     message=...
+   )
 ```
 
-This is a real dependency and therefore a valid multi-round workflow.
+Explicit reminder:
 
-The reminder result explicitly states:
+```text
+remind me at 2026-09-10T15:00:00-03:00
+-> set_reminder_mock(
+     reference="2026-09-10T15:00:00-03:00",
+     offset=0,
+     unit="minutes",
+     message=...
+   )
+```
+
+A separate `resolve_datetime` call is unnecessary for these requests.
+
+The result remains explicit about its mock behavior:
 
 ```json
 {
@@ -181,103 +186,63 @@ The reminder result explicitly states:
 }
 ```
 
-No real notification is created.
+## 6. Multi-round behavior
 
-## 5. Why the previous design failed
+Multi-round tool execution remains supported by the generic `Agent` loop.
 
-### 5.1 Tool-selection overlap
+It should be used when a later operation genuinely depends on data produced by an earlier operation. It is not used merely to decompose a capability that can own its deterministic calculation itself.
 
-The traces proved that descriptions alone were not enough to make Qwen consistently distinguish:
+Therefore:
 
 ```text
-current moment
-relative moment
-weekday
-date arithmetic
-relative reminder
+multi-round support: retained
+relative reminder requiring two calls: removed
 ```
 
-because several tools represented overlapping portions of the same temporal domain.
+No server-side planner is introduced.
 
-Adding more prose to each schema would increase instruction density without removing the competing affordances.
+## 7. Runtime implementation
 
-The correction removes the overlap.
-
-### 5.2 Parameter representation
-
-The previous `days/hours/minutes` contract encoded the unit in the property name.
-
-The intermediate `offset + unit` contract was structurally better, but the evaluator incorrectly treated equivalent representations as different:
+Temporal resolution is shared internally through a deterministic helper:
 
 ```text
-2 hours
-120 minutes
+reference
+  -> "now" => current zoned datetime
+  -> otherwise => parse ISO-8601 value
+  -> apply signed offset
 ```
 
-For correctness, these represent the same duration.
-
-The runtime keeps `offset + unit`; the evaluator normalizes them to seconds when comparing expected behavior.
-
-### 5.3 Multi-round
-
-The traces do not support the claim that Qwen3.5-2B cannot execute multi-round workflows.
-
-A reminder case successfully executed:
+Public behavior remains explicit:
 
 ```text
-resolve relative target
--> create absolute reminder
--> final response
+resolve_datetime
+    -> resolve reference
+    -> return date/time details
+
+set_reminder_mock
+    -> resolve reference
+    -> return simulated reminder result
 ```
 
-Therefore multi-round remains part of the architecture when a real data dependency exists.
+Internal helper reuse does not change the model-facing separation of responsibilities.
 
-## 6. Runtime architecture
+## 8. Global prompt responsibility
 
-Unchanged:
+Tool descriptions remain in the tool schemas.
 
-```text
-visitor
-  -> API
-  -> Agent
-      -> Qwen + tool schemas
-      -> tool call?
-          -> Python validates and executes
-          -> assistant tool call + tool result appended
-          -> next model round
-      -> final answer
-```
-
-`Agent` remains generic.
-
-It does not know that a reminder needs a date calculation.
-
-That behavior comes from the model-facing tool contracts.
-
-## 7. Final-answer grounding
-
-The traces also exposed a separate issue: Qwen could receive a correct structured result and then alter or contradict it in natural language.
-
-Examples included:
+The system prompt contains only shared operating policy:
 
 ```text
-tool result: will_notify=false
-final answer: notification will be sent automatically
-```
-
-The global prompt therefore contains only shared result-grounding policy:
-
-```text
+Use an external capability only when the request requires information or an action it provides.
 Use exact values returned by external capabilities.
-Do not recalculate, replace, or contradict them.
 Do not claim side effects beyond what a capability result confirms.
 ```
 
-This is not a duplicate of any tool schema. It is a general response invariant.
+It does not enumerate tools or duplicate their contracts.
 
-## 8. Evaluation contract
+## 9. Evaluation contract
 
-The local evaluator now separates:
+The live evaluator reports separately:
 
 ```text
 tool selection
@@ -286,30 +251,20 @@ tool execution
 answer presence
 ```
 
-It also validates:
+It consumes the diagnostic trace, including exact tool arguments and results.
 
-### Semantic duration equivalence
+Semantic durations are normalized:
 
 ```text
 2 hours == 120 minutes
 1 week == 7 days
 ```
 
-### Multi-round value propagation
+A successful Python call with the wrong schedule is still an evaluation failure.
 
-For relative reminders:
+## 10. Non-goals
 
-```text
-resolve_datetime.result.datetime
-==
-set_reminder_mock.arguments.datetime
-```
-
-A reminder that uses an invented target datetime fails even if both tools execute successfully.
-
-## 9. Non-goals
-
-This correction does not add:
+This design does not add:
 
 - router;
 - planner;
@@ -317,27 +272,14 @@ This correction does not add:
 - dynamic tool retrieval;
 - tool registry;
 - server-side semantic keyword rules;
+- another LLM call;
 - model upgrade;
 - sampling changes;
 - PocketTrace as a correctness dependency.
 
-## 10. Model-facing surface
-
-Final surface for the current agent scope:
-
-```text
-1. search_portfolio
-2. resolve_datetime
-3. set_reminder_mock
-```
-
-Three tools are sufficient for the current requirements.
-
-Additional tools should be added only when a genuinely new external capability exists, not to represent another linguistic variation of an existing operation.
-
 ## 11. Validation
 
-Run:
+Run the focused regression gate first:
 
 ```bash
 cd server
@@ -347,12 +289,10 @@ make up
 make eval-smoke
 ```
 
-The smoke is the immediate regression gate.
-
-After the smoke is clean, run the full 50-case checkpoint:
+If the smoke is clean, run the full checkpoint:
 
 ```bash
 make eval-strict
 ```
 
-The local live run remains the source of truth for tool calls, arguments, execution results, round sequencing, provider metadata, and latency.
+The live trace is the source of truth for tool calls, arguments, execution results, model rounds, provider metadata, and latency.
