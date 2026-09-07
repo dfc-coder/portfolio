@@ -1,11 +1,13 @@
+import datetime as dt
 import json
+from zoneinfo import ZoneInfo
 
 import pytest
 
 from app.tools import (
     TOOLS,
-    get_datetime_weekday,
     get_relative_datetime,
+    get_weekday_for_explicit_date,
     run_tool_call,
     set_relative_reminder_mock,
     shift_datetime,
@@ -29,6 +31,7 @@ def test_tool_schemas_are_explicit_json_schema() -> None:
         "set_reminder_mock",
         "set_relative_reminder_mock",
     ]
+
     for tool in TOOLS:
         function = tool["function"]
         parameters = function["parameters"]
@@ -41,7 +44,7 @@ def test_tool_schemas_are_explicit_json_schema() -> None:
 
     assert TOOLS[0]["function"]["parameters"]["required"] == ["query"]
     assert TOOLS[3]["function"]["parameters"]["required"] == ["datetime"]
-    assert TOOLS[4]["function"]["parameters"]["required"] == ["datetime"]
+    assert TOOLS[4]["function"]["parameters"]["required"] == ["date"]
     assert TOOLS[5]["function"]["parameters"]["required"] == ["datetime", "message"]
     assert TOOLS[6]["function"]["parameters"]["required"] == ["message"]
 
@@ -77,30 +80,23 @@ def test_shift_datetime_accepts_naive_datetime_in_default_timezone() -> None:
     assert result["datetime"] == "2030-02-28T12:45:00-03:00"
 
 
-def test_get_relative_datetime_uses_current_time(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "app.tools.get_current_datetime",
-        lambda timezone=None: {
-            "datetime": "2026-09-07T13:00:00-03:00",
-            "date": "2026-09-07",
-            "weekday": "Monday",
-            "weekday_es": "lunes",
-            "iso_weekday": 1,
-            "timezone": timezone or "America/Argentina/Buenos_Aires",
-        },
-    )
+def test_get_relative_datetime_uses_current_time() -> None:
+    zone = ZoneInfo("America/Argentina/Buenos_Aires")
+    before = dt.datetime.now(zone) + dt.timedelta(days=1)
 
     result = get_relative_datetime(
         days=1,
         timezone="America/Argentina/Buenos_Aires",
     )
 
-    assert result["datetime"] == "2026-09-08T13:00:00-03:00"
-    assert result["weekday_es"] == "martes"
+    after = dt.datetime.now(zone) + dt.timedelta(days=1)
+    actual = dt.datetime.fromisoformat(str(result["datetime"]))
+    assert before.replace(microsecond=0) <= actual <= after.replace(microsecond=0)
+    assert result["timezone"] == "America/Argentina/Buenos_Aires"
 
 
-def test_get_datetime_weekday_uses_explicit_date_without_arithmetic() -> None:
-    result = get_datetime_weekday(
+def test_get_weekday_for_explicit_date_has_no_relative_arithmetic() -> None:
+    result = get_weekday_for_explicit_date(
         "2026-12-25",
         default_timezone="America/Argentina/Buenos_Aires",
     )
@@ -111,24 +107,29 @@ def test_get_datetime_weekday_uses_explicit_date_without_arithmetic() -> None:
     assert result["iso_weekday"] == 5
 
 
-def test_relative_reminder_resolves_target_before_creation(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "app.tools.get_relative_datetime",
-        lambda **_: {
-            "datetime": "2026-09-07T15:00:00-03:00",
-            "date": "2026-09-07",
-            "weekday": "Monday",
-            "weekday_es": "lunes",
-            "iso_weekday": 1,
-            "timezone": "America/Argentina/Buenos_Aires",
-        },
+def test_relative_reminder_resolves_target_from_now() -> None:
+    zone = ZoneInfo("America/Argentina/Buenos_Aires")
+    before = dt.datetime.now(zone) + dt.timedelta(hours=2)
+
+    result = set_relative_reminder_mock(
+        "Enviar el CV",
+        hours=2,
+        timezone="America/Argentina/Buenos_Aires",
     )
 
-    result = set_relative_reminder_mock("Enviar el CV", hours=2)
-
-    assert result["datetime"] == "2026-09-07T15:00:00-03:00"
+    after = dt.datetime.now(zone) + dt.timedelta(hours=2)
+    actual = dt.datetime.fromisoformat(str(result["datetime"]))
+    assert before.replace(microsecond=0) <= actual <= after.replace(microsecond=0)
     assert result["message"] == "Enviar el CV"
     assert result["persisted"] is False
+
+
+def test_relative_and_shift_capabilities_require_an_offset() -> None:
+    with pytest.raises(ValueError, match="non-zero time offset"):
+        get_relative_datetime()
+
+    with pytest.raises(ValueError, match="non-zero time offset"):
+        shift_datetime("2026-09-04")
 
 
 def test_date_capability_owns_server_timezone(monkeypatch) -> None:
