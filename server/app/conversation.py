@@ -58,7 +58,9 @@ class ConversationStore:
             )
 
     def _replace(self, conversation_id: str, messages: list[dict[str, Any]]) -> None:
-        self._messages[conversation_id] = copy.deepcopy(messages[-self._max_messages :])
+        self._messages[conversation_id] = copy.deepcopy(
+            _trim_messages(messages, self._max_messages)
+        )
         self._messages.move_to_end(conversation_id)
         self._prune()
 
@@ -66,6 +68,19 @@ class ConversationStore:
         while len(self._messages) > self._max_conversations:
             conversation_id, _ = self._messages.popitem(last=False)
             self._locks.pop(conversation_id, None)
+
+
+def _trim_messages(
+    messages: list[dict[str, Any]],
+    max_messages: int,
+) -> list[dict[str, Any]]:
+    if len(messages) <= max_messages:
+        return messages
+
+    start = len(messages) - max_messages
+    while start < len(messages) and messages[start].get("role") != "user":
+        start += 1
+    return messages[start:]
 
 
 def _conversation_id(value: str | None) -> str:
