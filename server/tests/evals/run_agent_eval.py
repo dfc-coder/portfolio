@@ -18,6 +18,7 @@ DEFAULT_BASE_URL = os.getenv("AGENT_API_URL", "http://localhost:8000")
 DEFAULT_CASES = Path(__file__).with_name("agent_cases.jsonl")
 DEFAULT_RESULTS = Path(__file__).with_name("results") / "latest.json"
 DEFAULT_QWENCLOUD = Path(__file__).with_name("results") / "qwencloud.jsonl"
+SERVER_ENV = Path(__file__).resolve().parents[2] / ".env"
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,7 @@ class AgentRun:
     output: str
     tools: list[str]
     tool_failures: list[str]
+    trace: dict[str, Any] | None
     latency_ms: float
     error: str | None
 
@@ -56,6 +58,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--results", type=Path, default=DEFAULT_RESULTS)
     parser.add_argument("--qwencloud", type=Path, default=DEFAULT_QWENCLOUD)
     parser.add_argument("--timeout", type=float, default=120.0)
+    parser.add_argument("--diagnostics-token", default=_diagnostics_token())
     parser.add_argument(
         "--case",
         dest="case_ids",
@@ -121,18 +124,26 @@ async def run_agent(
     client: httpx.AsyncClient,
     base_url: str,
     case: EvalCase,
+    diagnostics_token: str | None,
 ) -> AgentRun:
     started = time.perf_counter()
     output_parts: list[str] = []
     tools: list[str] = []
     tool_failures: list[str] = []
+    trace: dict[str, Any] | None = None
     error: str | None = None
     event_name: str | None = None
+    headers = (
+        {"x-agent-diagnostics-token": diagnostics_token}
+        if diagnostics_token
+        else None
+    )
 
     async with client.stream(
         "POST",
         f"{base_url.rstrip('/')}/v1/chat/stream",
         json={"message": case.message, "context": case.context},
+        headers=headers,
     ) as response:
         response.raise_for_status()
 
@@ -157,13 +168,19 @@ async def run_agent(
             elif event_name == "tool" and payload.get("state") == "done":
                 if not bool(payload.get("ok")):
                     tool_failures.append(str(payload.get("name", "")))
+            elif event_name == "trace":
+                trace = payload
             elif event_name == "error":
                 error = str(payload.get("message", "unknown error"))
+
+    if diagnostics_token and trace is None and error is None:
+        error = "diagnostic trace missing"
 
     return AgentRun(
         output="".join(output_parts).strip(),
         tools=tools,
         tool_failures=tool_failures,
+        trace=trace,
         latency_ms=(time.perf_counter() - started) * 1000,
         error=error,
     )
@@ -202,18 +219,20 @@ async def evaluate_all(
     *,
     base_url: str,
     timeout: float,
+    diagnostics_token: str | None,
 ) -> list[CaseResult]:
     timeout_config = httpx.Timeout(timeout)
     async with httpx.AsyncClient(timeout=timeout_config) as client:
         results: list[CaseResult] = []
         for index, case in enumerate(cases, start=1):
             try:
-                run = await run_agent(client, base_url, case)
+                run = await run_agent(client, base_url, case, diagnostics_token)
             except Exception as exc:
                 run = AgentRun(
                     output="",
                     tools=[],
                     tool_failures=[],
+                    trace=None,
                     latency_ms=0.0,
                     error=f"{type(exc).__name__}: {exc}",
                 )
@@ -226,6 +245,7 @@ async def evaluate_all(
                 f"[{index:02d}/{len(cases):02d}] {status} "
                 f"{case.case_id} tools={run.tools} {run.latency_ms:.0f}ms"
             )
+            _print_trace(run.trace)
             if result.reasons:
                 for reason in result.reasons:
                     print(f"  - {reason}")
@@ -310,6 +330,7 @@ def write_outputs(
                 "latency_ms": round(result.run.latency_ms, 2),
                 "output": result.run.output,
                 "completion": result.case.completion,
+                "trace": result.run.trace,
             }
             for result in results
         ],
@@ -372,10 +393,55 @@ def print_summary(summary: dict[str, Any]) -> None:
         print(f"  {category}: {item['passed']}/{item['cases']} ({item['pass_rate']:.1%})")
 
 
+def _print_trace(trace: dict[str, Any] | None) -> None:
+    if not trace:
+        return
+
+    for round_trace in trace.get("rounds", []):
+        response = round_trace.get("response", {})
+        usage = response.get("usage")
+        timings = response.get("timings")
+        print(
+            f"  round={round_trace.get('round')} finish={response.get('finish_reason')} "
+            f"duration_ms={response.get('duration_ms')} usage={usage} timings={timings}"
+        )
+        for call in round_trace.get("tool_calls", []):
+            arguments = json.dumps(call.get("arguments"), ensure_ascii=False, separators=(",", ":"))
+            print(
+                f"    tool={call.get('name')} args={arguments} ok={call.get('ok')} "
+                f"duration_ms={call.get('duration_ms')}"
+            )
+
+
+def _diagnostics_token() -> str | None:
+    value = os.getenv("AGENT_DIAGNOSTICS_TOKEN")
+    if value and value.strip():
+        return value.strip()
+
+    if not SERVER_ENV.exists():
+        return None
+
+    for raw in SERVER_ENV.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        if name.strip() != "AGENT_DIAGNOSTICS_TOKEN":
+            continue
+        value = value.strip().strip('"').strip("'")
+        return value or None
+    return None
+
+
 async def async_main() -> int:
     args = parse_args()
     cases = select_cases(load_cases(args.cases), args.case_ids)
-    results = await evaluate_all(cases, base_url=args.base_url, timeout=args.timeout)
+    results = await evaluate_all(
+        cases,
+        base_url=args.base_url,
+        timeout=args.timeout,
+        diagnostics_token=args.diagnostics_token,
+    )
     summary = write_outputs(
         results,
         results_path=args.results,
