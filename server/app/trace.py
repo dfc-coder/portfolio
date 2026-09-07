@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -20,7 +21,9 @@ class TurnTrace:
         self._started = time.perf_counter()
         self.data: dict[str, Any] = {
             "trace_id": str(uuid4()),
-            "started_at": _utc_now(),
+            "started_at": utc_now(),
+            "finished_at": None,
+            "duration_ms": None,
             "status": "running",
             "input": {
                 "message": message,
@@ -33,9 +36,8 @@ class TurnTrace:
             "tools": copy.deepcopy(tools),
             "rounds": [],
             "output": None,
-            "context": None,
+            "returned_context": None,
             "error": None,
-            "duration_ms": None,
         }
 
     def start_round(self, number: int, messages: list[dict[str, Any]]) -> dict[str, Any]:
@@ -44,11 +46,13 @@ class TurnTrace:
             "request_messages": copy.deepcopy(messages),
             "response": {
                 "id": None,
+                "object": None,
                 "model": None,
                 "created": None,
                 "system_fingerprint": None,
                 "finish_reason": None,
                 "usage": None,
+                "timings": None,
                 "provider": {},
                 "content": "",
                 "chunk_count": 0,
@@ -56,6 +60,7 @@ class TurnTrace:
                 "first_text_ms": None,
                 "duration_ms": None,
             },
+            "assistant_message": None,
             "tool_calls": [],
             "_started": time.perf_counter(),
         }
@@ -63,8 +68,9 @@ class TurnTrace:
         return round_trace
 
     def finish_round(self, round_trace: dict[str, Any]) -> None:
-        started = float(round_trace.pop("_started"))
-        round_trace["response"]["duration_ms"] = _elapsed_ms(started)
+        started = round_trace.pop("_started", None)
+        if started is not None and round_trace["response"]["duration_ms"] is None:
+            round_trace["response"]["duration_ms"] = elapsed_ms(float(started))
 
     def finish(
         self,
@@ -72,14 +78,17 @@ class TurnTrace:
         status: str,
         output: str | None = None,
         context: list[dict[str, Any]] | None = None,
-        error: str | None = None,
+        error: dict[str, str] | None = None,
     ) -> dict[str, Any]:
+        for round_trace in self.data["rounds"]:
+            self.finish_round(round_trace)
+
         self.data["status"] = status
         self.data["output"] = output
-        self.data["context"] = copy.deepcopy(context)
-        self.data["error"] = error
-        self.data["finished_at"] = _utc_now()
-        self.data["duration_ms"] = _elapsed_ms(self._started)
+        self.data["returned_context"] = copy.deepcopy(context)
+        self.data["error"] = copy.deepcopy(error)
+        self.data["finished_at"] = utc_now()
+        self.data["duration_ms"] = elapsed_ms(self._started)
         return copy.deepcopy(self.data)
 
 
@@ -95,18 +104,16 @@ def chunk_metadata(chunk: object) -> dict[str, Any]:
     return payload
 
 
-def parsed_json(value: str) -> object | None:
-    import json
-
+def parse_json(value: str) -> object | None:
     try:
         return json.loads(value)
     except (json.JSONDecodeError, TypeError):
         return None
 
 
-def _utc_now() -> str:
+def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
 
-def _elapsed_ms(started: float) -> float:
+def elapsed_ms(started: float) -> float:
     return round((time.perf_counter() - started) * 1000, 3)
