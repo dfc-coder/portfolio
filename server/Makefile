@@ -1,4 +1,4 @@
-.PHONY: install test check run up down logs
+.PHONY: install test check run up down logs eval eval-strict
 
 install:
 	uv sync --extra test
@@ -21,3 +21,9 @@ down:
 
 logs:
 	podman compose logs -f api
+
+eval:
+	uv run python tests/evals/run_agent_eval.py
+
+eval-strict:
+	uv run python tests/evals/run_agent_eval.py --strict
