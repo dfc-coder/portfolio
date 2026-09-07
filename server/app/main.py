@@ -10,6 +10,7 @@ from openai import AsyncOpenAI
 
 from .agent import Agent
 from .api.router import create_router
+from .capabilities import ModelCapabilitySelector
 from .config import Config
 from .portfolio import Portfolio
 
@@ -58,6 +59,7 @@ def create_app(config: Config | None = None, agent: Agent | None = None) -> Fast
             chat,
             portfolio,
             model=config.llama_model,
+            capability_selector=ModelCapabilitySelector(chat, model=config.llama_model),
             temperature=config.generation_temperature,
             top_p=config.generation_top_p,
             top_k=config.generation_top_k,
@@ -75,7 +77,7 @@ def create_app(config: Config | None = None, agent: Agent | None = None) -> Fast
         for client in clients:
             await client.close()
 
-    app = FastAPI(title="Portfolio Assistant", version="0.7.0", lifespan=lifespan)
+    app = FastAPI(title="Portfolio Assistant", version="0.8.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(config.allowed_origins),
