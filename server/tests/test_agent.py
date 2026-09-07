@@ -85,14 +85,18 @@ def returned_context(events):
     return payloads[0]["messages"]
 
 
-def test_prompting_v4_starts_with_direct_task_and_bounds_dynamic_subject() -> None:
+def test_prompt_keeps_tool_mechanics_out_of_system_instructions() -> None:
     system = build_messages("Diego", [], "hola")[0]["content"]
 
-    assert system.startswith("Answer the visitor's message directly, accurately, and concisely.")
-    assert "# Context#" in system
-    assert "# Tool strategy#" in system
-    assert "# Response#" in system
-    assert "# Examples#" in system
+    assert system.startswith("#Context#")
+    assert "#Objective#" in system
+    assert "#Response#" in system
+    assert "#Examples#" in system
+    assert "#Tool strategy#" not in system
+    assert "get_current_datetime" not in system
+    assert "shift_datetime" not in system
+    assert "get_datetime_weekday" not in system
+    assert "set_reminder_mock" not in system
     assert "<portfolio_subject>" in system
     assert "<name>Diego</name>" in system
 
@@ -203,8 +207,8 @@ async def test_agent_runs_multi_round_tool_chain() -> None:
                     tool_calls=[
                         tool_delta(
                             0,
-                            call_id="call-add",
-                            name="add_duration_to_datetime",
+                            call_id="call-shift",
+                            name="shift_datetime",
                             arguments=json.dumps(
                                 {
                                     "datetime": "2030-01-01T10:00:00-03:00",
@@ -259,13 +263,13 @@ async def test_agent_runs_multi_round_tool_chain() -> None:
     ]
     assert running_tools == [
         "get_current_datetime",
-        "add_duration_to_datetime",
+        "shift_datetime",
         "set_reminder_mock",
     ]
 
     final_messages = chat.chat.completions.requests[-1]["messages"]
     tool_ids = [item["tool_call_id"] for item in final_messages if item["role"] == "tool"]
-    assert tool_ids == ["call-now", "call-add", "call-reminder"]
+    assert tool_ids == ["call-now", "call-shift", "call-reminder"]
 
 
 @pytest.mark.asyncio
@@ -284,7 +288,7 @@ async def test_agent_returns_multiple_tool_results_in_one_round() -> None:
                         tool_delta(
                             1,
                             call_id="call-date",
-                            name="add_duration_to_datetime",
+                            name="shift_datetime",
                             arguments=json.dumps(
                                 {
                                     "datetime": "2030-01-01T10:00:00-03:00",
@@ -326,7 +330,7 @@ async def test_agent_carries_tool_results_into_follow_up_turn() -> None:
                         tool_delta(
                             0,
                             call_id="call-date",
-                            name="add_duration_to_datetime",
+                            name="shift_datetime",
                             arguments=json.dumps(
                                 {
                                     "datetime": "2026-09-04T19:00:00-03:00",
