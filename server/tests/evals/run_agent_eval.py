@@ -22,22 +22,33 @@ SERVER_ENV = Path(__file__).resolve().parents[2] / ".env"
 
 
 @dataclass(frozen=True)
+class ExpectedCall:
+    name: str
+    arguments: dict[str, Any] | None
+
+
+@dataclass(frozen=True)
 class EvalCase:
     case_id: str
     category: str
     message: str
     context: list[dict[str, Any]]
-    expected_tools: list[str]
-    forbidden_tools: list[str]
-    tool_order: str
+    expected_calls: list[ExpectedCall]
+    call_order: str
     completion: str
+
+
+@dataclass(frozen=True)
+class ObservedCall:
+    name: str
+    arguments: dict[str, Any] | None
+    ok: bool | None
 
 
 @dataclass(frozen=True)
 class AgentRun:
     output: str
-    tools: list[str]
-    tool_failures: list[str]
+    calls: list[ObservedCall]
     trace: dict[str, Any] | None
     latency_ms: float
     error: str | None
@@ -48,6 +59,9 @@ class CaseResult:
     case: EvalCase
     run: AgentRun
     passed: bool
+    selection_correct: bool
+    arguments_correct: bool
+    execution_correct: bool
     reasons: list[str]
 
 
@@ -83,9 +97,18 @@ def load_cases(path: Path) -> list[EvalCase]:
         if not case_id or case_id in seen:
             raise ValueError(f"Invalid or duplicate id at {path}:{line_number}: {case_id!r}")
 
-        tool_order = str(payload.get("tool_order", "exact"))
-        if tool_order not in {"exact", "any"}:
-            raise ValueError(f"Invalid tool_order for {case_id}: {tool_order!r}")
+        call_order = str(payload.get("call_order", "exact"))
+        if call_order not in {"exact", "any"}:
+            raise ValueError(f"Invalid call_order for {case_id}: {call_order!r}")
+
+        expected_calls = []
+        for item in payload.get("expected_calls", []):
+            if not isinstance(item, dict) or not isinstance(item.get("name"), str):
+                raise ValueError(f"Invalid expected call for {case_id}: {item!r}")
+            arguments = item.get("arguments")
+            if arguments is not None and not isinstance(arguments, dict):
+                raise ValueError(f"Invalid expected arguments for {case_id}: {arguments!r}")
+            expected_calls.append(ExpectedCall(name=item["name"], arguments=arguments))
 
         cases.append(
             EvalCase(
@@ -93,9 +116,8 @@ def load_cases(path: Path) -> list[EvalCase]:
                 category=str(payload["category"]),
                 message=str(payload["message"]).strip(),
                 context=list(payload.get("context", [])),
-                expected_tools=list(payload.get("expected_tools", [])),
-                forbidden_tools=list(payload.get("forbidden_tools", [])),
-                tool_order=tool_order,
+                expected_calls=expected_calls,
+                call_order=call_order,
                 completion=str(payload.get("completion", "")).strip(),
             )
         )
@@ -128,8 +150,7 @@ async def run_agent(
 ) -> AgentRun:
     started = time.perf_counter()
     output_parts: list[str] = []
-    tools: list[str] = []
-    tool_failures: list[str] = []
+    streamed_tools: list[ObservedCall] = []
     trace: dict[str, Any] | None = None
     error: str | None = None
     event_name: str | None = None
@@ -164,10 +185,9 @@ async def run_agent(
             if event_name == "token":
                 output_parts.append(str(payload.get("text", "")))
             elif event_name == "tool" and payload.get("state") == "running":
-                tools.append(str(payload.get("name", "")))
-            elif event_name == "tool" and payload.get("state") == "done":
-                if not bool(payload.get("ok")):
-                    tool_failures.append(str(payload.get("name", "")))
+                streamed_tools.append(
+                    ObservedCall(name=str(payload.get("name", "")), arguments=None, ok=None)
+                )
             elif event_name == "trace":
                 trace = payload
             elif event_name == "error":
@@ -176,24 +196,83 @@ async def run_agent(
     if diagnostics_token and trace is None and error is None:
         error = "diagnostic trace missing"
 
+    calls = _calls_from_trace(trace) if trace is not None else streamed_tools
     return AgentRun(
         output="".join(output_parts).strip(),
-        tools=tools,
-        tool_failures=tool_failures,
+        calls=calls,
         trace=trace,
         latency_ms=(time.perf_counter() - started) * 1000,
         error=error,
     )
 
 
-def tools_match(case: EvalCase, actual: list[str]) -> bool:
-    if case.tool_order == "any":
-        return Counter(case.expected_tools) == Counter(actual)
-    return case.expected_tools == actual
+def _calls_from_trace(trace: dict[str, Any]) -> list[ObservedCall]:
+    calls: list[ObservedCall] = []
+    for round_trace in trace.get("rounds", []):
+        for call in round_trace.get("tool_calls", []):
+            arguments = call.get("arguments")
+            calls.append(
+                ObservedCall(
+                    name=str(call.get("name", "")),
+                    arguments=arguments if isinstance(arguments, dict) else None,
+                    ok=bool(call.get("ok")),
+                )
+            )
+    return calls
+
+
+def _selection_matches(case: EvalCase, calls: list[ObservedCall]) -> bool:
+    expected = [call.name for call in case.expected_calls]
+    actual = [call.name for call in calls]
+    if case.call_order == "any":
+        return Counter(expected) == Counter(actual)
+    return expected == actual
+
+
+def _arguments_subset(expected: dict[str, Any] | None, actual: dict[str, Any] | None) -> bool:
+    if expected is None:
+        return True
+    if actual is None:
+        return False
+    return all(actual.get(key) == value for key, value in expected.items())
+
+
+def _arguments_match(case: EvalCase, calls: list[ObservedCall]) -> bool:
+    if not _selection_matches(case, calls):
+        return False
+
+    if case.call_order == "exact":
+        return all(
+            _arguments_subset(expected.arguments, actual.arguments)
+            for expected, actual in zip(case.expected_calls, calls, strict=True)
+        )
+
+    remaining = list(calls)
+    for expected in case.expected_calls:
+        index = next(
+            (
+                i
+                for i, actual in enumerate(remaining)
+                if actual.name == expected.name
+                and _arguments_subset(expected.arguments, actual.arguments)
+            ),
+            None,
+        )
+        if index is None:
+            return False
+        remaining.pop(index)
+    return not remaining
+
+
+def _execution_matches(calls: list[ObservedCall]) -> bool:
+    return all(call.ok is not False for call in calls)
 
 
 def evaluate_case(case: EvalCase, run: AgentRun) -> CaseResult:
     reasons: list[str] = []
+    selection_correct = _selection_matches(case, run.calls)
+    arguments_correct = _arguments_match(case, run.calls)
+    execution_correct = _execution_matches(run.calls)
 
     if run.error:
         reasons.append(f"agent error: {run.error}")
@@ -201,17 +280,32 @@ def evaluate_case(case: EvalCase, run: AgentRun) -> CaseResult:
     if not run.output:
         reasons.append("empty final answer")
 
-    if not tools_match(case, run.tools):
-        reasons.append(f"tools expected={case.expected_tools!r} actual={run.tools!r}")
+    if not selection_correct:
+        reasons.append(
+            "tools expected="
+            f"{[call.name for call in case.expected_calls]!r} "
+            f"actual={[call.name for call in run.calls]!r}"
+        )
+    elif not arguments_correct:
+        reasons.append(
+            "arguments expected="
+            f"{[call.arguments for call in case.expected_calls]!r} "
+            f"actual={[call.arguments for call in run.calls]!r}"
+        )
 
-    forbidden = sorted(set(run.tools) & set(case.forbidden_tools))
-    if forbidden:
-        reasons.append(f"forbidden tools called={forbidden!r}")
+    if not execution_correct:
+        failed = [call.name for call in run.calls if call.ok is False]
+        reasons.append(f"tool execution failures={failed!r}")
 
-    if run.tool_failures:
-        reasons.append(f"tool execution failures={run.tool_failures!r}")
-
-    return CaseResult(case=case, run=run, passed=not reasons, reasons=reasons)
+    return CaseResult(
+        case=case,
+        run=run,
+        passed=not reasons,
+        selection_correct=selection_correct,
+        arguments_correct=arguments_correct,
+        execution_correct=execution_correct,
+        reasons=reasons,
+    )
 
 
 async def evaluate_all(
@@ -230,8 +324,7 @@ async def evaluate_all(
             except Exception as exc:
                 run = AgentRun(
                     output="",
-                    tools=[],
-                    tool_failures=[],
+                    calls=[],
                     trace=None,
                     latency_ms=0.0,
                     error=f"{type(exc).__name__}: {exc}",
@@ -243,24 +336,27 @@ async def evaluate_all(
             status = "PASS" if result.passed else "FAIL"
             print(
                 f"[{index:02d}/{len(cases):02d}] {status} "
-                f"{case.case_id} tools={run.tools} {run.latency_ms:.0f}ms"
+                f"{case.case_id} tools={[call.name for call in run.calls]} "
+                f"{run.latency_ms:.0f}ms"
             )
             _print_trace(run.trace)
-            if result.reasons:
-                for reason in result.reasons:
-                    print(f"  - {reason}")
+            for reason in result.reasons:
+                print(f"  - {reason}")
 
         return results
 
 
 def build_summary(results: list[CaseResult]) -> dict[str, Any]:
     passed = sum(result.passed for result in results)
-    tool_exact = sum(tools_match(result.case, result.run.tools) for result in results)
-    no_forbidden = sum(
-        not (set(result.run.tools) & set(result.case.forbidden_tools)) for result in results
-    )
-    no_tool_failures = sum(not result.run.tool_failures for result in results)
+    selection_correct = sum(result.selection_correct for result in results)
+    execution_correct = sum(result.execution_correct for result in results)
     answers_present = sum(bool(result.run.output) for result in results)
+    parameter_cases = [
+        result
+        for result in results
+        if any(call.arguments is not None for call in result.case.expected_calls)
+    ]
+    parameter_correct = sum(result.arguments_correct for result in parameter_cases)
     latencies = [result.run.latency_ms for result in results if result.run.latency_ms > 0]
 
     by_category: dict[str, list[CaseResult]] = defaultdict(list)
@@ -272,12 +368,15 @@ def build_summary(results: list[CaseResult]) -> dict[str, Any]:
         "passed": passed,
         "failed": len(results) - passed,
         "pass_rate": passed / len(results),
-        "tool_selection_correct": tool_exact,
-        "tool_selection_rate": tool_exact / len(results),
-        "no_forbidden_tool_calls": no_forbidden,
-        "no_forbidden_tool_call_rate": no_forbidden / len(results),
-        "tool_execution_success_cases": no_tool_failures,
-        "tool_execution_success_rate": no_tool_failures / len(results),
+        "tool_selection_correct": selection_correct,
+        "tool_selection_rate": selection_correct / len(results),
+        "parameter_extraction_cases": len(parameter_cases),
+        "parameter_extraction_correct": parameter_correct,
+        "parameter_extraction_rate": (
+            parameter_correct / len(parameter_cases) if parameter_cases else None
+        ),
+        "tool_execution_success_cases": execution_correct,
+        "tool_execution_success_rate": execution_correct / len(results),
         "answers_present": answers_present,
         "answer_presence_rate": answers_present / len(results),
         "latency_p50_ms": statistics.median(latencies) if latencies else None,
@@ -324,9 +423,14 @@ def write_outputs(
                 "category": result.case.category,
                 "passed": result.passed,
                 "reasons": result.reasons,
-                "expected_tools": result.case.expected_tools,
-                "actual_tools": result.run.tools,
-                "tool_failures": result.run.tool_failures,
+                "expected_calls": [
+                    {"name": call.name, "arguments": call.arguments}
+                    for call in result.case.expected_calls
+                ],
+                "actual_calls": [
+                    {"name": call.name, "arguments": call.arguments, "ok": call.ok}
+                    for call in result.run.calls
+                ],
                 "latency_ms": round(result.run.latency_ms, 2),
                 "output": result.run.output,
                 "completion": result.case.completion,
@@ -367,11 +471,18 @@ def print_summary(summary: dict[str, Any]) -> None:
         f"{summary['tool_selection_correct']}/{summary['cases']} "
         f"({summary['tool_selection_rate']:.1%})"
     )
-    print(
-        "no forbidden tool calls: "
-        f"{summary['no_forbidden_tool_calls']}/{summary['cases']} "
-        f"({summary['no_forbidden_tool_call_rate']:.1%})"
-    )
+
+    parameter_rate = summary["parameter_extraction_rate"]
+    if parameter_rate is None:
+        print("parameter extraction: n/a")
+    else:
+        print(
+            "parameter extraction: "
+            f"{summary['parameter_extraction_correct']}/"
+            f"{summary['parameter_extraction_cases']} "
+            f"({parameter_rate:.1%})"
+        )
+
     print(
         "tool execution success: "
         f"{summary['tool_execution_success_cases']}/{summary['cases']} "
@@ -399,14 +510,17 @@ def _print_trace(trace: dict[str, Any] | None) -> None:
 
     for round_trace in trace.get("rounds", []):
         response = round_trace.get("response", {})
-        usage = response.get("usage")
-        timings = response.get("timings")
         print(
             f"  round={round_trace.get('round')} finish={response.get('finish_reason')} "
-            f"duration_ms={response.get('duration_ms')} usage={usage} timings={timings}"
+            f"duration_ms={response.get('duration_ms')} "
+            f"usage={response.get('usage')} timings={response.get('timings')}"
         )
         for call in round_trace.get("tool_calls", []):
-            arguments = json.dumps(call.get("arguments"), ensure_ascii=False, separators=(",", ":"))
+            arguments = json.dumps(
+                call.get("arguments"),
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
             print(
                 f"    tool={call.get('name')} args={arguments} ok={call.get('ok')} "
                 f"duration_ms={call.get('duration_ms')}"
