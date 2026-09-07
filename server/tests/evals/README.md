@@ -3,6 +3,8 @@
 This evaluation exercises the real running portfolio agent end to end through `POST /v1/chat/stream`.
 It evaluates model behavior, tool selection, tool execution and final response generation.
 
+The evaluation is a development checkpoint for the implemented agent, not a growing test battery. Use the focused smoke run after a behavior correction, then use the full 50-case run when the iteration is ready to close.
+
 ## Dataset
 
 `agent_cases.jsonl` contains 50 initial validation cases covering:
@@ -24,13 +26,21 @@ Start the server first:
 make up
 ```
 
-Then run:
+Run the focused smoke check for the datetime/reminder correction:
+
+```bash
+make eval-smoke
+```
+
+The smoke target runs 10 existing cases only. It exits non-zero unless every selected case passes.
+
+When the focused check is satisfactory, run the complete checkpoint:
 
 ```bash
 make eval
 ```
 
-Optional strict mode exits non-zero if any case fails:
+Optional strict full mode exits non-zero if any case fails:
 
 ```bash
 make eval-strict
@@ -39,7 +49,7 @@ make eval-strict
 Override the server URL when needed:
 
 ```bash
-AGENT_API_URL=http://localhost:8000 make eval
+AGENT_API_URL=http://localhost:8000 make eval-smoke
 ```
 
 Outputs are written to:
@@ -47,6 +57,8 @@ Outputs are written to:
 ```text
 tests/evals/results/latest.json
 tests/evals/results/qwencloud.jsonl
+tests/evals/results/smoke.json
+tests/evals/results/smoke-qwencloud.jsonl
 ```
 
 `latest.json` contains deterministic local metrics and per-case traces.
