@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.agent import Agent
+from app.capabilities import CapabilityDecision
 from app.prompt import build_messages
 
 
@@ -71,6 +72,16 @@ class FakePortfolio:
         return [{"source": "projects.0", "text": '{"stack":["Rust"]}'}]
 
 
+class FakeSelector:
+    def __init__(self, *names: str) -> None:
+        self._names = names
+        self.calls = []
+
+    async def select(self, message, context):
+        self.calls.append((message, copy.deepcopy(context)))
+        return CapabilityDecision(names=self._names, latency_ms=0.0)
+
+
 def token_text(events) -> str:
     return "".join(
         str(payload["text"])
@@ -121,6 +132,61 @@ async def test_agent_streams_answer_and_flow_without_tool() -> None:
     assert len(chat.chat.completions.requests) == 1
     assert chat.chat.completions.requests[0]["stream"] is True
     assert "tool_choice" not in chat.chat.completions.requests[0]
+
+
+@pytest.mark.asyncio
+async def test_agent_omits_tools_when_no_capability_is_eligible() -> None:
+    chat = FakeChat([[chunk("Hola."), chunk(finish_reason="stop")]])
+    selector = FakeSelector()
+    agent = Agent(
+        "Diego",
+        chat,
+        FakePortfolio(),
+        model="qwen",
+        capability_selector=selector,
+    )
+
+    events = [event async for event in agent.respond("hola", [])]
+
+    assert token_text(events) == "Hola."
+    request = chat.chat.completions.requests[0]
+    assert "tools" not in request
+    assert "parallel_tool_calls" not in request
+    assert selector.calls == [("hola", [])]
+
+
+@pytest.mark.asyncio
+async def test_agent_rejects_tool_outside_eligible_capabilities() -> None:
+    chat = FakeChat(
+        [
+            [
+                chunk(
+                    tool_calls=[
+                        tool_delta(
+                            0,
+                            call_id="call-date",
+                            name="resolve_datetime",
+                            arguments='{"reference":"now","offset":0,"unit":"days"}',
+                        )
+                    ],
+                    finish_reason="tool_calls",
+                )
+            ]
+        ]
+    )
+    agent = Agent(
+        "Diego",
+        chat,
+        FakePortfolio(),
+        model="qwen",
+        capability_selector=FakeSelector("portfolio"),
+    )
+
+    with pytest.raises(RuntimeError, match="ineligible tool: resolve_datetime"):
+        _ = [event async for event in agent.respond("consulta", [])]
+
+    request = chat.chat.completions.requests[0]
+    assert [tool["function"]["name"] for tool in request["tools"]] == ["search_portfolio"]
 
 
 @pytest.mark.asyncio
