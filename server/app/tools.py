@@ -47,11 +47,8 @@ GET_CURRENT_DATETIME_SCHEMA = {
     "function": {
         "name": "get_current_datetime",
         "description": (
-            "Return the actual current date and time for a timezone. Use only for questions about the "
-            "present moment, such as 'what date is it today?' or 'what time is it now?'. Do not use for "
-            "relative requests such as tomorrow, yesterday, or 'in 2 hours'; use get_relative_datetime "
-            "for those. Do not use for explicit calendar dates, general knowledge, portfolio questions, "
-            "greetings, small talk, or capability questions."
+            "Return the actual current date and time for a timezone. Use when the visitor explicitly "
+            "asks for today's date or the current time."
         ),
         "parameters": {
             "type": "object",
@@ -74,12 +71,9 @@ GET_RELATIVE_DATETIME_SCHEMA = {
     "function": {
         "name": "get_relative_datetime",
         "description": (
-            "Resolve a date or time relative to the actual present moment in one operation. Use for "
-            "tomorrow, yesterday, 'in N days', 'N hours ago', next week, and similar requests. Positive "
-            "values move forward and negative values move backward. This function already uses the actual "
-            "current datetime, so do not call get_current_datetime first. It returns the exact resulting "
-            "datetime, date, and weekday. Do not use it when the visitor supplied an explicit base date; "
-            "use shift_datetime for that."
+            "Resolve a date or time relative to the actual present moment. Use for tomorrow, yesterday, "
+            "in N days or hours, N days or hours ago, next week, and for the weekday of a relative date. "
+            "Returns the exact resulting datetime, date, and weekday."
         ),
         "parameters": {
             "type": "object",
@@ -122,9 +116,7 @@ SHIFT_DATETIME_SCHEMA = {
         "description": (
             "Move a supplied explicit date or datetime forward or backward by a signed duration. Use when "
             "the visitor provides the base date or datetime and asks to add or subtract days, hours, or "
-            "minutes. Positive values move forward and negative values move backward. Do not use this for "
-            "relative-to-now requests such as tomorrow or 'in 2 hours'; use get_relative_datetime instead. "
-            "Do not use it only to look up a weekday; use get_datetime_weekday for that."
+            "minutes. Positive values move forward and negative values move backward."
         ),
         "parameters": {
             "type": "object",
@@ -162,15 +154,13 @@ SHIFT_DATETIME_SCHEMA = {
     },
 }
 
-GET_DATETIME_WEEKDAY_SCHEMA = {
+GET_WEEKDAY_FOR_EXPLICIT_DATE_SCHEMA = {
     "type": "function",
     "function": {
-        "name": "get_datetime_weekday",
+        "name": "get_weekday_for_explicit_date",
         "description": (
-            "Return the weekday for a supplied explicit date or datetime. Use only when the visitor asks "
-            "which weekday a known calendar date falls on, for example 'what weekday is 2026-12-25?'. "
-            "Do not use for relative dates such as yesterday or tomorrow; use get_relative_datetime for "
-            "those. Do not call get_current_datetime when the visitor already supplied the date."
+            "Return the weekday for an explicit calendar date supplied by the visitor. The input must be "
+            "a concrete ISO-8601 date or datetime such as 2026-12-25."
         ),
         "parameters": {
             "type": "object",
@@ -178,9 +168,9 @@ GET_DATETIME_WEEKDAY_SCHEMA = {
                 "datetime": {
                     "type": "string",
                     "description": (
-                        "ISO-8601 date or datetime whose weekday is required, for example 2026-12-25 or "
-                        "2026-12-25T15:00:00-03:00. Date-only or timezone-less values use the server "
-                        "default timezone."
+                        "Explicit ISO-8601 date or datetime whose weekday is required, for example "
+                        "2026-12-25 or 2026-12-25T15:00:00-03:00. Date-only or timezone-less values use "
+                        "the server default timezone."
                     ),
                 }
             },
@@ -281,7 +271,7 @@ TOOLS = [
     GET_CURRENT_DATETIME_SCHEMA,
     GET_RELATIVE_DATETIME_SCHEMA,
     SHIFT_DATETIME_SCHEMA,
-    GET_DATETIME_WEEKDAY_SCHEMA,
+    GET_WEEKDAY_FOR_EXPLICIT_DATE_SCHEMA,
     SET_REMINDER_MOCK_SCHEMA,
     SET_RELATIVE_REMINDER_MOCK_SCHEMA,
 ]
@@ -431,7 +421,7 @@ async def _run_tool(
             minutes=minutes,
         )
 
-    if name == "get_datetime_weekday":
+    if name == "get_weekday_for_explicit_date":
         _only(payload, {"datetime"})
         datetime = _required_string(payload, "datetime")
         return get_datetime_weekday(datetime)
