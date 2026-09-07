@@ -9,9 +9,10 @@ from typing import Any
 
 from openai import AsyncOpenAI
 
+from .capabilities import CapabilitySelector, all_capabilities
 from .portfolio import Portfolio
 from .prompt import build_messages
-from .tools import TOOLS, run_tool_call
+from .tools import run_tool_call, tools_for_capabilities
 from .trace import TurnTrace, chunk_metadata, elapsed_ms, parse_json, utc_now
 
 MAX_TOOL_ROUNDS = 6
@@ -29,6 +30,7 @@ class Agent:
         portfolio: Portfolio,
         *,
         model: str,
+        capability_selector: CapabilitySelector | None = None,
         temperature: float = 0.7,
         top_p: float = 0.8,
         top_k: int = 20,
@@ -41,6 +43,7 @@ class Agent:
         self._chat = chat
         self._portfolio = portfolio
         self._model = model
+        self._capability_selector = capability_selector
         self._temperature = temperature
         self._top_p = top_p
         self._top_k = top_k
@@ -56,6 +59,16 @@ class Agent:
         *,
         diagnostics: bool = False,
     ) -> AsyncIterator[AgentEvent]:
+        decision = (
+            await self._capability_selector.select(message, context)
+            if self._capability_selector is not None
+            else all_capabilities()
+        )
+        eligible_tools = tools_for_capabilities(decision.names)
+        allowed_tool_names = {
+            str(tool["function"]["name"])
+            for tool in eligible_tools
+        }
         messages = build_messages(
             self._subject,
             _trim_context(context),
@@ -69,7 +82,7 @@ class Agent:
             "presence_penalty": self._presence_penalty,
             "repeat_penalty": self._repeat_penalty,
             "max_tokens": self._max_tokens,
-            "parallel_tool_calls": True,
+            "parallel_tool_calls": bool(eligible_tools),
             "stream": True,
             "stream_options": {"include_usage": True},
         }
@@ -78,8 +91,9 @@ class Agent:
             context=context,
             model=self._model,
             generation=generation,
-            tools=TOOLS,
+            tools=eligible_tools,
         )
+        trace.data["capability_gate"] = decision.trace()
 
         try:
             round_number = 1
@@ -101,19 +115,22 @@ class Agent:
                         }
                     )
 
-                stream = await self._chat.chat.completions.create(
-                    model=self._model,
-                    messages=messages,
-                    tools=TOOLS,
-                    parallel_tool_calls=True,
-                    temperature=self._temperature,
-                    top_p=self._top_p,
-                    presence_penalty=self._presence_penalty,
-                    max_tokens=self._max_tokens,
-                    stream=True,
-                    stream_options={"include_usage": True},
-                    extra_body=extra_body,
-                )
+                request: dict[str, Any] = {
+                    "model": self._model,
+                    "messages": messages,
+                    "temperature": self._temperature,
+                    "top_p": self._top_p,
+                    "presence_penalty": self._presence_penalty,
+                    "max_tokens": self._max_tokens,
+                    "stream": True,
+                    "stream_options": {"include_usage": True},
+                    "extra_body": extra_body,
+                }
+                if eligible_tools:
+                    request["tools"] = eligible_tools
+                    request["parallel_tool_calls"] = True
+
+                stream = await self._chat.chat.completions.create(**request)
 
                 content: list[str] = []
                 calls: dict[int, dict[str, str]] = {}
@@ -185,6 +202,7 @@ class Agent:
                 )
 
                 _validate_model_round(finish_reason, ordered_calls)
+                _validate_allowed_calls(ordered_calls, allowed_tool_names)
                 assistant_message = _assistant_message(text or None, ordered_calls)
                 round_trace["assistant_message"] = assistant_message
                 messages.append(assistant_message)
@@ -298,6 +316,15 @@ def _validate_model_round(
             "model returned tool calls with unexpected finish_reason=%s",
             finish_reason,
         )
+
+
+def _validate_allowed_calls(
+    calls: list[dict[str, str]],
+    allowed_tool_names: set[str],
+) -> None:
+    for call in calls:
+        if call["name"] not in allowed_tool_names:
+            raise RuntimeError(f"model requested ineligible tool: {call['name']}")
 
 
 def _trim_context(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
