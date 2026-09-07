@@ -12,6 +12,7 @@ from openai import AsyncOpenAI
 from .portfolio import Portfolio
 from .prompt import build_messages
 from .tools import TOOLS, run_tool_call
+from .trace import TurnTrace, chunk_metadata, elapsed_ms, parse_json, utc_now
 
 MAX_TOOL_ROUNDS = 6
 MAX_CONTEXT_MESSAGES = 32
@@ -52,121 +53,237 @@ class Agent:
         self,
         message: str,
         context: list[dict[str, Any]],
+        *,
+        diagnostics: bool = False,
     ) -> AsyncIterator[AgentEvent]:
         messages = build_messages(
             self._subject,
             _trim_context(context),
             message,
         )
+        generation = {
+            "temperature": self._temperature,
+            "top_p": self._top_p,
+            "top_k": self._top_k,
+            "min_p": self._min_p,
+            "presence_penalty": self._presence_penalty,
+            "repeat_penalty": self._repeat_penalty,
+            "max_tokens": self._max_tokens,
+            "parallel_tool_calls": True,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+        trace = TurnTrace(
+            message=message,
+            context=context,
+            model=self._model,
+            generation=generation,
+            tools=TOOLS,
+        )
 
-        round_number = 1
-        while True:
-            yield "status", {"phase": "model", "round": round_number}
-            started = time.perf_counter()
-            stream = await self._chat.chat.completions.create(
-                model=self._model,
-                messages=messages,
-                tools=TOOLS,
-                parallel_tool_calls=True,
-                temperature=self._temperature,
-                top_p=self._top_p,
-                presence_penalty=self._presence_penalty,
-                max_tokens=self._max_tokens,
-                stream=True,
-                extra_body={
+        try:
+            round_number = 1
+            while True:
+                yield "status", {"phase": "model", "round": round_number}
+                round_trace = trace.start_round(round_number, messages)
+                started = time.perf_counter()
+                extra_body: dict[str, object] = {
                     "top_k": self._top_k,
                     "min_p": self._min_p,
                     "repeat_penalty": self._repeat_penalty,
-                },
-            )
-
-            content: list[str] = []
-            calls: dict[int, dict[str, str]] = {}
-            finish_reason: str | None = None
-            responding = False
-
-            async for chunk in stream:
-                if not chunk.choices:
-                    continue
-
-                choice = chunk.choices[0]
-                if choice.finish_reason is not None:
-                    finish_reason = choice.finish_reason
-
-                delta = choice.delta
-                text = delta.content or ""
-                if text:
-                    if not responding:
-                        responding = True
-                        yield "status", {"phase": "responding", "round": round_number}
-                    content.append(text)
-                    yield "token", {"text": text}
-
-                for call in delta.tool_calls or []:
-                    item = calls.setdefault(
-                        call.index,
-                        {"id": "", "name": "", "arguments": ""},
-                    )
-                    if call.id:
-                        item["id"] += call.id
-                    if call.function:
-                        if call.function.name:
-                            item["name"] += call.function.name
-                        if call.function.arguments:
-                            item["arguments"] += call.function.arguments
-
-            text = "".join(content)
-            ordered_calls = [calls[index] for index in sorted(calls)]
-            tool_names = [call["name"] for call in ordered_calls]
-            logger.info(
-                "agent round=%s finish=%s tools=%s latency_ms=%d",
-                round_number,
-                finish_reason,
-                ",".join(tool_names) or "-",
-                int((time.perf_counter() - started) * 1000),
-            )
-
-            _validate_model_round(finish_reason, ordered_calls)
-            messages.append(_assistant_message(text or None, ordered_calls))
-
-            if not ordered_calls:
-                if not text.strip():
-                    raise RuntimeError("LLM returned an empty response")
-                yield "context", {"messages": _trim_context(messages[1:])}
-                return
-
-            if round_number > MAX_TOOL_ROUNDS:
-                raise RuntimeError("tool loop limit reached")
-
-            for call in ordered_calls:
-                yield "tool", {
-                    "name": call["name"],
-                    "state": "running",
-                    "round": round_number,
                 }
-
-            results = await asyncio.gather(
-                *(
-                    run_tool_call(
-                        call["id"],
-                        call["name"],
-                        call["arguments"],
-                        self._portfolio,
+                if diagnostics:
+                    extra_body.update(
+                        {
+                            "verbose": True,
+                            "timings_per_token": True,
+                            "return_progress": True,
+                        }
                     )
-                    for call in ordered_calls
+
+                stream = await self._chat.chat.completions.create(
+                    model=self._model,
+                    messages=messages,
+                    tools=TOOLS,
+                    parallel_tool_calls=True,
+                    temperature=self._temperature,
+                    top_p=self._top_p,
+                    presence_penalty=self._presence_penalty,
+                    max_tokens=self._max_tokens,
+                    stream=True,
+                    stream_options={"include_usage": True},
+                    extra_body=extra_body,
                 )
-            )
 
-            for call, result in zip(ordered_calls, results, strict=True):
-                yield "tool", {
-                    "name": call["name"],
-                    "state": "done",
-                    "ok": _tool_ok(result),
-                    "round": round_number,
-                }
+                content: list[str] = []
+                calls: dict[int, dict[str, str]] = {}
+                finish_reason: str | None = None
+                responding = False
 
-            messages.extend(results)
-            round_number += 1
+                async for chunk in stream:
+                    response_trace = round_trace["response"]
+                    response_trace["chunk_count"] += 1
+                    _record_chunk_metadata(response_trace, chunk_metadata(chunk))
+
+                    choices = getattr(chunk, "choices", None) or []
+                    if not choices:
+                        continue
+
+                    choice = choices[0]
+                    response_trace["choice_index"] = getattr(choice, "index", 0)
+                    if choice.finish_reason is not None:
+                        finish_reason = choice.finish_reason
+                        response_trace["finish_reason"] = finish_reason
+
+                    delta = choice.delta
+                    if getattr(delta, "role", None):
+                        response_trace["role"] = delta.role
+                    if getattr(delta, "reasoning_content", None):
+                        response_trace["reasoning_content_present"] = True
+
+                    text = delta.content or ""
+                    tool_deltas = delta.tool_calls or []
+                    if (text or tool_deltas) and response_trace["first_delta_ms"] is None:
+                        response_trace["first_delta_ms"] = elapsed_ms(started)
+
+                    if text:
+                        if response_trace["first_text_ms"] is None:
+                            response_trace["first_text_ms"] = elapsed_ms(started)
+                        if not responding:
+                            responding = True
+                            yield "status", {"phase": "responding", "round": round_number}
+                        content.append(text)
+                        yield "token", {"text": text}
+
+                    for call in tool_deltas:
+                        item = calls.setdefault(
+                            call.index,
+                            {"id": "", "name": "", "arguments": ""},
+                        )
+                        if call.id:
+                            item["id"] += call.id
+                        if call.function:
+                            if call.function.name:
+                                item["name"] += call.function.name
+                            if call.function.arguments:
+                                item["arguments"] += call.function.arguments
+
+                text = "".join(content)
+                ordered_calls = [calls[index] for index in sorted(calls)]
+                tool_names = [call["name"] for call in ordered_calls]
+                response_trace = round_trace["response"]
+                response_trace["content"] = text
+                response_trace["finish_reason"] = finish_reason
+                trace.finish_round(round_trace)
+
+                logger.info(
+                    "agent round=%s finish=%s tools=%s latency_ms=%d",
+                    round_number,
+                    finish_reason,
+                    ",".join(tool_names) or "-",
+                    int((time.perf_counter() - started) * 1000),
+                )
+
+                _validate_model_round(finish_reason, ordered_calls)
+                assistant_message = _assistant_message(text or None, ordered_calls)
+                round_trace["assistant_message"] = assistant_message
+                messages.append(assistant_message)
+
+                if not ordered_calls:
+                    if not text.strip():
+                        raise RuntimeError("LLM returned an empty response")
+                    returned_context = _trim_context(messages[1:])
+                    yield "context", {"messages": returned_context}
+                    if diagnostics:
+                        yield "trace", trace.finish(
+                            status="ok",
+                            output=text,
+                            context=returned_context,
+                        )
+                    return
+
+                if round_number > MAX_TOOL_ROUNDS:
+                    raise RuntimeError("tool loop limit reached")
+
+                for call in ordered_calls:
+                    yield "tool", {
+                        "name": call["name"],
+                        "state": "running",
+                        "round": round_number,
+                    }
+
+                executed = await asyncio.gather(
+                    *(
+                        _run_traced_tool(call, self._portfolio)
+                        for call in ordered_calls
+                    )
+                )
+                results = [result for result, _ in executed]
+                round_trace["tool_calls"] = [tool_trace for _, tool_trace in executed]
+
+                for call, result in zip(ordered_calls, results, strict=True):
+                    yield "tool", {
+                        "name": call["name"],
+                        "state": "done",
+                        "ok": _tool_ok(result),
+                        "round": round_number,
+                    }
+
+                messages.extend(results)
+                round_number += 1
+        except Exception as exc:
+            if diagnostics:
+                yield "trace", trace.finish(
+                    status="error",
+                    error={"type": type(exc).__name__, "message": str(exc)},
+                )
+            raise
+
+
+async def _run_traced_tool(
+    call: dict[str, str],
+    portfolio: Portfolio,
+) -> tuple[dict[str, str], dict[str, object]]:
+    started = time.perf_counter()
+    started_at = utc_now()
+    result = await run_tool_call(
+        call["id"],
+        call["name"],
+        call["arguments"],
+        portfolio,
+    )
+    finished_at = utc_now()
+    content = result.get("content", "")
+    return result, {
+        "id": call["id"],
+        "name": call["name"],
+        "arguments_raw": call["arguments"],
+        "arguments": parse_json(call["arguments"]),
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "duration_ms": elapsed_ms(started),
+        "ok": _tool_ok(result),
+        "result_raw": content,
+        "result": parse_json(content),
+    }
+
+
+def _record_chunk_metadata(response: dict[str, Any], metadata: dict[str, Any]) -> None:
+    if not metadata:
+        return
+
+    for key in ("id", "object", "model", "created", "system_fingerprint", "usage", "timings"):
+        if key in metadata:
+            response[key] = metadata[key]
+
+    provider = response["provider"]
+    for key, value in metadata.items():
+        if key in {"id", "object", "model", "created", "system_fingerprint", "usage", "timings"}:
+            continue
+        if key == "prompt_progress":
+            provider.setdefault("prompt_progress", []).append(value)
+            continue
+        provider[key] = value
 
 
 def _validate_model_round(
