@@ -6,11 +6,9 @@ import pytest
 
 from app.tools import (
     TOOLS,
-    get_datetime_from_now,
-    get_weekday_for_explicit_date,
+    resolve_datetime,
     run_tool_call,
-    set_relative_reminder_mock,
-    shift_datetime,
+    set_reminder_mock,
 )
 
 
@@ -19,17 +17,13 @@ class FakePortfolio:
         return [{"source": "projects.0", "text": f"fact for {query}"}]
 
 
-def test_tool_schemas_are_explicit_json_schema() -> None:
+def test_tool_schemas_are_small_and_explicit() -> None:
     names = [tool["function"]["name"] for tool in TOOLS]
 
     assert names == [
         "search_portfolio",
-        "get_current_datetime",
-        "get_datetime_from_now",
-        "shift_datetime",
-        "get_weekday_for_explicit_date",
+        "resolve_datetime",
         "set_reminder_mock",
-        "set_relative_reminder_mock",
     ]
 
     for tool in TOOLS:
@@ -42,59 +36,26 @@ def test_tool_schemas_are_explicit_json_schema() -> None:
         assert "title" not in parameters
         assert "$defs" not in parameters
 
-    assert TOOLS[0]["function"]["parameters"]["required"] == ["query"]
-    assert TOOLS[2]["function"]["parameters"]["required"] == ["offset", "unit"]
-    assert TOOLS[3]["function"]["parameters"]["required"] == ["datetime", "offset", "unit"]
-    assert TOOLS[4]["function"]["parameters"]["required"] == ["date"]
-    assert TOOLS[5]["function"]["parameters"]["required"] == ["datetime", "message"]
-    assert TOOLS[6]["function"]["parameters"]["required"] == ["message", "offset", "unit"]
-
-    for index in (2, 3, 6):
-        properties = TOOLS[index]["function"]["parameters"]["properties"]
-        assert properties["unit"]["enum"] == ["minutes", "hours", "days", "weeks"]
-        assert "minimum" not in properties["offset"]
-        assert "maximum" not in properties["offset"]
-
-    assert "2026-" not in json.dumps(TOOLS, ensure_ascii=False)
+    resolve_parameters = TOOLS[1]["function"]["parameters"]
+    assert resolve_parameters["required"] == ["base", "offset", "unit"]
+    assert resolve_parameters["properties"]["base"]["enum"] == ["now", "provided"]
+    assert resolve_parameters["properties"]["unit"]["enum"] == [
+        "minutes",
+        "hours",
+        "days",
+        "weeks",
+    ]
+    assert TOOLS[2]["function"]["parameters"]["required"] == ["datetime", "message"]
 
 
-def test_shift_datetime_moves_forward_and_backward_exactly() -> None:
-    forward = shift_datetime(
-        "2026-09-04",
-        days=15,
-        default_timezone="America/Argentina/Buenos_Aires",
-    )
-    backward = shift_datetime(
-        "2026-09-04",
-        days=-1,
-        default_timezone="America/Argentina/Buenos_Aires",
-    )
-
-    assert forward["date"] == "2026-09-19"
-    assert forward["weekday"] == "Saturday"
-    assert forward["weekday_es"] == "sábado"
-    assert forward["iso_weekday"] == 6
-    assert backward["date"] == "2026-09-03"
-
-
-def test_shift_datetime_accepts_naive_datetime_in_default_timezone() -> None:
-    result = shift_datetime(
-        "2030-01-02T10:30:00",
-        days=57,
-        hours=2,
-        minutes=15,
-        default_timezone="America/Argentina/Buenos_Aires",
-    )
-
-    assert result["datetime"] == "2030-02-28T12:45:00-03:00"
-
-
-def test_get_datetime_from_now_uses_current_time() -> None:
+def test_resolve_datetime_uses_current_time_as_base() -> None:
     zone = ZoneInfo("America/Argentina/Buenos_Aires")
     before = dt.datetime.now(zone) + dt.timedelta(days=1)
 
-    result = get_datetime_from_now(
-        days=1,
+    result = resolve_datetime(
+        base="now",
+        offset=1,
+        unit="days",
         timezone="America/Argentina/Buenos_Aires",
     )
 
@@ -104,24 +65,33 @@ def test_get_datetime_from_now_uses_current_time() -> None:
     assert result["timezone"] == "America/Argentina/Buenos_Aires"
 
 
-def test_get_datetime_from_now_supports_weeks_without_model_conversion() -> None:
+def test_resolve_datetime_supports_equivalent_duration_units() -> None:
     zone = ZoneInfo("America/Argentina/Buenos_Aires")
-    before = dt.datetime.now(zone) + dt.timedelta(weeks=1)
-
-    result = get_datetime_from_now(
-        weeks=1,
-        timezone="America/Argentina/Buenos_Aires",
+    one = resolve_datetime(
+        base="now",
+        offset=2,
+        unit="hours",
+        timezone=zone.key,
+    )
+    two = resolve_datetime(
+        base="now",
+        offset=120,
+        unit="minutes",
+        timezone=zone.key,
     )
 
-    after = dt.datetime.now(zone) + dt.timedelta(weeks=1)
-    actual = dt.datetime.fromisoformat(str(result["datetime"]))
-    assert before.replace(microsecond=0) <= actual <= after.replace(microsecond=0)
+    first = dt.datetime.fromisoformat(str(one["datetime"]))
+    second = dt.datetime.fromisoformat(str(two["datetime"]))
+    assert abs((first - second).total_seconds()) <= 1
 
 
-def test_get_weekday_for_explicit_date_has_no_relative_arithmetic() -> None:
-    result = get_weekday_for_explicit_date(
-        "2026-12-25",
-        default_timezone="America/Argentina/Buenos_Aires",
+def test_resolve_datetime_handles_supplied_date_without_arithmetic() -> None:
+    result = resolve_datetime(
+        base="provided",
+        datetime="2026-12-25",
+        offset=0,
+        unit="days",
+        timezone="America/Argentina/Buenos_Aires",
     )
 
     assert result["date"] == "2026-12-25"
@@ -130,54 +100,42 @@ def test_get_weekday_for_explicit_date_has_no_relative_arithmetic() -> None:
     assert result["iso_weekday"] == 5
 
 
-def test_relative_reminder_resolves_target_from_now() -> None:
-    zone = ZoneInfo("America/Argentina/Buenos_Aires")
-    before = dt.datetime.now(zone) + dt.timedelta(hours=2)
+def test_resolve_datetime_requires_base_consistency() -> None:
+    with pytest.raises(ValueError, match="omitted"):
+        resolve_datetime(
+            base="now",
+            datetime="2026-12-25",
+            offset=0,
+            unit="days",
+        )
 
-    result = set_relative_reminder_mock(
-        "Enviar el CV",
-        hours=2,
-        timezone="America/Argentina/Buenos_Aires",
+    with pytest.raises(ValueError, match="required"):
+        resolve_datetime(
+            base="provided",
+            offset=0,
+            unit="days",
+        )
+
+
+def test_reminder_result_is_explicitly_simulated() -> None:
+    result = set_reminder_mock(
+        "2026-09-10T15:00:00-03:00",
+        "Revisar demo",
     )
 
-    after = dt.datetime.now(zone) + dt.timedelta(hours=2)
-    actual = dt.datetime.fromisoformat(str(result["datetime"]))
-    assert before.replace(microsecond=0) <= actual <= after.replace(microsecond=0)
-    assert result["message"] == "Enviar el CV"
+    assert result["datetime"] == "2026-09-10T15:00:00-03:00"
+    assert result["message"] == "Revisar demo"
+    assert result["status"] == "simulated_only"
     assert result["persisted"] is False
     assert result["will_notify"] is False
 
 
-def test_from_now_capability_requires_an_offset() -> None:
-    with pytest.raises(ValueError, match="non-zero time offset"):
-        get_datetime_from_now()
-
-
-def test_shift_datetime_can_resolve_an_explicit_base_without_moving_it() -> None:
-    result = shift_datetime(
-        "2026-09-04",
-        default_timezone="America/Argentina/Buenos_Aires",
-    )
-
-    assert result["date"] == "2026-09-04"
-    assert result["weekday_es"] == "viernes"
-
-
-def test_date_capability_owns_server_timezone(monkeypatch) -> None:
-    monkeypatch.setenv("TZ", "UTC")
-
-    result = shift_datetime("2026-09-04", days=1)
-
-    assert result["datetime"] == "2026-09-05T00:00:00+00:00"
-    assert result["timezone"] == "UTC"
-
-
 @pytest.mark.asyncio
-async def test_model_from_now_contract_preserves_request_unit() -> None:
+async def test_model_resolve_contract_accepts_relative_time() -> None:
     message = await run_tool_call(
-        "call-relative",
-        "get_datetime_from_now",
-        json.dumps({"offset": 1, "unit": "weeks"}),
+        "call-resolve",
+        "resolve_datetime",
+        json.dumps({"base": "now", "offset": 1, "unit": "weeks"}),
         FakePortfolio(),
     )
 
@@ -189,25 +147,52 @@ async def test_model_from_now_contract_preserves_request_unit() -> None:
 
 
 @pytest.mark.asyncio
-async def test_tool_validation_error_is_returned_to_model() -> None:
+async def test_model_resolve_contract_accepts_supplied_date() -> None:
     message = await run_tool_call(
-        "call-1",
-        "shift_datetime",
-        json.dumps({"datetime": "not-a-date", "offset": 2, "unit": "days"}),
+        "call-date",
+        "resolve_datetime",
+        json.dumps(
+            {
+                "base": "provided",
+                "datetime": "2026-01-01",
+                "offset": 0,
+                "unit": "days",
+            }
+        ),
         FakePortfolio(),
     )
 
     body = json.loads(message["content"])
-    assert message["role"] == "tool"
-    assert message["tool_call_id"] == "call-1"
+    assert body["ok"] is True
+    assert body["result"]["weekday_es"] == "jueves"
+
+
+@pytest.mark.asyncio
+async def test_tool_validation_rejects_invented_datetime_for_now_base() -> None:
+    message = await run_tool_call(
+        "call-bad-base",
+        "resolve_datetime",
+        json.dumps(
+            {
+                "base": "now",
+                "datetime": "2024-12-17",
+                "offset": -1,
+                "unit": "days",
+            }
+        ),
+        FakePortfolio(),
+    )
+
+    body = json.loads(message["content"])
     assert body["ok"] is False
     assert body["error"]["type"] == "validation_error"
+    assert "omitted" in body["error"]["message"]
 
 
 @pytest.mark.asyncio
 async def test_tool_validation_rejects_unknown_arguments() -> None:
     message = await run_tool_call(
-        "call-2",
+        "call-extra",
         "search_portfolio",
         json.dumps({"query": "Rust", "unexpected": True}),
         FakePortfolio(),
@@ -220,11 +205,11 @@ async def test_tool_validation_rejects_unknown_arguments() -> None:
 
 
 @pytest.mark.asyncio
-async def test_tool_validation_rejects_wrong_integer_type() -> None:
+async def test_tool_validation_rejects_wrong_offset_type() -> None:
     message = await run_tool_call(
-        "call-3",
-        "get_datetime_from_now",
-        json.dumps({"offset": "15", "unit": "days"}),
+        "call-offset",
+        "resolve_datetime",
+        json.dumps({"base": "now", "offset": "15", "unit": "days"}),
         FakePortfolio(),
     )
 
@@ -237,9 +222,9 @@ async def test_tool_validation_rejects_wrong_integer_type() -> None:
 @pytest.mark.asyncio
 async def test_tool_validation_rejects_unknown_unit() -> None:
     message = await run_tool_call(
-        "call-4",
-        "set_relative_reminder_mock",
-        json.dumps({"message": "Enviar CV", "offset": 2, "unit": "fortnights"}),
+        "call-unit",
+        "resolve_datetime",
+        json.dumps({"base": "now", "offset": 2, "unit": "fortnights"}),
         FakePortfolio(),
     )
 
