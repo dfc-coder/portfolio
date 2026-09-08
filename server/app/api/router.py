@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import secrets
 from collections.abc import AsyncIterator
 from typing import Any
@@ -12,6 +13,8 @@ from pydantic import BaseModel, Field
 
 from app.agent import Agent
 from app.conversation import ConversationStore
+
+logger = logging.getLogger(__name__)
 
 
 class ChatRequest(BaseModel):
@@ -67,6 +70,7 @@ def create_router(
                             return
                         yield encode_sse(event, payload)
             except Exception:
+                logger.exception("chat stream failed")
                 yield encode_sse(
                     "error",
                     {"message": "The portfolio assistant is temporarily unavailable."},
