@@ -120,10 +120,14 @@ class SemanticCapabilitySelector:
         best_index = max(range(len(_ROUTES)), key=scores.__getitem__)
         route = _ROUTES[best_index]
 
+        requires_tool = route.requires_tool
+        if context and route.name in {"portfolio", "datetime"}:
+            requires_tool = False
+
         return CapabilityDecision(
             names=route.capabilities,
             route=route.name,
-            requires_tool=route.requires_tool,
+            requires_tool=requires_tool,
             scores={
                 candidate.name: round(score, 6)
                 for candidate, score in zip(_ROUTES, scores, strict=True)
