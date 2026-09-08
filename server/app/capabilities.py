@@ -16,28 +16,49 @@ CAPABILITIES = (
 )
 
 _ROUTING_INSTRUCTION = (
-    "Given a visitor message, retrieve the intent description that best matches "
-    "what the visitor wants to do."
+    "Classify the CURRENT visitor request by intent. Recent conversation is only context for abbreviated "
+    "follow-ups. Match what the visitor wants the assistant to do, not nouns mentioned inside the request."
 )
 
+
+@dataclass(frozen=True)
+class _Route:
+    name: str
+    capabilities: tuple[str, ...]
+    requires_tool: bool
+    description: str
+
+
 _ROUTES = (
-    (
+    _Route(
         "conversation",
         (),
-        "General conversation that does not require external data or an action, such as greetings, "
-        "thanks, jokes, definitions, casual chat or general knowledge.",
+        False,
+        "Ordinary conversation or general knowledge that needs no portfolio evidence, deterministic time "
+        "calculation, or external action: greetings, thanks, jokes, definitions and casual questions.",
     ),
-    (
+    _Route(
         "portfolio",
         (CAPABILITY_PORTFOLIO,),
-        "A factual question about the portfolio subject's professional background, experience, skills, "
-        "projects, education, certifications, services or technical work.",
+        True,
+        "A factual question asking to KNOW something about Diego or the portfolio subject: professional "
+        "background, experience, skills, projects, education, certifications, services or technical work. "
+        "This is information retrieval, not an instruction to perform an action on a portfolio, CV or task.",
     ),
-    (
-        "temporal",
-        (CAPABILITY_DATETIME, CAPABILITY_REMINDER),
-        "A request involving deterministic date or time resolution, calendar arithmetic, or creating or "
-        "changing a reminder.",
+    _Route(
+        "datetime",
+        (CAPABILITY_DATETIME,),
+        True,
+        "A question asking to CALCULATE or RESOLVE a date, time, weekday, relative date or calendar offset. "
+        "It asks what date/time something is; it does not ask the assistant to create a reminder or action.",
+    ),
+    _Route(
+        "reminder",
+        (CAPABILITY_REMINDER,),
+        True,
+        "An ACTION request asking the assistant to create or change a reminder for the visitor. The content "
+        "of the reminder may mention a portfolio, CV, application, project or any other subject; classify by "
+        "the requested reminder action, not by the reminder text.",
     ),
 )
 
@@ -47,6 +68,7 @@ class CapabilityDecision:
     names: tuple[str, ...]
     latency_ms: float
     route: str | None = None
+    requires_tool: bool = False
     scores: dict[str, float] = field(default_factory=dict)
     finish_reason: str | None = None
     usage: dict[str, Any] | None = None
@@ -55,6 +77,7 @@ class CapabilityDecision:
         return {
             "eligible": list(self.names),
             "route": self.route,
+            "requires_tool": self.requires_tool,
             "scores": self.scores,
             "latency_ms": round(self.latency_ms, 3),
             "finish_reason": self.finish_reason,
@@ -71,7 +94,7 @@ class CapabilitySelector(Protocol):
 
 
 class SemanticCapabilitySelector:
-    """Select the smallest tool set with the existing embedding model."""
+    """Select one exact production capability with the existing embedding model."""
 
     def __init__(self, embeddings: AsyncOpenAI, *, model: str) -> None:
         self._embeddings = embeddings
@@ -80,32 +103,29 @@ class SemanticCapabilitySelector:
 
     async def warm(self) -> None:
         if self._route_vectors is None:
-            self._route_vectors = await self._embed([route[2] for route in _ROUTES])
+            self._route_vectors = await self._embed([route.description for route in _ROUTES])
 
     async def select(
         self,
         message: str,
         context: list[dict[str, Any]],
     ) -> CapabilityDecision:
-        del context
         started = time.perf_counter()
         await self.warm()
         assert self._route_vectors is not None
 
-        query = f"Instruct: {_ROUTING_INSTRUCTION}\nQuery: {message.strip()}"
+        query = f"Instruct: {_ROUTING_INSTRUCTION}\nQuery: {_routing_input(message, context)}"
         query_vector = (await self._embed([query]))[0]
-        scores = [
-            _cosine(query_vector, vector)
-            for vector in self._route_vectors
-        ]
+        scores = [_cosine(query_vector, vector) for vector in self._route_vectors]
         best_index = max(range(len(_ROUTES)), key=scores.__getitem__)
-        route, names, _ = _ROUTES[best_index]
+        route = _ROUTES[best_index]
 
         return CapabilityDecision(
-            names=names,
-            route=route,
+            names=route.capabilities,
+            route=route.name,
+            requires_tool=route.requires_tool,
             scores={
-                candidate[0]: round(score, 6)
+                candidate.name: round(score, 6)
                 for candidate, score in zip(_ROUTES, scores, strict=True)
             },
             latency_ms=(time.perf_counter() - started) * 1000,
@@ -130,6 +150,28 @@ def all_capabilities() -> CapabilityDecision:
         names=CAPABILITIES,
         latency_ms=0.0,
         route="all",
+    )
+
+
+def _routing_input(message: str, context: list[dict[str, Any]]) -> str:
+    recent: list[str] = []
+    for item in context[-4:]:
+        role = item.get("role")
+        content = item.get("content")
+        if role not in {"user", "assistant"} or not isinstance(content, str) or not content.strip():
+            continue
+        recent.append(f"{role}: {content.strip()}")
+
+    if not recent:
+        return message.strip()
+
+    return "\n".join(
+        [
+            "Recent conversation:",
+            *recent,
+            "Current visitor message:",
+            message.strip(),
+        ]
     )
 
 
