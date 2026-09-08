@@ -1,94 +1,90 @@
-import json
 from types import SimpleNamespace
 
 import pytest
 
-from app.capabilities import ModelCapabilitySelector
+from app.capabilities import SemanticCapabilitySelector
 
 
-class FakeUsage:
-    def model_dump(self, *, exclude_none=True):
-        return {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
-
-
-class FakeCompletions:
-    def __init__(self, arguments: dict[str, bool]) -> None:
-        self.arguments = arguments
+class FakeEmbeddingsEndpoint:
+    def __init__(self) -> None:
         self.requests = []
 
     async def create(self, **kwargs):
         self.requests.append(kwargs)
-        call = SimpleNamespace(
-            function=SimpleNamespace(
-                name="select_capabilities",
-                arguments=json.dumps(self.arguments),
-            )
+        texts = kwargs["input"]
+
+        if len(texts) == 3:
+            vectors = [
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 1.0],
+            ]
+        else:
+            query = texts[0]
+            if "Hola" in query:
+                vectors = [[1.0, 0.0, 0.0]]
+            elif "Rust" in query:
+                vectors = [[0.0, 1.0, 0.0]]
+            else:
+                vectors = [[0.0, 0.0, 1.0]]
+
+        return SimpleNamespace(
+            data=[
+                SimpleNamespace(index=index, embedding=vector)
+                for index, vector in enumerate(vectors)
+            ]
         )
-        message = SimpleNamespace(tool_calls=[call])
-        choice = SimpleNamespace(message=message, finish_reason="tool_calls")
-        return SimpleNamespace(choices=[choice], usage=FakeUsage())
 
 
-class FakeChat:
-    def __init__(self, arguments: dict[str, bool]) -> None:
-        self.completions = FakeCompletions(arguments)
-        self.chat = SimpleNamespace(completions=self.completions)
+class FakeEmbeddingsClient:
+    def __init__(self) -> None:
+        self.embeddings = FakeEmbeddingsEndpoint()
 
 
 @pytest.mark.asyncio
-async def test_capability_selector_can_return_no_tools() -> None:
-    chat = FakeChat(
-        {"portfolio": False, "datetime": False, "reminder": False}
-    )
-    selector = ModelCapabilitySelector(chat, model="qwen")
+async def test_semantic_selector_returns_no_tools_for_general_conversation() -> None:
+    embeddings = FakeEmbeddingsClient()
+    selector = SemanticCapabilitySelector(embeddings, model="embedding")
 
     decision = await selector.select("Hola", [])
 
+    assert decision.route == "conversation"
     assert decision.names == ()
-    request = chat.completions.requests[0]
-    assert request["temperature"] == 0
-    assert request["parallel_tool_calls"] is False
-    assert request["tool_choice"] == "required"
-    assert [tool["function"]["name"] for tool in request["tools"]] == [
-        "select_capabilities"
+    assert len(embeddings.embeddings.requests) == 2
+
+
+@pytest.mark.asyncio
+async def test_semantic_selector_returns_portfolio_tool_for_professional_question() -> None:
+    selector = SemanticCapabilitySelector(FakeEmbeddingsClient(), model="embedding")
+
+    decision = await selector.select("¿Diego trabajó con Rust?", [])
+
+    assert decision.route == "portfolio"
+    assert decision.names == ("portfolio",)
+
+
+@pytest.mark.asyncio
+async def test_semantic_selector_returns_temporal_tools_for_date_or_reminder_request() -> None:
+    selector = SemanticCapabilitySelector(FakeEmbeddingsClient(), model="embedding")
+
+    decision = await selector.select("Recordame esto mañana", [])
+
+    assert decision.route == "temporal"
+    assert decision.names == ("datetime", "reminder")
+
+
+@pytest.mark.asyncio
+async def test_semantic_selector_warms_route_vectors_once() -> None:
+    embeddings = FakeEmbeddingsClient()
+    selector = SemanticCapabilitySelector(embeddings, model="embedding")
+
+    await selector.warm()
+    await selector.select("Hola", [])
+    await selector.select("¿Diego trabajó con Rust?", [])
+
+    route_embedding_requests = [
+        request
+        for request in embeddings.embeddings.requests
+        if len(request["input"]) == 3
     ]
-
-
-@pytest.mark.asyncio
-async def test_capability_selector_supports_mixed_turns() -> None:
-    chat = FakeChat(
-        {"portfolio": True, "datetime": True, "reminder": False}
-    )
-    selector = ModelCapabilitySelector(chat, model="qwen")
-
-    decision = await selector.select(
-        "¿Qué stack usa PocketTrace y qué fecha es hoy?",
-        [],
-    )
-
-    assert decision.names == ("portfolio", "datetime")
-    assert decision.usage == {
-        "prompt_tokens": 10,
-        "completion_tokens": 5,
-        "total_tokens": 15,
-    }
-
-
-@pytest.mark.asyncio
-async def test_capability_selector_receives_recent_context_for_followups() -> None:
-    chat = FakeChat(
-        {"portfolio": True, "datetime": False, "reminder": False}
-    )
-    selector = ModelCapabilitySelector(chat, model="qwen")
-
-    await selector.select(
-        "¿Y Go?",
-        [
-            {"role": "user", "content": "¿Diego usa Rust?"},
-            {"role": "assistant", "content": "Sí."},
-        ],
-    )
-
-    gate_message = chat.completions.requests[0]["messages"][1]["content"]
-    assert "¿Diego usa Rust?" in gate_message
-    assert "¿Y Go?" in gate_message
+    assert len(route_embedding_requests) == 1
