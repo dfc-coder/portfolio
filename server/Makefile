@@ -1,4 +1,4 @@
-.PHONY: install test check run up down logs eval eval-strict eval-smoke
+.PHONY: install test check run up down logs eval-ready eval eval-strict eval-smoke
 
 install:
 	uv sync --extra test
@@ -22,13 +22,25 @@ down:
 logs:
 	podman compose logs -f api
 
-eval:
+eval-ready:
+	@echo "Waiting for portfolio API on http://localhost:8000/health..."
+	@for i in $$(seq 1 60); do \
+		if curl -fsS http://localhost:8000/health >/dev/null 2>&1; then \
+			echo "Portfolio API ready"; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo "Portfolio API did not become ready within 60s" >&2; \
+	exit 1
+
+eval: eval-ready
 	uv run python tests/evals/run_agent_eval.py
 
-eval-strict:
+eval-strict: eval-ready
 	uv run python tests/evals/run_agent_eval.py --strict
 
-eval-smoke:
+eval-smoke: eval-ready
 	uv run python tests/evals/run_agent_eval.py \
 		--case general_hello \
 		--case general_joke \
