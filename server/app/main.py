@@ -10,6 +10,7 @@ from openai import AsyncOpenAI
 
 from .agent import Agent
 from .api.router import create_router
+from .capabilities import SemanticCapabilitySelector
 from .config import Config
 from .portfolio import Portfolio
 
@@ -34,6 +35,7 @@ def create_app(config: Config | None = None, agent: Agent | None = None) -> Fast
     config = config or Config.from_env()
     clients: list[AsyncOpenAI] = []
     portfolio: Portfolio | None = None
+    capability_selector: SemanticCapabilitySelector | None = None
 
     if agent is None:
         profile = _load_profile(config.profile_path)
@@ -53,11 +55,16 @@ def create_app(config: Config | None = None, agent: Agent | None = None) -> Fast
             max_documents=config.context_max_documents,
             min_score=config.portfolio_min_score,
         )
+        capability_selector = SemanticCapabilitySelector(
+            embeddings,
+            model=config.embedding_model,
+        )
         agent = Agent(
             owner["name"],
             chat,
             portfolio,
             model=config.llama_model,
+            capability_selector=capability_selector,
             temperature=config.generation_temperature,
             top_p=config.generation_top_p,
             top_k=config.generation_top_k,
@@ -69,13 +76,15 @@ def create_app(config: Config | None = None, agent: Agent | None = None) -> Fast
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
+        if capability_selector is not None:
+            await capability_selector.warm()
         if portfolio is not None:
             await portfolio.warm()
         yield
         for client in clients:
             await client.close()
 
-    app = FastAPI(title="Portfolio Assistant", version="0.8.2", lifespan=lifespan)
+    app = FastAPI(title="Portfolio Assistant", version="0.8.3", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(config.allowed_origins),
