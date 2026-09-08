@@ -22,14 +22,14 @@ class FakeEmbeddingsEndpoint:
             ]
         else:
             query = texts[0]
-            if "Recordame" in query:
-                vectors = [[0.0, 0.0, 0.0, 1.0]]
-            elif "fecha" in query or "mañana" in query:
-                vectors = [[0.0, 0.0, 1.0, 0.0]]
-            elif "Rust" in query or "Go" in query:
-                vectors = [[0.0, 1.0, 0.0, 0.0]]
-            else:
+            if "Hola" in query:
                 vectors = [[1.0, 0.0, 0.0, 0.0]]
+            elif "Rust" in query or "Go?" in query:
+                vectors = [[0.0, 1.0, 0.0, 0.0]]
+            elif "Recordame" in query:
+                vectors = [[0.0, 0.0, 0.0, 1.0]]
+            else:
+                vectors = [[0.0, 0.0, 1.0, 0.0]]
 
         return SimpleNamespace(
             data=[
@@ -58,7 +58,7 @@ async def test_semantic_selector_returns_no_tools_for_general_conversation() -> 
 
 
 @pytest.mark.asyncio
-async def test_semantic_selector_returns_only_portfolio_for_professional_question() -> None:
+async def test_semantic_selector_returns_portfolio_tool_for_professional_question() -> None:
     selector = SemanticCapabilitySelector(FakeEmbeddingsClient(), model="embedding")
 
     decision = await selector.select("¿Diego trabajó con Rust?", [])
@@ -69,7 +69,7 @@ async def test_semantic_selector_returns_only_portfolio_for_professional_questio
 
 
 @pytest.mark.asyncio
-async def test_semantic_selector_returns_only_datetime_for_date_question() -> None:
+async def test_semantic_selector_returns_datetime_tool_for_date_request() -> None:
     selector = SemanticCapabilitySelector(FakeEmbeddingsClient(), model="embedding")
 
     decision = await selector.select("¿Qué fecha será mañana?", [])
@@ -80,10 +80,10 @@ async def test_semantic_selector_returns_only_datetime_for_date_question() -> No
 
 
 @pytest.mark.asyncio
-async def test_semantic_selector_returns_only_reminder_for_action_request() -> None:
+async def test_semantic_selector_returns_only_reminder_tool_for_reminder_request() -> None:
     selector = SemanticCapabilitySelector(FakeEmbeddingsClient(), model="embedding")
 
-    decision = await selector.select("Recordame en 30 minutos revisar el portfolio", [])
+    decision = await selector.select("Recordame esto mañana", [])
 
     assert decision.route == "reminder"
     assert decision.names == ("reminder",)
@@ -91,24 +91,30 @@ async def test_semantic_selector_returns_only_reminder_for_action_request() -> N
 
 
 @pytest.mark.asyncio
-async def test_semantic_selector_uses_recent_context_for_abbreviated_followup() -> None:
-    embeddings = FakeEmbeddingsClient()
-    selector = SemanticCapabilitySelector(embeddings, model="embedding")
+async def test_read_only_followup_keeps_tool_available_without_forcing_it() -> None:
+    selector = SemanticCapabilitySelector(FakeEmbeddingsClient(), model="embedding")
+    context = [
+        {"role": "user", "content": "Dentro de 15 días, ¿qué día sería?"},
+        {"role": "assistant", "content": "Sería el sábado 19 de septiembre de 2026."},
+    ]
 
-    decision = await selector.select(
-        "¿Y Go?",
-        [
-            {"role": "user", "content": "¿Diego trabajó con Rust?"},
-            {"role": "assistant", "content": "Sí."},
-        ],
-    )
+    decision = await selector.select("¿Cuál sábado?", context)
 
-    assert decision.route == "portfolio"
-    query = embeddings.embeddings.requests[-1]["input"][0]
-    assert "Recent conversation:" in query
-    assert "¿Diego trabajó con Rust?" in query
-    assert "Current visitor message:" in query
-    assert "¿Y Go?" in query
+    assert decision.route == "datetime"
+    assert decision.names == ("datetime",)
+    assert decision.requires_tool is False
+
+
+@pytest.mark.asyncio
+async def test_reminder_action_stays_required_with_existing_context() -> None:
+    selector = SemanticCapabilitySelector(FakeEmbeddingsClient(), model="embedding")
+    context = [{"role": "assistant", "content": "Hablábamos de otra cosa."}]
+
+    decision = await selector.select("Recordame esto mañana", context)
+
+    assert decision.route == "reminder"
+    assert decision.names == ("reminder",)
+    assert decision.requires_tool is True
 
 
 @pytest.mark.asyncio
