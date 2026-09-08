@@ -82,7 +82,7 @@ class Agent:
             "presence_penalty": self._presence_penalty,
             "repeat_penalty": self._repeat_penalty,
             "max_tokens": self._max_tokens,
-            "parallel_tool_calls": bool(eligible_tools),
+            "parallel_tool_calls": len(eligible_tools) > 1,
             "stream": True,
             "stream_options": {"include_usage": True},
         }
@@ -131,7 +131,9 @@ class Agent:
                 }
                 if eligible_tools and not force_answer:
                     request["tools"] = eligible_tools
-                    request["parallel_tool_calls"] = True
+                    request["parallel_tool_calls"] = len(eligible_tools) > 1
+                    if decision.requires_tool and round_number == 1:
+                        request["tool_choice"] = "required"
 
                 stream = await self._chat.chat.completions.create(**request)
 
@@ -206,6 +208,9 @@ class Agent:
 
                 _validate_model_round(finish_reason, ordered_calls)
                 _validate_allowed_calls(ordered_calls, allowed_tool_names)
+                if decision.requires_tool and round_number == 1:
+                    _validate_required_call(ordered_calls, allowed_tool_names)
+
                 assistant_message = _assistant_message(text or None, ordered_calls)
                 round_trace["assistant_message"] = assistant_message
                 messages.append(assistant_message)
@@ -261,6 +266,8 @@ class Agent:
                         successful_calls[_call_signature(call)] = result
 
                 messages.extend(results)
+                if decision.requires_tool and round_number == 1 and len(eligible_tools) == 1:
+                    force_answer = True
                 round_number += 1
         except Exception as exc:
             if diagnostics:
@@ -395,6 +402,16 @@ def _validate_allowed_calls(
     for call in calls:
         if call["name"] not in allowed_tool_names:
             raise RuntimeError(f"model requested ineligible tool: {call['name']}")
+
+
+def _validate_required_call(
+    calls: list[dict[str, str]],
+    allowed_tool_names: set[str],
+) -> None:
+    if len(allowed_tool_names) != 1:
+        raise RuntimeError("required capability must expose exactly one tool")
+    if len(calls) != 1:
+        raise RuntimeError("required capability must execute exactly one tool call")
 
 
 def _trim_context(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
