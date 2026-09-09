@@ -30,6 +30,7 @@ async def main() -> int:
     reranker = Reranker(args.base_url, model=args.model, timeout_seconds=args.timeout)
     search = ToolSearch(reranker)
 
+    failed_cases = 0
     missing_total = 0
     extra_total = 0
     try:
@@ -39,28 +40,33 @@ async def main() -> int:
             expected = {call.name for call in case.expected_calls}
             missing = sorted(expected - selected)
             extra = sorted(selected - expected)
+            failed = bool(missing or extra)
+            failed_cases += int(failed)
             missing_total += len(missing)
             extra_total += len(extra)
 
-            status = "PASS" if not missing else "FAIL"
+            status = "FAIL" if failed else "PASS"
             print(
                 f"[{index:02d}/{len(cases):02d}] {status} {case.case_id} "
                 f"selected={sorted(selected)} expected={sorted(expected)}"
             )
             if missing:
-                print(f"  missing required candidate(s): {missing}")
+                print(f"  missing required tool(s): {missing}")
             if extra:
-                print(f"  extra candidate(s): {extra}")
+                print(f"  unexpected tool(s): {extra}")
+            print(f"  scores={selection.scores}")
     finally:
         await reranker.close()
 
     print()
     print(f"cases={len(cases)}")
+    print(f"passed={len(cases) - failed_cases}")
+    print(f"failed={failed_cases}")
     print(f"missing_required_tools={missing_total}")
-    print(f"extra_candidates={extra_total}")
-    print("gate=PASS" if missing_total == 0 else "gate=FAIL")
+    print(f"unexpected_tools={extra_total}")
+    print("gate=PASS" if failed_cases == 0 else "gate=FAIL")
 
-    if args.strict and missing_total:
+    if args.strict and failed_cases:
         return 1
     return 0
 
