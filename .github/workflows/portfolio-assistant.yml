@@ -65,9 +65,9 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: server/models
-          key: portfolio-agent-models-qwen35-2b-q6-embedding-q8-reranker-q8-v1
+          key: portfolio-agent-runtime-qwen35-2b-q6-embedding-q8-v1
           save-always: true
-      - name: Configure deterministic live eval
+      - name: Configure live eval
         working-directory: server
         run: |
           cp .env.example .env
