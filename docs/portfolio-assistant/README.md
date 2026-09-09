@@ -28,7 +28,7 @@ unsloth/Qwen3.5-4B-GGUF
 Qwen3.5-4B-UD-Q4_K_XL.gguf
 ```
 
-The frozen pre-optimization 4B baseline passed the 10-case smoke gate at 10/10. The temporal fast path is accepted only if the same gate remains 10/10 while reducing latency.
+The frozen pre-optimization 4B baseline passed the 10-case smoke gate at 10/10. M0–M4 are implemented; M5 is the local live acceptance gate and must preserve 10/10 while reducing latency.
 
 Portfolio retrieval continues to use `Qwen3-Embedding-0.6B` as infrastructure for `search_portfolio`; embeddings do not route requests or select tools.
 
