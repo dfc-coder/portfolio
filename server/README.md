@@ -1,53 +1,103 @@
 # Portfolio assistant
 
-This server is a small OpenAI-compatible agent running on Qwen through llama.cpp.
+Small local portfolio/CV agent with an explicit, Go-like runtime.
 
-## Runtime flow
+## Runtime
 
 ```text
 POST /v1/chat/stream
+  -> ConversationStore
   -> Agent
-      -> Qwen
+      -> Qwen3.5
           -> final answer
           -> or tool_calls
-              -> execute tools
+              -> validate registered tool
+              -> execute tool
               -> append assistant tool_calls + matching tool results
-              -> Qwen again
+              -> Qwen3.5 again
   -> SSE response
 ```
 
-Available tools:
+The Agent owns one bounded model/tool loop. There is no semantic router, planner, graph, capability gate, reranker, or agent framework between the request and the model.
+
+## Model
+
+The local runtime uses llama.cpp with the Unsloth GGUF:
+
+```text
+unsloth/Qwen3.5-2B-GGUF
+Qwen3.5-2B-Q6_K.gguf
+```
+
+Thinking mode is disabled for the operational agent loop.
+
+## Tools
+
+Production tools:
 
 ```text
 search_portfolio
-get_current_datetime
-add_duration_to_datetime
+resolve_datetime
 set_reminder_mock
 ```
 
-`set_reminder_mock` is intentionally non-persistent. It exists to exercise a safe multi-round tool chain without adding a scheduler, database or calendar.
+`app/tools.py` contains the model-facing schema, handler and registry. The registry is the execution source of truth.
 
-## Application files
+Adding a tool should require:
+
+1. define its schema;
+2. implement its handler;
+3. register one `Tool(schema, handler)` entry.
+
+The Agent does not change when a tool is added.
+
+`set_reminder_mock` is intentionally non-persistent and never sends a notification.
+
+## Files
 
 ```text
-app/main.py        # composition and FastAPI
-app/api/router.py  # HTTP/SSE boundary
-app/agent.py       # explicit bounded tool loop
-app/tools.py       # explicit schemas, validation and tool execution
-app/portfolio.py   # portfolio retrieval
-app/prompt.py      # production prompt
-app/config.py      # application environment configuration
+app/main.py          composition root / FastAPI
+app/api/router.py    HTTP + SSE boundary
+app/agent.py         explicit bounded model/tool loop
+app/tools.py         schemas, handlers, validation, registry
+app/conversation.py  bounded in-memory conversation state
+app/portfolio.py     portfolio retrieval
+app/prompt.py        production prompt
+app/config.py        environment configuration
+app/trace.py         diagnostic trace
 ```
 
-There is no planner, graph, tool registry, agent framework or server-side conversation store. The browser round-trips a bounded hidden OpenAI-compatible conversation context with each request, including assistant `tool_calls`, tool results, and final assistant messages.
+## Runtime rules
 
-Date/time fallback configuration belongs to the date capability through the standard `TZ` environment variable. It is not Agent state. Qwen thinking mode is disabled; operational model execution is reported separately from model reasoning.
+- the model chooses among the registered tool schemas;
+- the server accepts only registered tool names;
+- tool arguments are validated server-side;
+- successful identical calls are reused instead of executed twice;
+- tool results keep the original `tool_call_id`;
+- multiple calls returned in one model round are executed in call order;
+- conversation history preserves assistant tool calls and tool results;
+- the model/tool loop has a hard round limit.
+
+These are runtime invariants. Behavioral evals measure the local SLM; they do not define the architecture.
 
 ## Run
 
 ```bash
 cp .env.example .env
+make models
 make up
 ```
 
-API: `http://localhost:8000`
+API:
+
+```text
+http://localhost:8000
+```
+
+Tests:
+
+```bash
+make check
+make eval-smoke
+make eval-strict
+```

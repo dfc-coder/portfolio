@@ -1,19 +1,18 @@
 # Turn execution trace
 
-The diagnostic trace records the complete observable execution of one agent turn without changing the model/tool decision flow.
+The diagnostic trace records the observable execution of one agent turn without changing the model/tool decision flow.
 
-Diagnostics are disabled unless `AGENT_DIAGNOSTICS_TOKEN` is configured and the request supplies the same value in `X-Agent-Diagnostics-Token`. Normal portfolio requests do not receive traces.
+Diagnostics are disabled unless `AGENT_DIAGNOSTICS_TOKEN` is configured and the request supplies the same value in `X-Agent-Diagnostics-Token`.
 
 ## Trace scope
 
-One trace represents one visitor turn and contains:
+One trace contains:
 
 ```text
 turn
   input
   model configuration
-  capability gate decision
-  eligible tool schemas presented to the model
+  registered tool schemas presented to the model
   round 1
     exact request messages
     provider response metadata
@@ -26,6 +25,7 @@ turn
       parsed arguments
       execution result
       duration
+      reused flag when applicable
   round N...
   final answer
   returned context
@@ -33,7 +33,7 @@ turn
   error
 ```
 
-The `tools` field contains only the tool schemas that were eligible for the turn. A tool outside this set is rejected before execution even if a provider were to return such a call.
+The `tools` field is the registered model-facing tool surface for the turn. Returned tool names are checked against that registry before execution.
 
 ## Top-level fields
 
@@ -49,14 +49,8 @@ The `tools` field contains only the tool schemas that were eligible for the turn
     "context": []
   },
   "model": {
-    "name": "Qwen3.5-2B",
+    "name": "Qwen3.5-2B-Q6_K",
     "generation": {}
-  },
-  "capability_gate": {
-    "eligible": ["portfolio"],
-    "latency_ms": 0.0,
-    "finish_reason": "tool_calls",
-    "usage": {}
   },
   "tools": [],
   "rounds": [],
@@ -68,7 +62,7 @@ The `tools` field contains only the tool schemas that were eligible for the turn
 
 ## Round metadata
 
-Each model round records the exact messages sent to the provider and the observable response metadata:
+Each model round records the exact messages sent to the provider and observable response metadata:
 
 ```json
 {
@@ -77,15 +71,11 @@ Each model round records the exact messages sent to the provider and the observa
   "response": {
     "id": "chatcmpl-...",
     "object": "chat.completion.chunk",
-    "model": "Qwen3.5-2B",
+    "model": "Qwen3.5-2B-Q6_K",
     "created": 0,
     "system_fingerprint": "...",
     "finish_reason": "tool_calls|stop|length",
-    "usage": {
-      "prompt_tokens": 0,
-      "completion_tokens": 0,
-      "total_tokens": 0
-    },
+    "usage": {},
     "timings": {},
     "provider": {},
     "content": "",
@@ -99,7 +89,7 @@ Each model round records the exact messages sent to the provider and the observa
 }
 ```
 
-Provider-specific top-level fields that are not part of the stable trace schema are retained under `response.provider` instead of being discarded. This includes llama.cpp diagnostic fields when available.
+Provider-specific top-level fields not part of the stable trace schema are retained under `response.provider`.
 
 When diagnostics are enabled the request asks llama.cpp for:
 
@@ -110,11 +100,9 @@ timings_per_token = true
 return_progress = true
 ```
 
-This makes token usage, prompt/generation timings, cache-related timing data and provider debug metadata observable when the running llama.cpp build exposes them.
-
 ## Tool call metadata
 
-Every executed tool call is represented once:
+An executed tool call is represented as:
 
 ```json
 {
@@ -131,41 +119,42 @@ Every executed tool call is represented once:
 }
 ```
 
-This is the data needed to distinguish:
+When an identical successful call is returned again, the trace also contains:
 
-```text
-capability eligibility
-  Was the tool even allowed for this turn?
-
-tool decision accuracy
-  Did the model call a tool when required?
-
-tool selection accuracy
-  Did it choose the correct eligible tool?
-
-parameter extraction accuracy
-  Did it generate the correct argument names and values?
-
-tool execution success
-  Did the deterministic implementation execute successfully?
-
-end-to-end success
-  Did the full turn produce the correct final behavior?
+```json
+{
+  "reused": true,
+  "duration_ms": 0.0
+}
 ```
 
-A tool execution that returns `ok=true` does not imply that the model supplied correct arguments. Those are separate measurements.
+The prior result is reused with the new `tool_call_id`; the handler is not executed again.
+
+The trace supports separate measurements for:
+
+```text
+tool decision accuracy
+tool selection accuracy
+parameter extraction accuracy
+tool execution success
+end-to-end success
+```
+
+A tool result with `ok=true` means only that deterministic server execution succeeded. It does not prove the model chose the correct tool or arguments.
 
 ## Conversation context
 
-The API now associates turns with a `conversation_id`. The server stores the complete OpenAI-compatible context returned by the agent, including assistant tool calls and matching tool results. The client still round-trips the latest context as a recovery seed, so a server process restart does not force an invalid partial tool history into a live session.
+The API associates turns with a `conversation_id`. The server stores complete OpenAI-compatible context, including assistant tool calls and matching tool results.
 
-Conversation history is trimmed only at user-message boundaries so a stored context never starts in the middle of an assistant-tool-result sequence.
+The client may round-trip context as a recovery seed after a server restart.
+
+Conversation history is trimmed only at user-message boundaries so stored context does not begin in the middle of an assistant/tool exchange.
 
 ## Security
 
-The trace may contain system instructions, conversation context, tool arguments and tool results. It is therefore not exposed by default and must not be enabled in a public deployment without an explicit diagnostics access policy.
+The trace may contain system instructions, conversation context, tool arguments and tool results. It is therefore not exposed by default.
 
-Reasoning text is not recorded. If a provider emits a reasoning field, the trace may record only that such content was present, not the hidden reasoning itself.
+Reasoning text is not recorded. If a provider emits a reasoning field, the trace may record only that such content was present.
 
 ## Local eval
 
@@ -175,4 +164,4 @@ Set the same local token in `server/.env` used by the API:
 AGENT_DIAGNOSTICS_TOKEN=local-eval-only
 ```
 
-`run_agent_eval.py` reads the token from the environment or `server/.env`, sends it in `X-Agent-Diagnostics-Token`, stores the full trace under each case in the results JSON, and prints a concise round/tool summary to the terminal.
+`run_agent_eval.py` reads the token from the environment or `server/.env`, sends it in `X-Agent-Diagnostics-Token`, stores the trace under each case, and prints a concise round/tool summary.

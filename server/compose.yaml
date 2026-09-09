@@ -6,9 +6,9 @@ services:
       - ${LLAMA_MODELS_DIR:-./models}:/models:ro,Z
     command:
       - -m
-      - /models/${LLAMA_MODEL_FILE:-qwen3.5-2b-function-calling-xlam.q4_k_m.gguf}
+      - /models/${LLAMA_MODEL_FILE:-Qwen3.5-2B-Q6_K.gguf}
       - --alias
-      - ${LLAMA_MODEL:-Qwen3.5-2B-Function-Calling-xLAM}
+      - ${LLAMA_MODEL:-Qwen3.5-2B-Q6_K}
       - --host
       - 0.0.0.0
       - --port
@@ -70,11 +70,11 @@ services:
     environment:
       LLAMA_BASE_URL: http://llama:8080
       EMBEDDING_BASE_URL: http://embedding:8081
-      GENERATION_TEMPERATURE: ${GENERATION_TEMPERATURE:-0.7}
-      GENERATION_TOP_P: ${GENERATION_TOP_P:-0.8}
-      GENERATION_TOP_K: ${GENERATION_TOP_K:-20}
+      GENERATION_TEMPERATURE: ${GENERATION_TEMPERATURE:-0.0}
+      GENERATION_TOP_P: ${GENERATION_TOP_P:-1.0}
+      GENERATION_TOP_K: ${GENERATION_TOP_K:-1}
       GENERATION_MIN_P: ${GENERATION_MIN_P:-0.0}
-      GENERATION_PRESENCE_PENALTY: ${GENERATION_PRESENCE_PENALTY:-1.5}
+      GENERATION_PRESENCE_PENALTY: ${GENERATION_PRESENCE_PENALTY:-0.0}
       GENERATION_REPEAT_PENALTY: ${GENERATION_REPEAT_PENALTY:-1.0}
     ports:
       - "8000:8000"

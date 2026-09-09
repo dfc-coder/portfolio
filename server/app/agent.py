@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import time
@@ -11,8 +10,7 @@ from openai import AsyncOpenAI
 
 from .portfolio import Portfolio
 from .prompt import build_messages
-from .tool_search import ToolSearch, all_tools, tool_name
-from .tools import run_tool_call
+from .tools import TOOLS, run_tool_call, tool_name
 from .trace import TurnTrace, chunk_metadata, elapsed_ms, parse_json, utc_now
 
 MAX_TOOL_ROUNDS = 6
@@ -30,13 +28,11 @@ class Agent:
         portfolio: Portfolio,
         *,
         model: str,
-        tool_search: ToolSearch | None = None,
-        prefetch_portfolio: bool = False,
-        temperature: float = 0.7,
-        top_p: float = 0.8,
-        top_k: int = 20,
+        temperature: float = 0.0,
+        top_p: float = 1.0,
+        top_k: int = 1,
         min_p: float = 0.0,
-        presence_penalty: float = 1.5,
+        presence_penalty: float = 0.0,
         repeat_penalty: float = 1.0,
         max_tokens: int = 256,
     ) -> None:
@@ -44,8 +40,6 @@ class Agent:
         self._chat = chat
         self._portfolio = portfolio
         self._model = model
-        self._tool_search = tool_search
-        self._prefetch_portfolio = prefetch_portfolio
         self._temperature = temperature
         self._top_p = top_p
         self._top_k = top_k
@@ -61,40 +55,13 @@ class Agent:
         *,
         diagnostics: bool = False,
     ) -> AsyncIterator[AgentEvent]:
-        portfolio_evidence: list[dict[str, str]] = []
-        if self._prefetch_portfolio:
-            portfolio_evidence = await self._portfolio.search(message)
-            selection = all_tools()
-            eligible_tools = [
-                tool
-                for tool in selection.tools
-                if tool_name(tool) != "search_portfolio"
-            ]
-        else:
-            selection = (
-                await self._tool_search.select(message, context)
-                if self._tool_search is not None
-                else all_tools()
-            )
-            eligible_tools = selection.tools
-
-        allowed_tool_names = {tool_name(tool) for tool in eligible_tools}
+        tools = list(TOOLS)
+        allowed_tool_names = {tool_name(tool) for tool in tools}
         messages = build_messages(
             self._subject,
             _trim_context(context),
             message,
         )
-        if portfolio_evidence:
-            evidence = json.dumps(
-                portfolio_evidence,
-                ensure_ascii=False,
-                separators=(",", ":"),
-            )
-            messages[0]["content"] += (
-                "\n\n<portfolio_evidence>\n"
-                f"{evidence}\n"
-                "</portfolio_evidence>"
-            )
 
         generation = {
             "temperature": self._temperature,
@@ -104,7 +71,7 @@ class Agent:
             "presence_penalty": self._presence_penalty,
             "repeat_penalty": self._repeat_penalty,
             "max_tokens": self._max_tokens,
-            "parallel_tool_calls": len(eligible_tools) > 1,
+            "parallel_tool_calls": len(tools) > 1,
             "stream": True,
             "stream_options": {"include_usage": True},
         }
@@ -113,31 +80,18 @@ class Agent:
             context=context,
             model=self._model,
             generation=generation,
-            tools=eligible_tools,
+            tools=tools,
         )
-        if self._prefetch_portfolio:
-            trace.data["tool_search"] = {
-                "selected": [tool_name(tool) for tool in eligible_tools],
-                "scores": {},
-                "latency_ms": 0.0,
-                "mode": "static",
-            }
-            trace.data["portfolio_retrieval"] = {
-                "count": len(portfolio_evidence),
-                "sources": [item.get("source", "") for item in portfolio_evidence],
-            }
-        else:
-            trace.data["tool_search"] = selection.trace()
 
         successful_calls: dict[tuple[str, str], dict[str, str]] = {}
         force_answer = False
 
         try:
-            round_number = 1
-            while True:
+            for round_number in range(1, MAX_TOOL_ROUNDS + 2):
                 yield "status", {"phase": "model", "round": round_number}
                 round_trace = trace.start_round(round_number, messages)
                 started = time.perf_counter()
+
                 extra_body: dict[str, object] = {
                     "top_k": self._top_k,
                     "min_p": self._min_p,
@@ -163,9 +117,9 @@ class Agent:
                     "stream_options": {"include_usage": True},
                     "extra_body": extra_body,
                 }
-                if eligible_tools and not force_answer:
-                    request["tools"] = eligible_tools
-                    request["parallel_tool_calls"] = len(eligible_tools) > 1
+                if tools and not force_answer:
+                    request["tools"] = tools
+                    request["parallel_tool_calls"] = len(tools) > 1
 
                 stream = await self._chat.chat.completions.create(**request)
 
@@ -205,7 +159,10 @@ class Agent:
                             response_trace["first_text_ms"] = elapsed_ms(started)
                         if not responding:
                             responding = True
-                            yield "status", {"phase": "responding", "round": round_number}
+                            yield "status", {
+                                "phase": "responding",
+                                "round": round_number,
+                            }
                         content.append(text)
                         yield "token", {"text": text}
 
@@ -225,6 +182,7 @@ class Agent:
                 text = "".join(content)
                 ordered_calls = [calls[index] for index in sorted(calls)]
                 tool_names = [call["name"] for call in ordered_calls]
+
                 response_trace = round_trace["response"]
                 response_trace["content"] = text
                 response_trace["finish_reason"] = finish_reason
@@ -258,45 +216,53 @@ class Agent:
                         )
                     return
 
-                repeated_results = _reused_successful_results(ordered_calls, successful_calls)
-                if repeated_results is not None:
-                    round_trace["tool_calls"] = [item[1] for item in repeated_results]
-                    messages.extend(item[0] for item in repeated_results)
-                    force_answer = True
-                    round_number += 1
-                    continue
-
                 if round_number > MAX_TOOL_ROUNDS:
                     raise RuntimeError("tool loop limit reached")
 
+                tool_traces: list[dict[str, object]] = []
+                reused_count = 0
+
                 for call in ordered_calls:
-                    yield "tool", {
-                        "name": call["name"],
-                        "state": "running",
-                        "round": round_number,
-                    }
+                    signature = _call_signature(call)
+                    previous = successful_calls.get(signature)
 
-                executed = await asyncio.gather(
-                    *(
-                        _run_traced_tool(call, self._portfolio)
-                        for call in ordered_calls
-                    )
-                )
-                results = [result for result, _ in executed]
-                round_trace["tool_calls"] = [tool_trace for _, tool_trace in executed]
+                    if previous is not None:
+                        result, tool_trace = _reuse_successful_result(call, previous)
+                        reused_count += 1
+                        yield "tool", {
+                            "name": call["name"],
+                            "state": "done",
+                            "ok": True,
+                            "reused": True,
+                            "round": round_number,
+                        }
+                    else:
+                        yield "tool", {
+                            "name": call["name"],
+                            "state": "running",
+                            "round": round_number,
+                        }
+                        result, tool_trace = await _run_traced_tool(
+                            call,
+                            self._portfolio,
+                        )
+                        ok = _tool_ok(result)
+                        yield "tool", {
+                            "name": call["name"],
+                            "state": "done",
+                            "ok": ok,
+                            "round": round_number,
+                        }
+                        if ok:
+                            successful_calls[signature] = result
 
-                for call, result in zip(ordered_calls, results, strict=True):
-                    yield "tool", {
-                        "name": call["name"],
-                        "state": "done",
-                        "ok": _tool_ok(result),
-                        "round": round_number,
-                    }
-                    if _tool_ok(result):
-                        successful_calls[_call_signature(call)] = result
+                    messages.append(result)
+                    tool_traces.append(tool_trace)
 
-                messages.extend(results)
-                round_number += 1
+                round_trace["tool_calls"] = tool_traces
+                force_answer = reused_count == len(ordered_calls)
+
+            raise RuntimeError("tool loop limit reached")
         except Exception as exc:
             if diagnostics:
                 yield "trace", trace.finish(
@@ -334,45 +300,29 @@ async def _run_traced_tool(
     }
 
 
-def _reused_successful_results(
-    calls: list[dict[str, str]],
-    successful_calls: dict[tuple[str, str], dict[str, str]],
-) -> list[tuple[dict[str, str], dict[str, object]]] | None:
-    if not calls:
-        return None
-
-    signatures = [_call_signature(call) for call in calls]
-    if not all(signature in successful_calls for signature in signatures):
-        return None
-
-    reused: list[tuple[dict[str, str], dict[str, object]]] = []
+def _reuse_successful_result(
+    call: dict[str, str],
+    previous: dict[str, str],
+) -> tuple[dict[str, str], dict[str, object]]:
     now = utc_now()
-    for call, signature in zip(calls, signatures, strict=True):
-        previous = successful_calls[signature]
-        result = {
-            "role": "tool",
-            "tool_call_id": call["id"],
-            "content": previous["content"],
-        }
-        reused.append(
-            (
-                result,
-                {
-                    "id": call["id"],
-                    "name": call["name"],
-                    "arguments_raw": call["arguments"],
-                    "arguments": parse_json(call["arguments"]),
-                    "started_at": now,
-                    "finished_at": now,
-                    "duration_ms": 0.0,
-                    "ok": True,
-                    "reused": True,
-                    "result_raw": previous["content"],
-                    "result": parse_json(previous["content"]),
-                },
-            )
-        )
-    return reused
+    result = {
+        "role": "tool",
+        "tool_call_id": call["id"],
+        "content": previous["content"],
+    }
+    return result, {
+        "id": call["id"],
+        "name": call["name"],
+        "arguments_raw": call["arguments"],
+        "arguments": parse_json(call["arguments"]),
+        "started_at": now,
+        "finished_at": now,
+        "duration_ms": 0.0,
+        "ok": True,
+        "reused": True,
+        "result_raw": previous["content"],
+        "result": parse_json(previous["content"]),
+    }
 
 
 def _call_signature(call: dict[str, str]) -> tuple[str, str]:
@@ -395,13 +345,22 @@ def _record_chunk_metadata(response: dict[str, Any], metadata: dict[str, Any]) -
     if not metadata:
         return
 
-    for key in ("id", "object", "model", "created", "system_fingerprint", "usage", "timings"):
+    standard = {
+        "id",
+        "object",
+        "model",
+        "created",
+        "system_fingerprint",
+        "usage",
+        "timings",
+    }
+    for key in standard:
         if key in metadata:
             response[key] = metadata[key]
 
     provider = response["provider"]
     for key, value in metadata.items():
-        if key in {"id", "object", "model", "created", "system_fingerprint", "usage", "timings"}:
+        if key in standard:
             continue
         if key == "prompt_progress":
             provider.setdefault("prompt_progress", []).append(value)
@@ -429,7 +388,7 @@ def _validate_allowed_calls(
 ) -> None:
     for call in calls:
         if call["name"] not in allowed_tool_names:
-            raise RuntimeError(f"model requested ineligible tool: {call['name']}")
+            raise RuntimeError(f"model requested unknown tool: {call['name']}")
 
 
 def _trim_context(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:

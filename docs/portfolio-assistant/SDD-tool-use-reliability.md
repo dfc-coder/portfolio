@@ -1,39 +1,81 @@
-# SDD — Reliable agent runtime
+# SDD — Go-like reliable agent runtime
 
-Status: Implemented, pending local runtime validation
+Status: Implemented, pending live Qwen3.5-2B Q6 validation
 
 Branch: `feat/agent-live-eval`
 
 ## 1. Objective
 
-The runtime must provide three independent guarantees:
+The portfolio assistant uses one explicit model/tool loop with a small number of runtime invariants.
 
-1. only tools eligible for the current turn can execute;
-2. tool calls can continue across multiple model rounds with exact tool-call/result linkage;
-3. complete conversation context, including tool calls and tool results, survives across user turns.
+The architecture must remain:
 
-Behavioral evals are acceptance checks. They are not the architecture.
+- readable from top to bottom;
+- explicit about control flow;
+- small in number of abstractions;
+- independent of semantic routers and agent frameworks;
+- safe to extend with additional tools without modifying the Agent.
+
+Behavioral evals validate the chosen local SLM. They are not used to create routing architecture around model failures.
 
 ## 2. Runtime
 
 ```text
 visitor
   -> conversation session
-  -> capability eligibility gate
   -> Agent
-      -> model + eligible tool schemas
-      -> tool call?
-          -> validate eligibility
+      -> model + registered tool schemas
+      -> final answer?
+          -> return
+      -> tool calls?
+          -> validate registered names
           -> validate arguments
-          -> execute
-          -> append assistant tool call
-          -> append matching tool result
+          -> execute in call order
+          -> append assistant tool calls
+          -> append matching tool results
           -> next model round
-      -> final answer
   -> persist complete returned context
 ```
 
-The production tool surface remains:
+There is no:
+
+```text
+semantic router
+capability gate
+ToolSearch
+reranker
+planner
+graph
+agent framework
+```
+
+The main model is the only semantic authority deciding whether a registered tool is needed.
+
+## 3. Model
+
+The local runtime is:
+
+```text
+llama.cpp
+unsloth/Qwen3.5-2B-GGUF
+Qwen3.5-2B-Q6_K.gguf
+```
+
+The API uses llama.cpp's OpenAI-compatible chat completions interface with Jinja tool calling enabled and Qwen thinking disabled.
+
+Generation defaults are deterministic for the local acceptance gate:
+
+```text
+temperature = 0.0
+top_p = 1.0
+top_k = 1
+```
+
+These are configuration values, not Agent branching rules.
+
+## 4. Tool registry
+
+The production surface is currently:
 
 ```text
 search_portfolio
@@ -41,85 +83,90 @@ resolve_datetime
 set_reminder_mock
 ```
 
-Their model-facing contracts are unchanged by this runtime milestone.
+`app/tools.py` owns a simple registry.
 
-## 3. Capability eligibility
-
-Before the conversational model receives any production tools, a small constrained capability gate selects the minimum capability set needed for the current visitor message.
-
-Possible capabilities:
+Conceptually:
 
 ```text
-portfolio
-datetime
-reminder
+Tool
+  schema
+  run
 ```
 
-All false means the main model receives no tool schemas at all.
+Adding a tool requires defining its schema, implementing its handler, and adding one registry entry.
 
-Examples of eligibility semantics:
+The Agent receives schemas from the registry and resolves returned tool names against the same registry. The Agent contains no per-tool branching.
+
+## 5. Tool execution invariants
+
+Before execution:
 
 ```text
-greeting / thanks / joke / general knowledge
--> []
-
-portfolio fact
--> [portfolio]
-
-date/time calculation
--> [datetime]
-
-create/change reminder
--> [reminder]
-
-mixed portfolio + date request
--> [portfolio, datetime]
+returned tool name must exist in the registry
+arguments must be valid for that tool
 ```
 
-The gate considers recent conversation only to resolve follow-ups. If an exact answer is already present in context, no capability is required just to retrieve it again.
+The model does not receive authority to bypass server validation.
 
-The Agent also performs a deterministic server-side check before execution:
+Calls returned in one model round are executed in model call order. This is intentionally sequential. Parallel model calls are supported as a protocol shape, but execution stays deterministic and side-effect-safe.
+
+A successful call is keyed by:
 
 ```text
-requested tool name must belong to the eligible tool set
+tool name + canonical JSON arguments
 ```
 
-Therefore a production tool that was not made eligible cannot execute even if a provider were to return such a call.
+If the model returns the same successful call again in the same turn, the prior result is reused with the new `tool_call_id`; the tool is not executed twice.
 
-The gate fails closed: an invalid gate response raises an error instead of exposing all tools.
-
-## 4. Multi-round tools
-
-The Agent loop remains generic.
+This applies per call, so a round containing:
 
 ```text
-model round 1
-  -> tool A
-  -> result A
-
-model round 2 receives:
-  assistant tool_call A
-  tool result A with matching tool_call_id
-
-model round 2
-  -> tool B
-  -> result B
-
-model round 3
-  -> final answer
+repeated A + new B
 ```
 
-The same loop supports multiple tool calls in one model round. Results are appended in call order and each result keeps the original `tool_call_id`.
+reuses A and executes only B.
 
-Validation errors are returned as tool results, allowing the next model round to recover without special-case orchestration.
+If an entire model round consists of already successful repeated calls, tools are removed for the next round to force a final answer.
 
-A hard round limit prevents infinite tool loops.
+## 6. Multi-round protocol
 
-## 5. Conversation sessions
+For every model tool call:
 
-The API accepts an optional `conversation_id` UUID and always emits the resolved id as an SSE `conversation` event.
+```text
+assistant
+  tool_calls:
+    id=A
+    function=...
 
-The server stores the complete OpenAI-compatible context returned by the Agent:
+tool
+  tool_call_id=A
+  content=...
+```
+
+The exact call id is preserved.
+
+The loop supports:
+
+```text
+round 1 -> tool A
+round 2 -> tool B
+round 3 -> final answer
+```
+
+and:
+
+```text
+round 1 -> tool A + tool B
+round 2 -> final answer
+```
+
+A hard model-round limit prevents infinite loops.
+
+## 7. Conversation state
+
+The API accepts an optional `conversation_id` UUID and emits the resolved id as an SSE `conversation` event.
+
+The in-memory store preserves the complete OpenAI-compatible conversation:
 
 ```text
 user
@@ -130,64 +177,53 @@ user
 ...
 ```
 
-A subsequent request carrying the same `conversation_id` uses server context as the source of truth.
+The server session is the source of truth while alive. Client context may seed a session after restart.
 
-The browser still sends its latest context as a recovery seed. If the server process has restarted and no in-memory session exists, that seed can reconstruct the session without changing the protocol.
+History is bounded and trimmed at a user-message boundary so it does not start in the middle of a tool exchange.
 
-History is bounded and trimmed only at a user-message boundary, so stored context never begins halfway through an assistant/tool exchange.
+Durable storage can replace the store later without modifying the Agent protocol.
 
-The current store is intentionally in-memory and bounded. Durable storage can replace it later without changing the Agent or API contract.
+## 8. Retrieval
 
-## 6. Tracing
+Portfolio retrieval remains a separate read-only capability backed by the embedding model.
 
-A diagnostic turn trace now records:
+The embedding service is infrastructure for `search_portfolio`; it is not a router for tool selection.
+
+## 9. Tracing
+
+Diagnostic traces record:
 
 ```text
-capability gate decision
-eligible tool schemas
+registered tool schemas
 model rounds
+finish reasons
 assistant tool calls
 raw + parsed arguments
 tool results
 tool timings
-final context
+reused calls
+returned context
 ```
 
-The trace does not record hidden reasoning text.
+Hidden model reasoning is not exposed.
 
-## 7. Deterministic invariants
+## 10. Testing
 
-Unit/integration tests enforce the runtime properties directly:
+Deterministic tests must cover runtime invariants directly:
 
 ```text
-no eligible capability -> no tools sent to the main model
-ineligible tool -> rejected before execution
-assistant tool_call -> matching tool result id preserved
-multiple tools in one round -> all results preserved
-multi-round tool chain -> prior results available to later rounds
-conversation id -> prior turn context recovered on next request
-tool messages -> retained in conversation history
-history trimming -> starts at a user boundary
+registered schemas are sent to the model
+unknown tool is rejected
+streamed tool-call fragments are reconstructed
+tool_call_id is preserved
+multi-round chains preserve prior results
+multiple calls preserve call order
+identical successful calls execute once
+repeated A + new B does not execute A twice
+conversation state retains tool messages
+history trimming starts at a user boundary
 ```
 
-These invariants do not depend on a probabilistic behavioral eval.
+Live evals then measure whether the local Qwen3.5-2B Q6 model chooses the correct tool, extracts valid arguments, and produces the expected final response.
 
-## 8. Behavioral acceptance
-
-After deterministic runtime tests pass, the existing live smoke verifies the current local Qwen runtime against representative behavior.
-
-```bash
-cd server
-make check
-make down
-make up
-make eval-smoke
-```
-
-Then run the complete checkpoint:
-
-```bash
-make eval-strict
-```
-
-A behavioral failure must be classified using the trace. Runtime code that already satisfies its invariant is not redesigned to compensate for an unrelated model failure.
+A behavioral model failure is diagnosed as a model/schema/prompt problem first. It does not justify adding a semantic router unless the product requirements later establish a separate deterministic policy boundary.

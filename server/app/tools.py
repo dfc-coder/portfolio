@@ -3,6 +3,8 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -132,12 +134,6 @@ SET_REMINDER_MOCK_SCHEMA = {
     },
 }
 
-TOOLS = [
-    SEARCH_PORTFOLIO_SCHEMA,
-    RESOLVE_DATETIME_SCHEMA,
-    SET_REMINDER_MOCK_SCHEMA,
-]
-
 
 async def search_portfolio(portfolio: Portfolio, query: str) -> dict[str, object]:
     return {"facts": await portfolio.search(query)}
@@ -164,6 +160,78 @@ def set_reminder_mock(
     return _reminder_result(value + _offset_delta(offset, unit), message)
 
 
+ToolHandler = Callable[[dict[str, Any], Portfolio], Awaitable[object]]
+
+
+@dataclass(frozen=True)
+class Tool:
+    schema: dict[str, Any]
+    run: ToolHandler
+
+    @property
+    def name(self) -> str:
+        return str(self.schema["function"]["name"])
+
+
+async def _run_search_portfolio(payload: dict[str, Any], portfolio: Portfolio) -> object:
+    _only(payload, {"query"})
+    return await search_portfolio(
+        portfolio,
+        _required_string(payload, "query", max_length=500),
+    )
+
+
+async def _run_resolve_datetime(payload: dict[str, Any], portfolio: Portfolio) -> object:
+    del portfolio
+    _only(payload, {"reference", "offset", "unit", "timezone"})
+    return resolve_datetime(
+        reference=_required_string(payload, "reference", max_length=100),
+        offset=_required_integer(
+            payload,
+            "offset",
+            minimum=-52560000,
+            maximum=52560000,
+        ),
+        unit=_required_choice(payload, "unit", _OFFSET_UNITS),
+        timezone=_optional_timezone(payload),
+    )
+
+
+async def _run_set_reminder_mock(payload: dict[str, Any], portfolio: Portfolio) -> object:
+    del portfolio
+    _only(payload, {"reference", "offset", "unit", "message", "timezone"})
+    return set_reminder_mock(
+        reference=_required_string(payload, "reference", max_length=100),
+        offset=_required_integer(
+            payload,
+            "offset",
+            minimum=-52560000,
+            maximum=52560000,
+        ),
+        unit=_required_choice(payload, "unit", _OFFSET_UNITS),
+        message=_required_string(payload, "message", max_length=500),
+        timezone=_optional_timezone(payload),
+    )
+
+
+_REGISTERED_TOOLS = (
+    Tool(SEARCH_PORTFOLIO_SCHEMA, _run_search_portfolio),
+    Tool(RESOLVE_DATETIME_SCHEMA, _run_resolve_datetime),
+    Tool(SET_REMINDER_MOCK_SCHEMA, _run_set_reminder_mock),
+)
+
+_TOOL_BY_NAME = {tool.name: tool for tool in _REGISTERED_TOOLS}
+if len(_TOOL_BY_NAME) != len(_REGISTERED_TOOLS):
+    raise RuntimeError("duplicate tool name")
+
+# Stable model-facing schema list. The registry above is the execution source of truth.
+TOOLS = [tool.schema for tool in _REGISTERED_TOOLS]
+
+
+def tool_name(schema: dict[str, Any]) -> str:
+    return str(schema["function"]["name"])
+
+
 async def run_tool_call(
     call_id: str,
     name: str,
@@ -174,7 +242,12 @@ async def run_tool_call(
         payload = json.loads(raw_arguments or "{}")
         if not isinstance(payload, dict):
             raise ValueError("tool arguments must be a JSON object")
-        result = await _run_tool(name, payload, portfolio)
+
+        tool = _TOOL_BY_NAME.get(name)
+        if tool is None:
+            raise ValueError(f"unknown tool: {name}")
+
+        result = await tool.run(payload, portfolio)
         body: dict[str, object] = {"ok": True, "result": result}
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
         body = {
@@ -192,50 +265,6 @@ async def run_tool_call(
         "tool_call_id": call_id,
         "content": json.dumps(body, ensure_ascii=False),
     }
-
-
-async def _run_tool(
-    name: str,
-    payload: dict[str, Any],
-    portfolio: Portfolio,
-) -> object:
-    if name == "search_portfolio":
-        _only(payload, {"query"})
-        return await search_portfolio(
-            portfolio,
-            _required_string(payload, "query", max_length=500),
-        )
-
-    if name == "resolve_datetime":
-        _only(payload, {"reference", "offset", "unit", "timezone"})
-        return resolve_datetime(
-            reference=_required_string(payload, "reference", max_length=100),
-            offset=_required_integer(
-                payload,
-                "offset",
-                minimum=-52560000,
-                maximum=52560000,
-            ),
-            unit=_required_choice(payload, "unit", _OFFSET_UNITS),
-            timezone=_optional_timezone(payload),
-        )
-
-    if name == "set_reminder_mock":
-        _only(payload, {"reference", "offset", "unit", "message", "timezone"})
-        return set_reminder_mock(
-            reference=_required_string(payload, "reference", max_length=100),
-            offset=_required_integer(
-                payload,
-                "offset",
-                minimum=-52560000,
-                maximum=52560000,
-            ),
-            unit=_required_choice(payload, "unit", _OFFSET_UNITS),
-            message=_required_string(payload, "message", max_length=500),
-            timezone=_optional_timezone(payload),
-        )
-
-    raise ValueError(f"unknown tool: {name}")
 
 
 def _resolve_reference(reference: str, timezone: str | None) -> tuple[dt.datetime, str]:

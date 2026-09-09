@@ -25,9 +25,6 @@ class Config:
     embedding_base_url: str
     embedding_model: str
     embedding_timeout_seconds: float
-    reranker_base_url: str
-    reranker_model: str
-    reranker_timeout_seconds: float
     allowed_origins: tuple[str, ...]
     diagnostics_token: str | None
     generation_temperature: float
@@ -49,14 +46,16 @@ class Config:
                 os.getenv("PORTFOLIO_PROFILE_PATH", root / "config" / "portfolio.json")
             ),
             llama_base_url=os.getenv("LLAMA_BASE_URL", "http://llama:8080").rstrip("/"),
-            llama_model=os.getenv("LLAMA_MODEL", "Qwen3.5-2B"),
+            llama_model=os.getenv("LLAMA_MODEL", "Qwen3.5-2B-Q6_K"),
             llama_timeout_seconds=float(os.getenv("LLAMA_TIMEOUT_SECONDS", "90")),
-            embedding_base_url=os.getenv("EMBEDDING_BASE_URL", "http://embedding:8081").rstrip("/"),
+            embedding_base_url=os.getenv(
+                "EMBEDDING_BASE_URL",
+                "http://embedding:8081",
+            ).rstrip("/"),
             embedding_model=os.getenv("EMBEDDING_MODEL", "Qwen3-Embedding-0.6B"),
-            embedding_timeout_seconds=float(os.getenv("EMBEDDING_TIMEOUT_SECONDS", "30")),
-            reranker_base_url=os.getenv("RERANKER_BASE_URL", "http://reranker:8082").rstrip("/"),
-            reranker_model=os.getenv("RERANKER_MODEL", "Qwen3-Reranker-0.6B"),
-            reranker_timeout_seconds=float(os.getenv("RERANKER_TIMEOUT_SECONDS", "30")),
+            embedding_timeout_seconds=float(
+                os.getenv("EMBEDDING_TIMEOUT_SECONDS", "30")
+            ),
             allowed_origins=_csv(
                 os.getenv(
                     "ALLOWED_ORIGINS",
@@ -71,7 +70,9 @@ class Config:
             generation_presence_penalty=float(
                 os.getenv("GENERATION_PRESENCE_PENALTY", "0.0")
             ),
-            generation_repeat_penalty=float(os.getenv("GENERATION_REPEAT_PENALTY", "1.0")),
+            generation_repeat_penalty=float(
+                os.getenv("GENERATION_REPEAT_PENALTY", "1.0")
+            ),
             generation_max_tokens=int(os.getenv("GENERATION_MAX_TOKENS", "256")),
             context_max_chars=int(os.getenv("CONTEXT_MAX_CHARS", "4000")),
             context_max_documents=int(os.getenv("CONTEXT_MAX_DOCUMENTS", "4")),

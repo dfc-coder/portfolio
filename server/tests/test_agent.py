@@ -6,7 +6,6 @@ import pytest
 
 from app.agent import Agent
 from app.prompt import build_messages
-from app.tool_search import ToolSelection
 from app.tools import TOOLS
 
 
@@ -33,7 +32,13 @@ def chunk(
     return SimpleNamespace(
         choices=[
             SimpleNamespace(
-                delta=SimpleNamespace(content=content, tool_calls=tool_calls),
+                index=0,
+                delta=SimpleNamespace(
+                    role="assistant",
+                    content=content,
+                    tool_calls=tool_calls,
+                    reasoning_content=None,
+                ),
                 finish_reason=finish_reason,
             )
         ]
@@ -73,25 +78,6 @@ class FakePortfolio:
         return [{"source": "projects.0", "text": '{"stack":["Rust"]}'}]
 
 
-class FakeToolSearch:
-    def __init__(self, *tool_names: str) -> None:
-        selected = [
-            tool
-            for tool in TOOLS
-            if tool["function"]["name"] in tool_names
-        ]
-        self._selection = ToolSelection(
-            tools=selected,
-            scores={name: 1.0 for name in tool_names},
-            latency_ms=0.0,
-        )
-        self.calls = []
-
-    async def select(self, message, context):
-        self.calls.append((message, copy.deepcopy(context)))
-        return self._selection
-
-
 def token_text(events) -> str:
     return "".join(
         str(payload["text"])
@@ -122,7 +108,7 @@ def test_prompt_keeps_tool_mechanics_out_of_system_instructions() -> None:
 
 
 @pytest.mark.asyncio
-async def test_agent_streams_answer_and_flow_without_tool() -> None:
+async def test_agent_exposes_registered_tools_and_streams_direct_answer() -> None:
     chat = FakeChat([[chunk("Ho"), chunk("la."), chunk(finish_reason="stop")]])
     portfolio = FakePortfolio()
     agent = Agent(
@@ -138,35 +124,20 @@ async def test_agent_streams_answer_and_flow_without_tool() -> None:
     assert events[0] == ("status", {"phase": "model", "round": 1})
     assert ("status", {"phase": "responding", "round": 1}) in events
     assert portfolio.queries == []
-    assert returned_context(events)[-1] == {"role": "assistant", "content": "Hola."}
-    assert len(chat.chat.completions.requests) == 1
-    assert chat.chat.completions.requests[0]["stream"] is True
-    assert "tool_choice" not in chat.chat.completions.requests[0]
 
-
-@pytest.mark.asyncio
-async def test_agent_omits_tools_when_tool_search_returns_none() -> None:
-    chat = FakeChat([[chunk("Hola."), chunk(finish_reason="stop")]])
-    tool_search = FakeToolSearch()
-    agent = Agent(
-        "Diego",
-        chat,
-        FakePortfolio(),
-        model="qwen",
-        tool_search=tool_search,
-    )
-
-    events = [event async for event in agent.respond("hola", [])]
-
-    assert token_text(events) == "Hola."
     request = chat.chat.completions.requests[0]
-    assert "tools" not in request
-    assert "parallel_tool_calls" not in request
-    assert tool_search.calls == [("hola", [])]
+    assert request["stream"] is True
+    assert request["tools"] == TOOLS
+    assert request["parallel_tool_calls"] is True
+    assert "tool_choice" not in request
+    assert returned_context(events)[-1] == {
+        "role": "assistant",
+        "content": "Hola.",
+    }
 
 
 @pytest.mark.asyncio
-async def test_agent_rejects_tool_outside_selected_schemas() -> None:
+async def test_agent_rejects_unknown_tool_before_execution() -> None:
     chat = FakeChat(
         [
             [
@@ -174,9 +145,9 @@ async def test_agent_rejects_tool_outside_selected_schemas() -> None:
                     tool_calls=[
                         tool_delta(
                             0,
-                            call_id="call-date",
-                            name="resolve_datetime",
-                            arguments='{"reference":"now","offset":0,"unit":"days"}',
+                            call_id="call-unknown",
+                            name="unknown_tool",
+                            arguments="{}",
                         )
                     ],
                     finish_reason="tool_calls",
@@ -184,19 +155,13 @@ async def test_agent_rejects_tool_outside_selected_schemas() -> None:
             ]
         ]
     )
-    agent = Agent(
-        "Diego",
-        chat,
-        FakePortfolio(),
-        model="qwen",
-        tool_search=FakeToolSearch("search_portfolio"),
-    )
+    portfolio = FakePortfolio()
+    agent = Agent("Diego", chat, portfolio, model="qwen")
 
-    with pytest.raises(RuntimeError, match="ineligible tool: resolve_datetime"):
+    with pytest.raises(RuntimeError, match="unknown tool: unknown_tool"):
         _ = [event async for event in agent.respond("consulta", [])]
 
-    request = chat.chat.completions.requests[0]
-    assert [tool["function"]["name"] for tool in request["tools"]] == ["search_portfolio"]
+    assert portfolio.queries == []
 
 
 @pytest.mark.asyncio
@@ -227,12 +192,7 @@ async def test_agent_preserves_streamed_tool_call_and_reports_flow() -> None:
         ]
     )
     portfolio = FakePortfolio()
-    agent = Agent(
-        "Diego",
-        chat,
-        portfolio,
-        model="qwen",
-    )
+    agent = Agent("Diego", chat, portfolio, model="qwen")
 
     events = [event async for event in agent.respond("¿Trabajó con Rust?", [])]
 
@@ -246,7 +206,6 @@ async def test_agent_preserves_streamed_tool_call_and_reports_flow() -> None:
         "tool",
         {"name": "search_portfolio", "state": "done", "ok": True, "round": 1},
     ) in events
-    assert ("status", {"phase": "model", "round": 2}) in events
 
     second_messages = chat.chat.completions.requests[1]["messages"]
     assert second_messages[-2]["role"] == "assistant"
@@ -306,17 +265,13 @@ async def test_agent_runs_generic_multi_round_tool_chain() -> None:
             [chunk("Recordatorio simulado."), chunk(finish_reason="stop")],
         ]
     )
-    agent = Agent(
-        "Diego",
-        chat,
-        FakePortfolio(),
-        model="qwen",
-    )
+    agent = Agent("Diego", chat, FakePortfolio(), model="qwen")
 
     events = [
         event
         async for event in agent.respond(
-            "Calculá 15 días después de 2026-09-04T19:00:00-03:00 y usá esa fecha para un recordatorio del CV",
+            "Calculá 15 días después de 2026-09-04T19:00:00-03:00 "
+            "y usá esa fecha para un recordatorio del CV",
             [],
         )
     ]
@@ -329,10 +284,7 @@ async def test_agent_runs_generic_multi_round_tool_chain() -> None:
         for event, payload in events
         if event == "tool" and payload["state"] == "running"
     ]
-    assert running_tools == [
-        "resolve_datetime",
-        "set_reminder_mock",
-    ]
+    assert running_tools == ["resolve_datetime", "set_reminder_mock"]
 
     final_messages = chat.chat.completions.requests[-1]["messages"]
     tool_ids = [item["tool_call_id"] for item in final_messages if item["role"] == "tool"]
@@ -340,7 +292,7 @@ async def test_agent_runs_generic_multi_round_tool_chain() -> None:
 
 
 @pytest.mark.asyncio
-async def test_agent_returns_multiple_tool_results_in_one_round() -> None:
+async def test_agent_returns_multiple_tool_results_in_call_order() -> None:
     chat = FakeChat(
         [
             [
@@ -371,12 +323,7 @@ async def test_agent_returns_multiple_tool_results_in_one_round() -> None:
             [chunk("Listo."), chunk(finish_reason="stop")],
         ]
     )
-    agent = Agent(
-        "Diego",
-        chat,
-        FakePortfolio(),
-        model="qwen",
-    )
+    agent = Agent("Diego", chat, FakePortfolio(), model="qwen")
 
     events = [event async for event in agent.respond("consulta mixta", [])]
 
@@ -421,16 +368,14 @@ async def test_agent_carries_tool_results_into_follow_up_turn() -> None:
             ],
         ]
     )
-    agent = Agent(
-        "Diego",
-        chat,
-        FakePortfolio(),
-        model="qwen",
-    )
+    agent = Agent("Diego", chat, FakePortfolio(), model="qwen")
 
     first_events = [
         event
-        async for event in agent.respond("Dentro de 15 días, ¿qué día sería?", [])
+        async for event in agent.respond(
+            "Dentro de 15 días desde 2026-09-04T19:00:00-03:00, ¿qué día sería?",
+            [],
+        )
     ]
     context = returned_context(first_events)
 
@@ -440,7 +385,9 @@ async def test_agent_carries_tool_results_into_follow_up_turn() -> None:
 
     assert token_text(second_events) == "El sábado 19 de septiembre de 2026."
     follow_up_messages = chat.chat.completions.requests[-1]["messages"]
-    prior_tool_messages = [item for item in follow_up_messages if item.get("role") == "tool"]
+    prior_tool_messages = [
+        item for item in follow_up_messages if item.get("role") == "tool"
+    ]
     assert len(prior_tool_messages) == 1
     prior_result = json.loads(prior_tool_messages[0]["content"])
     assert prior_result["result"]["date"] == "2026-09-19"
