@@ -126,7 +126,6 @@ class Agent:
                 content: list[str] = []
                 calls: dict[int, dict[str, str]] = {}
                 finish_reason: str | None = None
-                responding = False
 
                 async for chunk in stream:
                     response_trace = round_trace["response"]
@@ -157,14 +156,7 @@ class Agent:
                     if text:
                         if response_trace["first_text_ms"] is None:
                             response_trace["first_text_ms"] = elapsed_ms(started)
-                        if not responding:
-                            responding = True
-                            yield "status", {
-                                "phase": "responding",
-                                "round": round_number,
-                            }
                         content.append(text)
-                        yield "token", {"text": text}
 
                     for call in tool_deltas:
                         item = calls.setdefault(
@@ -206,6 +198,8 @@ class Agent:
                 if not ordered_calls:
                     if not text.strip():
                         raise RuntimeError("LLM returned an empty response")
+                    yield "status", {"phase": "responding", "round": round_number}
+                    yield "token", {"text": text}
                     returned_context = _trim_context(messages[1:])
                     yield "context", {"messages": returned_context}
                     if diagnostics:
