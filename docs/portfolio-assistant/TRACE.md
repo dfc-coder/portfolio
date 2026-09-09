@@ -1,167 +1,125 @@
-# Turn execution trace
+# Portfolio Assistant Trace
 
-The diagnostic trace records the observable execution of one agent turn without changing the model/tool decision flow.
+Diagnostic traces are a local evaluation and debugging surface. They must expose execution metadata without exposing hidden model reasoning.
 
-Diagnostics are disabled unless `AGENT_DIAGNOSTICS_TOKEN` is configured and the request supplies the same value in `X-Agent-Diagnostics-Token`.
+## Top-level turn
 
-## Trace scope
-
-One trace contains:
+A diagnostic turn records:
 
 ```text
-turn
-  input
-  model configuration
-  registered tool schemas presented to the model
-  round 1
-    exact request messages
-    provider response metadata
-    finish reason
-    usage
-    timings
-    generated content
-    tool calls
-      raw arguments
-      parsed arguments
-      execution result
-      duration
-      reused flag when applicable
-  round N...
-  final answer
-  returned context
-  total duration
-  error
+trace_id
+started_at
+finished_at
+duration_ms
+status
+input
+dispatch
+workers
+rounds
+output
+returned_context
+error
 ```
 
-The `tools` field is the registered model-facing tool surface for the turn. Returned tool names are checked against that registry before execution.
-
-## Top-level fields
-
-```json
-{
-  "trace_id": "uuid",
-  "started_at": "UTC ISO-8601",
-  "finished_at": "UTC ISO-8601",
-  "duration_ms": 0.0,
-  "status": "ok|error",
-  "input": {
-    "message": "...",
-    "context": []
-  },
-  "model": {
-    "name": "Qwen3.5-2B-Q6_K",
-    "generation": {}
-  },
-  "tools": [],
-  "rounds": [],
-  "output": "...",
-  "returned_context": [],
-  "error": null
-}
-```
-
-## Round metadata
-
-Each model round records the exact messages sent to the provider and observable response metadata:
-
-```json
-{
-  "round": 1,
-  "request_messages": [],
-  "response": {
-    "id": "chatcmpl-...",
-    "object": "chat.completion.chunk",
-    "model": "Qwen3.5-2B-Q6_K",
-    "created": 0,
-    "system_fingerprint": "...",
-    "finish_reason": "tool_calls|stop|length",
-    "usage": {},
-    "timings": {},
-    "provider": {},
-    "content": "",
-    "chunk_count": 0,
-    "first_delta_ms": 0.0,
-    "first_text_ms": 0.0,
-    "duration_ms": 0.0
-  },
-  "assistant_message": {},
-  "tool_calls": []
-}
-```
-
-Provider-specific top-level fields not part of the stable trace schema are retained under `response.provider`.
-
-When diagnostics are enabled the request asks llama.cpp for:
+`dispatch.routes` contains one or more closed domains:
 
 ```text
-stream_options.include_usage = true
-verbose = true
-timings_per_token = true
-return_progress = true
+general
+portfolio
+datetime
+reminder
 ```
 
-## Tool call metadata
+## Worker paths
 
-An executed tool call is represented as:
+General and portfolio use the normal worker trace. Portfolio may contain native model tool calls.
+
+Datetime and reminder use the structured temporal fast path. Their trace records the structured parser model round followed by the deterministic Python operation in the same observable call collection.
+
+The direct temporal operation record includes:
 
 ```json
 {
-  "id": "call-id",
-  "name": "tool_name",
-  "arguments_raw": "{...}",
-  "arguments": {},
-  "started_at": "UTC ISO-8601",
-  "finished_at": "UTC ISO-8601",
-  "duration_ms": 0.0,
+  "name": "resolve_datetime",
+  "arguments": {
+    "reference": "now",
+    "offset": 1,
+    "unit": "days"
+  },
   "ok": true,
-  "result_raw": "{...}",
-  "result": {}
+  "direct": true
 }
 ```
 
-When an identical successful call is returned again, the trace also contains:
+or `set_reminder_mock` for reminder requests.
 
-```json
-{
-  "reused": true,
-  "duration_ms": 0.0
-}
-```
+`direct=true` means the operation was selected by the dispatcher route and executed by Python after structured semantic parsing. It was not emitted through llama.cpp native tool calling.
 
-The prior result is reused with the new `tool_call_id`; the handler is not executed again.
+This compatibility shape is intentional: the live eval can compare tool/operation selection, argument extraction, and execution success against the M0 native-tool baseline.
 
-The trace supports separate measurements for:
+## Model round metadata
+
+When available, rounds may include:
 
 ```text
-tool decision accuracy
-tool selection accuracy
-parameter extraction accuracy
-tool execution success
-end-to-end success
+finish_reason
+usage
+timings
+system_fingerprint
+prompt progress
+first token / delta timings
+provider-specific non-reasoning metadata
 ```
 
-A tool result with `ok=true` means only that deterministic server execution succeeded. It does not prove the model chose the correct tool or arguments.
+Hidden reasoning is never surfaced.
 
-## Conversation context
+For structured datetime/reminder parsing:
 
-The API associates turns with a `conversation_id`. The server stores complete OpenAI-compatible context, including assistant tool calls and matching tool results.
-
-The client may round-trip context as a recovery seed after a server restart.
-
-Conversation history is trimmed only at user-message boundaries so stored context does not begin in the middle of an assistant/tool exchange.
-
-## Security
-
-The trace may contain system instructions, conversation context, tool arguments and tool results. It is therefore not exposed by default.
-
-Reasoning text is not recorded. If a provider emits a reasoning field, the trace may record only that such content was present.
-
-## Local eval
-
-Set the same local token in `server/.env` used by the API:
-
-```env
-AGENT_DIAGNOSTICS_TOKEN=local-eval-only
+```text
+stream=false
+native_tools=false
 ```
 
-`run_agent_eval.py` reads the token from the environment or `server/.env`, sends it in `X-Agent-Diagnostics-Token`, stores the trace under each case, and prints a concise round/tool summary.
+For the portfolio native-tool loop:
+
+```text
+stream=true
+tools=[search_portfolio]
+```
+
+## Tool / operation record
+
+Each operation record can contain:
+
+```text
+id
+name
+arguments_raw
+arguments
+started_at
+finished_at
+duration_ms
+ok
+result_raw
+result
+reused
+direct
+```
+
+`reused=true` applies to an identical successful call reused by the native portfolio loop.
+
+`direct=true` applies to datetime/reminder fast-path execution.
+
+## Conversation state
+
+`returned_context` is the context persisted for the conversation after the turn.
+
+Native portfolio exchanges may include assistant `tool_calls` and matching tool messages because those messages are part of the model protocol.
+
+Datetime/reminder fast-path execution does not manufacture native tool protocol messages. The stored conversation contains the visitor request and final visitor-facing answer.
+
+## Safety
+
+Diagnostic traces are emitted only when the request supplies the configured diagnostics token. Deployed environments should leave diagnostics disabled unless explicitly required.
+
+The trace must never include secrets or hidden chain-of-thought.
