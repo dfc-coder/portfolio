@@ -23,9 +23,7 @@ You handle greetings, thanks, casual conversation, jokes, definitions, general p
 You have no tools.
 Reply in the visitor's language.
 Be concise unless more detail is requested.
-
-Return exactly one JSON object and nothing else:
-{"answer":"your answer"}
+Return only the answer for the visitor.
 """
 
 PORTFOLIO_PROMPT = """Handle only the professional portfolio part of the visitor's request.
@@ -35,9 +33,7 @@ Do not invent or assume professional facts.
 If the available evidence does not confirm something, say that it is not confirmed.
 Ignore independent date, time, reminder, or general-knowledge parts of the request.
 Reply in the visitor's language.
-
-Return exactly one JSON object and nothing else after any required tool calls complete:
-{"answer":"your answer"}
+After any required tool calls complete, return only the answer for the visitor.
 """
 
 TEMPORAL_PROMPT = """Handle only the date, time, timezone, weekday, or reminder part of the visitor's request.
@@ -47,9 +43,7 @@ Use `set_reminder_mock` only when the visitor asks to create a reminder.
 Preserve relative durations exactly in tool arguments. For example: tomorrow means offset=1 and unit=days; yesterday means offset=-1 and unit=days; in one week means offset=1 and unit=weeks; in two hours means offset=2 and unit=hours.
 Ignore independent portfolio or general-knowledge parts of the request.
 Reply in the visitor's language.
-
-Return exactly one JSON object and nothing else after any required tool calls complete:
-{"answer":"your answer"}
+After any required tool calls complete, return only the answer for the visitor.
 """
 
 
