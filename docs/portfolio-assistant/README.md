@@ -1,33 +1,39 @@
 # Portfolio Assistant
 
-The backend is a small local portfolio/CV agent with a Go-like runtime: explicit control flow, bounded state, simple tool registration, and no semantic routing framework.
+The backend is a small local portfolio/CV agent with a Go-like runtime: explicit control flow, bounded state, structured semantic parsing, and no agent framework.
 
 ## Runtime
 
 ```text
 FastAPI / SSE
   -> ConversationStore
-  -> Agent
-      -> llama.cpp / Qwen3.5-2B-Q6_K
-      -> registered tool schemas
-      -> explicit bounded tool loop
+  -> Agent / orchestrator
+      -> llama.cpp / Qwen3.5-4B
+      -> classify: general | portfolio | datetime | reminder
+      -> general: no tools
+      -> portfolio: native search_portfolio tool loop
+      -> datetime/reminder: structured JSON -> validate -> direct Python operation -> deterministic formatter
 ```
 
-The model decides whether a tool is needed. The server validates registered names and arguments, executes calls in order, preserves `tool_call_id`, and reuses successful identical calls instead of executing them twice.
+The model interprets natural language. Python owns routing, validation, execution, termination, and deterministic temporal presentation.
 
-There is no capability gate, ToolSearch, reranker, planner, graph, or agent framework.
+`datetime` and `reminder` do not receive native tool schemas and do not make a second LLM call after execution. `search_portfolio` keeps the bounded native tool loop because retrieval still requires model-selected evidence.
+
+There is no capability gate, ToolSearch, reranker, planner, supervisor, critic, graph, or agent framework.
 
 ## Local model
 
 ```text
-unsloth/Qwen3.5-2B-GGUF
-Qwen3.5-2B-Q6_K.gguf
+unsloth/Qwen3.5-4B-GGUF
+Qwen3.5-4B-UD-Q4_K_XL.gguf
 ```
 
-Portfolio retrieval continues to use `Qwen3-Embedding-0.6B` as infrastructure for `search_portfolio`; embeddings do not select tools.
+The frozen pre-optimization 4B baseline passed the 10-case smoke gate at 10/10. The temporal fast path is accepted only if the same gate remains 10/10 while reducing latency.
+
+Portfolio retrieval continues to use `Qwen3-Embedding-0.6B` as infrastructure for `search_portfolio`; embeddings do not route requests or select tools.
 
 ## Documents
 
-- `SDD-tool-use-reliability.md` — runtime architecture and invariants.
+- `SDD-tool-use-reliability.md` — runtime architecture, M0–M5 fast-path design, and invariants.
 - `TRACE.md` — diagnostic trace contract.
-- `../../server/README.md` — local run and file layout.
+- `../../server/README.md` — local run, tests, and file layout.
