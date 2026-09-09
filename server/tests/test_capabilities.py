@@ -22,14 +22,18 @@ class FakeEmbeddingsEndpoint:
             ]
         else:
             query = texts[0]
-            if "Hola" in query:
-                vectors = [[1.0, 0.0, 0.0, 0.0]]
-            elif "Rust" in query or "Go?" in query:
-                vectors = [[0.0, 1.0, 0.0, 0.0]]
-            elif "Recordame" in query:
-                vectors = [[0.0, 0.0, 0.0, 1.0]]
+            if "MIXED" in query:
+                vectors = [[0.1, 0.70, 0.68, 0.1]]
+            elif "AMBIGUOUS_PORTFOLIO" in query:
+                vectors = [[0.72, 0.70, 0.1, 0.1]]
+            elif "REMINDER" in query:
+                vectors = [[0.1, 0.1, 0.1, 1.0]]
+            elif "PORTFOLIO" in query or "Go?" in query:
+                vectors = [[0.1, 1.0, 0.1, 0.1]]
+            elif "DATETIME" in query:
+                vectors = [[0.1, 0.1, 1.0, 0.1]]
             else:
-                vectors = [[0.0, 0.0, 1.0, 0.0]]
+                vectors = [[1.0, 0.1, 0.1, 0.1]]
 
         return SimpleNamespace(
             data=[
@@ -45,7 +49,7 @@ class FakeEmbeddingsClient:
 
 
 @pytest.mark.asyncio
-async def test_semantic_selector_returns_no_tools_for_general_conversation() -> None:
+async def test_clear_conversation_returns_no_candidate_tools() -> None:
     embeddings = FakeEmbeddingsClient()
     selector = SemanticCapabilitySelector(embeddings, model="embedding")
 
@@ -58,63 +62,50 @@ async def test_semantic_selector_returns_no_tools_for_general_conversation() -> 
 
 
 @pytest.mark.asyncio
-async def test_semantic_selector_returns_portfolio_tool_for_professional_question() -> None:
+async def test_close_portfolio_match_is_kept_as_candidate() -> None:
     selector = SemanticCapabilitySelector(FakeEmbeddingsClient(), model="embedding")
 
-    decision = await selector.select("¿Diego trabajó con Rust?", [])
+    decision = await selector.select("AMBIGUOUS_PORTFOLIO", [])
 
     assert decision.route == "portfolio"
     assert decision.names == ("portfolio",)
-    assert decision.requires_tool is True
-
-
-@pytest.mark.asyncio
-async def test_semantic_selector_returns_datetime_tool_for_date_request() -> None:
-    selector = SemanticCapabilitySelector(FakeEmbeddingsClient(), model="embedding")
-
-    decision = await selector.select("¿Qué fecha será mañana?", [])
-
-    assert decision.route == "datetime"
-    assert decision.names == ("datetime",)
-    assert decision.requires_tool is True
-
-
-@pytest.mark.asyncio
-async def test_semantic_selector_returns_only_reminder_tool_for_reminder_request() -> None:
-    selector = SemanticCapabilitySelector(FakeEmbeddingsClient(), model="embedding")
-
-    decision = await selector.select("Recordame esto mañana", [])
-
-    assert decision.route == "reminder"
-    assert decision.names == ("reminder",)
-    assert decision.requires_tool is True
-
-
-@pytest.mark.asyncio
-async def test_read_only_followup_keeps_tool_available_without_forcing_it() -> None:
-    selector = SemanticCapabilitySelector(FakeEmbeddingsClient(), model="embedding")
-    context = [
-        {"role": "user", "content": "Dentro de 15 días, ¿qué día sería?"},
-        {"role": "assistant", "content": "Sería el sábado 19 de septiembre de 2026."},
-    ]
-
-    decision = await selector.select("¿Cuál sábado?", context)
-
-    assert decision.route == "datetime"
-    assert decision.names == ("datetime",)
     assert decision.requires_tool is False
 
 
 @pytest.mark.asyncio
-async def test_reminder_action_stays_required_with_existing_context() -> None:
+async def test_strong_reminder_returns_only_reminder_candidate() -> None:
     selector = SemanticCapabilitySelector(FakeEmbeddingsClient(), model="embedding")
-    context = [{"role": "assistant", "content": "Hablábamos de otra cosa."}]
 
-    decision = await selector.select("Recordame esto mañana", context)
+    decision = await selector.select("REMINDER", [])
 
     assert decision.route == "reminder"
     assert decision.names == ("reminder",)
-    assert decision.requires_tool is True
+    assert decision.requires_tool is False
+
+
+@pytest.mark.asyncio
+async def test_mixed_request_can_return_two_candidate_tools() -> None:
+    selector = SemanticCapabilitySelector(FakeEmbeddingsClient(), model="embedding")
+
+    decision = await selector.select("MIXED", [])
+
+    assert decision.route == "portfolio+datetime"
+    assert decision.names == ("portfolio", "datetime")
+    assert decision.requires_tool is False
+
+
+@pytest.mark.asyncio
+async def test_context_does_not_force_candidate_execution() -> None:
+    selector = SemanticCapabilitySelector(FakeEmbeddingsClient(), model="embedding")
+    context = [
+        {"role": "user", "content": "¿Diego usa Rust?"},
+        {"role": "assistant", "content": "Sí."},
+    ]
+
+    decision = await selector.select("¿Y Go?", context)
+
+    assert decision.names == ("portfolio",)
+    assert decision.requires_tool is False
 
 
 @pytest.mark.asyncio
@@ -124,7 +115,7 @@ async def test_semantic_selector_warms_route_vectors_once() -> None:
 
     await selector.warm()
     await selector.select("Hola", [])
-    await selector.select("¿Diego trabajó con Rust?", [])
+    await selector.select("PORTFOLIO", [])
 
     route_embedding_requests = [
         request
