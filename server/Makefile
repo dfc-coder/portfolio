@@ -1,4 +1,4 @@
-.PHONY: install test check run up down logs models eval-ready eval eval-strict eval-smoke tdd
+.PHONY: install test check run up down logs models eval-ready eval eval-strict eval-regression eval-smoke tdd
 
 ENGINE ?= $(shell if command -v podman >/dev/null 2>&1; then echo podman; elif command -v docker >/dev/null 2>&1; then echo docker; else echo none; fi)
 COMPOSE = $(ENGINE) compose
@@ -45,6 +45,16 @@ eval: eval-ready
 
 eval-strict: eval-ready
 	uv run python tests/evals/run_agent_eval_failfast.py --strict
+
+eval-regression: eval-ready
+	uv run python tests/evals/run_agent_eval.py \
+		--case general_hello \
+		--case general_joke \
+		--case date_tomorrow \
+		--case date_one_week \
+		--results tests/evals/results/regression.json \
+		--qwencloud tests/evals/results/regression-qwencloud.jsonl \
+		--strict
 
 eval-smoke: eval-ready
 	uv run python tests/evals/run_agent_eval.py \
