@@ -17,7 +17,13 @@ class Reranker:
         self._model = model
         self._http = httpx.AsyncClient(timeout=timeout_seconds)
 
-    async def rank(self, query: str, documents: list[str]) -> list[float]:
+    async def rank(
+        self,
+        query: str,
+        documents: list[str],
+        *,
+        instruction: str | None = None,
+    ) -> list[float]:
         if not documents:
             return []
 
@@ -25,7 +31,7 @@ class Reranker:
             f"{self._base_url}/v1/rerank",
             json={
                 "model": self._model,
-                "query": query,
+                "query": _llama_query(query, instruction),
                 "documents": documents,
                 "top_n": len(documents),
             },
@@ -36,6 +42,29 @@ class Reranker:
 
     async def close(self) -> None:
         await self._http.aclose()
+
+
+def _llama_query(query: str, instruction: str | None) -> str:
+    """Apply a custom Qwen3 rerank task through llama.cpp's fixed rerank template.
+
+    llama.cpp's /v1/rerank endpoint exposes query/documents but not Qwen3's
+    instruction field. The embedded Qwen3 rerank template substitutes the raw
+    query before the document, so append a complete Instruct/Query pair there.
+    The last pair is then adjacent to the Document and defines the actual task.
+    """
+    query = _clean_marker_text(query)
+    if not instruction:
+        return query
+    instruction = _clean_marker_text(instruction)
+    return f"{query}\n<Instruct>: {instruction}\n<Query>: {query}"
+
+
+def _clean_marker_text(value: str) -> str:
+    return (
+        value.replace("<Instruct>", "Instruct")
+        .replace("<Query>", "Query")
+        .replace("<Document>", "Document")
+    )
 
 
 def _scores(payload: dict[str, Any], count: int) -> list[float]:
