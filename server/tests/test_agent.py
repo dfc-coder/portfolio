@@ -5,8 +5,9 @@ from types import SimpleNamespace
 import pytest
 
 from app.agent import Agent
-from app.capabilities import CapabilityDecision
 from app.prompt import build_messages
+from app.tool_search import ToolSelection
+from app.tools import TOOLS
 
 
 def tool_delta(
@@ -72,14 +73,23 @@ class FakePortfolio:
         return [{"source": "projects.0", "text": '{"stack":["Rust"]}'}]
 
 
-class FakeSelector:
-    def __init__(self, *names: str) -> None:
-        self._names = names
+class FakeToolSearch:
+    def __init__(self, *tool_names: str) -> None:
+        selected = [
+            tool
+            for tool in TOOLS
+            if tool["function"]["name"] in tool_names
+        ]
+        self._selection = ToolSelection(
+            tools=selected,
+            scores={name: 1.0 for name in tool_names},
+            latency_ms=0.0,
+        )
         self.calls = []
 
     async def select(self, message, context):
         self.calls.append((message, copy.deepcopy(context)))
-        return CapabilityDecision(names=self._names, latency_ms=0.0)
+        return self._selection
 
 
 def token_text(events) -> str:
@@ -135,15 +145,15 @@ async def test_agent_streams_answer_and_flow_without_tool() -> None:
 
 
 @pytest.mark.asyncio
-async def test_agent_omits_tools_when_no_capability_is_eligible() -> None:
+async def test_agent_omits_tools_when_tool_search_returns_none() -> None:
     chat = FakeChat([[chunk("Hola."), chunk(finish_reason="stop")]])
-    selector = FakeSelector()
+    tool_search = FakeToolSearch()
     agent = Agent(
         "Diego",
         chat,
         FakePortfolio(),
         model="qwen",
-        capability_selector=selector,
+        tool_search=tool_search,
     )
 
     events = [event async for event in agent.respond("hola", [])]
@@ -152,11 +162,11 @@ async def test_agent_omits_tools_when_no_capability_is_eligible() -> None:
     request = chat.chat.completions.requests[0]
     assert "tools" not in request
     assert "parallel_tool_calls" not in request
-    assert selector.calls == [("hola", [])]
+    assert tool_search.calls == [("hola", [])]
 
 
 @pytest.mark.asyncio
-async def test_agent_rejects_tool_outside_eligible_capabilities() -> None:
+async def test_agent_rejects_tool_outside_selected_schemas() -> None:
     chat = FakeChat(
         [
             [
@@ -179,7 +189,7 @@ async def test_agent_rejects_tool_outside_eligible_capabilities() -> None:
         chat,
         FakePortfolio(),
         model="qwen",
-        capability_selector=FakeSelector("portfolio"),
+        tool_search=FakeToolSearch("search_portfolio"),
     )
 
     with pytest.raises(RuntimeError, match="ineligible tool: resolve_datetime"):
