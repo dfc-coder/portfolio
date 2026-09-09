@@ -78,6 +78,7 @@ eval-smoke: eval-ready
 		--strict
 
 tdd:
+	$(MAKE) install
 	$(MAKE) check
 	$(MAKE) models
 	$(COMPOSE) up -d --build --force-recreate
