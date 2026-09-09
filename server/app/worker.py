@@ -200,7 +200,7 @@ async def run_worker(
             messages.append(assistant_message)
 
             if not ordered_calls:
-                answer = _parse_worker_answer(text)
+                answer = _final_answer(text)
                 worker_trace = trace.finish(
                     status="ok",
                     output=answer,
@@ -329,27 +329,33 @@ def _reuse_successful_result(
     }
 
 
-def _parse_worker_answer(content: str) -> str:
+def _final_answer(content: str) -> str:
     value = content.strip()
     if not value:
         raise RuntimeError("worker returned an empty response")
-    if value.startswith("```"):
-        lines = value.splitlines()
-        if len(lines) >= 3 and lines[-1].strip() == "```":
-            value = "\n".join(lines[1:-1]).strip()
-            if value.startswith("json"):
-                value = value[4:].lstrip()
 
-    try:
-        payload = json.loads(value)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError("worker returned invalid JSON") from exc
-    if not isinstance(payload, dict):
-        raise RuntimeError("worker response must be a JSON object")
-    answer = payload.get("answer")
-    if not isinstance(answer, str) or not answer.strip():
-        raise RuntimeError("worker response must contain a non-empty answer")
-    return answer.strip()
+    # Worker structure belongs to the runtime, not to model text serialization.
+    # Accept the old {"answer":"..."} form for compatibility while treating
+    # ordinary model text as the answer stored in the typed WorkerResult.
+    candidate = value
+    if candidate.startswith("```"):
+        lines = candidate.splitlines()
+        if len(lines) >= 3 and lines[-1].strip() == "```":
+            candidate = "\n".join(lines[1:-1]).strip()
+            if candidate.startswith("json"):
+                candidate = candidate[4:].lstrip()
+
+    if candidate.startswith("{"):
+        try:
+            payload = json.loads(candidate)
+        except json.JSONDecodeError:
+            return value
+        if isinstance(payload, dict):
+            answer = payload.get("answer")
+            if isinstance(answer, str) and answer.strip():
+                return answer.strip()
+
+    return value
 
 
 def _call_signature(call: dict[str, str]) -> tuple[str, str]:
