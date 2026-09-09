@@ -12,10 +12,18 @@ _MIN_RELEVANCE = 0.5
 _MAX_CONTEXT_ITEMS = 4
 
 _SEARCH_INSTRUCTION = (
-    "Decide whether the Document describes a tool that is required to satisfy the CURRENT visitor request. "
-    "Rank it relevant only when the assistant needs that tool's information or action to answer correctly. "
-    "A related noun is not enough. Explanations about the assistant or a tool are not requests to execute it. "
-    "Respect negation. A request may require zero, one, or multiple tools."
+    "Decide which Documents are required to satisfy the CURRENT visitor request. "
+    "Each Document describes either direct response or one external tool. "
+    "Rank a tool relevant only when the assistant needs that tool's information or action to answer correctly. "
+    "A related noun is not enough. Respect negation and information already present in recent context."
+)
+
+_DIRECT_RESPONSE = (
+    "Direct response without an external tool. Use when the request is ordinary conversation, general "
+    "knowledge, asks about the assistant or the portfolio itself, asks what capabilities are available, "
+    "or can be answered exactly from information already present in recent context. Do not use direct "
+    "response for unverified factual claims about the portfolio subject or for external information/actions "
+    "that are not already available in context."
 )
 
 
@@ -46,25 +54,30 @@ class ToolSearch:
         context: list[dict[str, Any]],
     ) -> ToolSelection:
         started = time.perf_counter()
-        documents = [tool_search_text(tool) for tool in TOOLS]
+        documents = [_DIRECT_RESPONSE, *[tool_search_text(tool) for tool in TOOLS]]
         scores = await self._reranker.rank(
             _query(message, context),
             documents,
             instruction=_SEARCH_INSTRUCTION,
         )
-        if len(scores) != len(TOOLS):
-            raise ValueError("reranker score count does not match tool count")
+        if len(scores) != len(documents):
+            raise ValueError("reranker score count does not match candidate count")
 
+        direct_score = scores[0]
+        tool_scores = scores[1:]
         selected = [
             tool
-            for tool, score in zip(TOOLS, scores, strict=True)
-            if score >= self._min_relevance
+            for tool, score in zip(TOOLS, tool_scores, strict=True)
+            if score >= self._min_relevance and score > direct_score
         ]
         return ToolSelection(
             tools=selected,
             scores={
-                tool_name(tool): round(score, 6)
-                for tool, score in zip(TOOLS, scores, strict=True)
+                "direct_response": round(direct_score, 6),
+                **{
+                    tool_name(tool): round(score, 6)
+                    for tool, score in zip(TOOLS, tool_scores, strict=True)
+                },
             },
             latency_ms=(time.perf_counter() - started) * 1000,
         )
