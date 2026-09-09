@@ -4,7 +4,8 @@ from types import SimpleNamespace
 import pytest
 
 from app.agent import Agent
-from app.capabilities import CapabilityDecision
+from app.tool_search import ToolSelection
+from app.tools import SET_REMINDER_MOCK_SCHEMA
 
 
 class FakeStream:
@@ -36,12 +37,11 @@ class FakePortfolio:
         raise AssertionError(f"portfolio search must not run: {query}")
 
 
-class ReminderCandidateSelector:
+class ReminderToolSearch:
     async def select(self, message, context):
-        return CapabilityDecision(
-            names=("reminder",),
-            route="reminder",
-            requires_tool=False,
+        return ToolSelection(
+            tools=[SET_REMINDER_MOCK_SCHEMA],
+            scores={"set_reminder_mock": 1.0},
             latency_ms=0.0,
         )
 
@@ -72,7 +72,7 @@ def tool_delta(index, *, call_id=None, name=None, arguments=None):
 
 
 @pytest.mark.asyncio
-async def test_candidate_tool_is_optional_and_remains_available_after_call() -> None:
+async def test_selected_tool_is_optional_and_remains_available_after_call() -> None:
     chat = FakeChat(
         [
             [
@@ -99,7 +99,7 @@ async def test_candidate_tool_is_optional_and_remains_available_after_call() -> 
         chat,
         FakePortfolio(),
         model="qwen",
-        capability_selector=ReminderCandidateSelector(),
+        tool_search=ReminderToolSearch(),
     )
 
     events = [
