@@ -15,9 +15,12 @@ CAPABILITIES = (
     CAPABILITY_REMINDER,
 )
 
+_CANDIDATE_MARGIN = 0.05
+_MAX_CANDIDATES = 2
 _ROUTING_INSTRUCTION = (
-    "Classify the CURRENT visitor request by intent. Recent conversation is only context for abbreviated "
-    "follow-ups. Match what the visitor wants the assistant to do, not nouns mentioned inside the request."
+    "Retrieve the capabilities that may be relevant to the CURRENT visitor request. Recent conversation "
+    "is only context for abbreviated follow-ups. Match what the visitor wants the assistant to do, not "
+    "just nouns mentioned inside the request."
 )
 
 
@@ -25,7 +28,6 @@ _ROUTING_INSTRUCTION = (
 class _Route:
     name: str
     capabilities: tuple[str, ...]
-    requires_tool: bool
     description: str
 
 
@@ -33,14 +35,12 @@ _ROUTES = (
     _Route(
         "conversation",
         (),
-        False,
         "Ordinary conversation or general knowledge that needs no portfolio evidence, deterministic time "
         "calculation, or external action: greetings, thanks, jokes, definitions and casual questions.",
     ),
     _Route(
         "portfolio",
         (CAPABILITY_PORTFOLIO,),
-        True,
         "A factual question asking to KNOW something about Diego or the portfolio subject: professional "
         "background, experience, skills, projects, education, certifications, services or technical work. "
         "This is information retrieval, not an instruction to perform an action on a portfolio, CV or task.",
@@ -48,14 +48,12 @@ _ROUTES = (
     _Route(
         "datetime",
         (CAPABILITY_DATETIME,),
-        True,
         "A question asking to CALCULATE or RESOLVE a date, time, weekday, relative date or calendar offset. "
         "It asks what date/time something is; it does not ask the assistant to create a reminder or action.",
     ),
     _Route(
         "reminder",
         (CAPABILITY_REMINDER,),
-        True,
         "An ACTION request asking the assistant to create or change a reminder for the visitor. The content "
         "of the reminder may mention a portfolio, CV, application, project or any other subject; classify by "
         "the requested reminder action, not by the reminder text.",
@@ -94,7 +92,7 @@ class CapabilitySelector(Protocol):
 
 
 class SemanticCapabilitySelector:
-    """Select one exact production capability with the existing embedding model."""
+    """Retrieve a small candidate tool set with the existing embedding model."""
 
     def __init__(self, embeddings: AsyncOpenAI, *, model: str) -> None:
         self._embeddings = embeddings
@@ -117,21 +115,42 @@ class SemanticCapabilitySelector:
         query = f"Instruct: {_ROUTING_INSTRUCTION}\nQuery: {_routing_input(message, context)}"
         query_vector = (await self._embed([query]))[0]
         scores = [_cosine(query_vector, vector) for vector in self._route_vectors]
-        best_index = max(range(len(_ROUTES)), key=scores.__getitem__)
-        route = _ROUTES[best_index]
+        score_by_name = {
+            route.name: score
+            for route, score in zip(_ROUTES, scores, strict=True)
+        }
 
-        requires_tool = route.requires_tool
-        if context and route.name in {"portfolio", "datetime"}:
-            requires_tool = False
+        candidates = sorted(
+            (
+                (score_by_name[route.name], route)
+                for route in _ROUTES
+                if route.capabilities
+            ),
+            key=lambda item: item[0],
+            reverse=True,
+        )
+        selected: list[_Route] = []
+        best_tool_score = candidates[0][0]
+        if score_by_name["conversation"] <= best_tool_score + _CANDIDATE_MARGIN:
+            for score, route in candidates:
+                if len(selected) >= _MAX_CANDIDATES:
+                    break
+                if score < best_tool_score - _CANDIDATE_MARGIN:
+                    break
+                selected.append(route)
+
+        names = tuple(
+            capability
+            for route in selected
+            for capability in route.capabilities
+        )
+        route_name = "+".join(route.name for route in selected) or "conversation"
 
         return CapabilityDecision(
-            names=route.capabilities,
-            route=route.name,
-            requires_tool=requires_tool,
-            scores={
-                candidate.name: round(score, 6)
-                for candidate, score in zip(_ROUTES, scores, strict=True)
-            },
+            names=names,
+            route=route_name,
+            requires_tool=False,
+            scores={name: round(score, 6) for name, score in score_by_name.items()},
             latency_ms=(time.perf_counter() - started) * 1000,
         )
 
