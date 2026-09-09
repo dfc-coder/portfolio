@@ -137,6 +137,39 @@ async def test_agent_exposes_registered_tools_and_streams_direct_answer() -> Non
 
 
 @pytest.mark.asyncio
+async def test_agent_discards_intermediate_text_from_tool_round() -> None:
+    chat = FakeChat(
+        [
+            [
+                chunk("Voy a consultar."),
+                chunk(
+                    tool_calls=[
+                        tool_delta(
+                            0,
+                            call_id="call-search",
+                            name="search_portfolio",
+                            arguments='{"query":"Rust"}',
+                        )
+                    ],
+                    finish_reason="tool_calls",
+                ),
+            ],
+            [chunk("Tiene Rust."), chunk(finish_reason="stop")],
+        ]
+    )
+    agent = Agent("Diego", chat, FakePortfolio(), model="qwen")
+
+    events = [event async for event in agent.respond("¿Usa Rust?", [])]
+
+    assert token_text(events) == "Tiene Rust."
+    assert all(
+        payload.get("text") != "Voy a consultar."
+        for event, payload in events
+        if event == "token"
+    )
+
+
+@pytest.mark.asyncio
 async def test_agent_rejects_unknown_tool_before_execution() -> None:
     chat = FakeChat(
         [
