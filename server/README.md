@@ -20,6 +20,8 @@ POST /v1/chat/stream
 
 The Agent owns one bounded model/tool loop. There is no semantic router, planner, graph, capability gate, reranker, or agent framework between the request and the model.
 
+Only text from a final non-tool model round is emitted as SSE `token` events. Text generated in an intermediate tool-call round stays internal to the model/tool protocol and is not shown to the visitor.
+
 ## Model
 
 The local runtime uses llama.cpp with the Unsloth GGUF:
@@ -75,6 +77,7 @@ app/trace.py         diagnostic trace
 - successful identical calls are reused instead of executed twice;
 - tool results keep the original `tool_call_id`;
 - multiple calls returned in one model round are executed in call order;
+- intermediate tool-round text is not streamed to the visitor;
 - conversation history preserves assistant tool calls and tool results;
 - the model/tool loop has a hard round limit.
 
