@@ -11,19 +11,24 @@ from .tools import TOOLS
 _MIN_RELEVANCE = 0.5
 _MAX_CONTEXT_ITEMS = 4
 
-_SEARCH_INSTRUCTION = (
-    "Decide which Documents are required to satisfy the CURRENT visitor request. "
-    "Each Document describes either direct response or one external tool. "
-    "Rank a tool relevant only when the assistant needs that tool's information or action to answer correctly. "
-    "A related noun is not enough. Respect negation and information already present in recent context."
+_NEED_TOOL_INSTRUCTION = (
+    "Choose which Document best describes how the CURRENT visitor request must be answered. "
+    "Judge necessity, not topical similarity. Respect recent context and explicit negation."
+)
+_DIRECT_RESPONSE = (
+    "Answer directly without any external capability. This applies to ordinary conversation, general "
+    "knowledge, questions about the assistant or portfolio itself, questions about available capabilities, "
+    "and requests already answered exactly by recent context."
+)
+_EXTERNAL_RESPONSE = (
+    "An external capability is necessary because the request needs authoritative information not already "
+    "present in the conversation, a current or computed external value, or an external action."
 )
 
-_DIRECT_RESPONSE = (
-    "Direct response without an external tool. Use when the request is ordinary conversation, general "
-    "knowledge, asks about the assistant or the portfolio itself, asks what capabilities are available, "
-    "or can be answered exactly from information already present in recent context. Do not use direct "
-    "response for unverified factual claims about the portfolio subject or for external information/actions "
-    "that are not already available in context."
+_TOOL_SEARCH_INSTRUCTION = (
+    "The CURRENT visitor request requires at least one external capability. Rank each Document by whether "
+    "that tool provides information or an action required by the request. Rank unrelated tools low. "
+    "Multiple tools may be required. Use only the Document's declared capability."
 )
 
 
@@ -54,31 +59,52 @@ class ToolSearch:
         context: list[dict[str, Any]],
     ) -> ToolSelection:
         started = time.perf_counter()
-        documents = [_DIRECT_RESPONSE, *[tool_search_text(tool) for tool in TOOLS]]
-        scores = await self._reranker.rank(
-            _query(message, context),
-            documents,
-            instruction=_SEARCH_INSTRUCTION,
-        )
-        if len(scores) != len(documents):
-            raise ValueError("reranker score count does not match candidate count")
+        query = _query(message, context)
 
-        direct_score = scores[0]
-        tool_scores = scores[1:]
+        need_scores = await self._reranker.rank(
+            query,
+            [_DIRECT_RESPONSE, _EXTERNAL_RESPONSE],
+            instruction=_NEED_TOOL_INSTRUCTION,
+        )
+        if len(need_scores) != 2:
+            raise ValueError("reranker score count does not match necessity candidates")
+
+        direct_score, external_score = need_scores
+        trace_scores: dict[str, float] = {
+            "direct_response": round(direct_score, 6),
+            "external_required": round(external_score, 6),
+        }
+
+        if direct_score >= external_score:
+            return ToolSelection(
+                tools=[],
+                scores=trace_scores,
+                latency_ms=(time.perf_counter() - started) * 1000,
+            )
+
+        documents = [tool_search_text(tool) for tool in TOOLS]
+        tool_scores = await self._reranker.rank(
+            query,
+            documents,
+            instruction=_TOOL_SEARCH_INSTRUCTION,
+        )
+        if len(tool_scores) != len(TOOLS):
+            raise ValueError("reranker score count does not match tool count")
+
         selected = [
             tool
             for tool, score in zip(TOOLS, tool_scores, strict=True)
-            if score >= self._min_relevance and score > direct_score
+            if score >= self._min_relevance
         ]
+        trace_scores.update(
+            {
+                tool_name(tool): round(score, 6)
+                for tool, score in zip(TOOLS, tool_scores, strict=True)
+            }
+        )
         return ToolSelection(
             tools=selected,
-            scores={
-                "direct_response": round(direct_score, 6),
-                **{
-                    tool_name(tool): round(score, 6)
-                    for tool, score in zip(TOOLS, tool_scores, strict=True)
-                },
-            },
+            scores=trace_scores,
             latency_ms=(time.perf_counter() - started) * 1000,
         )
 
