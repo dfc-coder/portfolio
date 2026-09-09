@@ -82,6 +82,10 @@ These are runtime invariants. Behavioral evals measure the local SLM; they do no
 
 ## Run
 
+If you already have the Q6 model locally, set `LLAMA_MODELS_DIR`/`LLAMA_MODEL_FILE` in `.env` to that file and skip `make models`.
+
+For a clean setup:
+
 ```bash
 cp .env.example .env
 make models
