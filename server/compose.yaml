@@ -6,9 +6,9 @@ services:
       - ${LLAMA_MODELS_DIR:-./models}:/models:ro,Z
     command:
       - -m
-      - /models/${LLAMA_MODEL_FILE:-Qwen3.5-2B-UD-Q6_K_XL.gguf}
+      - /models/${LLAMA_MODEL_FILE:-qwen3.5-2b-function-calling-xlam.q4_k_m.gguf}
       - --alias
-      - ${LLAMA_MODEL:-Qwen3.5-2B}
+      - ${LLAMA_MODEL:-Qwen3.5-2B-Function-Calling-xLAM}
       - --host
       - 0.0.0.0
       - --port
