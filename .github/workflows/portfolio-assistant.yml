@@ -66,6 +66,7 @@ jobs:
         with:
           path: server/models
           key: portfolio-agent-models-qwen35-2b-q6-embedding-q8-reranker-q8-v1
+          save-always: true
       - name: Configure deterministic live eval
         working-directory: server
         run: |
@@ -73,7 +74,7 @@ jobs:
           sed -i 's/^AGENT_DIAGNOSTICS_TOKEN=.*/AGENT_DIAGNOSTICS_TOKEN=ci-tdd/' .env
       - name: Run complete TDD gate
         working-directory: server
-        run: make tdd
+        run: make tdd ENGINE=docker
       - name: Print container logs on failure
         if: failure()
         working-directory: server
