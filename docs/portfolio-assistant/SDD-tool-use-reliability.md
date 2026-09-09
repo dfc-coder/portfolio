@@ -37,19 +37,9 @@ visitor
   -> persist complete returned context
 ```
 
-There is no:
+There is no semantic router, capability gate, ToolSearch, reranker, planner, graph, or agent framework.
 
-```text
-semantic router
-capability gate
-ToolSearch
-reranker
-planner
-graph
-agent framework
-```
-
-The main model is the only semantic authority deciding whether a registered tool is needed.
+The main model is the semantic authority deciding whether a registered tool is needed. Deterministic server policy still owns validation and execution.
 
 ## 3. Model
 
@@ -63,7 +53,7 @@ Qwen3.5-2B-Q6_K.gguf
 
 The API uses llama.cpp's OpenAI-compatible chat completions interface with Jinja tool calling enabled and Qwen thinking disabled.
 
-Generation defaults are deterministic for the local acceptance gate:
+Generation defaults for the local acceptance gate:
 
 ```text
 temperature = 0.0
@@ -83,9 +73,7 @@ resolve_datetime
 set_reminder_mock
 ```
 
-`app/tools.py` owns a simple registry.
-
-Conceptually:
+`app/tools.py` owns the simple registry:
 
 ```text
 Tool
@@ -93,9 +81,7 @@ Tool
   run
 ```
 
-Adding a tool requires defining its schema, implementing its handler, and adding one registry entry.
-
-The Agent receives schemas from the registry and resolves returned tool names against the same registry. The Agent contains no per-tool branching.
+Adding a tool requires defining its schema, implementing its handler, and adding one registry entry. The Agent receives schemas from the registry and contains no per-tool branching.
 
 ## 5. Tool execution invariants
 
@@ -106,27 +92,19 @@ returned tool name must exist in the registry
 arguments must be valid for that tool
 ```
 
-The model does not receive authority to bypass server validation.
+Calls returned in one model round are executed in model call order. Parallel model calls are supported as a protocol shape, but execution stays sequential and deterministic.
 
-Calls returned in one model round are executed in model call order. This is intentionally sequential. Parallel model calls are supported as a protocol shape, but execution stays deterministic and side-effect-safe.
+A successful call is keyed by tool name plus canonical JSON arguments. If the same successful call appears again in the same turn, the prior result is reused with the new `tool_call_id`; the handler is not executed twice.
 
-A successful call is keyed by:
-
-```text
-tool name + canonical JSON arguments
-```
-
-If the model returns the same successful call again in the same turn, the prior result is reused with the new `tool_call_id`; the tool is not executed twice.
-
-This applies per call, so a round containing:
+This applies per call. For:
 
 ```text
 repeated A + new B
 ```
 
-reuses A and executes only B.
+A is reused and only B executes.
 
-If an entire model round consists of already successful repeated calls, tools are removed for the next round to force a final answer.
+If an entire model round contains only repeated successful calls, tools are removed for the next model round to force a final answer.
 
 ## 6. Multi-round protocol
 
@@ -145,7 +123,7 @@ tool
 
 The exact call id is preserved.
 
-The loop supports:
+The loop supports both chained and same-round calls:
 
 ```text
 round 1 -> tool A
@@ -153,20 +131,18 @@ round 2 -> tool B
 round 3 -> final answer
 ```
 
-and:
-
 ```text
 round 1 -> tool A + tool B
 round 2 -> final answer
 ```
 
-A hard model-round limit prevents infinite loops.
+A hard tool-round limit prevents infinite loops while still allowing a final answer round after the last permitted tool round.
 
 ## 7. Conversation state
 
 The API accepts an optional `conversation_id` UUID and emits the resolved id as an SSE `conversation` event.
 
-The in-memory store preserves the complete OpenAI-compatible conversation:
+The in-memory store preserves complete OpenAI-compatible history:
 
 ```text
 user
@@ -179,37 +155,23 @@ user
 
 The server session is the source of truth while alive. Client context may seed a session after restart.
 
-History is bounded and trimmed at a user-message boundary so it does not start in the middle of a tool exchange.
+History is bounded and trimmed at a user-message boundary so it does not begin in the middle of a tool exchange.
 
 Durable storage can replace the store later without modifying the Agent protocol.
 
 ## 8. Retrieval
 
-Portfolio retrieval remains a separate read-only capability backed by the embedding model.
+Portfolio retrieval remains a separate read-only capability backed by `Qwen3-Embedding-0.6B`.
 
-The embedding service is infrastructure for `search_portfolio`; it is not a router for tool selection.
+The embedding service is infrastructure for `search_portfolio`; it does not route or select tools.
 
 ## 9. Tracing
 
-Diagnostic traces record:
-
-```text
-registered tool schemas
-model rounds
-finish reasons
-assistant tool calls
-raw + parsed arguments
-tool results
-tool timings
-reused calls
-returned context
-```
-
-Hidden model reasoning is not exposed.
+Diagnostic traces record registered tool schemas, model rounds, finish reasons, tool calls, raw and parsed arguments, results, timings, reused calls, and returned context. Hidden reasoning is not exposed.
 
 ## 10. Testing
 
-Deterministic tests must cover runtime invariants directly:
+Deterministic runtime tests cover:
 
 ```text
 registered schemas are sent to the model
@@ -224,6 +186,6 @@ conversation state retains tool messages
 history trimming starts at a user boundary
 ```
 
-Live evals then measure whether the local Qwen3.5-2B Q6 model chooses the correct tool, extracts valid arguments, and produces the expected final response.
+Live evals then measure whether the local Qwen3.5-2B Q6 chooses the correct tool, extracts valid arguments, and produces the expected final response.
 
-A behavioral model failure is diagnosed as a model/schema/prompt problem first. It does not justify adding a semantic router unless the product requirements later establish a separate deterministic policy boundary.
+A behavioral model failure is diagnosed as a model/schema/prompt problem first. It does not justify adding a semantic router unless a future product requirement establishes a separate deterministic policy boundary.
