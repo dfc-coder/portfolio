@@ -36,12 +36,12 @@ class FakePortfolio:
         raise AssertionError(f"portfolio search must not run: {query}")
 
 
-class ReminderSelector:
+class ReminderCandidateSelector:
     async def select(self, message, context):
         return CapabilityDecision(
             names=("reminder",),
             route="reminder",
-            requires_tool=True,
+            requires_tool=False,
             latency_ms=0.0,
         )
 
@@ -72,7 +72,7 @@ def tool_delta(index, *, call_id=None, name=None, arguments=None):
 
 
 @pytest.mark.asyncio
-async def test_required_capability_exposes_only_one_tool_and_forces_first_call() -> None:
+async def test_candidate_tool_is_optional_and_remains_available_after_call() -> None:
     chat = FakeChat(
         [
             [
@@ -99,7 +99,7 @@ async def test_required_capability_exposes_only_one_tool_and_forces_first_call()
         chat,
         FakePortfolio(),
         model="qwen",
-        capability_selector=ReminderSelector(),
+        capability_selector=ReminderCandidateSelector(),
     )
 
     events = [
@@ -111,15 +111,17 @@ async def test_required_capability_exposes_only_one_tool_and_forces_first_call()
     ]
 
     first = chat.chat.completions.requests[0]
-    assert first["tool_choice"] == "required"
+    assert "tool_choice" not in first
     assert first["parallel_tool_calls"] is False
     assert [tool["function"]["name"] for tool in first["tools"]] == [
         "set_reminder_mock"
     ]
 
     second = chat.chat.completions.requests[1]
-    assert "tools" not in second
     assert "tool_choice" not in second
+    assert [tool["function"]["name"] for tool in second["tools"]] == [
+        "set_reminder_mock"
+    ]
 
     running = [
         payload["name"]
