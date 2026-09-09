@@ -20,10 +20,11 @@ SEARCH_PORTFOLIO_SCHEMA = {
     "function": {
         "name": "search_portfolio",
         "description": (
-            "Search the professional portfolio and CV for factual evidence specifically about the portfolio "
-            "subject's experience, skills, projects, education, certifications, services, or background. "
-            "Use it only for factual questions about the portfolio subject. Do not use it for general "
-            "conversation, jokes, creative requests, definitions, or general knowledge."
+            "Busca información profesional factual sobre Diego Cano. Usala sólo cuando el visitante pregunte "
+            "explícitamente por Diego, su experiencia, habilidades, proyectos, educación, certificaciones, "
+            "servicios o trayectoria profesional, o cuando el mensaje sea una continuación inequívoca de una "
+            "pregunta previa sobre Diego. No la uses para saludos, agradecimientos, chistes, definiciones, "
+            "preguntas generales de programación, pedidos creativos ni conocimiento general."
         ),
         "parameters": {
             "type": "object",
@@ -32,7 +33,7 @@ SEARCH_PORTFOLIO_SCHEMA = {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 500,
-                    "description": "Concise search query for the exact professional fact needed.",
+                    "description": "Consulta breve sobre el hecho profesional exacto que se necesita buscar.",
                 }
             },
             "required": ["query"],
@@ -46,8 +47,8 @@ RESOLVE_DATETIME_SCHEMA = {
     "function": {
         "name": "resolve_datetime",
         "description": (
-            "Read-only date and time resolver for current, relative, or explicitly supplied calendar "
-            "date/time questions, including weekday questions. It never creates reminders."
+            "Resuelve de forma determinística preguntas de fecha y hora actuales, relativas o explícitas, "
+            "incluyendo el día de la semana. Es de sólo lectura y nunca crea recordatorios."
         ),
         "parameters": {
             "type": "object",
@@ -55,27 +56,31 @@ RESOLVE_DATETIME_SCHEMA = {
                 "reference": {
                     "type": "string",
                     "description": (
-                        "Temporal anchor. Use the literal value 'now' only when the request contains no "
-                        "explicit calendar date or datetime. When the request contains an explicit calendar "
-                        "date or datetime, normalize that value to ISO-8601 and put it here. For a date-only "
-                        "request use YYYY-MM-DD. Never replace an explicit date with an offset from now."
+                        "Ancla temporal. Usá el valor literal 'now' cuando el pedido no incluya una fecha u "
+                        "hora explícita. Si incluye una fecha u hora explícita, normalizala a ISO-8601 y "
+                        "colocala acá. Para una fecha sin hora usá YYYY-MM-DD."
                     ),
                 },
                 "offset": {
                     "type": "integer",
                     "description": (
-                        "Signed quantity applied to reference. Preserve the requested duration; use 0 when "
-                        "the request asks only about the reference itself."
+                        "Cantidad relativa aplicada a `reference`. Ejemplos: 'mañana' => offset=1 y "
+                        "unit='days'; 'ayer' => offset=-1 y unit='days'; 'dentro de una semana' => offset=1 "
+                        "y unit='weeks'; 'dentro de 2 horas' => offset=2 y unit='hours'. Usá offset=0 sólo "
+                        "cuando la pregunta sea sobre la referencia misma."
                     ),
                 },
                 "unit": {
                     "type": "string",
                     "enum": list(_OFFSET_UNITS),
-                    "description": "Offset unit: minutes, hours, days, or weeks.",
+                    "description": (
+                        "Unidad de `offset`: 'minutes' para minutos, 'hours' para horas, 'days' para días o "
+                        "'weeks' para semanas."
+                    ),
                 },
                 "timezone": {
                     "type": "string",
-                    "description": "Optional IANA timezone. Omit to use the server timezone.",
+                    "description": "Zona horaria IANA opcional. Omitila para usar la zona horaria del servidor.",
                 },
             },
             "required": ["reference", "offset", "unit"],
@@ -89,10 +94,10 @@ SET_REMINDER_MOCK_SCHEMA = {
     "function": {
         "name": "set_reminder_mock",
         "description": (
-            "Create a simulated, non-persistent reminder. Use this action for every request that asks to "
-            "create a reminder, whether its schedule is relative or absolute. It resolves its own temporal "
-            "reference; a separate read-only date-resolution call is unnecessary. No real notification is "
-            "scheduled or sent."
+            "Crea un recordatorio simulado y no persistente. Usala siempre que el visitante pida crear un "
+            "recordatorio, tanto con horario relativo como absoluto. La herramienta resuelve su propia "
+            "referencia temporal; no hace falta llamar antes a `resolve_datetime`. No programa ni envía una "
+            "notificación real."
         ),
         "parameters": {
             "type": "object",
@@ -100,32 +105,36 @@ SET_REMINDER_MOCK_SCHEMA = {
                 "reference": {
                     "type": "string",
                     "description": (
-                        "Reminder time anchor. Use the literal value 'now' for a relative reminder. When the "
-                        "request supplies an explicit calendar date or datetime, normalize it to ISO-8601 "
-                        "and put it here."
+                        "Ancla temporal del recordatorio. Usá el valor literal 'now' para un recordatorio "
+                        "relativo. Si el pedido incluye una fecha u hora explícita, normalizala a ISO-8601 y "
+                        "colocala acá."
                     ),
                 },
                 "offset": {
                     "type": "integer",
                     "description": (
-                        "Signed quantity applied to reference. Preserve the requested duration; use 0 for "
-                        "an explicit absolute reminder time."
+                        "Cantidad relativa aplicada a `reference`. Ejemplos: 'en 30 minutos' => offset=30 y "
+                        "unit='minutes'; 'en 2 horas' => offset=2 y unit='hours'; 'en 7 días' => offset=7 y "
+                        "unit='days'. Usá offset=0 para una fecha u hora absoluta explícita."
                     ),
                 },
                 "unit": {
                     "type": "string",
                     "enum": list(_OFFSET_UNITS),
-                    "description": "Offset unit: minutes, hours, days, or weeks.",
+                    "description": (
+                        "Unidad de `offset`: 'minutes' para minutos, 'hours' para horas, 'days' para días o "
+                        "'weeks' para semanas."
+                    ),
                 },
                 "message": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 500,
-                    "description": "Reminder text without scheduling instructions.",
+                    "description": "Texto del recordatorio sin instrucciones de horario.",
                 },
                 "timezone": {
                     "type": "string",
-                    "description": "Optional IANA timezone. Omit to use the server timezone.",
+                    "description": "Zona horaria IANA opcional. Omitila para usar la zona horaria del servidor.",
                 },
             },
             "required": ["reference", "offset", "unit", "message"],
