@@ -17,7 +17,7 @@ class FakePortfolio:
         return [{"source": "projects.0", "text": f"fact for {query}"}]
 
 
-def test_tool_schemas_are_small_and_explicit() -> None:
+def test_tool_schemas_are_small_explicit_and_registry_ordered() -> None:
     names = [tool["function"]["name"] for tool in TOOLS]
 
     assert names == [
@@ -226,6 +226,23 @@ async def test_tool_validation_rejects_unknown_arguments() -> None:
     assert body["ok"] is False
     assert body["error"]["type"] == "validation_error"
     assert "unexpected tool argument" in body["error"]["message"]
+
+
+@pytest.mark.asyncio
+async def test_tool_validation_rejects_unknown_tool() -> None:
+    message = await run_tool_call(
+        "call-unknown",
+        "unknown_tool",
+        "{}",
+        FakePortfolio(),
+    )
+
+    body = json.loads(message["content"])
+    assert body["ok"] is False
+    assert body["error"] == {
+        "type": "validation_error",
+        "message": "unknown tool: unknown_tool",
+    }
 
 
 @pytest.mark.asyncio
