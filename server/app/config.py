@@ -25,6 +25,9 @@ class Config:
     embedding_base_url: str
     embedding_model: str
     embedding_timeout_seconds: float
+    reranker_base_url: str
+    reranker_model: str
+    reranker_timeout_seconds: float
     allowed_origins: tuple[str, ...]
     diagnostics_token: str | None
     generation_temperature: float
@@ -51,6 +54,9 @@ class Config:
             embedding_base_url=os.getenv("EMBEDDING_BASE_URL", "http://embedding:8081").rstrip("/"),
             embedding_model=os.getenv("EMBEDDING_MODEL", "Qwen3-Embedding-0.6B"),
             embedding_timeout_seconds=float(os.getenv("EMBEDDING_TIMEOUT_SECONDS", "30")),
+            reranker_base_url=os.getenv("RERANKER_BASE_URL", "http://reranker:8082").rstrip("/"),
+            reranker_model=os.getenv("RERANKER_MODEL", "Qwen3-Reranker-0.6B"),
+            reranker_timeout_seconds=float(os.getenv("RERANKER_TIMEOUT_SECONDS", "30")),
             allowed_origins=_csv(
                 os.getenv(
                     "ALLOWED_ORIGINS",
