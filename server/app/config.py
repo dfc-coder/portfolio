@@ -46,7 +46,7 @@ class Config:
                 os.getenv("PORTFOLIO_PROFILE_PATH", root / "config" / "portfolio.json")
             ),
             llama_base_url=os.getenv("LLAMA_BASE_URL", "http://llama:8080").rstrip("/"),
-            llama_model=os.getenv("LLAMA_MODEL", "Qwen3.5-2B-Q6_K"),
+            llama_model=os.getenv("LLAMA_MODEL", "Qwen3.5-4B"),
             llama_timeout_seconds=float(os.getenv("LLAMA_TIMEOUT_SECONDS", "90")),
             embedding_base_url=os.getenv(
                 "EMBEDDING_BASE_URL",
@@ -63,12 +63,12 @@ class Config:
                 )
             ),
             diagnostics_token=_optional(os.getenv("AGENT_DIAGNOSTICS_TOKEN")),
-            generation_temperature=float(os.getenv("GENERATION_TEMPERATURE", "0.0")),
-            generation_top_p=float(os.getenv("GENERATION_TOP_P", "1.0")),
-            generation_top_k=int(os.getenv("GENERATION_TOP_K", "1")),
+            generation_temperature=float(os.getenv("GENERATION_TEMPERATURE", "0.70")),
+            generation_top_p=float(os.getenv("GENERATION_TOP_P", "0.80")),
+            generation_top_k=int(os.getenv("GENERATION_TOP_K", "20")),
             generation_min_p=float(os.getenv("GENERATION_MIN_P", "0.0")),
             generation_presence_penalty=float(
-                os.getenv("GENERATION_PRESENCE_PENALTY", "0.0")
+                os.getenv("GENERATION_PRESENCE_PENALTY", "1.5")
             ),
             generation_repeat_penalty=float(
                 os.getenv("GENERATION_REPEAT_PENALTY", "1.0")
