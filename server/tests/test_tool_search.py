@@ -9,8 +9,14 @@ class FakeReranker:
         self._scores = scores
         self.calls = []
 
-    async def rank(self, query: str, documents: list[str]) -> list[float]:
-        self.calls.append((query, documents))
+    async def rank(
+        self,
+        query: str,
+        documents: list[str],
+        *,
+        instruction: str | None = None,
+    ) -> list[float]:
+        self.calls.append((query, documents, instruction))
         return list(self._scores)
 
 
@@ -63,11 +69,13 @@ async def test_tool_search_uses_recent_context_for_followups() -> None:
 
     await search.select("¿Y Go?", context)
 
-    query, _ = reranker.calls[0]
+    query, _, instruction = reranker.calls[0]
     assert "Recent context:" in query
     assert "¿Diego usa Rust?" in query
     assert "Current visitor request:" in query
     assert "¿Y Go?" in query
+    assert instruction is not None
+    assert "required to satisfy" in instruction
 
 
 def test_tool_search_text_is_derived_from_schema() -> None:
