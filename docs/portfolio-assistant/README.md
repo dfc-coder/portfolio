@@ -32,6 +32,16 @@ The frozen pre-optimization 4B baseline passed the 10-case smoke gate at 10/10. 
 
 Portfolio retrieval continues to use `Qwen3-Embedding-0.6B` as infrastructure for `search_portfolio`; embeddings do not route requests or select tools.
 
+## Validation
+
+```bash
+make check
+make eval-temporal-fast
+make eval-smoke
+```
+
+`make eval-temporal-fast` isolates the eight datetime/reminder smoke cases. `make eval-smoke` remains the M5 acceptance gate.
+
 ## Documents
 
 - `SDD-tool-use-reliability.md` — runtime architecture, M0–M5 fast-path design, and invariants.
