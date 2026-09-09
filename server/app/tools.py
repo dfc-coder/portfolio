@@ -7,7 +7,6 @@ from typing import Any
 from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from .capabilities import CAPABILITY_DATETIME, CAPABILITY_PORTFOLIO, CAPABILITY_REMINDER, CAPABILITIES
 from .portfolio import Portfolio
 
 _WEEKDAYS_ES = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
@@ -138,21 +137,6 @@ TOOLS = [
     RESOLVE_DATETIME_SCHEMA,
     SET_REMINDER_MOCK_SCHEMA,
 ]
-
-
-def tools_for_capabilities(names: tuple[str, ...]) -> list[dict[str, Any]]:
-    unknown = set(names) - set(CAPABILITIES)
-    if unknown:
-        raise ValueError(f"unknown capability: {sorted(unknown)[0]}")
-
-    tools: list[dict[str, Any]] = []
-    if CAPABILITY_PORTFOLIO in names:
-        tools.append(SEARCH_PORTFOLIO_SCHEMA)
-    if CAPABILITY_DATETIME in names:
-        tools.append(RESOLVE_DATETIME_SCHEMA)
-    if CAPABILITY_REMINDER in names:
-        tools.append(SET_REMINDER_MOCK_SCHEMA)
-    return tools
 
 
 async def search_portfolio(portfolio: Portfolio, query: str) -> dict[str, object]:
