@@ -13,7 +13,8 @@ from .prompt import build_classifier_messages
 class Route(StrEnum):
     GENERAL = "general"
     PORTFOLIO = "portfolio"
-    TEMPORAL = "temporal"
+    DATETIME = "datetime"
+    REMINDER = "reminder"
 
 
 @dataclass(frozen=True)
