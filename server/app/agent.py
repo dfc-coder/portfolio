@@ -31,6 +31,7 @@ class Agent:
         *,
         model: str,
         tool_search: ToolSearch | None = None,
+        prefetch_portfolio: bool = False,
         temperature: float = 0.7,
         top_p: float = 0.8,
         top_k: int = 20,
@@ -44,6 +45,7 @@ class Agent:
         self._portfolio = portfolio
         self._model = model
         self._tool_search = tool_search
+        self._prefetch_portfolio = prefetch_portfolio
         self._temperature = temperature
         self._top_p = top_p
         self._top_k = top_k
@@ -59,18 +61,41 @@ class Agent:
         *,
         diagnostics: bool = False,
     ) -> AsyncIterator[AgentEvent]:
-        selection = (
-            await self._tool_search.select(message, context)
-            if self._tool_search is not None
-            else all_tools()
-        )
-        eligible_tools = selection.tools
+        portfolio_evidence: list[dict[str, str]] = []
+        if self._prefetch_portfolio:
+            portfolio_evidence = await self._portfolio.search(message)
+            selection = all_tools()
+            eligible_tools = [
+                tool
+                for tool in selection.tools
+                if tool_name(tool) != "search_portfolio"
+            ]
+        else:
+            selection = (
+                await self._tool_search.select(message, context)
+                if self._tool_search is not None
+                else all_tools()
+            )
+            eligible_tools = selection.tools
+
         allowed_tool_names = {tool_name(tool) for tool in eligible_tools}
         messages = build_messages(
             self._subject,
             _trim_context(context),
             message,
         )
+        if portfolio_evidence:
+            evidence = json.dumps(
+                portfolio_evidence,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+            messages[0]["content"] += (
+                "\n\n<portfolio_evidence>\n"
+                f"{evidence}\n"
+                "</portfolio_evidence>"
+            )
+
         generation = {
             "temperature": self._temperature,
             "top_p": self._top_p,
@@ -90,7 +115,19 @@ class Agent:
             generation=generation,
             tools=eligible_tools,
         )
-        trace.data["tool_search"] = selection.trace()
+        if self._prefetch_portfolio:
+            trace.data["tool_search"] = {
+                "selected": [tool_name(tool) for tool in eligible_tools],
+                "scores": {},
+                "latency_ms": 0.0,
+                "mode": "static",
+            }
+            trace.data["portfolio_retrieval"] = {
+                "count": len(portfolio_evidence),
+                "sources": [item.get("source", "") for item in portfolio_evidence],
+            }
+        else:
+            trace.data["tool_search"] = selection.trace()
 
         successful_calls: dict[tuple[str, str], dict[str, str]] = {}
         force_answer = False
