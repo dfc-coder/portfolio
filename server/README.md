@@ -122,7 +122,19 @@ Smoke acceptance gate:
 make eval-smoke
 ```
 
-M5 is accepted only when the smoke gate remains 10/10.
+M5 is accepted only when the smoke gate remains 10/10. Compare its p50/p95 to the frozen M0 baseline of approximately 31.17 s / 91.71 s.
+
+Quick summary:
+
+```bash
+jq '.summary | {cases,passed,tool_selection_rate,parameter_extraction_rate,tool_execution_success_rate,latency_p50_ms,latency_p95_ms}' tests/evals/results/smoke.json
+```
+
+Per-case latency and route:
+
+```bash
+jq '.cases[] | {id, latency_ms, routes: .trace.dispatch.routes, calls: .actual_calls}' tests/evals/results/smoke.json
+```
 
 Full live eval:
 
