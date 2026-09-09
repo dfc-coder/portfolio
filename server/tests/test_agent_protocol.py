@@ -2,7 +2,7 @@ import logging
 
 import pytest
 
-from app.agent import _validate_model_round
+from app.worker import _validate_model_round
 
 
 def test_finish_reason_tool_calls_requires_actual_calls() -> None:
