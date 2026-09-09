@@ -12,10 +12,10 @@ _MIN_RELEVANCE = 0.5
 _MAX_CONTEXT_ITEMS = 4
 
 _SEARCH_INSTRUCTION = (
-    "Rank tool schemas by whether knowing that tool contract is relevant to answering the CURRENT visitor "
-    "request correctly. Prefer tools that provide information or actions the assistant cannot supply on its "
-    "own. Do not rank a tool highly merely because the request mentions a related noun. A request may need "
-    "zero, one, or multiple tools."
+    "Decide whether the Document describes a tool that is required to satisfy the CURRENT visitor request. "
+    "Rank it relevant only when the assistant needs that tool's information or action to answer correctly. "
+    "A related noun is not enough. Explanations about the assistant or a tool are not requests to execute it. "
+    "Respect negation. A request may require zero, one, or multiple tools."
 )
 
 
@@ -47,7 +47,11 @@ class ToolSearch:
     ) -> ToolSelection:
         started = time.perf_counter()
         documents = [tool_search_text(tool) for tool in TOOLS]
-        scores = await self._reranker.rank(_query(message, context), documents)
+        scores = await self._reranker.rank(
+            _query(message, context),
+            documents,
+            instruction=_SEARCH_INSTRUCTION,
+        )
         if len(scores) != len(TOOLS):
             raise ValueError("reranker score count does not match tool count")
 
@@ -110,7 +114,7 @@ def _query(message: str, context: list[dict[str, Any]]) -> str:
             content = _compact_tool_result(content)
         recent.append(f"{role}: {content.strip()}")
 
-    parts = [f"Task: {_SEARCH_INSTRUCTION}"]
+    parts: list[str] = []
     if recent:
         parts.extend(["Recent context:", *recent])
     parts.extend(["Current visitor request:", message.strip()])
