@@ -5,8 +5,11 @@ from types import SimpleNamespace
 import pytest
 
 from app.agent import Agent
-from app.prompt import build_messages
-from app.tools import TOOLS
+from app.tools import (
+    RESOLVE_DATETIME_SCHEMA,
+    SEARCH_PORTFOLIO_SCHEMA,
+    SET_REMINDER_MOCK_SCHEMA,
+)
 
 
 def tool_delta(
@@ -45,6 +48,18 @@ def chunk(
     )
 
 
+def classifier_response(routes: list[str]) -> SimpleNamespace:
+    return SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    content=json.dumps({"routes": routes}),
+                )
+            )
+        ]
+    )
+
+
 class FakeStream:
     def __init__(self, chunks) -> None:
         self._chunks = chunks
@@ -61,7 +76,10 @@ class FakeCompletions:
 
     async def create(self, **kwargs):
         self.requests.append(copy.deepcopy(kwargs))
-        return FakeStream(next(self._responses))
+        response = next(self._responses)
+        if isinstance(response, list):
+            return FakeStream(response)
+        return response
 
 
 class FakeChat:
@@ -92,56 +110,34 @@ def returned_context(events):
     return payloads[0]["messages"]
 
 
-def test_prompt_keeps_tool_mechanics_out_of_system_instructions() -> None:
-    system = build_messages("Diego", [], "hola")[0]["content"]
-
-    assert system.startswith("#Context#")
-    assert "#Objective#" in system
-    assert "#Response#" in system
-    assert "#Examples#" in system
-    assert "#Tool strategy#" not in system
-    assert "search_portfolio" not in system
-    assert "resolve_datetime" not in system
-    assert "set_reminder_mock" not in system
-    assert "<portfolio_subject>" in system
-    assert "<name>Diego</name>" in system
-
-
 @pytest.mark.asyncio
-async def test_agent_exposes_registered_tools_and_streams_direct_answer() -> None:
-    chat = FakeChat([[chunk("Ho"), chunk("la."), chunk(finish_reason="stop")]])
-    portfolio = FakePortfolio()
-    agent = Agent(
-        "Diego",
-        chat,
-        portfolio,
-        model="qwen",
-    )
-
-    events = [event async for event in agent.respond("hola", [])]
-
-    assert token_text(events) == "Hola."
-    assert events[0] == ("status", {"phase": "model", "round": 1})
-    assert ("status", {"phase": "responding", "round": 1}) in events
-    assert portfolio.queries == []
-
-    request = chat.chat.completions.requests[0]
-    assert request["stream"] is True
-    assert request["tools"] == TOOLS
-    assert request["parallel_tool_calls"] is True
-    assert "tool_choice" not in request
-    assert returned_context(events)[-1] == {
-        "role": "assistant",
-        "content": "Hola.",
-    }
-
-
-@pytest.mark.asyncio
-async def test_agent_discards_intermediate_text_from_tool_round() -> None:
+async def test_general_route_has_no_tools() -> None:
     chat = FakeChat(
         [
+            classifier_response(["general"]),
+            [chunk('{"answer":"Hola."}'), chunk(finish_reason="stop")],
+        ]
+    )
+    portfolio = FakePortfolio()
+    agent = Agent("Diego", chat, portfolio, model="qwen")
+
+    events = [event async for event in agent.respond("Hola", [])]
+
+    assert token_text(events) == "Hola."
+    assert portfolio.queries == []
+    assert chat.chat.completions.requests[0]["stream"] is False
+    worker_request = chat.chat.completions.requests[1]
+    assert worker_request["stream"] is True
+    assert "tools" not in worker_request
+    assert returned_context(events)[-1] == {"role": "assistant", "content": "Hola."}
+
+
+@pytest.mark.asyncio
+async def test_portfolio_route_exposes_only_portfolio_tool() -> None:
+    chat = FakeChat(
+        [
+            classifier_response(["portfolio"]),
             [
-                chunk("Voy a consultar."),
                 chunk(
                     tool_calls=[
                         tool_delta(
@@ -152,74 +148,10 @@ async def test_agent_discards_intermediate_text_from_tool_round() -> None:
                         )
                     ],
                     finish_reason="tool_calls",
-                ),
-            ],
-            [chunk("Tiene Rust."), chunk(finish_reason="stop")],
-        ]
-    )
-    agent = Agent("Diego", chat, FakePortfolio(), model="qwen")
-
-    events = [event async for event in agent.respond("¿Usa Rust?", [])]
-
-    assert token_text(events) == "Tiene Rust."
-    assert all(
-        payload.get("text") != "Voy a consultar."
-        for event, payload in events
-        if event == "token"
-    )
-
-
-@pytest.mark.asyncio
-async def test_agent_rejects_unknown_tool_before_execution() -> None:
-    chat = FakeChat(
-        [
-            [
-                chunk(
-                    tool_calls=[
-                        tool_delta(
-                            0,
-                            call_id="call-unknown",
-                            name="unknown_tool",
-                            arguments="{}",
-                        )
-                    ],
-                    finish_reason="tool_calls",
                 )
-            ]
-        ]
-    )
-    portfolio = FakePortfolio()
-    agent = Agent("Diego", chat, portfolio, model="qwen")
-
-    with pytest.raises(RuntimeError, match="unknown tool: unknown_tool"):
-        _ = [event async for event in agent.respond("consulta", [])]
-
-    assert portfolio.queries == []
-
-
-@pytest.mark.asyncio
-async def test_agent_preserves_streamed_tool_call_and_reports_flow() -> None:
-    chat = FakeChat(
-        [
-            [
-                chunk(
-                    tool_calls=[
-                        tool_delta(
-                            0,
-                            call_id="call-search",
-                            name="search_portfolio",
-                            arguments='{"query":"Rust',
-                        )
-                    ]
-                ),
-                chunk(
-                    tool_calls=[tool_delta(0, arguments=' experience"}')],
-                    finish_reason="tool_calls",
-                ),
             ],
             [
-                chunk("El perfil incluye "),
-                chunk("experiencia con Rust."),
+                chunk('{"answer":"El portfolio confirma experiencia con Rust."}'),
                 chunk(finish_reason="stop"),
             ],
         ]
@@ -227,162 +159,33 @@ async def test_agent_preserves_streamed_tool_call_and_reports_flow() -> None:
     portfolio = FakePortfolio()
     agent = Agent("Diego", chat, portfolio, model="qwen")
 
-    events = [event async for event in agent.respond("¿Trabajó con Rust?", [])]
+    events = [event async for event in agent.respond("¿Diego usa Rust?", [])]
 
-    assert token_text(events) == "El perfil incluye experiencia con Rust."
-    assert portfolio.queries == ["Rust experience"]
-    assert (
-        "tool",
-        {"name": "search_portfolio", "state": "running", "round": 1},
-    ) in events
-    assert (
-        "tool",
-        {"name": "search_portfolio", "state": "done", "ok": True, "round": 1},
-    ) in events
-
-    second_messages = chat.chat.completions.requests[1]["messages"]
-    assert second_messages[-2]["role"] == "assistant"
-    assert second_messages[-2]["tool_calls"][0]["id"] == "call-search"
-    assert second_messages[-1]["role"] == "tool"
-    assert second_messages[-1]["tool_call_id"] == "call-search"
-    assert json.loads(second_messages[-1]["content"])["ok"] is True
-
-    context = returned_context(events)
-    assert any(item.get("role") == "tool" for item in context)
-    assert context[-1]["content"] == "El perfil incluye experiencia con Rust."
+    assert token_text(events) == "El portfolio confirma experiencia con Rust."
+    assert portfolio.queries == ["Rust"]
+    worker_request = chat.chat.completions.requests[1]
+    assert worker_request["tools"] == [SEARCH_PORTFOLIO_SCHEMA]
+    assert worker_request["parallel_tool_calls"] is False
+    assert RESOLVE_DATETIME_SCHEMA not in worker_request["tools"]
+    assert SET_REMINDER_MOCK_SCHEMA not in worker_request["tools"]
 
 
 @pytest.mark.asyncio
-async def test_agent_runs_generic_multi_round_tool_chain() -> None:
+async def test_temporal_route_exposes_only_temporal_tools() -> None:
     chat = FakeChat(
         [
+            classifier_response(["temporal"]),
             [
                 chunk(
                     tool_calls=[
                         tool_delta(
                             0,
-                            call_id="call-resolve",
-                            name="resolve_datetime",
-                            arguments=json.dumps(
-                                {
-                                    "reference": "2026-09-04T19:00:00-03:00",
-                                    "offset": 15,
-                                    "unit": "days",
-                                }
-                            ),
-                        )
-                    ],
-                    finish_reason="tool_calls",
-                )
-            ],
-            [
-                chunk(
-                    tool_calls=[
-                        tool_delta(
-                            0,
-                            call_id="call-reminder",
-                            name="set_reminder_mock",
-                            arguments=json.dumps(
-                                {
-                                    "reference": "2026-09-19T19:00:00-03:00",
-                                    "offset": 0,
-                                    "unit": "minutes",
-                                    "message": "Revisar el CV",
-                                }
-                            ),
-                        )
-                    ],
-                    finish_reason="tool_calls",
-                )
-            ],
-            [chunk("Recordatorio simulado."), chunk(finish_reason="stop")],
-        ]
-    )
-    agent = Agent("Diego", chat, FakePortfolio(), model="qwen")
-
-    events = [
-        event
-        async for event in agent.respond(
-            "Calculá 15 días después de 2026-09-04T19:00:00-03:00 "
-            "y usá esa fecha para un recordatorio del CV",
-            [],
-        )
-    ]
-
-    assert token_text(events) == "Recordatorio simulado."
-    assert len(chat.chat.completions.requests) == 3
-
-    running_tools = [
-        payload["name"]
-        for event, payload in events
-        if event == "tool" and payload["state"] == "running"
-    ]
-    assert running_tools == ["resolve_datetime", "set_reminder_mock"]
-
-    final_messages = chat.chat.completions.requests[-1]["messages"]
-    tool_ids = [item["tool_call_id"] for item in final_messages if item["role"] == "tool"]
-    assert tool_ids == ["call-resolve", "call-reminder"]
-
-
-@pytest.mark.asyncio
-async def test_agent_returns_multiple_tool_results_in_call_order() -> None:
-    chat = FakeChat(
-        [
-            [
-                chunk(
-                    tool_calls=[
-                        tool_delta(
-                            0,
-                            call_id="call-search",
-                            name="search_portfolio",
-                            arguments='{"query":"Rust"}',
-                        ),
-                        tool_delta(
-                            1,
                             call_id="call-date",
                             name="resolve_datetime",
                             arguments=json.dumps(
                                 {
                                     "reference": "now",
-                                    "offset": 0,
-                                    "unit": "days",
-                                }
-                            ),
-                        ),
-                    ],
-                    finish_reason="tool_calls",
-                )
-            ],
-            [chunk("Listo."), chunk(finish_reason="stop")],
-        ]
-    )
-    agent = Agent("Diego", chat, FakePortfolio(), model="qwen")
-
-    events = [event async for event in agent.respond("consulta mixta", [])]
-
-    assert token_text(events) == "Listo."
-    second_messages = chat.chat.completions.requests[1]["messages"]
-    assert [item["tool_call_id"] for item in second_messages[-2:]] == [
-        "call-search",
-        "call-date",
-    ]
-
-
-@pytest.mark.asyncio
-async def test_agent_carries_tool_results_into_follow_up_turn() -> None:
-    chat = FakeChat(
-        [
-            [
-                chunk(
-                    tool_calls=[
-                        tool_delta(
-                            0,
-                            call_id="call-date",
-                            name="resolve_datetime",
-                            arguments=json.dumps(
-                                {
-                                    "reference": "2026-09-04T19:00:00-03:00",
-                                    "offset": 15,
+                                    "offset": 1,
                                     "unit": "days",
                                 }
                             ),
@@ -392,36 +195,102 @@ async def test_agent_carries_tool_results_into_follow_up_turn() -> None:
                 )
             ],
             [
-                chunk("Sería el sábado 19 de septiembre de 2026."),
-                chunk(finish_reason="stop"),
-            ],
-            [
-                chunk("El sábado 19 de septiembre de 2026."),
+                chunk('{"answer":"Mañana será jueves."}'),
                 chunk(finish_reason="stop"),
             ],
         ]
     )
     agent = Agent("Diego", chat, FakePortfolio(), model="qwen")
 
-    first_events = [
+    events = [event async for event in agent.respond("¿Qué fecha será mañana?", [])]
+
+    assert token_text(events) == "Mañana será jueves."
+    worker_request = chat.chat.completions.requests[1]
+    assert worker_request["tools"] == [
+        RESOLVE_DATETIME_SCHEMA,
+        SET_REMINDER_MOCK_SCHEMA,
+    ]
+    assert SEARCH_PORTFOLIO_SCHEMA not in worker_request["tools"]
+
+
+@pytest.mark.asyncio
+async def test_mixed_routes_run_isolated_workers_and_compose_results() -> None:
+    chat = FakeChat(
+        [
+            classifier_response(["portfolio", "temporal"]),
+            [
+                chunk(
+                    tool_calls=[
+                        tool_delta(
+                            0,
+                            call_id="call-search",
+                            name="search_portfolio",
+                            arguments='{"query":"PocketTrace stack"}',
+                        )
+                    ],
+                    finish_reason="tool_calls",
+                )
+            ],
+            [
+                chunk('{"answer":"PocketTrace usa Rust."}'),
+                chunk(finish_reason="stop"),
+            ],
+            [
+                chunk(
+                    tool_calls=[
+                        tool_delta(
+                            0,
+                            call_id="call-date",
+                            name="resolve_datetime",
+                            arguments='{"reference":"now","offset":0,"unit":"days"}',
+                        )
+                    ],
+                    finish_reason="tool_calls",
+                )
+            ],
+            [
+                chunk('{"answer":"Hoy es miércoles."}'),
+                chunk(finish_reason="stop"),
+            ],
+        ]
+    )
+    portfolio = FakePortfolio()
+    agent = Agent("Diego", chat, portfolio, model="qwen")
+
+    events = [
         event
         async for event in agent.respond(
-            "Dentro de 15 días desde 2026-09-04T19:00:00-03:00, ¿qué día sería?",
+            "¿Qué stack usa PocketTrace y qué fecha es hoy?",
             [],
+            diagnostics=True,
         )
     ]
-    context = returned_context(first_events)
 
-    second_events = [
-        event async for event in agent.respond("¿Cuál sábado?", context)
-    ]
+    assert token_text(events) == "PocketTrace usa Rust.\n\nHoy es miércoles."
+    assert portfolio.queries == ["PocketTrace stack"]
 
-    assert token_text(second_events) == "El sábado 19 de septiembre de 2026."
-    follow_up_messages = chat.chat.completions.requests[-1]["messages"]
-    prior_tool_messages = [
-        item for item in follow_up_messages if item.get("role") == "tool"
+    traces = [payload for event, payload in events if event == "trace"]
+    assert len(traces) == 1
+    assert traces[0]["dispatch"]["routes"] == ["portfolio", "temporal"]
+    tool_names = [
+        call["name"]
+        for round_trace in traces[0]["rounds"]
+        for call in round_trace.get("tool_calls", [])
     ]
-    assert len(prior_tool_messages) == 1
-    prior_result = json.loads(prior_tool_messages[0]["content"])
-    assert prior_result["result"]["date"] == "2026-09-19"
-    assert prior_result["result"]["weekday_es"] == "sábado"
+    assert tool_names == ["search_portfolio", "resolve_datetime"]
+
+
+@pytest.mark.asyncio
+async def test_worker_json_is_not_exposed_to_the_visitor() -> None:
+    chat = FakeChat(
+        [
+            classifier_response(["general"]),
+            [chunk('{"answer":"Respuesta visible."}'), chunk(finish_reason="stop")],
+        ]
+    )
+    agent = Agent("Diego", chat, FakePortfolio(), model="qwen")
+
+    events = [event async for event in agent.respond("consulta", [])]
+
+    assert token_text(events) == "Respuesta visible."
+    assert '{"answer"' not in token_text(events)
