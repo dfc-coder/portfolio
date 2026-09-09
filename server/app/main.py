@@ -58,6 +58,7 @@ def create_app(config: Config | None = None, agent: Agent | None = None) -> Fast
             chat,
             portfolio,
             model=config.llama_model,
+            prefetch_portfolio=True,
             temperature=config.generation_temperature,
             top_p=config.generation_top_p,
             top_k=config.generation_top_k,
@@ -75,7 +76,7 @@ def create_app(config: Config | None = None, agent: Agent | None = None) -> Fast
         for client in clients:
             await client.close()
 
-    app = FastAPI(title="Portfolio Assistant", version="0.9.1", lifespan=lifespan)
+    app = FastAPI(title="Portfolio Assistant", version="0.9.2", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(config.allowed_origins),
