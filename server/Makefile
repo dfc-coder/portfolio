@@ -1,4 +1,4 @@
-.PHONY: install test check run up down logs models eval-ready eval-reranker-ready eval-tools-strict eval eval-strict eval-smoke tdd
+.PHONY: install test check run up down logs models reranker-model eval-ready eval-reranker-ready eval-tools-strict eval eval-strict eval-smoke tdd
 
 ENGINE ?= $(shell if command -v podman >/dev/null 2>&1; then echo podman; elif command -v docker >/dev/null 2>&1; then echo docker; else echo none; fi)
 COMPOSE = $(ENGINE) compose
@@ -26,7 +26,10 @@ logs:
 	$(COMPOSE) logs -f api
 
 models:
-	bash scripts/fetch_eval_models.sh
+	bash scripts/fetch_eval_models.sh all
+
+reranker-model:
+	bash scripts/fetch_eval_models.sh reranker
 
 eval-ready:
 	@echo "Waiting for portfolio API on http://localhost:8000/health..."
@@ -80,7 +83,9 @@ eval-smoke: eval-ready
 tdd:
 	$(MAKE) install
 	$(MAKE) check
+	$(MAKE) reranker-model
+	$(COMPOSE) up -d --force-recreate reranker
+	$(MAKE) eval-tools-strict
 	$(MAKE) models
 	$(COMPOSE) up -d --build --force-recreate
-	$(MAKE) eval-tools-strict
 	$(MAKE) eval-strict
