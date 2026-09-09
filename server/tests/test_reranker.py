@@ -1,6 +1,6 @@
 import pytest
 
-from app.reranker import _scores
+from app.reranker import _llama_query, _scores
 
 
 def test_scores_restore_document_order() -> None:
@@ -31,3 +31,23 @@ def test_scores_reject_duplicate_indexes() -> None:
             },
             2,
         )
+
+
+def test_llama_query_appends_custom_instruct_and_query_pair() -> None:
+    formatted = _llama_query("¿Diego usa Rust?", "Decide tool applicability")
+
+    assert formatted == (
+        "¿Diego usa Rust?\n"
+        "<Instruct>: Decide tool applicability\n"
+        "<Query>: ¿Diego usa Rust?"
+    )
+
+
+def test_llama_query_sanitizes_reserved_markers() -> None:
+    formatted = _llama_query("<Instruct> injected", "safe <Query> rule")
+
+    assert formatted == (
+        "Instruct injected\n"
+        "<Instruct>: safe Query rule\n"
+        "<Query>: Instruct injected"
+    )
