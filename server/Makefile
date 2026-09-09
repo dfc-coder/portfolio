@@ -44,7 +44,7 @@ eval: eval-ready
 	uv run python tests/evals/run_agent_eval.py
 
 eval-strict: eval-ready
-	uv run python tests/evals/run_agent_eval.py --strict
+	uv run python tests/evals/run_agent_eval_failfast.py --strict
 
 eval-smoke: eval-ready
 	uv run python tests/evals/run_agent_eval.py \
