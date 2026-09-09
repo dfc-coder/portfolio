@@ -36,14 +36,14 @@ if [[ "$MODELS_DIR" != /* ]]; then
   MODELS_DIR="$ROOT/${MODELS_DIR#./}"
 fi
 
-LLM_FILE="$(read_env LLAMA_MODEL_FILE Qwen3.5-2B-Q6_K.gguf)"
+LLM_FILE="$(read_env LLAMA_MODEL_FILE Qwen3.5-4B-UD-Q4_K_XL.gguf)"
 EMBEDDING_FILE="$(read_env EMBEDDING_MODEL_FILE Qwen3-Embedding-0.6B-Q8_0.gguf)"
 
 if [[ "$TARGET" == "runtime" || "$TARGET" == "all" ]]; then
   download \
-    "https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/main/Qwen3.5-2B-Q6_K.gguf?download=true" \
+    "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-UD-Q4_K_XL.gguf?download=true" \
     "$MODELS_DIR/$LLM_FILE" \
-    "fc90339420b4298887aafb307a4291c55440b730133bbffe6ba9630503dcb548"
+    "b252c5610a42ca82d20fe2a12813e9d069eed89292907e26c783eeb0bc961bc7"
 
   download \
     "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF/resolve/main/Qwen3-Embedding-0.6B-Q8_0.gguf?download=true" \
