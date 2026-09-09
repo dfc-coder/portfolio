@@ -19,7 +19,7 @@ class FakeAgent:
         assert message == "hola"
         assert context == [{"role": "assistant", "content": "antes"}]
         yield "status", {"phase": "model", "round": 1}
-        yield "tool", {"name": "get_current_datetime", "state": "running", "round": 1}
+        yield "tool", {"name": "resolve_datetime", "state": "running", "round": 1}
         yield "token", {"text": "respuesta"}
         yield "context", {
             "messages": [
@@ -73,7 +73,7 @@ def test_chat_stream_contract() -> None:
     assert 'event: status' in response.text
     assert '"phase": "model"' in response.text
     assert 'event: tool' in response.text
-    assert '"name": "get_current_datetime"' in response.text
+    assert '"name": "resolve_datetime"' in response.text
     assert 'event: token' in response.text
     assert '"text": "respuesta"' in response.text
     assert 'event: context' in response.text
