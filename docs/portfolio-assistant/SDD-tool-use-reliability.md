@@ -1,6 +1,6 @@
 # SDD — Go-like 4B temporal fast path
 
-Status: Design approved for implementation. M0 measured; M1–M5 pending.
+Status: M0–M4 implemented; M5 pending local live smoke validation.
 
 Branch: `feat/agent-live-eval`
 
@@ -21,9 +21,9 @@ The optimization must preserve the Go-like runtime philosophy:
 
 The first optimization scope is only the temporal path. `general` and `portfolio` remain behaviorally unchanged so performance changes can be measured independently.
 
-## 2. M0 — Freeze the 4B baseline
+## 2. M0 — Frozen 4B baseline
 
-The reference model for this milestone is the local model that produced the first complete smoke pass:
+Reference runtime:
 
 ```text
 llama.cpp
@@ -46,7 +46,7 @@ p95 latency          ~91.71 s
 
 This result is the correctness baseline. M1–M4 are accepted only if M5 preserves `10/10`.
 
-The important performance baseline for the current temporal worker is also recorded:
+Performance baseline for the old temporal worker:
 
 ```text
 first tool round prompt     ~1067–1082 tokens
@@ -57,31 +57,9 @@ model calls per temporal request
   1 final-answer generation
 ```
 
-M0 rule: do not tune the model, sampling, quantization, or llama.cpp runtime while implementing M1–M4. Change one architectural variable at a time.
+M0 rule: do not tune sampling, quantization, or llama.cpp runtime while implementing M1–M4. Change one architectural variable at a time.
 
-## 3. Current temporal path
-
-Today the dispatcher exposes one broad temporal domain:
-
-```text
-visitor
-  -> classify()
-  -> temporal
-  -> TemporalWorker
-       tools:
-         resolve_datetime
-         set_reminder_mock
-  -> native llama.cpp tool-call protocol
-  -> Python executes selected tool
-  -> model receives tool result
-  -> model generates final answer
-```
-
-The model therefore receives two tool schemas plus llama.cpp's native tool-call instructions and grammar even when only one operation is possible from the user's intent.
-
-The second model round exists only to turn an already deterministic tool result into visitor-facing prose.
-
-## 4. Target architecture
+## 3. Target runtime
 
 ```text
 visitor
@@ -91,12 +69,12 @@ visitor
        |
        +-> portfolio -> existing PortfolioWorker + native search_portfolio tool
        |
-       +-> datetime  -> structured DateTime request
+       +-> datetime  -> structured DateTimeRequest
        |                -> validate
        |                -> resolve_datetime() directly
        |                -> deterministic formatter
        |
-       +-> reminder  -> structured Reminder request
+       +-> reminder  -> structured ReminderRequest
                         -> validate
                         -> set_reminder_mock() directly
                         -> deterministic formatter
@@ -107,7 +85,7 @@ visitor
 
 For `datetime` and `reminder`, native tool calling disappears completely.
 
-The model still performs the difficult NLP step:
+The model performs the NLP step:
 
 ```text
 natural language -> structured semantic arguments
@@ -119,11 +97,9 @@ Python owns everything after that boundary:
 validate -> execute -> format -> return
 ```
 
-## 5. M1 — Split `temporal` into `datetime` and `reminder`
+## 4. M1 — Split temporal routing
 
-### 5.1 Route contract
-
-`Route` becomes:
+`Route` is:
 
 ```python
 class Route(StrEnum):
@@ -135,71 +111,33 @@ class Route(StrEnum):
 
 `TEMPORAL` is removed.
 
-The classifier remains a narrow structured classifier and still returns only:
+The classifier returns a closed route list, for example:
 
 ```json
 {"routes":["datetime"]}
 ```
 
-or, for a genuine mixed request:
+or a genuine mixed request:
 
 ```json
 {"routes":["portfolio","datetime"]}
 ```
 
-### 5.2 Classification rules
+Rules:
 
-`datetime` means a read-only date/time/weekday/timezone question.
+- `datetime` is a read-only date/time/weekday/timezone question;
+- `reminder` means the visitor explicitly asks to create a reminder;
+- a reminder containing a date or duration is still only `reminder` unless a separate date/time question exists;
+- conversational framing does not create another route;
+- the classifier never creates operation arguments and never executes an operation.
 
-`reminder` means the visitor explicitly asks to create a reminder.
+## 5. M2 — Structured temporal parsers
 
-A reminder that contains a relative time such as `in two hours` is still only `reminder`; it does not require an additional `datetime` route because the reminder operation resolves its own temporal reference.
+The datetime and reminder paths are semantic parsers, not native tool workers.
 
-If a visitor genuinely asks for both operations, for example "What date is tomorrow and remind me tomorrow to call Ana", the classifier may return both routes.
+They receive a small system prompt, relevant plain conversation context, and the visitor message. They do not receive OpenAI tool schemas, llama.cpp tool-call instructions, tool-call grammar, or unrelated tool descriptions.
 
-Conversational framing does not create an additional route.
-
-### 5.3 M1 invariant
-
-The dispatcher decides only the domain. It never creates tool arguments and never executes an operation.
-
-## 6. M2 — Structured workers without native tool schemas
-
-The `datetime` and `reminder` workers become semantic parsers.
-
-They receive:
-
-```text
-small system prompt
-recent conversation context when required
-visitor message
-```
-
-They do **not** receive:
-
-```text
-OpenAI tool schemas
-llama.cpp tool-call instructions
-native tool-call grammar
-unrelated tool descriptions
-```
-
-### 6.1 DateTime contract
-
-The model returns one closed JSON object:
-
-```json
-{
-  "kind": "date",
-  "reference": "now",
-  "offset": 1,
-  "unit": "weeks",
-  "timezone": null,
-  "language": "es"
-}
-```
-
-Runtime type:
+### DateTimeRequest
 
 ```python
 @dataclass(frozen=True)
@@ -212,7 +150,20 @@ class DateTimeRequest:
     language: str
 ```
 
-Allowed `kind` values:
+Model output example:
+
+```json
+{
+  "kind": "date",
+  "reference": "now",
+  "offset": 1,
+  "unit": "weeks",
+  "timezone": null,
+  "language": "es"
+}
+```
+
+Allowed `kind`:
 
 ```text
 date
@@ -220,7 +171,7 @@ weekday
 datetime
 ```
 
-Allowed `unit` values remain:
+Allowed `unit`:
 
 ```text
 minutes
@@ -229,22 +180,7 @@ days
 weeks
 ```
 
-### 6.2 Reminder contract
-
-The model returns:
-
-```json
-{
-  "reference": "now",
-  "offset": 30,
-  "unit": "minutes",
-  "message": "Revisar el portfolio",
-  "timezone": null,
-  "language": "es"
-}
-```
-
-Runtime type:
+### ReminderRequest
 
 ```python
 @dataclass(frozen=True)
@@ -257,273 +193,179 @@ class ReminderRequest:
     language: str
 ```
 
-### 6.3 Validation
+Model output example:
 
-Python validates the JSON before execution.
-
-Invalid JSON, missing fields, unknown enum values, invalid timezone, invalid integer ranges, or unexpected fields fail explicitly. The worker never silently repairs its own output in code.
-
-There is no temporal NLP parser, sklearn classifier, reranker, or regex semantic correction in M2.
-
-The 4B remains the semantic authority for mapping natural language to these fields.
-
-### 6.4 Worker implementation rule
-
-Do not add a worker class hierarchy.
-
-The implementation should remain data plus small functions. If shared JSON completion/parsing logic is needed, use one small helper rather than `BaseWorker`, `TemporalWorker`, `DateTimeAgent`, or similar abstractions.
-
-## 7. M3 — Execute the operation directly from Python
-
-After a structured request is validated, Python calls the existing deterministic operation directly.
-
-Datetime:
-
-```python
-result = resolve_datetime(
-    reference=request.reference,
-    offset=request.offset,
-    unit=request.unit,
-    timezone=request.timezone,
-)
+```json
+{
+  "reference": "now",
+  "offset": 30,
+  "unit": "minutes",
+  "message": "Revisar el portfolio",
+  "timezone": null,
+  "language": "es"
+}
 ```
 
-Reminder:
+The runtime parses one JSON object and rejects unknown fields, missing required values, invalid enum values, invalid integer values, and malformed optional strings before execution.
 
-```python
-result = set_reminder_mock(
-    reference=request.reference,
-    offset=request.offset,
-    unit=request.unit,
-    message=request.message,
-    timezone=request.timezone,
-)
-```
+There is no language-specific hard-coded temporal parsing in Python.
 
-These functions already exist in `app/tools.py` and remain the source of truth for temporal execution.
+## 6. M3 — Direct Python execution
 
-The fast path does not synthesize:
+After validation the orchestrator executes the existing deterministic operation directly:
 
 ```text
-tool_call_id
-assistant.tool_calls
-tool role messages
-OpenAI native tool envelopes
+DateTimeRequest
+  -> resolve_datetime(...)
+
+ReminderRequest
+  -> set_reminder_mock(...)
 ```
 
-Those protocol objects are only necessary when the model itself is choosing/executing a native tool loop.
-
-`search_portfolio` keeps the existing native tool path in this milestone.
-
-### 7.1 M3 invariant
-
-A structured temporal worker can propose arguments but cannot execute anything. Only the orchestrator/runtime calls the Python operation after validation.
-
-## 8. M4 — Deterministic temporal responses
-
-The temporal operation result is already deterministic. Do not invoke Qwen a second time only to paraphrase it.
-
-Add two small formatting boundaries:
-
-```python
-render_datetime(request, result) -> str
-render_reminder(request, result) -> str
-```
-
-The formatter is normal application code. It receives only validated structured data.
-
-Examples:
+The model does not choose an operation after routing. Python owns that mapping:
 
 ```text
-DateTimeRequest(kind="weekday", language="es")
-+ weekday_es="jueves"
--> "Fue jueves."
+datetime -> resolve_datetime
+reminder -> set_reminder_mock
 ```
+
+The production operation implementation remains in `app/tools.py`; the fast path does not duplicate date/reminder business logic.
+
+For observability, direct executions are recorded in the same trace shape used by the live evals, with `direct=true`. This keeps tool selection, argument extraction, and execution metrics comparable with the M0 baseline without exposing native tool schemas to the model.
+
+## 7. M4 — Deterministic presentation
+
+A successful temporal operation is formatted by Python. There is no second LLM call after `resolve_datetime` or `set_reminder_mock`.
+
+The formatter is intentionally narrow:
 
 ```text
-ReminderRequest(language="es")
-+ status="simulated_only"
--> response that explicitly states the reminder is simulated/non-persistent
+DateTimeRequest + operation result -> visitor-facing date/time sentence
+ReminderRequest + operation result -> simulated reminder confirmation
 ```
 
-The first deterministic formatter scope is the languages currently exercised by the local acceptance suite: Spanish and English.
+The reminder formatter must state that the reminder is simulated/non-persistent and does not send a real notification.
 
-No LLM call is permitted after `resolve_datetime()` or `set_reminder_mock()` on this fast path.
+General and portfolio responses remain model-generated because they are open-ended language tasks.
 
-### 8.1 Conversation state
+## 8. Conversation state
 
-The temporal fast path stores the visitor message and final assistant answer in normal conversation history.
+The orchestrator owns conversation state. Temporal parsers are stateless.
 
-Structured parser output and operation results belong in diagnostics/trace, not as synthetic OpenAI tool messages in conversation state.
+The direct temporal fast path stores only the final user-visible conversation result. It does not invent synthetic native assistant/tool protocol messages for future model context.
 
-This keeps runtime state independent from a wire protocol that is no longer used for these routes.
+The classifier may use recent plain user/assistant context to interpret follow-ups. If a follow-up asks only for information already present in the conversation, it should remain a no-operation general/context answer rather than re-executing a temporal operation.
 
-## 9. Composition
+## 9. Native tool loop
 
-Each route still returns one `WorkerResult` to the orchestrator.
+The bounded native tool loop in `app/worker.py` remains for `search_portfolio`.
 
-For a single route, return its formatted answer directly.
+Its existing invariants remain unchanged:
 
-For multiple routes, keep the current deterministic composition behavior: concatenate route results in dispatch order. Do not introduce a merger LLM.
+```text
+registered tool names only
+validated arguments
+preserved tool_call_id
+sequential deterministic execution
+successful identical-call reuse
+hard round limit
+intermediate tool text not exposed
+```
 
-Workers never communicate with each other.
+Datetime and reminder bypass this loop by design.
 
 ## 10. Tracing
 
-Temporal traces must expose enough information to compare correctness and performance without exposing hidden reasoning.
+Diagnostics must make the fast path visible rather than hiding it.
 
-Record:
+For a direct temporal execution the trace records:
 
 ```text
 route
-model name
-structured raw output
-parsed request
-validation status
+structured model request/response
 operation name
+parsed arguments
 operation result
-parser prompt tokens
-parser completion tokens
-parser latency
-operation latency
-formatter latency
-total request latency
+direct=true
+latency
 ```
 
-Native `tool_call_id` fields are not expected for the `datetime` and `reminder` fast paths.
+The existing live eval reader continues to observe `resolve_datetime` and `set_reminder_mock` through `rounds[].tool_calls`, so M0 and M5 metrics remain comparable.
 
-## 11. Expected file changes
-
-Keep the change small and flat.
+## 11. Files
 
 ```text
-server/app/dispatcher.py
-  temporal -> datetime + reminder
-
-server/app/prompt.py
-  update classifier domains
-  replace TEMPORAL_PROMPT with compact DATETIME_PROMPT and REMINDER_PROMPT
-
-server/app/agent.py
-  register/dispatch the two new routes
-  call structured temporal path
-  keep general/portfolio behavior unchanged
-
-server/app/worker.py
-  retain existing worker loop for native-tool workers
-  add only the minimum structured-completion helper if needed
-
-server/app/tools.py
-  keep resolve_datetime() and set_reminder_mock() as execution source of truth
-  no semantic parsing added here
-
-server/tests/
-  add deterministic route/contract/execution/formatter tests
-
-server/tests/evals/
-  keep existing smoke expectations unchanged
+app/agent.py       orchestrator and explicit route execution
+app/dispatcher.py  closed route classification
+app/worker.py      native general/portfolio worker runtime
+app/temporal.py    structured datetime/reminder fast path
+app/tools.py       operation implementations + native registry
+app/prompt.py      English classifier/worker/parser prompts
 ```
 
-A new module such as `app/temporal.py` is acceptable only if the structured contracts, validators, and formatters would otherwise make `agent.py` or `worker.py` harder to read. It must remain one focused module, not a package hierarchy.
+No new framework or service is introduced.
 
 ## 12. M5 — Acceptance gate
 
-M5 runs after M1–M4 are complete.
+Run:
 
-Correctness gate:
-
-```text
-make check            PASS
-make eval-regression  4/4
-make eval-smoke      10/10
-
-tool/operation selection  10/10
-argument extraction         8/8
-tool execution             10/10
-answers present            10/10
+```bash
+make check
+make eval-regression
+make eval-smoke
 ```
 
-The existing eval cases must not be weakened, renamed, or rewritten to make the new architecture pass.
-
-Structural gate:
+Required correctness:
 
 ```text
-datetime worker native tools       0
-reminder worker native tools       0
-model calls per temporal request   2
-  classifier                       1
-  structured parser                1
+smoke                         10/10
+tool/operation selection      10/10
+argument extraction             8/8
+tool execution                10/10
+answers present               10/10
+```
+
+Performance is compared against M0:
+
+```text
+M0 p50 ~31.17 s
+M0 p95 ~91.71 s
+```
+
+The first target is at least a 25% p50 reduction:
+
+```text
+M5 p50 <= ~23.4 s
+```
+
+The optimization is rejected if correctness drops below 10/10, regardless of latency improvement.
+
+## 13. Expected performance change
+
+Old temporal request:
+
+```text
+classifier
++ native tool-call model round with ~1k-token prompt
++ deterministic Python operation
++ final-answer model round
+```
+
+New temporal request:
+
+```text
+classifier
++ compact structured semantic-parser round
++ deterministic Python operation
++ deterministic formatter
+```
+
+Expected invariants:
+
+```text
+native temporal tool schemas      0
 post-operation LLM calls           0
+temporal LLM calls total           2  # classifier + parser
 ```
 
-Performance gate:
-
-```text
-baseline p50       ~31.17 s
-target p50         <= 23.4 s   # at least 25% improvement
-```
-
-`p95` must be recorded but is not a hard gate in M5 because the baseline contains large runtime variance/outliers. It becomes a hard target only after CPU/runtime stability is measured separately.
-
-Prompt-size target for the first temporal model call:
-
-```text
-current     ~1067–1082 tokens
-target      <= 500 tokens
-```
-
-If correctness drops below `10/10`, the optimization is rejected regardless of latency improvement.
-
-## 13. Implementation sequence
-
-```text
-M0  record baseline and do not change runtime tuning
-M1  split temporal routing
-    -> deterministic classifier tests
-
-M2  introduce DateTimeRequest / ReminderRequest
-    -> structured-output parser tests
-    -> prove no native temporal tool schemas are sent
-
-M3  direct Python execution
-    -> validation + operation tests
-
-M4  deterministic formatting
-    -> prove no second temporal LLM completion occurs
-
-M5  run regression and complete smoke
-    -> compare correctness, prompt tokens, model-call count, p50 and p95
-```
-
-Each milestone must leave the server runnable. Do not land disconnected components for a later milestone.
-
-## 14. Architectural invariants
-
-```text
-classifier never executes operations
-classifier never answers the visitor
-workers never communicate with each other
-general has no tools
-portfolio keeps only portfolio capability
-datetime cannot create reminders
-reminder cannot perform portfolio retrieval
-temporal fast-path workers receive no native tool schemas
-structured output is validated before execution
-tools never call the model
-Python owns execution and termination
-no second LLM call after deterministic temporal execution
-one physical Qwen3.5-4B instance initially
-all model-facing prompts are English
-visitor-facing output preserves visitor language
-no reranker or embeddings participate in routing
-```
-
-## 15. Rollback rule
-
-M0 is the rollback point.
-
-If M5 cannot keep `10/10`, revert M1–M4 as one optimization set and keep the current working 4B architecture. Do not compensate for a regression by adding semantic special cases, extra agents, a reranker, or another model inside this milestone.
-
-The optimization thesis is deliberately narrow:
-
-> Keep the model that is already correct. Remove protocol work the application does not need.
+The optimization deliberately targets architectural token/work reduction before llama.cpp thread, batch, GPU, or quantization tuning.
