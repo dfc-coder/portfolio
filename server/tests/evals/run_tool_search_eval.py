@@ -7,7 +7,7 @@ from pathlib import Path
 
 from app.reranker import Reranker
 from app.tool_search import ToolSearch, tool_name
-from tests.evals.run_agent_eval import DEFAULT_CASES, load_cases
+from run_agent_eval import DEFAULT_CASES, load_cases
 
 DEFAULT_BASE_URL = os.getenv("RERANKER_EVAL_URL", "http://localhost:8082")
 DEFAULT_MODEL = os.getenv("RERANKER_MODEL", "Qwen3-Reranker-0.6B")
