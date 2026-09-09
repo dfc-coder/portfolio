@@ -1,30 +1,33 @@
 # Portfolio Assistant
 
-The assistant answers portfolio/CV questions through a minimal bounded multi-tool loop.
+The backend is a small local portfolio/CV agent with a Go-like runtime: explicit control flow, bounded state, simple tool registration, and no semantic routing framework.
+
+## Runtime
 
 ```text
-visitor
-  -> API
+FastAPI / SSE
+  -> ConversationStore
   -> Agent
-      -> Qwen
-      -> tool_calls?
-          -> execute requested tools
-          -> append assistant tool_calls + matching tool results
-          -> repeat
-      -> final answer
+      -> llama.cpp / Qwen3.5-2B-Q6_K
+      -> registered tool schemas
+      -> explicit bounded tool loop
 ```
 
-Available tools:
+The model decides whether a tool is needed. The server validates registered names and arguments, executes calls in order, preserves `tool_call_id`, and reuses successful identical calls instead of executing them twice.
+
+There is no capability gate, ToolSearch, reranker, planner, graph, or agent framework.
+
+## Local model
 
 ```text
-search_portfolio
-get_current_datetime
-add_duration_to_datetime
-set_reminder_mock
+unsloth/Qwen3.5-2B-GGUF
+Qwen3.5-2B-Q6_K.gguf
 ```
 
-Tool schemas are explicit OpenAI-compatible JSON. Python performs small explicit runtime validation. Assistant `tool_calls` and tool results are preserved with matching `tool_call_id` values so Qwen can continue dependent tool chains correctly.
+Portfolio retrieval continues to use `Qwen3-Embedding-0.6B` as infrastructure for `search_portfolio`; embeddings do not select tools.
 
-The backend is stateless. The browser round-trips a bounded hidden OpenAI-compatible conversation context across HTTP turns. There is no planner, graph, registry, scheduler, calendar integration, persistent reminder service, or server-side conversation store.
+## Documents
 
-Qwen thinking mode is disabled. Operational model execution is reported as `model`; it is not exposed as model reasoning. `set_reminder_mock` remains a stateless simulation used to exercise the multi-round tool flow safely.
+- `SDD-tool-use-reliability.md` — runtime architecture and invariants.
+- `TRACE.md` — diagnostic trace contract.
+- `../../server/README.md` — local run and file layout.
