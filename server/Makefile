@@ -1,4 +1,4 @@
-.PHONY: install test check run up down logs models reranker-model eval-ready eval-reranker-ready eval-tools-strict eval eval-strict eval-smoke tdd
+.PHONY: install test check run up down logs models eval-ready eval eval-strict eval-smoke tdd
 
 ENGINE ?= $(shell if command -v podman >/dev/null 2>&1; then echo podman; elif command -v docker >/dev/null 2>&1; then echo docker; else echo none; fi)
 COMPOSE = $(ENGINE) compose
@@ -26,10 +26,7 @@ logs:
 	$(COMPOSE) logs -f api
 
 models:
-	bash scripts/fetch_eval_models.sh all
-
-reranker-model:
-	bash scripts/fetch_eval_models.sh reranker
+	bash scripts/fetch_eval_models.sh runtime
 
 eval-ready:
 	@echo "Waiting for portfolio API on http://localhost:8000/health..."
@@ -42,21 +39,6 @@ eval-ready:
 	done; \
 	echo "Portfolio API did not become ready within 90s" >&2; \
 	exit 1
-
-eval-reranker-ready:
-	@echo "Waiting for reranker on http://localhost:8082/health..."
-	@for i in $$(seq 1 90); do \
-		if curl -fsS http://localhost:8082/health >/dev/null 2>&1; then \
-			echo "Reranker ready"; \
-			exit 0; \
-		fi; \
-		sleep 1; \
-	done; \
-	echo "Reranker did not become ready within 90s" >&2; \
-	exit 1
-
-eval-tools-strict: eval-reranker-ready
-	uv run python tests/evals/run_tool_search_eval.py --strict
 
 eval: eval-ready
 	uv run python tests/evals/run_agent_eval.py
@@ -83,9 +65,6 @@ eval-smoke: eval-ready
 tdd:
 	$(MAKE) install
 	$(MAKE) check
-	$(MAKE) reranker-model
-	$(COMPOSE) up -d --force-recreate reranker
-	$(MAKE) eval-tools-strict
 	$(MAKE) models
 	$(COMPOSE) up -d --build --force-recreate
 	$(MAKE) eval-strict
