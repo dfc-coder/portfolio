@@ -26,8 +26,10 @@ visitor
   -> Agent
       -> model + registered tool schemas
       -> final answer?
+          -> stream final text
           -> return
       -> tool calls?
+          -> keep intermediate text internal
           -> validate registered names
           -> validate arguments
           -> execute in call order
@@ -136,6 +138,8 @@ round 1 -> tool A + tool B
 round 2 -> final answer
 ```
 
+Only the text from a final round with no tool calls is exposed as visitor-facing `token` events. Text emitted by the model during a tool-call round remains internal so the UI does not show transient phrases such as "I will check" before the actual answer.
+
 A hard tool-round limit prevents infinite loops while still allowing a final answer round after the last permitted tool round.
 
 ## 7. Conversation state
@@ -182,6 +186,7 @@ multi-round chains preserve prior results
 multiple calls preserve call order
 identical successful calls execute once
 repeated A + new B does not execute A twice
+intermediate tool-round text is not exposed
 conversation state retains tool messages
 history trimming starts at a user boundary
 ```
