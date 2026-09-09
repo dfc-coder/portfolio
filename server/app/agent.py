@@ -9,10 +9,10 @@ from typing import Any
 
 from openai import AsyncOpenAI
 
-from .capabilities import CapabilitySelector, all_capabilities
 from .portfolio import Portfolio
 from .prompt import build_messages
-from .tools import run_tool_call, tools_for_capabilities
+from .tool_search import ToolSearch, all_tools, tool_name
+from .tools import run_tool_call
 from .trace import TurnTrace, chunk_metadata, elapsed_ms, parse_json, utc_now
 
 MAX_TOOL_ROUNDS = 6
@@ -30,7 +30,7 @@ class Agent:
         portfolio: Portfolio,
         *,
         model: str,
-        capability_selector: CapabilitySelector | None = None,
+        tool_search: ToolSearch | None = None,
         temperature: float = 0.7,
         top_p: float = 0.8,
         top_k: int = 20,
@@ -43,7 +43,7 @@ class Agent:
         self._chat = chat
         self._portfolio = portfolio
         self._model = model
-        self._capability_selector = capability_selector
+        self._tool_search = tool_search
         self._temperature = temperature
         self._top_p = top_p
         self._top_k = top_k
@@ -59,16 +59,13 @@ class Agent:
         *,
         diagnostics: bool = False,
     ) -> AsyncIterator[AgentEvent]:
-        decision = (
-            await self._capability_selector.select(message, context)
-            if self._capability_selector is not None
-            else all_capabilities()
+        selection = (
+            await self._tool_search.select(message, context)
+            if self._tool_search is not None
+            else all_tools()
         )
-        eligible_tools = tools_for_capabilities(decision.names)
-        allowed_tool_names = {
-            str(tool["function"]["name"])
-            for tool in eligible_tools
-        }
+        eligible_tools = selection.tools
+        allowed_tool_names = {tool_name(tool) for tool in eligible_tools}
         messages = build_messages(
             self._subject,
             _trim_context(context),
@@ -93,7 +90,7 @@ class Agent:
             generation=generation,
             tools=eligible_tools,
         )
-        trace.data["capability_gate"] = decision.trace()
+        trace.data["tool_search"] = selection.trace()
 
         successful_calls: dict[tuple[str, str], dict[str, str]] = {}
         force_answer = False
@@ -132,8 +129,6 @@ class Agent:
                 if eligible_tools and not force_answer:
                     request["tools"] = eligible_tools
                     request["parallel_tool_calls"] = len(eligible_tools) > 1
-                    if decision.requires_tool and round_number == 1:
-                        request["tool_choice"] = "required"
 
                 stream = await self._chat.chat.completions.create(**request)
 
@@ -208,8 +203,6 @@ class Agent:
 
                 _validate_model_round(finish_reason, ordered_calls)
                 _validate_allowed_calls(ordered_calls, allowed_tool_names)
-                if decision.requires_tool and round_number == 1:
-                    _validate_required_call(ordered_calls, allowed_tool_names)
 
                 assistant_message = _assistant_message(text or None, ordered_calls)
                 round_trace["assistant_message"] = assistant_message
@@ -266,8 +259,6 @@ class Agent:
                         successful_calls[_call_signature(call)] = result
 
                 messages.extend(results)
-                if decision.requires_tool and round_number == 1 and len(eligible_tools) == 1:
-                    force_answer = True
                 round_number += 1
         except Exception as exc:
             if diagnostics:
@@ -402,16 +393,6 @@ def _validate_allowed_calls(
     for call in calls:
         if call["name"] not in allowed_tool_names:
             raise RuntimeError(f"model requested ineligible tool: {call['name']}")
-
-
-def _validate_required_call(
-    calls: list[dict[str, str]],
-    allowed_tool_names: set[str],
-) -> None:
-    if len(allowed_tool_names) != 1:
-        raise RuntimeError("required capability must expose exactly one tool")
-    if len(calls) != 1:
-        raise RuntimeError("required capability must execute exactly one tool call")
 
 
 def _trim_context(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
