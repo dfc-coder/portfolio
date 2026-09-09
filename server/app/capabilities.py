@@ -18,9 +18,8 @@ CAPABILITIES = (
 _CANDIDATE_MARGIN = 0.05
 _MAX_CANDIDATES = 2
 _ROUTING_INSTRUCTION = (
-    "Retrieve the capabilities that may be relevant to the CURRENT visitor request. Recent conversation "
-    "is only context for abbreviated follow-ups. Match what the visitor wants the assistant to do, not "
-    "just nouns mentioned inside the request."
+    "Classify the CURRENT visitor request by intent. Recent conversation is only context for abbreviated "
+    "follow-ups. Match what the visitor wants the assistant to do, not nouns mentioned inside the request."
 )
 
 
