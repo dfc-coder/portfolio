@@ -55,6 +55,19 @@ class SessionAgent:
         yield "context", {"messages": updated}
 
 
+class ErrorAgent:
+    async def respond(
+        self,
+        message: str,
+        context: list[dict[str, Any]],
+        *,
+        diagnostics: bool = False,
+    ) -> AsyncIterator[tuple[str, dict[str, object]]]:
+        if False:
+            yield "token", {"text": "unused"}
+        raise RuntimeError("private internal detail")
+
+
 def test_chat_stream_contract() -> None:
     app = FastAPI()
     app.include_router(create_router(FakeAgent()))
@@ -145,6 +158,19 @@ def test_chat_reuses_server_context_by_conversation_id() -> None:
             {"role": "assistant", "content": "primera"},
         ],
     )
+
+
+def test_chat_hides_internal_errors() -> None:
+    app = FastAPI()
+    app.include_router(create_router(ErrorAgent()))
+    client = TestClient(app)
+
+    response = client.post("/v1/chat/stream", json={"message": "hola"})
+
+    assert response.status_code == 200
+    assert 'event: error' in response.text
+    assert 'temporarily unavailable' in response.text
+    assert 'private internal detail' not in response.text
 
 
 def test_chat_rejects_invalid_conversation_id() -> None:
