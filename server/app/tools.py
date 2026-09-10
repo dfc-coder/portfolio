@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import logging
 import os
 from typing import Any
 from uuid import uuid4
@@ -16,6 +17,8 @@ SET_REMINDER_MOCK = "set_reminder_mock"
 _WEEKDAYS_ES = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
 _DEFAULT_TIMEZONE = "America/Argentina/Buenos_Aires"
 _OFFSET_UNITS = ("minutes", "hours", "days", "weeks")
+
+logger = logging.getLogger(__name__)
 
 SEARCH_PORTFOLIO_SCHEMA = {
     "type": "function",
@@ -189,10 +192,11 @@ async def execute_tool(
             "ok": False,
             "error": {"type": "validation_error", "message": str(exc)},
         }
-    except Exception as exc:
+    except Exception:
+        logger.exception("tool execution failed: %s", name)
         return {
             "ok": False,
-            "error": {"type": "tool_error", "message": str(exc)},
+            "error": {"type": "tool_error", "message": "tool execution failed"},
         }
 
 
