@@ -9,11 +9,11 @@ from uuid import uuid4
 
 from openai import AsyncOpenAI
 
+from .conversation import trim_messages
 from .portfolio import Portfolio
 from .prompt import build_messages
 from .tools import TOOL_SCHEMAS, execute_tool
 
-MAX_CONTEXT_MESSAGES = 32
 MAX_TOOL_ROUNDS = 4
 AgentEvent = tuple[str, dict[str, object]]
 
@@ -53,7 +53,7 @@ class Agent:
         *,
         diagnostics: bool = False,
     ) -> AsyncIterator[AgentEvent]:
-        history = _trim_context(context)
+        history = trim_messages(context)
         conversation = [*history, {"role": "user", "content": message}]
         messages = build_messages(self._subject, history, message)
         trace = _new_trace(message, context, self._model) if diagnostics else None
@@ -140,7 +140,7 @@ class Agent:
                         raise RuntimeError("model returned an empty answer")
 
                     conversation.append({"role": "assistant", "content": answer})
-                    returned_context = _trim_context(conversation)
+                    returned_context = trim_messages(conversation)
                     yield "context", {"messages": returned_context}
                     if trace is not None:
                         yield "trace", _finish_trace(trace, answer, returned_context, None)
@@ -233,16 +233,6 @@ def _assistant_tool_message(calls: list[dict[str, str]]) -> dict[str, Any]:
             for call in calls
         ],
     }
-
-
-def _trim_context(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    if len(messages) <= MAX_CONTEXT_MESSAGES:
-        return messages
-
-    start = len(messages) - MAX_CONTEXT_MESSAGES
-    while start < len(messages) and messages[start].get("role") != "user":
-        start += 1
-    return messages[start:]
 
 
 def _new_trace(message: str, context: list[dict[str, Any]], model: str) -> dict[str, Any]:
