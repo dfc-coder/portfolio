@@ -12,6 +12,7 @@ Domains:
 
 Use conversation context to resolve short follow-up messages.
 A question about a project listed in <portfolio_projects> is portfolio even when the portfolio subject's name is omitted.
+In this portfolio context, a professional experience or skill question with an omitted subject or pronoun refers to the portfolio subject and is portfolio.
 Generic programming concepts such as REST, JSON, APIs, languages, or frameworks are general unless the visitor asks whether the portfolio subject or a listed project uses them.
 Questions about the purpose of this portfolio, the assistant's role here, its scope, capabilities, behavior, or implementation are general even when they mention the portfolio or the portfolio subject.
 Choose multiple domains only when the request contains independent requests from multiple domains.
