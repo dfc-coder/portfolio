@@ -36,7 +36,9 @@ class Portfolio:
 
     async def warm(self) -> None:
         if self._vectors is None:
-            self._vectors = await self._embed([text for _, text in self._documents])
+            self._vectors = await self._embed(
+                [self._search_text(source, text) for source, text in self._documents]
+            )
 
     async def search(self, query: str) -> list[dict[str, str]]:
         await self.warm()
@@ -47,7 +49,7 @@ class Portfolio:
         ranked = sorted(
             (
                 (
-                    len(query_terms & self._terms(text)),
+                    len(query_terms & self._terms(self._search_text(source, text))),
                     self._cosine(query_vector, vector),
                     source,
                     text,
@@ -100,8 +102,13 @@ class Portfolio:
         return documents
 
     @staticmethod
+    def _search_text(source: str, text: str) -> str:
+        label = re.sub(r"[._]+", " ", source)
+        return f"{label}\n{text}"
+
+    @staticmethod
     def _terms(text: str) -> set[str]:
-        return {term for term in re.findall(r"[\w.+#-]+", text.casefold()) if len(term) >= 3}
+        return {term for term in re.findall(r"[\w.+#-]+", text.casefold()) if len(term) >= 2}
 
     @staticmethod
     def _cosine(left: list[float], right: list[float]) -> float:
