@@ -3,9 +3,7 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
 from typing import Any
-from uuid import uuid4
 
 from openai import AsyncOpenAI
 
@@ -13,6 +11,7 @@ from .conversation import trim_messages
 from .portfolio import Portfolio
 from .prompt import build_messages
 from .tools import TOOL_SCHEMAS, execute_tool
+from .trace import finish_round, finish_trace, new_trace, record_final_ttft, record_tool, start_round
 
 MAX_TOOL_ROUNDS = 4
 AgentEvent = tuple[str, dict[str, object]]
@@ -56,13 +55,13 @@ class Agent:
         history = trim_messages(context)
         conversation = [*history, {"role": "user", "content": message}]
         messages = build_messages(self._subject, history, message)
-        trace = _new_trace(message, context, self._model) if diagnostics else None
+        trace = new_trace(message, context, self._model) if diagnostics else None
 
         try:
             for round_number in range(1, MAX_TOOL_ROUNDS + 2):
                 yield "status", {"phase": "model", "round": round_number}
                 round_started = time.perf_counter()
-                round_trace = _start_round(trace, round_number)
+                round_trace = start_round(trace, round_number)
 
                 stream = await self._chat.chat.completions.create(
                     model=self._model,
@@ -123,8 +122,7 @@ class Agent:
                         mode = "final"
                         pending_text.clear()
                         answer_parts.append(buffered)
-                        if trace is not None and trace["final_ttft_ms"] is None:
-                            trace["final_ttft_ms"] = _elapsed_ms(trace["_started"])
+                        record_final_ttft(trace)
                         yield "status", {"phase": "responding", "round": round_number}
                         yield "token", {"text": buffered}
                         continue
@@ -132,7 +130,7 @@ class Agent:
                     answer_parts.append(text)
                     yield "token", {"text": text}
 
-                _finish_round(round_trace, finish_reason, round_started)
+                finish_round(round_trace, finish_reason, round_started)
 
                 if mode == "final":
                     answer = "".join(answer_parts).strip()
@@ -143,7 +141,7 @@ class Agent:
                     returned_context = trim_messages(conversation)
                     yield "context", {"messages": returned_context}
                     if trace is not None:
-                        yield "trace", _finish_trace(trace, answer, returned_context, None)
+                        yield "trace", finish_trace(trace, answer, returned_context, None)
                     return
 
                 if mode != "tool" or not calls:
@@ -175,7 +173,7 @@ class Agent:
                     }
                     messages.append(tool_message)
                     conversation.append(tool_message)
-                    _record_tool(round_trace, call, result, tool_started)
+                    record_tool(round_trace, call, result, tool_started)
                     yield "tool", {
                         "name": call["name"],
                         "state": "done",
@@ -186,7 +184,7 @@ class Agent:
             raise RuntimeError("tool loop limit reached")
         except Exception as exc:
             if trace is not None:
-                yield "trace", _finish_trace(
+                yield "trace", finish_trace(
                     trace,
                     None,
                     None,
@@ -233,93 +231,3 @@ def _assistant_tool_message(calls: list[dict[str, str]]) -> dict[str, Any]:
             for call in calls
         ],
     }
-
-
-def _new_trace(message: str, context: list[dict[str, Any]], model: str) -> dict[str, Any]:
-    return {
-        "trace_id": str(uuid4()),
-        "started_at": _utc_now(),
-        "_started": time.perf_counter(),
-        "status": "running",
-        "input": {"message": message, "context": context},
-        "model": {"name": model},
-        "rounds": [],
-        "final_ttft_ms": None,
-        "output": None,
-        "returned_context": None,
-        "error": None,
-    }
-
-
-def _start_round(trace: dict[str, Any] | None, number: int) -> dict[str, Any] | None:
-    if trace is None:
-        return None
-    value = {
-        "round": number,
-        "response": {"finish_reason": None, "duration_ms": None},
-        "tool_calls": [],
-    }
-    trace["rounds"].append(value)
-    return value
-
-
-def _finish_round(
-    round_trace: dict[str, Any] | None,
-    finish_reason: str | None,
-    started: float,
-) -> None:
-    if round_trace is None:
-        return
-    round_trace["response"]["finish_reason"] = finish_reason
-    round_trace["response"]["duration_ms"] = _elapsed_ms(started)
-
-
-def _record_tool(
-    round_trace: dict[str, Any] | None,
-    call: dict[str, str],
-    result: dict[str, object],
-    started: float,
-) -> None:
-    if round_trace is None:
-        return
-    round_trace["tool_calls"].append(
-        {
-            "id": call["id"],
-            "name": call["name"],
-            "arguments_raw": call["arguments"],
-            "arguments": _parse_json(call["arguments"]),
-            "duration_ms": _elapsed_ms(started),
-            "ok": bool(result.get("ok")),
-            "result": result,
-        }
-    )
-
-
-def _finish_trace(
-    trace: dict[str, Any],
-    output: str | None,
-    returned_context: list[dict[str, Any]] | None,
-    error: dict[str, str] | None,
-) -> dict[str, Any]:
-    trace["status"] = "error" if error else "ok"
-    trace["output"] = output
-    trace["returned_context"] = returned_context
-    trace["error"] = error
-    trace["finished_at"] = _utc_now()
-    trace["duration_ms"] = _elapsed_ms(trace.pop("_started"))
-    return trace
-
-
-def _parse_json(value: str) -> object | None:
-    try:
-        return json.loads(value)
-    except (json.JSONDecodeError, TypeError):
-        return None
-
-
-def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
-
-
-def _elapsed_ms(started: float) -> float:
-    return round((time.perf_counter() - started) * 1000, 3)
