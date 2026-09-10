@@ -22,8 +22,8 @@ SEARCH_PORTFOLIO_SCHEMA = {
     "function": {
         "name": SEARCH_PORTFOLIO,
         "description": (
-            "Search factual professional information about Diego Cano. Use it before stating claims about his "
-            "experience, skills, projects, education, certifications, services, or professional background. "
+            "Search factual professional information about the portfolio subject. Use it before stating claims "
+            "about experience, skills, projects, education, certifications, services, or professional background. "
             "Do not use it for general knowledge."
         ),
         "parameters": {
@@ -62,12 +62,15 @@ RESOLVE_DATETIME_SCHEMA = {
                 },
                 "offset": {
                     "type": "integer",
-                    "description": "Relative amount applied to reference. Use 0 for the reference itself.",
+                    "description": (
+                        "Relative amount applied to reference. Examples: tomorrow=1 day, yesterday=-1 day, "
+                        "in one week=1 week, in two hours=2 hours. Use 0 for the reference itself."
+                    ),
                 },
                 "unit": {
                     "type": "string",
                     "enum": list(_OFFSET_UNITS),
-                    "description": "Unit for offset.",
+                    "description": "Unit for offset: minutes, hours, days, or weeks.",
                 },
                 "timezone": {
                     "type": "string",
@@ -99,12 +102,15 @@ SET_REMINDER_MOCK_SCHEMA = {
                 },
                 "offset": {
                     "type": "integer",
-                    "description": "Relative amount applied to reference. Use 0 for an explicit absolute schedule.",
+                    "description": (
+                        "Relative amount applied to reference. Examples: in 30 minutes=30 minutes, "
+                        "in two hours=2 hours, in seven days=7 days. Use 0 for an explicit absolute schedule."
+                    ),
                 },
                 "unit": {
                     "type": "string",
                     "enum": list(_OFFSET_UNITS),
-                    "description": "Unit for offset.",
+                    "description": "Unit for offset: minutes, hours, days, or weeks.",
                 },
                 "message": {
                     "type": "string",
