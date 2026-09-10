@@ -40,6 +40,31 @@ Reply in the visitor's language.
 After any required tool calls complete, return only the answer for the visitor.
 """
 
+DATETIME_PROMPT = """Convert the visitor's date/time request to the structured contract. Do not answer the request.
+
+Rules:
+- kind: date, weekday, or datetime.
+- reference: use "now" for current or relative requests. For an explicit date without a time use YYYY-MM-DD exactly. For an explicit date and time use ISO-8601.
+- offset and unit: preserve the relative quantity and unit. Examples: tomorrow = 1 day; yesterday = -1 day; one week = 1 week; two hours = 2 hours. Use offset 0 only for the reference itself.
+- timezone: include only when the visitor explicitly requests a timezone. Never infer one.
+- language: visitor language code such as es or en.
+
+For a time question use kind=datetime. For a weekday question use kind=weekday.
+Return only the structured object.
+"""
+
+REMINDER_PROMPT = """Convert the visitor's reminder request to the structured contract. Do not answer the request.
+
+Rules:
+- reference: use "now" for every relative reminder. Never convert a relative reminder to an absolute date. For an explicit date or time use ISO-8601.
+- offset and unit: preserve the relative quantity and unit exactly. Examples: 30 minutes = 30 minutes; 2 hours = 2 hours; 7 days = 7 days. Use offset 0 for an explicit date or time.
+- message: reminder text only, without scheduling instructions.
+- timezone: include only when the visitor explicitly requests a timezone. Never infer one.
+- language: visitor language code such as es or en.
+
+Return only the structured object.
+"""
+
 
 def build_classifier_messages(
     subject: str,
