@@ -1,4 +1,6 @@
+import datetime as dt
 import json
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -32,6 +34,17 @@ def test_resolve_datetime_explicit_date() -> None:
 
     assert result["date"] == "2026-12-25"
     assert result["weekday_es"] == "viernes"
+
+
+def test_resolve_datetime_relative_offset() -> None:
+    zone = ZoneInfo("America/Argentina/Buenos_Aires")
+    before = dt.datetime.now(zone) + dt.timedelta(hours=3)
+
+    result = resolve_datetime("now", 3, "hours", zone.key)
+
+    after = dt.datetime.now(zone) + dt.timedelta(hours=3)
+    actual = dt.datetime.fromisoformat(str(result["datetime"]))
+    assert before.replace(microsecond=0) <= actual <= after.replace(microsecond=0)
 
 
 def test_reminder_is_simulated_only() -> None:
@@ -96,14 +109,17 @@ async def test_missing_required_argument_is_rejected() -> None:
 
 @pytest.mark.asyncio
 async def test_extra_argument_is_rejected() -> None:
+    portfolio = FakePortfolio()
+
     body = await execute_tool(
         "search_portfolio",
         '{"query":"Rust","extra":1}',
-        FakePortfolio(),
+        portfolio,
     )
 
     assert body["ok"] is False
     assert "unexpected tool argument" in body["error"]["message"]
+    assert portfolio.queries == []
 
 
 @pytest.mark.asyncio
