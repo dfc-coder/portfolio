@@ -45,6 +45,7 @@ app/tools.py         schemas, validation and execution
 app/prompt.py        one system prompt
 app/conversation.py  bounded in-memory conversation state
 app/portfolio.py     portfolio retrieval
+app/trace.py         diagnostics only; no runtime decisions
 app/config.py        environment configuration
 ```
 
@@ -56,14 +57,21 @@ Deterministic runtime and integration tests:
 make check
 ```
 
-Start the local runtime and run live Qwen evaluation only after deterministic tests pass:
+Start the local runtime before live Qwen validation:
 
 ```bash
 make models
 make up
 make eval-ready
-make eval-smoke
-make eval-strict
 ```
 
-The smoke suite is a quick check only. Acceptance criteria are defined in `../docs/portfolio-assistant/DOD-agent-runtime-minimo.md`.
+Then run:
+
+```bash
+make eval-smoke       # quick check only
+make eval-strict      # development set
+make eval-stability   # 20 critical cases x 5 runs
+make eval-holdout     # run only after prompt/runtime are frozen
+```
+
+Acceptance criteria are defined in `../docs/portfolio-assistant/DOD-agent-runtime-minimo.md`.
