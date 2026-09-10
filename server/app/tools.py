@@ -36,7 +36,10 @@ SEARCH_PORTFOLIO_SCHEMA = {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 500,
-                    "description": "Search query for the professional fact needed to answer the visitor.",
+                    "description": (
+                        "Short query containing only the specific professional fact or topic to retrieve. "
+                        "Omit the portfolio subject's name unless identity itself is the requested fact."
+                    ),
                 }
             },
             "required": ["query"],
