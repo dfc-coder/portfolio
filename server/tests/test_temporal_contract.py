@@ -10,105 +10,136 @@ from app.temporal import (
 )
 
 
-def test_datetime_contract_accepts_explicit_date_without_timezone() -> None:
+def test_datetime_contract_accepts_explicit_date() -> None:
     request = _parse_datetime_request(
         json.dumps(
             {
                 "kind": "weekday",
-                "reference_kind": "date",
                 "reference": "2026-12-25",
                 "offset": 0,
                 "unit": "days",
-                "timezone": None,
                 "language": "es",
             }
         )
     )
 
-    assert request.reference_kind == "date"
     assert request.reference == "2026-12-25"
     assert request.timezone is None
 
 
-def test_datetime_contract_rejects_datetime_for_date_reference() -> None:
-    with pytest.raises(RuntimeError, match="reference_kind=date requires YYYY-MM-DD"):
-        _parse_datetime_request(
-            json.dumps(
-                {
-                    "kind": "weekday",
-                    "reference_kind": "date",
-                    "reference": "2026-12-25T00:00:00+00:00",
-                    "offset": 0,
-                    "unit": "days",
-                    "timezone": None,
-                    "language": "es",
-                }
-            )
+def test_datetime_contract_canonicalizes_midnight_datetime_to_date() -> None:
+    request = _parse_datetime_request(
+        json.dumps(
+            {
+                "kind": "weekday",
+                "reference": "2026-12-25T00:00:00+00:00",
+                "offset": 0,
+                "unit": "days",
+                "timezone": "UTC",
+                "language": "es",
+            }
         )
+    )
+
+    assert request.reference == "2026-12-25"
+    assert request.timezone is None
 
 
-def test_datetime_contract_rejects_timezone_for_date_reference() -> None:
-    with pytest.raises(RuntimeError, match="reference_kind=date requires timezone=null"):
-        _parse_datetime_request(
-            json.dumps(
-                {
-                    "kind": "weekday",
-                    "reference_kind": "date",
-                    "reference": "2026-01-01",
-                    "offset": 0,
-                    "unit": "days",
-                    "timezone": "Europe/Madrid",
-                    "language": "es",
-                }
-            )
+def test_datetime_contract_drops_timezone_from_date_anchor() -> None:
+    request = _parse_datetime_request(
+        json.dumps(
+            {
+                "kind": "weekday",
+                "reference": "2026-01-01",
+                "offset": 0,
+                "unit": "days",
+                "timezone": "Europe/Madrid",
+                "language": "es",
+            }
         )
+    )
+
+    assert request.reference == "2026-01-01"
+    assert request.timezone is None
 
 
-def test_datetime_contract_requires_now_literal() -> None:
-    with pytest.raises(RuntimeError, match="reference_kind=now requires reference='now'"):
+def test_datetime_contract_preserves_real_datetime() -> None:
+    request = _parse_datetime_request(
+        json.dumps(
+            {
+                "kind": "datetime",
+                "reference": "2026-12-01T10:30:00-03:00",
+                "offset": 0,
+                "unit": "days",
+                "language": "es",
+            }
+        )
+    )
+
+    assert request.reference == "2026-12-01T10:30:00-03:00"
+
+
+def test_datetime_contract_rejects_invalid_reference() -> None:
+    with pytest.raises(RuntimeError, match="valid ISO-8601"):
         _parse_datetime_request(
             json.dumps(
                 {
                     "kind": "date",
-                    "reference_kind": "now",
-                    "reference": "2026-09-09",
-                    "offset": 1,
+                    "reference": "not-a-date",
+                    "offset": 0,
                     "unit": "days",
-                    "timezone": None,
                     "language": "es",
                 }
             )
         )
+
+
+def test_reminder_contract_accepts_relative_request() -> None:
+    request = _parse_reminder_request(
+        json.dumps(
+            {
+                "reference": "now",
+                "offset": 2,
+                "unit": "hours",
+                "message": "Enviar el CV",
+                "language": "es",
+            }
+        )
+    )
+
+    assert request.reference == "now"
+    assert request.offset == 2
+    assert request.unit == "hours"
 
 
 def test_reminder_contract_accepts_explicit_datetime() -> None:
     request = _parse_reminder_request(
         json.dumps(
             {
-                "reference_kind": "datetime",
                 "reference": "2026-12-01T10:30:00-03:00",
                 "offset": 0,
                 "unit": "days",
                 "message": "Enviar la propuesta",
-                "timezone": None,
                 "language": "es",
             }
         )
     )
 
-    assert request.reference_kind == "datetime"
     assert request.reference == "2026-12-01T10:30:00-03:00"
 
 
-def test_model_contracts_are_closed_json_schemas() -> None:
+def test_model_contracts_are_closed_and_small() -> None:
     assert DATETIME_REQUEST_SCHEMA["additionalProperties"] is False
     assert REMINDER_REQUEST_SCHEMA["additionalProperties"] is False
-    assert DATETIME_REQUEST_SCHEMA["properties"]["reference_kind"]["enum"] == [
-        "now",
-        "date",
-        "datetime",
-    ]
+    assert "reference_kind" not in DATETIME_REQUEST_SCHEMA["properties"]
+    assert "reference_kind" not in REMINDER_REQUEST_SCHEMA["properties"]
     assert DATETIME_REQUEST_SCHEMA["properties"]["unit"]["enum"] == [
+        "minutes",
+        "hours",
+        "days",
+        "weeks",
+    ]
+    assert REMINDER_REQUEST_SCHEMA["properties"]["unit"]["enum"] == [
         "minutes",
         "hours",
         "days",
