@@ -10,12 +10,12 @@ from uuid import uuid4
 from openai import AsyncOpenAI
 
 from .dispatcher import Route
-from .prompt import DATETIME_PROMPT, REMINDER_PROMPT
 from .tools import resolve_datetime, set_reminder_mock
 from .trace import elapsed_ms, utc_now
 from .worker import WorkerResult
 
 _ALLOWED_KINDS = ("date", "weekday", "datetime")
+_ALLOWED_REFERENCE_KINDS = ("now", "date", "datetime")
 _ALLOWED_UNITS = ("minutes", "hours", "days", "weeks")
 _MONTHS_ES = (
     "enero",
@@ -32,10 +32,134 @@ _MONTHS_ES = (
     "diciembre",
 )
 
+# The schema is the model-facing semantic contract. Keep descriptions short and
+# specific: Qwen uses property descriptions to extract parameter values.
+DATETIME_REQUEST_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "kind": {
+            "type": "string",
+            "enum": list(_ALLOWED_KINDS),
+            "description": "Requested result: date, weekday, or datetime.",
+        },
+        "reference_kind": {
+            "type": "string",
+            "enum": list(_ALLOWED_REFERENCE_KINDS),
+            "description": (
+                "Temporal anchor type: now for relative/current requests, date for an explicit date "
+                "without a time, datetime only when the visitor provides a time."
+            ),
+        },
+        "reference": {
+            "type": "string",
+            "description": (
+                "Anchor value. reference_kind=now requires exactly 'now'; date requires YYYY-MM-DD "
+                "only; datetime requires ISO-8601 including a time."
+            ),
+        },
+        "offset": {
+            "type": "integer",
+            "minimum": -52560000,
+            "maximum": 52560000,
+            "description": "Relative amount applied to reference. Use 0 for the reference itself.",
+        },
+        "unit": {
+            "type": "string",
+            "enum": list(_ALLOWED_UNITS),
+            "description": "Preserve the relative unit expressed by the visitor.",
+        },
+        "timezone": {
+            "type": ["string", "null"],
+            "description": (
+                "IANA timezone only when explicitly requested by the visitor; otherwise null. "
+                "Must be null when reference_kind=date."
+            ),
+        },
+        "language": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 16,
+            "description": "Visitor language code, for example es or en.",
+        },
+    },
+    "required": [
+        "kind",
+        "reference_kind",
+        "reference",
+        "offset",
+        "unit",
+        "timezone",
+        "language",
+    ],
+    "additionalProperties": False,
+}
+
+REMINDER_REQUEST_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "reference_kind": {
+            "type": "string",
+            "enum": list(_ALLOWED_REFERENCE_KINDS),
+            "description": (
+                "Temporal anchor type: now for relative reminders, date for an explicit date without "
+                "a time, datetime only when the visitor provides a time."
+            ),
+        },
+        "reference": {
+            "type": "string",
+            "description": (
+                "Anchor value. reference_kind=now requires exactly 'now'; date requires YYYY-MM-DD "
+                "only; datetime requires ISO-8601 including a time."
+            ),
+        },
+        "offset": {
+            "type": "integer",
+            "minimum": -52560000,
+            "maximum": 52560000,
+            "description": "Relative amount applied to reference. Use 0 for an explicit anchor.",
+        },
+        "unit": {
+            "type": "string",
+            "enum": list(_ALLOWED_UNITS),
+            "description": "Preserve the relative unit expressed by the visitor.",
+        },
+        "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "Reminder text only, without scheduling instructions.",
+        },
+        "timezone": {
+            "type": ["string", "null"],
+            "description": (
+                "IANA timezone only when explicitly requested by the visitor; otherwise null. "
+                "Must be null when reference_kind=date."
+            ),
+        },
+        "language": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 16,
+            "description": "Visitor language code, for example es or en.",
+        },
+    },
+    "required": [
+        "reference_kind",
+        "reference",
+        "offset",
+        "unit",
+        "message",
+        "timezone",
+        "language",
+    ],
+    "additionalProperties": False,
+}
+
 
 @dataclass(frozen=True)
 class DateTimeRequest:
     kind: str
+    reference_kind: str
     reference: str
     offset: int
     unit: str
@@ -45,6 +169,7 @@ class DateTimeRequest:
 
 @dataclass(frozen=True)
 class ReminderRequest:
+    reference_kind: str
     reference: str
     offset: int
     unit: str
@@ -70,7 +195,7 @@ async def run_datetime_fast_path(
 ) -> WorkerResult:
     started = time.perf_counter()
     started_at = utc_now()
-    messages = _messages(DATETIME_PROMPT, context, message)
+    messages = _messages("DateTimeRequest", DATETIME_REQUEST_SCHEMA, context, message)
     response = await _structured_completion(
         chat,
         model=model,
@@ -86,13 +211,7 @@ async def run_datetime_fast_path(
     )
     raw = _response_text(response)
     request = _parse_datetime_request(raw)
-    arguments = {
-        "reference": request.reference,
-        "offset": request.offset,
-        "unit": request.unit,
-    }
-    if request.timezone is not None:
-        arguments["timezone"] = request.timezone
+    arguments = _operation_arguments(request)
 
     operation_started = time.perf_counter()
     operation_started_at = utc_now()
@@ -142,7 +261,7 @@ async def run_reminder_fast_path(
 ) -> WorkerResult:
     started = time.perf_counter()
     started_at = utc_now()
-    messages = _messages(REMINDER_PROMPT, context, message)
+    messages = _messages("ReminderRequest", REMINDER_REQUEST_SCHEMA, context, message)
     response = await _structured_completion(
         chat,
         model=model,
@@ -158,14 +277,8 @@ async def run_reminder_fast_path(
     )
     raw = _response_text(response)
     request = _parse_reminder_request(raw)
-    arguments = {
-        "reference": request.reference,
-        "offset": request.offset,
-        "unit": request.unit,
-        "message": request.message,
-    }
-    if request.timezone is not None:
-        arguments["timezone"] = request.timezone
+    arguments = _operation_arguments(request)
+    arguments["message"] = request.message
 
     operation_started = time.perf_counter()
     operation_started_at = utc_now()
@@ -239,10 +352,17 @@ async def _structured_completion(
 
 
 def _messages(
-    prompt: str,
+    contract_name: str,
+    schema: dict[str, Any],
     context: list[dict[str, Any]],
     message: str,
 ) -> list[dict[str, Any]]:
+    prompt = (
+        f"Convert the visitor's request to {contract_name}. "
+        "The JSON Schema below is the complete output contract. "
+        "Return exactly one JSON object and nothing else.\n"
+        f"{json.dumps(schema, ensure_ascii=False, separators=(',', ':'))}"
+    )
     return [
         {"role": "system", "content": prompt},
         *_plain_context(context),
@@ -274,26 +394,84 @@ def _response_text(response: Any) -> str:
 
 def _parse_datetime_request(raw: str) -> DateTimeRequest:
     payload = _parse_object(raw)
-    _only(payload, {"kind", "reference", "offset", "unit", "timezone", "language"})
+    _only(
+        payload,
+        {"kind", "reference_kind", "reference", "offset", "unit", "timezone", "language"},
+    )
     kind = _choice(payload, "kind", _ALLOWED_KINDS)
+    reference_kind = _choice(payload, "reference_kind", _ALLOWED_REFERENCE_KINDS)
     reference = _string(payload, "reference", 100)
     offset = _integer(payload, "offset")
     unit = _choice(payload, "unit", _ALLOWED_UNITS)
     timezone = _optional_string(payload, "timezone", 100)
     language = _language(payload)
-    return DateTimeRequest(kind, reference, offset, unit, timezone, language)
+    _validate_reference(reference_kind, reference, timezone)
+    return DateTimeRequest(kind, reference_kind, reference, offset, unit, timezone, language)
 
 
 def _parse_reminder_request(raw: str) -> ReminderRequest:
     payload = _parse_object(raw)
-    _only(payload, {"reference", "offset", "unit", "message", "timezone", "language"})
+    _only(
+        payload,
+        {"reference_kind", "reference", "offset", "unit", "message", "timezone", "language"},
+    )
+    reference_kind = _choice(payload, "reference_kind", _ALLOWED_REFERENCE_KINDS)
     reference = _string(payload, "reference", 100)
     offset = _integer(payload, "offset")
     unit = _choice(payload, "unit", _ALLOWED_UNITS)
     reminder_message = _string(payload, "message", 500)
     timezone = _optional_string(payload, "timezone", 100)
     language = _language(payload)
-    return ReminderRequest(reference, offset, unit, reminder_message, timezone, language)
+    _validate_reference(reference_kind, reference, timezone)
+    return ReminderRequest(
+        reference_kind,
+        reference,
+        offset,
+        unit,
+        reminder_message,
+        timezone,
+        language,
+    )
+
+
+def _validate_reference(reference_kind: str, reference: str, timezone: str | None) -> None:
+    if reference_kind == "now":
+        if reference != "now":
+            raise RuntimeError("reference_kind=now requires reference='now'")
+        return
+
+    if reference_kind == "date":
+        if timezone is not None:
+            raise RuntimeError("reference_kind=date requires timezone=null")
+        if len(reference) != 10:
+            raise RuntimeError("reference_kind=date requires YYYY-MM-DD")
+        try:
+            dt.date.fromisoformat(reference)
+        except ValueError as exc:
+            raise RuntimeError("reference_kind=date requires a valid YYYY-MM-DD") from exc
+        return
+
+    if reference_kind == "datetime":
+        if len(reference) == 10:
+            raise RuntimeError("reference_kind=datetime requires an ISO-8601 time")
+        try:
+            dt.datetime.fromisoformat(reference)
+        except ValueError as exc:
+            raise RuntimeError("reference_kind=datetime requires valid ISO-8601") from exc
+        return
+
+    raise RuntimeError(f"unknown reference_kind: {reference_kind}")
+
+
+def _operation_arguments(request: DateTimeRequest | ReminderRequest) -> dict[str, Any]:
+    arguments: dict[str, Any] = {
+        "reference": request.reference,
+        "offset": request.offset,
+        "unit": request.unit,
+    }
+    if request.timezone is not None:
+        arguments["timezone"] = request.timezone
+    return arguments
 
 
 def _parse_object(raw: str) -> dict[str, Any]:
@@ -357,7 +535,10 @@ def _language(payload: dict[str, Any]) -> str:
     value = payload.get("language")
     if not isinstance(value, str) or not value.strip():
         raise RuntimeError("language must be a non-empty string")
-    return value.strip().lower()
+    value = value.strip().lower()
+    if not 2 <= len(value) <= 16:
+        raise RuntimeError("language must contain 2 to 16 characters")
+    return value
 
 
 def _format_datetime(request: DateTimeRequest, result: dict[str, object]) -> str:
