@@ -16,7 +16,7 @@ The optimization must preserve the Go-like runtime philosophy:
 - no agent framework, graph, planner, critic, reranker, or semantic tool search;
 - no hidden worker-to-worker communication;
 - no special-case parsing such as `if "semana" in text`;
-- model-facing prompts remain English;
+- model-facing natural-language instructions remain English;
 - visitor-facing answers preserve the visitor language.
 
 The first optimization scope is only the temporal path. `general` and `portfolio` remain behaviorally unchanged so performance changes can be measured independently.
@@ -69,13 +69,13 @@ visitor
        |
        +-> portfolio -> existing PortfolioWorker + native search_portfolio tool
        |
-       +-> datetime  -> structured DateTimeRequest
-       |                -> validate
+       +-> datetime  -> DateTimeRequest JSON contract
+       |                -> strict validation
        |                -> resolve_datetime() directly
        |                -> deterministic formatter
        |
-       +-> reminder  -> structured ReminderRequest
-                        -> validate
+       +-> reminder  -> ReminderRequest JSON contract
+                        -> strict validation
                         -> set_reminder_mock() directly
                         -> deterministic formatter
 
@@ -85,7 +85,7 @@ visitor
 
 For `datetime` and `reminder`, native tool calling disappears completely.
 
-The model performs the NLP step:
+The model performs only the NLP step:
 
 ```text
 natural language -> structured semantic arguments
@@ -131,11 +131,13 @@ Rules:
 - conversational framing does not create another route;
 - the classifier never creates operation arguments and never executes an operation.
 
-## 5. M2 — Structured temporal parsers
+## 5. M2 — Schema-first temporal contracts
 
 The datetime and reminder paths are semantic parsers, not native tool workers.
 
-They receive a small system prompt, relevant plain conversation context, and the visitor message. They do not receive OpenAI tool schemas, llama.cpp tool-call instructions, tool-call grammar, or unrelated tool descriptions.
+They receive a compact instruction, a closed JSON Schema contract, relevant plain conversation context, and the visitor message. They do not receive OpenAI native tool definitions, unrelated tool descriptions, or a tool-selection problem.
+
+The schema is the source of truth for model-facing field semantics. Free-form temporal rules are not duplicated in `prompt.py`.
 
 ### DateTimeRequest
 
@@ -143,6 +145,7 @@ They receive a small system prompt, relevant plain conversation context, and the
 @dataclass(frozen=True)
 class DateTimeRequest:
     kind: str
+    reference_kind: str
     reference: str
     offset: int
     unit: str
@@ -150,41 +153,50 @@ class DateTimeRequest:
     language: str
 ```
 
-Model output example:
+Model output example for an explicit date:
 
 ```json
 {
-  "kind": "date",
-  "reference": "now",
-  "offset": 1,
-  "unit": "weeks",
+  "kind": "weekday",
+  "reference_kind": "date",
+  "reference": "2026-12-25",
+  "offset": 0,
+  "unit": "days",
   "timezone": null,
   "language": "es"
 }
 ```
 
-Allowed `kind`:
+Closed values:
 
 ```text
-date
-weekday
-datetime
+kind:           date | weekday | datetime
+reference_kind: now | date | datetime
+unit:           minutes | hours | days | weeks
 ```
 
-Allowed `unit`:
+Reference invariants:
 
 ```text
-minutes
-hours
-days
-weeks
+reference_kind=now
+  reference must be exactly "now"
+
+reference_kind=date
+  reference must be exactly YYYY-MM-DD
+  timezone must be null
+
+reference_kind=datetime
+  reference must be ISO-8601 and include a time
 ```
+
+The important distinction is semantic, not cosmetic. A visitor-provided date without a time is represented as `reference_kind=date`; the model must not manufacture midnight, UTC, or a locale-derived timezone.
 
 ### ReminderRequest
 
 ```python
 @dataclass(frozen=True)
 class ReminderRequest:
+    reference_kind: str
     reference: str
     offset: int
     unit: str
@@ -197,6 +209,7 @@ Model output example:
 
 ```json
 {
+  "reference_kind": "now",
   "reference": "now",
   "offset": 30,
   "unit": "minutes",
@@ -206,9 +219,20 @@ Model output example:
 }
 ```
 
-The runtime parses one JSON object and rejects unknown fields, missing required values, invalid enum values, invalid integer values, and malformed optional strings before execution.
+Both contracts use:
 
-There is no language-specific hard-coded temporal parsing in Python.
+```text
+required fields
+closed enums
+integer bounds
+string length bounds
+additionalProperties=false
+short property descriptions
+```
+
+The runtime then performs explicit cross-field validation. It rejects inconsistent structures rather than silently rewriting model output.
+
+There is no language-specific temporal parser, sklearn classifier, reranker, or regex-based semantic correction in this milestone.
 
 ## 6. M3 — Direct Python execution
 
@@ -221,6 +245,8 @@ DateTimeRequest
 ReminderRequest
   -> set_reminder_mock(...)
 ```
+
+`reference_kind` is a parser contract field only. It is validated and then removed at the execution boundary; the existing tool functions keep their stable inputs.
 
 The model does not choose an operation after routing. Python owns that mapping:
 
@@ -298,9 +324,9 @@ The existing live eval reader continues to observe `resolve_datetime` and `set_r
 app/agent.py       orchestrator and explicit route execution
 app/dispatcher.py  closed route classification
 app/worker.py      native general/portfolio worker runtime
-app/temporal.py    structured datetime/reminder fast path
+app/temporal.py    temporal JSON schemas, typed contracts, validation and fast path
 app/tools.py       operation implementations + native registry
-app/prompt.py      English classifier/worker/parser prompts
+app/prompt.py      classifier/general/portfolio prompts only
 ```
 
 No new framework or service is introduced.
@@ -311,18 +337,19 @@ Run:
 
 ```bash
 make check
-make eval-regression
+make eval-temporal-fast
 make eval-smoke
 ```
 
 Required correctness:
 
 ```text
-smoke                         10/10
-tool/operation selection      10/10
-argument extraction             8/8
-tool execution                10/10
-answers present               10/10
+temporal-fast                   8/8
+smoke                          10/10
+tool/operation selection       10/10
+argument extraction              8/8
+tool execution                 10/10
+answers present                10/10
 ```
 
 Performance is compared against M0:
@@ -355,7 +382,8 @@ New temporal request:
 
 ```text
 classifier
-+ compact structured semantic-parser round
++ compact schema-guided semantic-parser round
++ strict Python validation
 + deterministic Python operation
 + deterministic formatter
 ```
