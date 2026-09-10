@@ -59,7 +59,7 @@ class ConversationStore:
 
     def _replace(self, conversation_id: str, messages: list[dict[str, Any]]) -> None:
         self._messages[conversation_id] = copy.deepcopy(
-            _trim_messages(messages, self._max_messages)
+            trim_messages(messages, self._max_messages)
         )
         self._messages.move_to_end(conversation_id)
         self._prune()
@@ -70,9 +70,9 @@ class ConversationStore:
             self._locks.pop(conversation_id, None)
 
 
-def _trim_messages(
+def trim_messages(
     messages: list[dict[str, Any]],
-    max_messages: int,
+    max_messages: int = MAX_MESSAGES,
 ) -> list[dict[str, Any]]:
     if len(messages) <= max_messages:
         return messages
