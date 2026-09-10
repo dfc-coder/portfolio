@@ -40,6 +40,53 @@ async def test_exact_technology_evidence_is_preferred() -> None:
     assert "Rust" in facts[0]["text"]
 
 
+@pytest.mark.asyncio
+async def test_short_technology_name_is_not_dropped() -> None:
+    portfolio = Portfolio(
+        {
+            "skills": {"programming_languages": ["Python", "Rust", "Go"]},
+            "languages": [
+                {"language": "Español", "level": "Nativo"},
+                {"language": "Inglés", "level": "A2"},
+            ],
+        },
+        FakeEmbeddings(),
+        model="embedding",
+        max_documents=1,
+    )
+
+    facts = await portfolio.search("Go programming language")
+
+    assert len(facts) == 1
+    assert facts[0]["source"] == "skills.programming_languages"
+    assert "Go" in facts[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_project_name_evidence_is_preferred() -> None:
+    portfolio = Portfolio(
+        {
+            "projects": [
+                {
+                    "name": "System-G (Growntrol)",
+                    "summary": "ESP32 control system with a Rust domain core.",
+                }
+            ],
+            "experience": [
+                {"name": "Cloud delivery", "summary": "AWS and CI/CD delivery."}
+            ],
+        },
+        FakeEmbeddings(),
+        model="embedding",
+        max_documents=1,
+    )
+
+    facts = await portfolio.search("System-G Growntrol")
+
+    assert len(facts) == 1
+    assert facts[0]["source"] == "projects.0"
+
+
 def test_profile_dict_sections_are_split_into_small_documents() -> None:
     documents = Portfolio._build_documents(
         {
