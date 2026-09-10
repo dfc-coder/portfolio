@@ -286,3 +286,83 @@ async def test_diagnostics_records_tools_without_changing_runtime() -> None:
     assert trace["rounds"][0]["tool_calls"][0]["name"] == "search_portfolio"
     assert trace["rounds"][0]["tool_calls"][0]["arguments"] == {"query": "Rust"}
     assert trace["output"] == "final"
+
+
+@pytest.mark.asyncio
+async def test_fake_resolve_datetime_executes_requested_tool() -> None:
+    chat = FakeChat(
+        [
+            [
+                chunk(
+                    tool_calls=[
+                        tool_delta(
+                            0,
+                            call_id="date-1",
+                            name="resolve_datetime",
+                            arguments=(
+                                '{"reference":"2026-12-25","offset":0,"unit":"days"}'
+                            ),
+                        )
+                    ],
+                    finish_reason="tool_calls",
+                )
+            ],
+            [chunk("viernes"), chunk(finish_reason="stop")],
+        ]
+    )
+    agent = Agent("Diego", chat, FakePortfolio(), model="qwen")
+
+    events = [event async for event in agent.respond("consulta", [], diagnostics=True)]
+
+    trace = next(payload for event, payload in events if event == "trace")
+    call = trace["rounds"][0]["tool_calls"][0]
+    assert call["name"] == "resolve_datetime"
+    assert call["ok"] is True
+    assert call["result"]["result"]["date"] == "2026-12-25"
+
+
+@pytest.mark.asyncio
+async def test_fake_reminder_executes_requested_tool() -> None:
+    chat = FakeChat(
+        [
+            [
+                chunk(
+                    tool_calls=[
+                        tool_delta(
+                            0,
+                            call_id="rem-1",
+                            name="set_reminder_mock",
+                            arguments=(
+                                '{"reference":"2026-12-01T10:30:00-03:00",'
+                                '"offset":0,"unit":"minutes","message":"Enviar propuesta"}'
+                            ),
+                        )
+                    ],
+                    finish_reason="tool_calls",
+                )
+            ],
+            [chunk("simulado"), chunk(finish_reason="stop")],
+        ]
+    )
+    agent = Agent("Diego", chat, FakePortfolio(), model="qwen")
+
+    events = [event async for event in agent.respond("consulta", [], diagnostics=True)]
+
+    trace = next(payload for event, payload in events if event == "trace")
+    call = trace["rounds"][0]["tool_calls"][0]
+    assert call["name"] == "set_reminder_mock"
+    assert call["ok"] is True
+    assert call["result"]["result"]["status"] == "simulated_only"
+
+
+@pytest.mark.asyncio
+async def test_trace_records_final_ttft() -> None:
+    chat = FakeChat([[chunk("hola"), chunk(finish_reason="stop")]])
+    agent = Agent("Diego", chat, FakePortfolio(), model="qwen")
+
+    events = [event async for event in agent.respond("consulta", [], diagnostics=True)]
+
+    trace = next(payload for event, payload in events if event == "trace")
+    assert isinstance(trace["final_ttft_ms"], float)
+    assert trace["final_ttft_ms"] >= 0
+    assert trace["duration_ms"] >= trace["final_ttft_ms"]
