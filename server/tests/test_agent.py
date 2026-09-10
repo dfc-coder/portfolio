@@ -178,6 +178,7 @@ async def test_datetime_route_uses_structured_output_without_native_tools() -> N
                 json.dumps(
                     {
                         "kind": "weekday",
+                        "reference_kind": "date",
                         "reference": "2026-12-25",
                         "offset": 0,
                         "unit": "days",
@@ -224,6 +225,7 @@ async def test_reminder_route_uses_structured_output_without_native_tools() -> N
             response(
                 json.dumps(
                     {
+                        "reference_kind": "datetime",
                         "reference": "2026-12-01T10:30:00-03:00",
                         "offset": 0,
                         "unit": "days",
@@ -284,6 +286,7 @@ async def test_mixed_routes_run_isolated_workers_and_compose_results() -> None:
                 json.dumps(
                     {
                         "kind": "date",
+                        "reference_kind": "date",
                         "reference": "2026-09-09",
                         "offset": 0,
                         "unit": "days",
