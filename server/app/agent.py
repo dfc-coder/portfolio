@@ -1,24 +1,20 @@
 from __future__ import annotations
 
+import json
 import time
 from collections.abc import AsyncIterator
+from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
 from openai import AsyncOpenAI
 
-from .dispatcher import Dispatch, Route, classify
 from .portfolio import Portfolio
-from .prompt import GENERAL_PROMPT, PORTFOLIO_PROMPT, TEMPORAL_PROMPT
-from .tools import (
-    RESOLVE_DATETIME_SCHEMA,
-    SEARCH_PORTFOLIO_SCHEMA,
-    SET_REMINDER_MOCK_SCHEMA,
-)
-from .trace import elapsed_ms, utc_now
-from .worker import Worker, WorkerResult, run_worker
+from .prompt import build_messages
+from .tools import TOOL_SCHEMAS, execute_tool
 
 MAX_CONTEXT_MESSAGES = 32
+MAX_TOOL_ROUNDS = 4
 AgentEvent = tuple[str, dict[str, object]]
 
 
@@ -49,23 +45,6 @@ class Agent:
         self._presence_penalty = presence_penalty
         self._repeat_penalty = repeat_penalty
         self._max_tokens = max_tokens
-        self._workers = {
-            Route.GENERAL: Worker(
-                route=Route.GENERAL,
-                prompt=GENERAL_PROMPT,
-                tools=(),
-            ),
-            Route.PORTFOLIO: Worker(
-                route=Route.PORTFOLIO,
-                prompt=PORTFOLIO_PROMPT,
-                tools=(SEARCH_PORTFOLIO_SCHEMA,),
-            ),
-            Route.TEMPORAL: Worker(
-                route=Route.TEMPORAL,
-                prompt=TEMPORAL_PROMPT,
-                tools=(RESOLVE_DATETIME_SCHEMA, SET_REMINDER_MOCK_SCHEMA),
-            ),
-        }
 
     async def respond(
         self,
@@ -74,155 +53,184 @@ class Agent:
         *,
         diagnostics: bool = False,
     ) -> AsyncIterator[AgentEvent]:
-        started = time.perf_counter()
-        trace_id = str(uuid4())
-        started_at = utc_now()
-        dispatch: Dispatch | None = None
-        results: list[WorkerResult] = []
+        history = _trim_context(context)
+        conversation = [*history, {"role": "user", "content": message}]
+        messages = build_messages(self._subject, history, message)
+        trace = _new_trace(message, context, self._model) if diagnostics else None
 
         try:
-            yield "status", {"phase": "dispatch"}
-            dispatch = await classify(
-                self._chat,
-                model=self._model,
-                subject=self._subject,
-                message=message,
-                context=_trim_context(context),
-            )
-            yield "status", {
-                "phase": "dispatched",
-                "routes": [route.value for route in dispatch.routes],
-            }
+            for round_number in range(1, MAX_TOOL_ROUNDS + 2):
+                yield "status", {"phase": "model", "round": round_number}
+                round_started = time.perf_counter()
+                round_trace = _start_round(trace, round_number)
 
-            for route in dispatch.routes:
-                worker = self._workers[route]
-                result: WorkerResult | None = None
-
-                async for event, payload in run_worker(
-                    self._subject,
-                    self._chat,
-                    self._portfolio,
-                    worker,
-                    message,
-                    context,
+                stream = await self._chat.chat.completions.create(
                     model=self._model,
+                    messages=messages,
+                    tools=list(TOOL_SCHEMAS),
+                    parallel_tool_calls=False,
                     temperature=self._temperature,
                     top_p=self._top_p,
-                    top_k=self._top_k,
-                    min_p=self._min_p,
                     presence_penalty=self._presence_penalty,
-                    repeat_penalty=self._repeat_penalty,
                     max_tokens=self._max_tokens,
-                    diagnostics=diagnostics,
-                ):
-                    if event == "result":
-                        value = payload.get("value") if isinstance(payload, dict) else None
-                        if not isinstance(value, WorkerResult):
-                            raise RuntimeError("worker returned an invalid result")
-                        result = value
-                        continue
-                    if event == "trace":
-                        continue
-                    if isinstance(payload, dict):
-                        yield event, payload
-
-                if result is None:
-                    raise RuntimeError(f"worker returned no result: {route.value}")
-                results.append(result)
-
-            answer = _compose(results)
-            returned_context = _build_context(context, message, results, answer)
-
-            yield "status", {"phase": "responding"}
-            yield "token", {"text": answer}
-            yield "context", {"messages": returned_context}
-
-            if diagnostics:
-                yield "trace", _build_trace(
-                    trace_id=trace_id,
-                    started_at=started_at,
-                    started=started,
-                    message=message,
-                    context=context,
-                    dispatch=dispatch,
-                    results=results,
-                    output=answer,
-                    returned_context=returned_context,
-                    error=None,
+                    stream=True,
+                    stream_options={"include_usage": True},
+                    extra_body={
+                        "top_k": self._top_k,
+                        "min_p": self._min_p,
+                        "repeat_penalty": self._repeat_penalty,
+                    },
                 )
-            return
+
+                mode: str | None = None
+                pending_text: list[str] = []
+                answer_parts: list[str] = []
+                calls: dict[int, dict[str, str]] = {}
+                finish_reason: str | None = None
+
+                async for chunk in stream:
+                    choices = getattr(chunk, "choices", None) or []
+                    if not choices:
+                        continue
+
+                    choice = choices[0]
+                    if getattr(choice, "finish_reason", None) is not None:
+                        finish_reason = choice.finish_reason
+
+                    delta = choice.delta
+                    tool_deltas = getattr(delta, "tool_calls", None) or []
+                    text = getattr(delta, "content", None) or ""
+
+                    if tool_deltas:
+                        if mode == "final":
+                            raise RuntimeError("model mixed final text with tool calls")
+                        mode = "tool"
+                        pending_text.clear()
+                        _merge_tool_calls(calls, tool_deltas)
+
+                    if not text:
+                        continue
+
+                    if mode == "tool":
+                        if text.strip():
+                            raise RuntimeError("model mixed final text with tool calls")
+                        continue
+
+                    if mode is None:
+                        pending_text.append(text)
+                        buffered = "".join(pending_text)
+                        if not buffered.strip():
+                            continue
+                        mode = "final"
+                        pending_text.clear()
+                        answer_parts.append(buffered)
+                        yield "status", {"phase": "responding", "round": round_number}
+                        yield "token", {"text": buffered}
+                        continue
+
+                    answer_parts.append(text)
+                    yield "token", {"text": text}
+
+                _finish_round(round_trace, finish_reason, round_started)
+
+                if mode == "final":
+                    answer = "".join(answer_parts).strip()
+                    if not answer:
+                        raise RuntimeError("model returned an empty answer")
+
+                    conversation.append({"role": "assistant", "content": answer})
+                    returned_context = _trim_context(conversation)
+                    yield "context", {"messages": returned_context}
+                    if trace is not None:
+                        yield "trace", _finish_trace(trace, answer, returned_context, None)
+                    return
+
+                if mode != "tool" or not calls:
+                    raise RuntimeError("model returned no answer and no tool call")
+                if round_number > MAX_TOOL_ROUNDS:
+                    raise RuntimeError("tool loop limit reached")
+
+                ordered_calls = _ordered_calls(calls)
+                assistant_message = _assistant_tool_message(ordered_calls)
+                messages.append(assistant_message)
+                conversation.append(assistant_message)
+
+                for call in ordered_calls:
+                    yield "tool", {
+                        "name": call["name"],
+                        "state": "running",
+                        "round": round_number,
+                    }
+                    tool_started = time.perf_counter()
+                    result = await execute_tool(
+                        call["name"],
+                        call["arguments"],
+                        self._portfolio,
+                    )
+                    tool_message = {
+                        "role": "tool",
+                        "tool_call_id": call["id"],
+                        "content": json.dumps(result, ensure_ascii=False),
+                    }
+                    messages.append(tool_message)
+                    conversation.append(tool_message)
+                    _record_tool(round_trace, call, result, tool_started)
+                    yield "tool", {
+                        "name": call["name"],
+                        "state": "done",
+                        "ok": bool(result.get("ok")),
+                        "round": round_number,
+                    }
+
+            raise RuntimeError("tool loop limit reached")
         except Exception as exc:
-            if diagnostics:
-                yield "trace", _build_trace(
-                    trace_id=trace_id,
-                    started_at=started_at,
-                    started=started,
-                    message=message,
-                    context=context,
-                    dispatch=dispatch,
-                    results=results,
-                    output=None,
-                    returned_context=None,
-                    error={"type": type(exc).__name__, "message": str(exc)},
+            if trace is not None:
+                yield "trace", _finish_trace(
+                    trace,
+                    None,
+                    None,
+                    {"type": type(exc).__name__, "message": str(exc)},
                 )
             raise
 
 
-def _compose(results: list[WorkerResult]) -> str:
-    if not results:
-        raise RuntimeError("no worker results to compose")
-    return "\n\n".join(result.answer for result in results if result.answer).strip()
+def _merge_tool_calls(calls: dict[int, dict[str, str]], deltas: list[Any]) -> None:
+    for delta in deltas:
+        item = calls.setdefault(delta.index, {"id": "", "name": "", "arguments": ""})
+        if getattr(delta, "id", None):
+            item["id"] += delta.id
+        function = getattr(delta, "function", None)
+        if function is None:
+            continue
+        if getattr(function, "name", None):
+            item["name"] += function.name
+        if getattr(function, "arguments", None):
+            item["arguments"] += function.arguments
 
 
-def _build_context(
-    context: list[dict[str, Any]],
-    message: str,
-    results: list[WorkerResult],
-    answer: str,
-) -> list[dict[str, Any]]:
-    messages = [*_trim_context(context), {"role": "user", "content": message}]
-    for result in results:
-        messages.extend(result.protocol_messages)
-    messages.append({"role": "assistant", "content": answer})
-    return _trim_context(messages)
+def _ordered_calls(calls: dict[int, dict[str, str]]) -> list[dict[str, str]]:
+    ordered = [calls[index] for index in sorted(calls)]
+    for call in ordered:
+        if not call["id"] or not call["name"]:
+            raise RuntimeError("model returned an incomplete tool call")
+    return ordered
 
 
-def _build_trace(
-    *,
-    trace_id: str,
-    started_at: str,
-    started: float,
-    message: str,
-    context: list[dict[str, Any]],
-    dispatch: Dispatch | None,
-    results: list[WorkerResult],
-    output: str | None,
-    returned_context: list[dict[str, Any]] | None,
-    error: dict[str, str] | None,
-) -> dict[str, Any]:
-    workers = [result.trace for result in results]
-    rounds = [
-        round_trace
-        for worker_trace in workers
-        for round_trace in worker_trace.get("rounds", [])
-    ]
+def _assistant_tool_message(calls: list[dict[str, str]]) -> dict[str, Any]:
     return {
-        "trace_id": trace_id,
-        "started_at": started_at,
-        "finished_at": utc_now(),
-        "duration_ms": elapsed_ms(started),
-        "status": "error" if error else "ok",
-        "input": {"message": message, "context": context},
-        "model": {"name": workers[0].get("model", {}).get("name") if workers else None},
-        "dispatch": {
-            "routes": [route.value for route in dispatch.routes] if dispatch else [],
-            "raw": dispatch.raw if dispatch else None,
-        },
-        "workers": workers,
-        "rounds": rounds,
-        "output": output,
-        "returned_context": returned_context,
-        "error": error,
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [
+            {
+                "id": call["id"],
+                "type": "function",
+                "function": {
+                    "name": call["name"],
+                    "arguments": call["arguments"],
+                },
+            }
+            for call in calls
+        ],
     }
 
 
@@ -234,3 +242,92 @@ def _trim_context(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     while start < len(messages) and messages[start].get("role") != "user":
         start += 1
     return messages[start:]
+
+
+def _new_trace(message: str, context: list[dict[str, Any]], model: str) -> dict[str, Any]:
+    return {
+        "trace_id": str(uuid4()),
+        "started_at": _utc_now(),
+        "_started": time.perf_counter(),
+        "status": "running",
+        "input": {"message": message, "context": context},
+        "model": {"name": model},
+        "rounds": [],
+        "output": None,
+        "returned_context": None,
+        "error": None,
+    }
+
+
+def _start_round(trace: dict[str, Any] | None, number: int) -> dict[str, Any] | None:
+    if trace is None:
+        return None
+    value = {
+        "round": number,
+        "response": {"finish_reason": None, "duration_ms": None},
+        "tool_calls": [],
+    }
+    trace["rounds"].append(value)
+    return value
+
+
+def _finish_round(
+    round_trace: dict[str, Any] | None,
+    finish_reason: str | None,
+    started: float,
+) -> None:
+    if round_trace is None:
+        return
+    round_trace["response"]["finish_reason"] = finish_reason
+    round_trace["response"]["duration_ms"] = _elapsed_ms(started)
+
+
+def _record_tool(
+    round_trace: dict[str, Any] | None,
+    call: dict[str, str],
+    result: dict[str, object],
+    started: float,
+) -> None:
+    if round_trace is None:
+        return
+    round_trace["tool_calls"].append(
+        {
+            "id": call["id"],
+            "name": call["name"],
+            "arguments_raw": call["arguments"],
+            "arguments": _parse_json(call["arguments"]),
+            "duration_ms": _elapsed_ms(started),
+            "ok": bool(result.get("ok")),
+            "result": result,
+        }
+    )
+
+
+def _finish_trace(
+    trace: dict[str, Any],
+    output: str | None,
+    returned_context: list[dict[str, Any]] | None,
+    error: dict[str, str] | None,
+) -> dict[str, Any]:
+    trace["status"] = "error" if error else "ok"
+    trace["output"] = output
+    trace["returned_context"] = returned_context
+    trace["error"] = error
+    trace["finished_at"] = _utc_now()
+    trace["duration_ms"] = _elapsed_ms(trace.pop("_started"))
+    return trace
+
+
+def _parse_json(value: str) -> object | None:
+    try:
+        return json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+
+
+def _elapsed_ms(started: float) -> float:
+    return round((time.perf_counter() - started) * 1000, 3)
