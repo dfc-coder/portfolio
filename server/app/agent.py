@@ -38,6 +38,7 @@ class Agent:
         self._subject = subject
         self._chat = chat
         self._portfolio = portfolio
+        self._project_names = tuple(getattr(portfolio, "project_names", ()))
         self._model = model
         self._temperature = temperature
         self._top_p = top_p
@@ -81,6 +82,7 @@ class Agent:
                 subject=self._subject,
                 message=message,
                 context=trimmed_context,
+                project_names=self._project_names,
             )
             yield "status", {
                 "phase": "dispatched",
