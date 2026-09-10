@@ -1,33 +1,19 @@
 # Portfolio Assistant
 
-The backend is a small local portfolio/CV agent with a Go-like runtime: explicit control flow, bounded state, simple tool registration, and no semantic routing framework.
-
-## Runtime
+Current backend design: explicit Go-like orchestration around one llama.cpp `Qwen3.5-4B` instance.
 
 ```text
-FastAPI / SSE
-  -> ConversationStore
-  -> Agent
-      -> llama.cpp / Qwen3.5-2B-Q6_K
-      -> registered tool schemas
-      -> explicit bounded tool loop
+classifier
+  -> general worker      tools=[]
+  -> portfolio worker    tools=[search_portfolio]
+  -> temporal worker     tools=[resolve_datetime, set_reminder_mock]
+      -> one generic bounded tool loop
 ```
 
-The model decides whether a tool is needed. The server validates registered names and arguments, executes calls in order, preserves `tool_call_id`, and reuses successful identical calls instead of executing them twice.
+No supervisor, planner, critic, graph, reranker, semantic tool search or framework-managed agents.
 
-There is no capability gate, ToolSearch, reranker, planner, graph, or agent framework.
+Documents:
 
-## Local model
-
-```text
-unsloth/Qwen3.5-2B-GGUF
-Qwen3.5-2B-Q6_K.gguf
-```
-
-Portfolio retrieval continues to use `Qwen3-Embedding-0.6B` as infrastructure for `search_portfolio`; embeddings do not select tools.
-
-## Documents
-
-- `SDD-tool-use-reliability.md` — runtime architecture and invariants.
-- `TRACE.md` — diagnostic trace contract.
-- `../../server/README.md` — local run and file layout.
+- `SDD-tool-use-reliability.md` — current runtime contract and invariants.
+- `TRACE.md` — observable diagnostic trace.
+- `../../server/README.md` — local runtime and validation commands.
