@@ -1,4 +1,4 @@
-.PHONY: install test check run up down logs models eval-ready eval eval-strict eval-regression eval-smoke tdd
+.PHONY: install test check run up down logs models eval-ready eval eval-strict eval-regression eval-smoke eval-holdout eval-stability tdd
 
 ENGINE ?= $(shell if command -v podman >/dev/null 2>&1; then echo podman; elif command -v docker >/dev/null 2>&1; then echo docker; else echo none; fi)
 COMPOSE = $(ENGINE) compose
@@ -70,6 +70,40 @@ eval-smoke: eval-ready
 		--case reminder_7d \
 		--results tests/evals/results/smoke.json \
 		--qwencloud tests/evals/results/smoke-qwencloud.jsonl \
+		--strict
+
+eval-holdout: eval-ready
+	uv run python tests/evals/run_agent_eval.py \
+		--cases tests/evals/agent_holdout.jsonl \
+		--results tests/evals/results/holdout.json \
+		--qwencloud tests/evals/results/holdout-qwencloud.jsonl \
+		--strict
+
+eval-stability: eval-ready
+	uv run python tests/evals/run_agent_eval.py \
+		--case general_hello \
+		--case general_rest \
+		--case portfolio_rust \
+		--case portfolio_python \
+		--case portfolio_fastapi \
+		--case date_today \
+		--case date_tomorrow \
+		--case date_yesterday_weekday \
+		--case date_known_weekday \
+		--case date_one_week \
+		--case date_two_hours \
+		--case reminder_30m \
+		--case reminder_2h \
+		--case reminder_7d \
+		--case mixed_greeting_portfolio \
+		--case mixed_portfolio_and_date \
+		--case mixed_switch_general \
+		--case mixed_no_reminder \
+		--case context_followup_go \
+		--case context_reuse_date \
+		--repeat 5 \
+		--results tests/evals/results/stability.json \
+		--qwencloud tests/evals/results/stability-qwencloud.jsonl \
 		--strict
 
 tdd:
