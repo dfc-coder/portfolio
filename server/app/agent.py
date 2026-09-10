@@ -9,9 +9,12 @@ from openai import AsyncOpenAI
 
 from .dispatcher import Dispatch, Route, classify
 from .portfolio import Portfolio
-from .prompt import GENERAL_PROMPT, PORTFOLIO_PROMPT
-from .temporal import run_datetime_fast_path, run_reminder_fast_path
-from .tools import SEARCH_PORTFOLIO_SCHEMA
+from .prompt import GENERAL_PROMPT, PORTFOLIO_PROMPT, TEMPORAL_PROMPT
+from .tools import (
+    RESOLVE_DATETIME_SCHEMA,
+    SEARCH_PORTFOLIO_SCHEMA,
+    SET_REMINDER_MOCK_SCHEMA,
+)
 from .trace import elapsed_ms, utc_now
 from .worker import Worker, WorkerResult, run_worker
 
@@ -38,7 +41,6 @@ class Agent:
         self._subject = subject
         self._chat = chat
         self._portfolio = portfolio
-        self._project_names = tuple(getattr(portfolio, "project_names", ()))
         self._model = model
         self._temperature = temperature
         self._top_p = top_p
@@ -58,6 +60,11 @@ class Agent:
                 prompt=PORTFOLIO_PROMPT,
                 tools=(SEARCH_PORTFOLIO_SCHEMA,),
             ),
+            Route.TEMPORAL: Worker(
+                route=Route.TEMPORAL,
+                prompt=TEMPORAL_PROMPT,
+                tools=(RESOLVE_DATETIME_SCHEMA, SET_REMINDER_MOCK_SCHEMA),
+            ),
         }
 
     async def respond(
@@ -72,7 +79,6 @@ class Agent:
         started_at = utc_now()
         dispatch: Dispatch | None = None
         results: list[WorkerResult] = []
-        trimmed_context = _trim_context(context)
 
         try:
             yield "status", {"phase": "dispatch"}
@@ -81,8 +87,7 @@ class Agent:
                 model=self._model,
                 subject=self._subject,
                 message=message,
-                context=trimmed_context,
-                project_names=self._project_names,
+                context=_trim_context(context),
             )
             yield "status", {
                 "phase": "dispatched",
@@ -90,24 +95,6 @@ class Agent:
             }
 
             for route in dispatch.routes:
-                if route == Route.DATETIME:
-                    result = await self._run_datetime(
-                        message,
-                        trimmed_context,
-                        diagnostics=diagnostics,
-                    )
-                    results.append(result)
-                    continue
-
-                if route == Route.REMINDER:
-                    result = await self._run_reminder(
-                        message,
-                        trimmed_context,
-                        diagnostics=diagnostics,
-                    )
-                    results.append(result)
-                    continue
-
                 worker = self._workers[route]
                 result: WorkerResult | None = None
 
@@ -117,7 +104,7 @@ class Agent:
                     self._portfolio,
                     worker,
                     message,
-                    trimmed_context,
+                    context,
                     model=self._model,
                     temperature=self._temperature,
                     top_p=self._top_p,
@@ -144,7 +131,7 @@ class Agent:
                 results.append(result)
 
             answer = _compose(results)
-            returned_context = _build_context(trimmed_context, message, results, answer)
+            returned_context = _build_context(context, message, results, answer)
 
             yield "status", {"phase": "responding"}
             yield "token", {"text": answer}
@@ -180,50 +167,6 @@ class Agent:
                 )
             raise
 
-    async def _run_datetime(
-        self,
-        message: str,
-        context: list[dict[str, Any]],
-        *,
-        diagnostics: bool,
-    ) -> WorkerResult:
-        return await run_datetime_fast_path(
-            self._chat,
-            model=self._model,
-            message=message,
-            context=context,
-            temperature=self._temperature,
-            top_p=self._top_p,
-            top_k=self._top_k,
-            min_p=self._min_p,
-            presence_penalty=self._presence_penalty,
-            repeat_penalty=self._repeat_penalty,
-            max_tokens=self._max_tokens,
-            diagnostics=diagnostics,
-        )
-
-    async def _run_reminder(
-        self,
-        message: str,
-        context: list[dict[str, Any]],
-        *,
-        diagnostics: bool,
-    ) -> WorkerResult:
-        return await run_reminder_fast_path(
-            self._chat,
-            model=self._model,
-            message=message,
-            context=context,
-            temperature=self._temperature,
-            top_p=self._top_p,
-            top_k=self._top_k,
-            min_p=self._min_p,
-            presence_penalty=self._presence_penalty,
-            repeat_penalty=self._repeat_penalty,
-            max_tokens=self._max_tokens,
-            diagnostics=diagnostics,
-        )
-
 
 def _compose(results: list[WorkerResult]) -> str:
     if not results:
@@ -237,7 +180,7 @@ def _build_context(
     results: list[WorkerResult],
     answer: str,
 ) -> list[dict[str, Any]]:
-    messages = [*context, {"role": "user", "content": message}]
+    messages = [*_trim_context(context), {"role": "user", "content": message}]
     for result in results:
         messages.extend(result.protocol_messages)
     messages.append({"role": "assistant", "content": answer})

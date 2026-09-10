@@ -1,399 +1,196 @@
-# SDD — Go-like 4B temporal fast path
+# SDD — Go-like reliable agent runtime
 
-Status: M0–M4 implemented; M5 pending local live smoke validation.
+Status: Implemented, pending live Qwen3.5-2B Q6 validation
 
 Branch: `feat/agent-live-eval`
 
 ## 1. Objective
 
-Keep the correctness already demonstrated by `Qwen3.5-4B` while reducing the latency of temporal requests.
+The portfolio assistant uses one explicit model/tool loop with a small number of runtime invariants.
 
-The optimization must preserve the Go-like runtime philosophy:
+The architecture must remain:
 
-- control flow is owned by Python;
-- the model interprets natural language, but does not own execution;
-- every boundary has a small explicit contract;
-- no agent framework, graph, planner, critic, reranker, or semantic tool search;
-- no hidden worker-to-worker communication;
-- no special-case parsing such as `if "semana" in text`;
-- model-facing natural-language instructions remain English;
-- visitor-facing answers preserve the visitor language.
+- readable from top to bottom;
+- explicit about control flow;
+- small in number of abstractions;
+- independent of semantic routers and agent frameworks;
+- safe to extend with additional tools without modifying the Agent.
 
-The first optimization scope is only the temporal path. `general` and `portfolio` remain behaviorally unchanged so performance changes can be measured independently.
+Behavioral evals validate the chosen local SLM. They are not used to create routing architecture around model failures.
 
-## 2. M0 — Frozen 4B baseline
-
-Reference runtime:
-
-```text
-llama.cpp
-Qwen3.5-4B
-Qwen3.5-4B-UD-Q4_K_XL.gguf
-thinking disabled
-```
-
-Reference smoke result:
-
-```text
-cases                  10/10
-route/tool selection   10/10
-argument extraction      8/8
-tool execution         10/10
-answers present        10/10
-p50 latency          ~31.17 s
-p95 latency          ~91.71 s
-```
-
-This result is the correctness baseline. M1–M4 are accepted only if M5 preserves `10/10`.
-
-Performance baseline for the old temporal worker:
-
-```text
-first tool round prompt     ~1067–1082 tokens
-cached prefix               ~551 tokens
-model calls per temporal request
-  1 classifier
-  1 tool-call generation
-  1 final-answer generation
-```
-
-M0 rule: do not tune sampling, quantization, or llama.cpp runtime while implementing M1–M4. Change one architectural variable at a time.
-
-## 3. Target runtime
+## 2. Runtime
 
 ```text
 visitor
-  -> classify()
-       |
-       +-> general   -> existing GeneralWorker
-       |
-       +-> portfolio -> existing PortfolioWorker + native search_portfolio tool
-       |
-       +-> datetime  -> DateTimeRequest JSON contract
-       |                -> strict validation
-       |                -> resolve_datetime() directly
-       |                -> deterministic formatter
-       |
-       +-> reminder  -> ReminderRequest JSON contract
-                        -> strict validation
-                        -> set_reminder_mock() directly
-                        -> deterministic formatter
-
-  -> compose worker results
-  -> final response
+  -> conversation session
+  -> Agent
+      -> model + registered tool schemas
+      -> final answer?
+          -> stream final text
+          -> return
+      -> tool calls?
+          -> keep intermediate text internal
+          -> validate registered names
+          -> validate arguments
+          -> execute in call order
+          -> append assistant tool calls
+          -> append matching tool results
+          -> next model round
+  -> persist complete returned context
 ```
 
-For `datetime` and `reminder`, native tool calling disappears completely.
+There is no semantic router, capability gate, ToolSearch, reranker, planner, graph, or agent framework.
 
-The model performs only the NLP step:
+The main model is the semantic authority deciding whether a registered tool is needed. Deterministic server policy still owns validation and execution.
+
+## 3. Model
+
+The local runtime is:
 
 ```text
-natural language -> structured semantic arguments
+llama.cpp
+unsloth/Qwen3.5-2B-GGUF
+Qwen3.5-2B-Q6_K.gguf
 ```
 
-Python owns everything after that boundary:
+The API uses llama.cpp's OpenAI-compatible chat completions interface with Jinja tool calling enabled and Qwen thinking disabled.
+
+Generation defaults for the local acceptance gate:
 
 ```text
-validate -> execute -> format -> return
+temperature = 0.0
+top_p = 1.0
+top_k = 1
 ```
 
-## 4. M1 — Split temporal routing
+These are configuration values, not Agent branching rules.
 
-`Route` is:
+## 4. Tool registry
 
-```python
-class Route(StrEnum):
-    GENERAL = "general"
-    PORTFOLIO = "portfolio"
-    DATETIME = "datetime"
-    REMINDER = "reminder"
-```
-
-`TEMPORAL` is removed.
-
-The classifier returns a closed route list, for example:
-
-```json
-{"routes":["datetime"]}
-```
-
-or a genuine mixed request:
-
-```json
-{"routes":["portfolio","datetime"]}
-```
-
-Rules:
-
-- `datetime` is a read-only date/time/weekday/timezone question;
-- `reminder` means the visitor explicitly asks to create a reminder;
-- a reminder containing a date or duration is still only `reminder` unless a separate date/time question exists;
-- conversational framing does not create another route;
-- the classifier never creates operation arguments and never executes an operation.
-
-## 5. M2 — Schema-first temporal contracts
-
-The datetime and reminder paths are semantic parsers, not native tool workers.
-
-They receive a compact instruction, a closed JSON Schema contract, relevant plain conversation context, and the visitor message. They do not receive OpenAI native tool definitions, unrelated tool descriptions, or a tool-selection problem.
-
-The schema is the source of truth for model-facing field semantics. Free-form temporal rules are not duplicated in `prompt.py`.
-
-### DateTimeRequest
-
-```python
-@dataclass(frozen=True)
-class DateTimeRequest:
-    kind: str
-    reference_kind: str
-    reference: str
-    offset: int
-    unit: str
-    timezone: str | None
-    language: str
-```
-
-Model output example for an explicit date:
-
-```json
-{
-  "kind": "weekday",
-  "reference_kind": "date",
-  "reference": "2026-12-25",
-  "offset": 0,
-  "unit": "days",
-  "timezone": null,
-  "language": "es"
-}
-```
-
-Closed values:
+The production surface is currently:
 
 ```text
-kind:           date | weekday | datetime
-reference_kind: now | date | datetime
-unit:           minutes | hours | days | weeks
+search_portfolio
+resolve_datetime
+set_reminder_mock
 ```
 
-Reference invariants:
+`app/tools.py` owns the simple registry:
 
 ```text
-reference_kind=now
-  reference must be exactly "now"
-
-reference_kind=date
-  reference must be exactly YYYY-MM-DD
-  timezone must be null
-
-reference_kind=datetime
-  reference must be ISO-8601 and include a time
+Tool
+  schema
+  run
 ```
 
-The important distinction is semantic, not cosmetic. A visitor-provided date without a time is represented as `reference_kind=date`; the model must not manufacture midnight, UTC, or a locale-derived timezone.
+Adding a tool requires defining its schema, implementing its handler, and adding one registry entry. The Agent receives schemas from the registry and contains no per-tool branching.
 
-### ReminderRequest
+## 5. Tool execution invariants
 
-```python
-@dataclass(frozen=True)
-class ReminderRequest:
-    reference_kind: str
-    reference: str
-    offset: int
-    unit: str
-    message: str
-    timezone: str | None
-    language: str
-```
-
-Model output example:
-
-```json
-{
-  "reference_kind": "now",
-  "reference": "now",
-  "offset": 30,
-  "unit": "minutes",
-  "message": "Revisar el portfolio",
-  "timezone": null,
-  "language": "es"
-}
-```
-
-Both contracts use:
+Before execution:
 
 ```text
-required fields
-closed enums
-integer bounds
-string length bounds
-additionalProperties=false
-short property descriptions
+returned tool name must exist in the registry
+arguments must be valid for that tool
 ```
 
-The runtime then performs explicit cross-field validation. It rejects inconsistent structures rather than silently rewriting model output.
+Calls returned in one model round are executed in model call order. Parallel model calls are supported as a protocol shape, but execution stays sequential and deterministic.
 
-There is no language-specific temporal parser, sklearn classifier, reranker, or regex-based semantic correction in this milestone.
+A successful call is keyed by tool name plus canonical JSON arguments. If the same successful call appears again in the same turn, the prior result is reused with the new `tool_call_id`; the handler is not executed twice.
 
-## 6. M3 — Direct Python execution
-
-After validation the orchestrator executes the existing deterministic operation directly:
+This applies per call. For:
 
 ```text
-DateTimeRequest
-  -> resolve_datetime(...)
-
-ReminderRequest
-  -> set_reminder_mock(...)
+repeated A + new B
 ```
 
-`reference_kind` is a parser contract field only. It is validated and then removed at the execution boundary; the existing tool functions keep their stable inputs.
+A is reused and only B executes.
 
-The model does not choose an operation after routing. Python owns that mapping:
+If an entire model round contains only repeated successful calls, tools are removed for the next model round to force a final answer.
+
+## 6. Multi-round protocol
+
+For every model tool call:
 
 ```text
-datetime -> resolve_datetime
-reminder -> set_reminder_mock
+assistant
+  tool_calls:
+    id=A
+    function=...
+
+tool
+  tool_call_id=A
+  content=...
 ```
 
-The production operation implementation remains in `app/tools.py`; the fast path does not duplicate date/reminder business logic.
+The exact call id is preserved.
 
-For observability, direct executions are recorded in the same trace shape used by the live evals, with `direct=true`. This keeps tool selection, argument extraction, and execution metrics comparable with the M0 baseline without exposing native tool schemas to the model.
-
-## 7. M4 — Deterministic presentation
-
-A successful temporal operation is formatted by Python. There is no second LLM call after `resolve_datetime` or `set_reminder_mock`.
-
-The formatter is intentionally narrow:
+The loop supports both chained and same-round calls:
 
 ```text
-DateTimeRequest + operation result -> visitor-facing date/time sentence
-ReminderRequest + operation result -> simulated reminder confirmation
+round 1 -> tool A
+round 2 -> tool B
+round 3 -> final answer
 ```
-
-The reminder formatter must state that the reminder is simulated/non-persistent and does not send a real notification.
-
-General and portfolio responses remain model-generated because they are open-ended language tasks.
-
-## 8. Conversation state
-
-The orchestrator owns conversation state. Temporal parsers are stateless.
-
-The direct temporal fast path stores only the final user-visible conversation result. It does not invent synthetic native assistant/tool protocol messages for future model context.
-
-The classifier may use recent plain user/assistant context to interpret follow-ups. If a follow-up asks only for information already present in the conversation, it should remain a no-operation general/context answer rather than re-executing a temporal operation.
-
-## 9. Native tool loop
-
-The bounded native tool loop in `app/worker.py` remains for `search_portfolio`.
-
-Its existing invariants remain unchanged:
 
 ```text
-registered tool names only
-validated arguments
-preserved tool_call_id
-sequential deterministic execution
-successful identical-call reuse
-hard round limit
-intermediate tool text not exposed
+round 1 -> tool A + tool B
+round 2 -> final answer
 ```
 
-Datetime and reminder bypass this loop by design.
+Only the text from a final round with no tool calls is exposed as visitor-facing `token` events. Text emitted by the model during a tool-call round remains internal so the UI does not show transient phrases such as "I will check" before the actual answer.
 
-## 10. Tracing
+A hard tool-round limit prevents infinite loops while still allowing a final answer round after the last permitted tool round.
 
-Diagnostics must make the fast path visible rather than hiding it.
+## 7. Conversation state
 
-For a direct temporal execution the trace records:
+The API accepts an optional `conversation_id` UUID and emits the resolved id as an SSE `conversation` event.
+
+The in-memory store preserves complete OpenAI-compatible history:
 
 ```text
-route
-structured model request/response
-operation name
-parsed arguments
-operation result
-direct=true
-latency
+user
+assistant tool_calls
+tool result
+assistant
+user
+...
 ```
 
-The existing live eval reader continues to observe `resolve_datetime` and `set_reminder_mock` through `rounds[].tool_calls`, so M0 and M5 metrics remain comparable.
+The server session is the source of truth while alive. Client context may seed a session after restart.
 
-## 11. Files
+History is bounded and trimmed at a user-message boundary so it does not begin in the middle of a tool exchange.
+
+Durable storage can replace the store later without modifying the Agent protocol.
+
+## 8. Retrieval
+
+Portfolio retrieval remains a separate read-only capability backed by `Qwen3-Embedding-0.6B`.
+
+The embedding service is infrastructure for `search_portfolio`; it does not route or select tools.
+
+## 9. Tracing
+
+Diagnostic traces record registered tool schemas, model rounds, finish reasons, tool calls, raw and parsed arguments, results, timings, reused calls, and returned context. Hidden reasoning is not exposed.
+
+## 10. Testing
+
+Deterministic runtime tests cover:
 
 ```text
-app/agent.py       orchestrator and explicit route execution
-app/dispatcher.py  closed route classification
-app/worker.py      native general/portfolio worker runtime
-app/temporal.py    temporal JSON schemas, typed contracts, validation and fast path
-app/tools.py       operation implementations + native registry
-app/prompt.py      classifier/general/portfolio prompts only
+registered schemas are sent to the model
+unknown tool is rejected
+streamed tool-call fragments are reconstructed
+tool_call_id is preserved
+multi-round chains preserve prior results
+multiple calls preserve call order
+identical successful calls execute once
+repeated A + new B does not execute A twice
+intermediate tool-round text is not exposed
+conversation state retains tool messages
+history trimming starts at a user boundary
 ```
 
-No new framework or service is introduced.
+Live evals then measure whether the local Qwen3.5-2B Q6 chooses the correct tool, extracts valid arguments, and produces the expected final response.
 
-## 12. M5 — Acceptance gate
-
-Run:
-
-```bash
-make check
-make eval-temporal-fast
-make eval-smoke
-```
-
-Required correctness:
-
-```text
-temporal-fast                   8/8
-smoke                          10/10
-tool/operation selection       10/10
-argument extraction              8/8
-tool execution                 10/10
-answers present                10/10
-```
-
-Performance is compared against M0:
-
-```text
-M0 p50 ~31.17 s
-M0 p95 ~91.71 s
-```
-
-The first target is at least a 25% p50 reduction:
-
-```text
-M5 p50 <= ~23.4 s
-```
-
-The optimization is rejected if correctness drops below 10/10, regardless of latency improvement.
-
-## 13. Expected performance change
-
-Old temporal request:
-
-```text
-classifier
-+ native tool-call model round with ~1k-token prompt
-+ deterministic Python operation
-+ final-answer model round
-```
-
-New temporal request:
-
-```text
-classifier
-+ compact schema-guided semantic-parser round
-+ strict Python validation
-+ deterministic Python operation
-+ deterministic formatter
-```
-
-Expected invariants:
-
-```text
-native temporal tool schemas      0
-post-operation LLM calls           0
-temporal LLM calls total           2  # classifier + parser
-```
-
-The optimization deliberately targets architectural token/work reduction before llama.cpp thread, batch, GPU, or quantization tuning.
+A behavioral model failure is diagnosed as a model/schema/prompt problem first. It does not justify adding a semantic router unless a future product requirement establishes a separate deterministic policy boundary.

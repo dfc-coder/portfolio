@@ -32,12 +32,7 @@ class Portfolio:
         self._max_documents = max_documents
         self._min_score = min_score
         self._documents = self._build_documents(profile)
-        self._project_names = self._build_project_names(profile)
         self._vectors: list[list[float]] | None = None
-
-    @property
-    def project_names(self) -> tuple[str, ...]:
-        return self._project_names
 
     async def warm(self) -> None:
         if self._vectors is None:
@@ -103,21 +98,6 @@ class Portfolio:
 
             documents.append((section, json.dumps(value, ensure_ascii=False)))
         return documents
-
-    @staticmethod
-    def _build_project_names(profile: Profile) -> tuple[str, ...]:
-        projects = profile.get("projects")
-        if not isinstance(projects, list):
-            return ()
-
-        names: list[str] = []
-        for project in projects:
-            if not isinstance(project, dict):
-                continue
-            name = project.get("name")
-            if isinstance(name, str) and name.strip():
-                names.append(name.strip())
-        return tuple(names)
 
     @staticmethod
     def _terms(text: str) -> set[str]:

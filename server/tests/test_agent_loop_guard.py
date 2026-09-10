@@ -4,8 +4,12 @@ from types import SimpleNamespace
 import pytest
 
 from app.dispatcher import Route
-from app.prompt import PORTFOLIO_PROMPT
-from app.tools import SEARCH_PORTFOLIO_SCHEMA
+from app.prompt import PORTFOLIO_PROMPT, TEMPORAL_PROMPT
+from app.tools import (
+    RESOLVE_DATETIME_SCHEMA,
+    SEARCH_PORTFOLIO_SCHEMA,
+    SET_REMINDER_MOCK_SCHEMA,
+)
 from app.worker import Worker, run_worker
 
 
@@ -129,3 +133,59 @@ async def test_repeated_successful_tool_call_is_reused_then_tools_are_removed() 
         for event, payload in events
         if isinstance(payload, dict)
     )
+
+
+@pytest.mark.asyncio
+async def test_repeated_call_plus_new_call_executes_only_the_new_call() -> None:
+    resolve = {
+        "id": "call-date-1",
+        "name": "resolve_datetime",
+        "arguments": '{"reference":"2026-09-09","offset":0,"unit":"days"}',
+    }
+    repeated_resolve = {
+        "id": "call-date-2",
+        "name": "resolve_datetime",
+        "arguments": '{"reference":"2026-09-09","offset":0,"unit":"days"}',
+    }
+    reminder = {
+        "id": "call-reminder",
+        "name": "set_reminder_mock",
+        "arguments": (
+            '{"reference":"2026-09-09","offset":1,"unit":"days",'
+            '"message":"Revisar CV"}'
+        ),
+    }
+    chat = _Chat(
+        [
+            [_chunk(tool_calls=[resolve], finish_reason="tool_calls")],
+            [
+                _chunk(
+                    tool_calls=[repeated_resolve, reminder],
+                    finish_reason="tool_calls",
+                )
+            ],
+            [_chunk(content='{"answer":"Listo."}', finish_reason="stop")],
+        ]
+    )
+    portfolio = _Portfolio()
+    worker = Worker(
+        Route.TEMPORAL,
+        TEMPORAL_PROMPT,
+        (RESOLVE_DATETIME_SCHEMA, SET_REMINDER_MOCK_SCHEMA),
+    )
+
+    events = await _events(chat, portfolio, worker)
+
+    running = [
+        payload["name"]
+        for event, payload in events
+        if event == "tool" and isinstance(payload, dict) and payload.get("state") == "running"
+    ]
+    assert running == ["resolve_datetime", "set_reminder_mock"]
+
+    reused = [
+        payload["name"]
+        for event, payload in events
+        if event == "tool" and isinstance(payload, dict) and payload.get("reused") is True
+    ]
+    assert reused == ["resolve_datetime"]

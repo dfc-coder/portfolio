@@ -13,8 +13,7 @@ from .prompt import build_classifier_messages
 class Route(StrEnum):
     GENERAL = "general"
     PORTFOLIO = "portfolio"
-    DATETIME = "datetime"
-    REMINDER = "reminder"
+    TEMPORAL = "temporal"
 
 
 @dataclass(frozen=True)
@@ -30,11 +29,10 @@ async def classify(
     subject: str,
     message: str,
     context: list[dict[str, Any]],
-    project_names: tuple[str, ...] = (),
 ) -> Dispatch:
     response = await chat.chat.completions.create(
         model=model,
-        messages=build_classifier_messages(subject, context, message, project_names),
+        messages=build_classifier_messages(subject, context, message),
         temperature=0.0,
         top_p=1.0,
         max_tokens=64,
