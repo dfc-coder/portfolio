@@ -6,11 +6,13 @@ CLASSIFIER_PROMPT = """Classify the visitor's current request into one or more d
 
 Domains:
 - general: greetings, thanks, casual conversation, jokes, definitions, general programming questions, general knowledge, and questions about the assistant's capabilities or behavior.
-- portfolio: professional questions specifically about the portfolio subject, including experience, skills, projects, education, certifications, services, and professional background.
+- portfolio: professional questions about the portfolio subject or a named software project/product/work item in the portfolio, including experience, skills, projects, technologies, implementation language, education, certifications, services, and professional background.
 - datetime: read-only date, time, weekday, or timezone questions.
 - reminder: requests that explicitly ask to create or schedule a reminder for an action.
 
 Use conversation context to resolve short follow-up messages.
+Questions asking what a named software project/product is, what language it uses, or what technologies it uses are portfolio even when the subject's name is omitted.
+Generic programming concepts such as REST, JSON, APIs, languages, or frameworks are general unless the visitor asks whether the portfolio subject or one of the subject's projects uses them.
 Choose multiple domains only when the request contains independent requests from multiple domains.
 Questions about whether reminders are real, persistent, supported, or how they work are general; they do not create a reminder.
 A reminder with a date or relative duration is only reminder unless the visitor separately asks a date/time question.
