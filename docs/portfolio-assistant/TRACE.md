@@ -1,49 +1,46 @@
 # Turn execution trace
 
-Diagnostics record observable execution only; hidden reasoning is not exposed.
+El diagnóstico observa la ejecución; no controla el runtime ni expone razonamiento interno.
 
-A trace contains:
+Cuando diagnostics está habilitado, el trace contiene únicamente información útil para entender el turno:
 
 ```text
+trace_id
+started_at / finished_at
+duration_ms
+final_ttft_ms
+status
 input
-model configuration
-dispatch routes
-worker rounds
-  request messages
-  finish reason
-  usage/timings
-  generated content
-  tool calls
-    raw + parsed arguments
+model
+rounds
+  round
+  response
+    finish_reason
+    duration_ms
+  tool_calls
+    id
+    name
+    arguments_raw
+    arguments
+    duration_ms
+    ok
     result
-    duration
-    reused flag when applicable
-final answer
-returned context
+output
+returned_context
 error
 ```
 
-The `tools` field records the tool schemas visible to that worker. Returned tool names are checked against the worker's allowed set before execution.
+`final_ttft_ms` mide el tiempo hasta el primer fragmento de la respuesta final que se entrega al usuario.
 
-The current model name is configuration-driven; local evaluation uses `Qwen3.5-4B`.
+No se registran ni se exponen:
 
-An executed tool call records:
-
-```json
-{
-  "id": "call-id",
-  "name": "tool_name",
-  "arguments_raw": "{...}",
-  "arguments": {},
-  "duration_ms": 0.0,
-  "ok": true,
-  "result_raw": "{...}",
-  "result": {}
-}
+```text
+reasoning_content
+classifier routes
+workers
+provider chunk metadata
+prompt progress
+sampler internals
 ```
 
-A repeated successful call may also contain `"reused": true`; the prior result is reused with the new `tool_call_id`.
-
-`ok=true` proves only deterministic tool execution succeeded. It does not prove tool selection or semantic argument extraction was correct.
-
-Diagnostics require `AGENT_DIAGNOSTICS_TOKEN` and the matching `X-Agent-Diagnostics-Token` request header.
+Los tool calls aparecen en el trace de diagnóstico, pero nunca se emiten como eventos `token` al visitante.
