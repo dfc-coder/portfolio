@@ -74,7 +74,6 @@ class Agent:
                     presence_penalty=self._presence_penalty,
                     max_tokens=self._max_tokens,
                     stream=True,
-                    stream_options={"include_usage": True},
                     extra_body={
                         "top_k": self._top_k,
                         "min_p": self._min_p,
@@ -124,6 +123,8 @@ class Agent:
                         mode = "final"
                         pending_text.clear()
                         answer_parts.append(buffered)
+                        if trace is not None and trace["final_ttft_ms"] is None:
+                            trace["final_ttft_ms"] = _elapsed_ms(trace["_started"])
                         yield "status", {"phase": "responding", "round": round_number}
                         yield "token", {"text": buffered}
                         continue
@@ -253,6 +254,7 @@ def _new_trace(message: str, context: list[dict[str, Any]], model: str) -> dict[
         "input": {"message": message, "context": context},
         "model": {"name": model},
         "rounds": [],
+        "final_ttft_ms": None,
         "output": None,
         "returned_context": None,
         "error": None,
