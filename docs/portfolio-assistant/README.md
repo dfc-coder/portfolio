@@ -16,6 +16,7 @@ Documents:
 
 - `BDD-agent-runtime-minimo.md` — requerimientos BDD para simplificar el agent runtime.
 - `SDD-agent-runtime-minimo.md` — diseño propuesto para implementar el runtime mínimo, incluido streaming final token por token.
+- `DOD-agent-runtime-minimo.md` — Definition of Done: gates obligatorios de estructura, tests, integración, comportamiento, holdout, estabilidad y streaming.
 - `SDD-tool-use-reliability.md` — current runtime contract and invariants.
 - `TRACE.md` — observable diagnostic trace.
 - `../../server/README.md` — local runtime and validation commands.
