@@ -59,6 +59,8 @@ Strict development gate:
 make eval-strict
 ```
 
+`make eval-strict` always executes the complete development dataset. It reports every failure and exits non-zero only after the full run finishes. This is intentional: development evaluation must expose all current failures in one run instead of discovering one failure per iteration.
+
 Run the holdout only after the prompt/runtime is frozen:
 
 ```bash
