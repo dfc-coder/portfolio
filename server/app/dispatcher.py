@@ -30,10 +30,11 @@ async def classify(
     subject: str,
     message: str,
     context: list[dict[str, Any]],
+    project_names: tuple[str, ...] = (),
 ) -> Dispatch:
     response = await chat.chat.completions.create(
         model=model,
-        messages=build_classifier_messages(subject, context, message),
+        messages=build_classifier_messages(subject, context, message, project_names),
         temperature=0.0,
         top_p=1.0,
         max_tokens=64,
