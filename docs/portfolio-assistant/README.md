@@ -1,22 +1,21 @@
 # Portfolio Assistant
 
-Current backend design: explicit Go-like orchestration around one llama.cpp `Qwen3.5-4B` instance.
+Diseño objetivo del backend: un runtime explícito y Go-like alrededor de una única instancia de `Qwen3.5-4B`.
 
 ```text
-classifier
-  -> general worker      tools=[]
-  -> portfolio worker    tools=[search_portfolio]
-  -> temporal worker     tools=[resolve_datetime, set_reminder_mock]
-      -> one generic bounded tool loop
+visitor
+  -> Agent
+      -> Qwen + [search_portfolio, resolve_datetime, set_reminder_mock]
+      -> final answer: stream token by token
+      -> tool call: execute -> tool result -> next model round
 ```
 
-No supervisor, planner, critic, graph, reranker, semantic tool search or framework-managed agents.
+No classifier, routes, workers, supervisor, planner, critic, graph, reranker, semantic tool search ni framework de agentes.
 
-Documents:
+Documentos vigentes:
 
-- `BDD-agent-runtime-minimo.md` — requerimientos BDD para simplificar el agent runtime.
-- `SDD-agent-runtime-minimo.md` — diseño propuesto para implementar el runtime mínimo, incluido streaming final token por token.
-- `DOD-agent-runtime-minimo.md` — Definition of Done: gates obligatorios de estructura, tests, integración, comportamiento, holdout, estabilidad y streaming.
-- `SDD-tool-use-reliability.md` — current runtime contract and invariants.
-- `TRACE.md` — observable diagnostic trace.
-- `../../server/README.md` — local runtime and validation commands.
+- `BDD-agent-runtime-minimo.md` — qué comportamiento debe conservar el runtime.
+- `SDD-agent-runtime-minimo.md` — cómo se implementa el runtime mínimo y el streaming final.
+- `DOD-agent-runtime-minimo.md` — gates obligatorios para considerar terminado el cambio.
+- `TRACE.md` — contrato de diagnóstico observable del runtime mínimo.
+- `../../server/README.md` — ejecución y validación local.
