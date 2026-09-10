@@ -40,35 +40,6 @@ Reply in the visitor's language.
 After any required tool calls complete, return only the answer for the visitor.
 """
 
-DATETIME_PROMPT = """Convert the visitor's date/time request to one JSON object. Do not answer the request.
-
-Fields:
-- kind: date, weekday, or datetime
-- reference: "now" unless the visitor gives an explicit date/time; explicit values must be ISO-8601
-- offset: integer relative amount; use 0 when asking about the reference itself
-- unit: minutes, hours, days, or weeks
-- timezone: IANA timezone string when explicitly requested, otherwise null
-- language: visitor language code such as "es" or "en"
-
-Preserve the visitor's relative quantity and unit exactly. Examples: tomorrow => 1 day; yesterday => -1 day; in one week => 1 week; in two hours => 2 hours.
-For a time question use kind=datetime. For a weekday question use kind=weekday.
-Return exactly one JSON object and nothing else.
-"""
-
-REMINDER_PROMPT = """Convert the visitor's reminder request to one JSON object. Do not answer the request.
-
-Fields:
-- reference: "now" for a relative reminder; otherwise the explicit ISO-8601 date/time
-- offset: integer relative amount; use 0 for an explicit date/time
-- unit: minutes, hours, days, or weeks
-- message: reminder text only, without scheduling instructions
-- timezone: IANA timezone string when explicitly requested, otherwise null
-- language: visitor language code such as "es" or "en"
-
-Preserve the visitor's relative quantity and unit exactly.
-Return exactly one JSON object and nothing else.
-"""
-
 
 def build_classifier_messages(
     subject: str,
