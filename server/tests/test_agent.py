@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.agent import Agent
+from app.temporal import DATETIME_REQUEST_SCHEMA, REMINDER_REQUEST_SCHEMA
 from app.tools import RESOLVE_DATETIME_SCHEMA, SEARCH_PORTFOLIO_SCHEMA, SET_REMINDER_MOCK_SCHEMA
 
 
@@ -170,7 +171,7 @@ async def test_portfolio_route_exposes_only_portfolio_tool() -> None:
 
 
 @pytest.mark.asyncio
-async def test_datetime_route_uses_structured_output_without_native_tools() -> None:
+async def test_datetime_route_uses_constrained_output_without_native_tools() -> None:
     chat = FakeChat(
         [
             classifier_response(["datetime"]),
@@ -178,11 +179,9 @@ async def test_datetime_route_uses_structured_output_without_native_tools() -> N
                 json.dumps(
                     {
                         "kind": "weekday",
-                        "reference_kind": "date",
                         "reference": "2026-12-25",
                         "offset": 0,
                         "unit": "days",
-                        "timezone": None,
                         "language": "es",
                     }
                 )
@@ -205,6 +204,8 @@ async def test_datetime_route_uses_structured_output_without_native_tools() -> N
     structured_request = chat.chat.completions.requests[1]
     assert structured_request["stream"] is False
     assert "tools" not in structured_request
+    assert structured_request["extra_body"]["json_schema"] == DATETIME_REQUEST_SCHEMA
+    assert "JSON Schema" not in structured_request["messages"][0]["content"]
 
     traces = [payload for event, payload in events if event == "trace"]
     calls = traces[0]["rounds"][0]["tool_calls"]
@@ -218,19 +219,17 @@ async def test_datetime_route_uses_structured_output_without_native_tools() -> N
 
 
 @pytest.mark.asyncio
-async def test_reminder_route_uses_structured_output_without_native_tools() -> None:
+async def test_reminder_route_uses_constrained_output_without_native_tools() -> None:
     chat = FakeChat(
         [
             classifier_response(["reminder"]),
             response(
                 json.dumps(
                     {
-                        "reference_kind": "datetime",
                         "reference": "2026-12-01T10:30:00-03:00",
                         "offset": 0,
                         "unit": "days",
                         "message": "Enviar la propuesta",
-                        "timezone": None,
                         "language": "es",
                     }
                 )
@@ -252,7 +251,9 @@ async def test_reminder_route_uses_structured_output_without_native_tools() -> N
     assert "Recordatorio simulado creado" in answer
     assert "No es persistente" in answer
     assert len(chat.chat.completions.requests) == 2
-    assert "tools" not in chat.chat.completions.requests[1]
+    structured_request = chat.chat.completions.requests[1]
+    assert "tools" not in structured_request
+    assert structured_request["extra_body"]["json_schema"] == REMINDER_REQUEST_SCHEMA
 
     traces = [payload for event, payload in events if event == "trace"]
     calls = traces[0]["rounds"][0]["tool_calls"]
@@ -286,11 +287,9 @@ async def test_mixed_routes_run_isolated_workers_and_compose_results() -> None:
                 json.dumps(
                     {
                         "kind": "date",
-                        "reference_kind": "date",
                         "reference": "2026-09-09",
                         "offset": 0,
                         "unit": "days",
-                        "timezone": None,
                         "language": "es",
                     }
                 )
