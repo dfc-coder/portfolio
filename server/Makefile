@@ -2,6 +2,27 @@
 
 ENGINE ?= $(shell if command -v podman >/dev/null 2>&1; then echo podman; elif command -v docker >/dev/null 2>&1; then echo docker; else echo none; fi)
 COMPOSE = $(ENGINE) compose
+STABILITY_CASES = \
+	--case general_hello \
+	--case general_rest \
+	--case portfolio_rust \
+	--case portfolio_python \
+	--case portfolio_fastapi \
+	--case date_today \
+	--case date_tomorrow \
+	--case date_yesterday_weekday \
+	--case date_known_weekday \
+	--case date_one_week \
+	--case date_two_hours \
+	--case reminder_30m \
+	--case reminder_2h \
+	--case reminder_7d \
+	--case mixed_greeting_portfolio \
+	--case mixed_portfolio_and_date \
+	--case mixed_switch_general \
+	--case mixed_no_reminder \
+	--case context_followup_go \
+	--case context_reuse_date
 
 install:
 	uv sync --extra test
@@ -80,31 +101,14 @@ eval-holdout: eval-ready
 		--strict
 
 eval-stability: eval-ready
-	uv run python tests/evals/run_agent_eval.py \
-		--case general_hello \
-		--case general_rest \
-		--case portfolio_rust \
-		--case portfolio_python \
-		--case portfolio_fastapi \
-		--case date_today \
-		--case date_tomorrow \
-		--case date_yesterday_weekday \
-		--case date_known_weekday \
-		--case date_one_week \
-		--case date_two_hours \
-		--case reminder_30m \
-		--case reminder_2h \
-		--case reminder_7d \
-		--case mixed_greeting_portfolio \
-		--case mixed_portfolio_and_date \
-		--case mixed_switch_general \
-		--case mixed_no_reminder \
-		--case context_followup_go \
-		--case context_reuse_date \
-		--repeat 5 \
-		--results tests/evals/results/stability.json \
-		--qwencloud tests/evals/results/stability-qwencloud.jsonl \
-		--strict
+	@rm -f tests/evals/results/stability-*.json
+	@for run in 1 2 3 4 5; do \
+		echo "stability run $$run/5"; \
+		uv run python tests/evals/run_agent_eval.py $(STABILITY_CASES) \
+			--results tests/evals/results/stability-$$run.json \
+			--qwencloud tests/evals/results/stability-$$run-qwencloud.jsonl || exit 1; \
+	done
+	@uv run python -c 'import glob,json,sys; files=glob.glob("tests/evals/results/stability-[1-5].json"); summaries=[json.load(open(p, encoding="utf-8"))["summary"] for p in files]; passed=sum(s["passed"] for s in summaries); total=sum(s["cases"] for s in summaries); rate=passed/total if total else 0; print(f"stability: {passed}/{total} ({rate:.1%})"); sys.exit(0 if total == 100 and rate >= 0.95 else 1)'
 
 tdd:
 	$(MAKE) install
