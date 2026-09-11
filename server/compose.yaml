@@ -70,6 +70,9 @@ services:
     environment:
       LLAMA_BASE_URL: http://llama:8080
       EMBEDDING_BASE_URL: http://embedding:8081
+      # OPENAI_API_KEY belongs to the eval harness only. Keep it out of the app
+      # container even when the local .env also stores the evaluator credential.
+      OPENAI_API_KEY: ""
       GENERATION_TEMPERATURE: ${GENERATION_TEMPERATURE:-0.70}
       GENERATION_TOP_P: ${GENERATION_TOP_P:-0.80}
       GENERATION_TOP_K: ${GENERATION_TOP_K:-20}
