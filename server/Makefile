@@ -1,4 +1,4 @@
-.PHONY: install test run up down logs models eval-check eval-ready eval eval-edge eval-view verify
+.PHONY: install test run up down logs models eval-check eval-ready cache-check eval eval-edge eval-view verify
 
 ENGINE ?= $(shell if command -v podman >/dev/null 2>&1; then echo podman; elif command -v docker >/dev/null 2>&1; then echo docker; else echo none; fi)
 COMPOSE = $(ENGINE) compose
@@ -19,7 +19,7 @@ install:
 	uv sync --extra test
 
 test:
-	uv run python -m compileall -q app tests
+	uv run python -m compileall -q app tests scripts
 	uv run pytest -q
 
 run:
@@ -38,8 +38,9 @@ models:
 	bash scripts/fetch_models.sh
 
 eval-check:
-	@if [ -z "$${OPENAI_API_KEY:-}" ]; then \
-		echo "OPENAI_API_KEY is required for cloud evaluation. Export it before running make eval." >&2; \
+	@set -a; [ ! -f .env ] || . ./.env; set +a; \
+	if [ -z "$${OPENAI_API_KEY:-}" ]; then \
+		echo "OPENAI_API_KEY is required for cloud evaluation. Set it in server/.env or export it." >&2; \
 		exit 1; \
 	fi
 	@echo "Evaluation judge: OpenAI gpt-5.6-luna"
@@ -55,6 +56,9 @@ eval-ready:
 	done; \
 	echo "Portfolio API did not become ready within 90s" >&2; \
 	exit 1
+
+cache-check: eval-check eval-ready
+	@uv run python scripts/check_prompt_cache.py --engine "$(ENGINE)"
 
 eval: eval-check eval-ready
 	$(EVAL_COMPOSE) run --rm $(EVAL_USER) promptfoo promptfoo eval \
@@ -76,4 +80,5 @@ eval-view:
 
 verify: eval-check test models
 	$(COMPOSE) up -d --build --force-recreate
+	$(MAKE) cache-check
 	$(MAKE) eval
