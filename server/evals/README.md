@@ -100,6 +100,17 @@ Every `make eval` and `make eval-edge` also writes a local JSON result and repor
 
 Promptfoo's own response/result cache remains disabled with `evaluateOptions.cache: false` and `--no-cache`. That is intentional: regression runs must execute fresh Qwen and judge calls instead of replaying previous outputs. Disabling Promptfoo's result cache does not disable llama.cpp KV caching or OpenAI's provider-native prompt cache.
 
+## Result artifacts
+
+Promptfoo keeps its internal state under `evals/.promptfoo`, but exported JSON reports are written to a separate host directory so they are easy to inspect and script against:
+
+```text
+server/evals/results/latest-regression.json
+server/evals/results/latest-edge.json
+```
+
+Inside the Promptfoo container that directory is mounted as `/results`. `make eval` and `make eval-edge` create the host directory automatically before launching the container. Generated reports are ignored by Git.
+
 ## Cloud judge credentials
 
 For local development, `server/.env` may contain:
