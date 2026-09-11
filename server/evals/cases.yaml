@@ -2,23 +2,22 @@
   vars:
     query: "¿Diego usa Go?"
   assert:
+    - type: javascript
+      metric: retrieval_evidence
+      value: |
+        const texts = (output.sources || []).map((item) => String(item.text || ""));
+        const found = texts.some((text) => text.includes('"name": "Xarlatan"') && text.includes('"Go"'));
+        return {
+          pass: found,
+          score: found ? 1 : 0,
+          reason: found ? "Retrieved Xarlatan as Go evidence" : "Missing Xarlatan Go evidence from retrieval"
+        };
     - type: llm-rubric
       metric: correctness
-      transform: output.answer
+      transform: 'JSON.stringify({answer: output.answer, context: output.context})'
       threshold: 0.8
       value: >-
-        The answer must clearly confirm that Diego uses Go and must identify Xarlatan as a Go project.
-        It must not claim that Go is unconfirmed.
-    - type: context-recall
-      metric: context_recall
-      value: "Diego uses Go, and Xarlatan is implemented in Go."
-      contextTransform: 'output.context.join("\n")'
-      threshold: 0.8
-    - type: context-faithfulness
-      metric: faithfulness
-      transform: output.answer
-      contextTransform: 'output.context.join("\n")'
-      threshold: 0.9
+        Question: ¿Diego usa Go? The answer must clearly confirm that Diego uses Go and identify Xarlatan as concrete Go evidence from the supplied portfolio context. It must not claim that Go is unconfirmed.
     - type: contains
       metric: tool_selection
       transform: 'output.tools.map(t => t.name).join(",")'
@@ -28,24 +27,23 @@
   vars:
     query: "¿Diego tiene experiencia con Rust?"
   assert:
+    - type: javascript
+      metric: retrieval_evidence
+      value: |
+        const texts = (output.sources || []).map((item) => String(item.text || ""));
+        const expected = ["PocketTrace", "ecTask", "System-G"];
+        const missing = expected.filter((name) => !texts.some((text) => text.includes(`"name": "${name}`) && text.includes('"Rust"')));
+        return {
+          pass: missing.length === 0,
+          score: (expected.length - missing.length) / expected.length,
+          reason: missing.length === 0 ? "Retrieved all named Rust projects" : `Missing Rust retrieval evidence: ${missing.join(", ")}`
+        };
     - type: llm-rubric
       metric: correctness
-      transform: output.answer
+      transform: 'JSON.stringify({answer: output.answer, context: output.context})'
       threshold: 0.8
       value: >-
-        The answer must confirm Rust experience and give concrete portfolio evidence.
-        A complete answer should identify PocketTrace, ecTask, and System-G as Rust projects.
-        Do not infer Rust usage from unrelated job descriptions.
-    - type: context-recall
-      metric: context_recall
-      value: "Diego uses Rust. PocketTrace, ecTask, and System-G are Rust projects in the portfolio."
-      contextTransform: 'output.context.join("\n")'
-      threshold: 0.9
-    - type: context-faithfulness
-      metric: faithfulness
-      transform: output.answer
-      contextTransform: 'output.context.join("\n")'
-      threshold: 0.9
+        Question: ¿Diego tiene experiencia con Rust? The answer must confirm Rust experience using concrete supplied portfolio evidence and identify PocketTrace, ecTask, and System-G as Rust projects. Do not infer Rust usage from unrelated job descriptions.
     - type: contains
       metric: tool_selection
       transform: 'output.tools.map(t => t.name).join(",")'
@@ -55,24 +53,22 @@
   vars:
     query: "¿Qué es System-G o Growntrol?"
   assert:
+    - type: javascript
+      metric: retrieval_evidence
+      value: |
+        const texts = (output.sources || []).map((item) => String(item.text || ""));
+        const found = texts.some((text) => text.includes('"name": "System-G (Growntrol)"') && text.includes('ESP32') && text.includes('Rust'));
+        return {
+          pass: found,
+          score: found ? 1 : 0,
+          reason: found ? "Retrieved System-G project evidence" : "Missing System-G ESP32/Rust evidence from retrieval"
+        };
     - type: llm-rubric
       metric: correctness
-      transform: output.answer
+      transform: 'JSON.stringify({answer: output.answer, context: output.context})'
       threshold: 0.8
       value: >-
-        The answer must describe System-G (Growntrol) as an ESP32-oriented control system with a Rust domain core.
-        It should mention its deterministic control approach and may mention TDD, state machines, sensing, lighting, fan hysteresis, or irrigation.
-        It must not replace the portfolio project with an unrelated meaning of System-G.
-    - type: context-recall
-      metric: context_recall
-      value: "System-G (Growntrol) is an ESP32-oriented control system with a Rust domain core, TDD, state machines, and deterministic control."
-      contextTransform: 'output.context.join("\n")'
-      threshold: 0.8
-    - type: context-faithfulness
-      metric: faithfulness
-      transform: output.answer
-      contextTransform: 'output.context.join("\n")'
-      threshold: 0.9
+        Question: ¿Qué es System-G o Growntrol? The answer must describe System-G (Growntrol) as an ESP32-oriented control system with a Rust domain core. It should mention its deterministic control approach and may mention TDD, state machines, sensing, lighting, fan hysteresis, or irrigation. It must not replace the portfolio project with an unrelated meaning of System-G.
     - type: contains
       metric: tool_selection
       transform: 'output.tools.map(t => t.name).join(",")'
@@ -82,25 +78,30 @@
   vars:
     query: "¿Qué estudió Diego?"
   assert:
+    - type: javascript
+      metric: retrieval_evidence
+      value: |
+        const texts = (output.sources || []).map((item) => String(item.text || ""));
+        const checks = [
+          ["Henry Bootcamp", "Desarrollo Full Stack"],
+          ["SENA", "Diseño de Producto Industrial"],
+          ["Universidad del Valle", "Ingeniería de Sistemas"]
+        ];
+        const missing = checks.filter(([institution, program]) => !texts.some((text) => text.includes(institution) && text.includes(program)));
+        const incompleteStatus = !texts.some((text) => text.includes("Universidad del Valle") && text.includes("Carrera no completada"));
+        const problems = missing.map(([, program]) => program);
+        if (incompleteStatus) problems.push("Ingeniería de Sistemas status");
+        return {
+          pass: problems.length === 0,
+          score: problems.length === 0 ? 1 : 0,
+          reason: problems.length === 0 ? "Retrieved all education entries and incomplete status" : `Missing education retrieval evidence: ${problems.join(", ")}`
+        };
     - type: llm-rubric
       metric: correctness
-      transform: output.answer
+      transform: 'JSON.stringify({answer: output.answer, context: output.context})'
       threshold: 0.8
       value: >-
-        The answer must cover all education entries present in the portfolio: Full Stack Development at Henry Bootcamp,
-        Industrial Product Design at SENA, and Systems Engineering at Universidad del Valle, noting that Systems Engineering was not completed.
-    - type: context-recall
-      metric: context_recall
-      value: >-
-        Diego studied Full Stack Development at Henry Bootcamp, Industrial Product Design at SENA,
-        and Systems Engineering at Universidad del Valle; the Systems Engineering program was not completed.
-      contextTransform: 'output.context.join("\n")'
-      threshold: 0.9
-    - type: context-faithfulness
-      metric: faithfulness
-      transform: output.answer
-      contextTransform: 'output.context.join("\n")'
-      threshold: 0.9
+        Question: ¿Qué estudió Diego? The answer must cover every education entry supported by the supplied portfolio context: Full Stack Development at Henry Bootcamp, Industrial Product Design at SENA, and Systems Engineering at Universidad del Valle, noting that Systems Engineering was not completed.
     - type: contains
       metric: tool_selection
       transform: 'output.tools.map(t => t.name).join(",")'
@@ -110,23 +111,22 @@
   vars:
     query: "¿Tiene alguna certificación de seguridad?"
   assert:
+    - type: javascript
+      metric: retrieval_evidence
+      value: |
+        const texts = (output.sources || []).map((item) => String(item.text || ""));
+        const found = texts.some((text) => text.includes("OWASP Top 10 Secure Coding"));
+        return {
+          pass: found,
+          score: found ? 1 : 0,
+          reason: found ? "Retrieved OWASP Top 10 Secure Coding certification" : "Missing OWASP certification from retrieval"
+        };
     - type: llm-rubric
       metric: correctness
-      transform: output.answer
+      transform: 'JSON.stringify({answer: output.answer, context: output.context})'
       threshold: 0.8
       value: >-
-        The answer must state that the portfolio includes the OWASP Top 10 Secure Coding certification.
-        It must not say that no security certification is present.
-    - type: context-recall
-      metric: context_recall
-      value: "The portfolio includes the OWASP Top 10 Secure Coding certification."
-      contextTransform: 'output.context.join("\n")'
-      threshold: 0.9
-    - type: context-faithfulness
-      metric: faithfulness
-      transform: output.answer
-      contextTransform: 'output.context.join("\n")'
-      threshold: 0.9
+        Question: ¿Tiene alguna certificación de seguridad? The answer must state, when supported by the supplied context, that the portfolio includes the OWASP Top 10 Secure Coding certification. It must not say that no security certification is present when that evidence is supplied.
     - type: contains
       metric: tool_selection
       transform: 'output.tools.map(t => t.name).join(",")'
@@ -138,11 +138,10 @@
   assert:
     - type: llm-rubric
       metric: correctness
-      transform: output.answer
+      transform: 'JSON.stringify({answer: output.answer, context: output.context})'
       threshold: 0.8
       value: >-
-        The answer must directly explain the assistant's capabilities: portfolio lookup, date/time calculations,
-        and simulated reminders. It should answer the capability question rather than only acknowledging the thanks.
+        Question: Gracias. Y decime, ¿qué podés hacer? The answer must directly explain the assistant's capabilities: portfolio lookup, date/time calculations, and simulated reminders. It should answer the capability question rather than only acknowledging the thanks.
     - type: equals
       metric: tool_selection
       transform: 'output.tools.length'
@@ -152,24 +151,24 @@
   vars:
     query: "¿Diego usa Rust y Go?"
   assert:
+    - type: javascript
+      metric: retrieval_evidence
+      value: |
+        const texts = (output.sources || []).map((item) => String(item.text || ""));
+        const hasGo = texts.some((text) => text.includes('"name": "Xarlatan"') && text.includes('"Go"'));
+        const rustProjects = ["PocketTrace", "ecTask", "System-G"];
+        const hasRust = rustProjects.some((name) => texts.some((text) => text.includes(`"name": "${name}`) && text.includes('"Rust"')));
+        return {
+          pass: hasGo && hasRust,
+          score: (Number(hasGo) + Number(hasRust)) / 2,
+          reason: hasGo && hasRust ? "Retrieved both Go and Rust project evidence" : `Missing retrieval evidence: ${[!hasGo ? "Go/Xarlatan" : null, !hasRust ? "Rust project" : null].filter(Boolean).join(", ")}`
+        };
     - type: llm-rubric
       metric: correctness
-      transform: output.answer
+      transform: 'JSON.stringify({answer: output.answer, context: output.context})'
       threshold: 0.8
       value: >-
-        The answer must correctly confirm both Rust and Go using portfolio evidence.
-        Rust evidence may include System-G, PocketTrace, or ecTask, and Go evidence should include Xarlatan.
-        One or multiple portfolio searches are both acceptable.
-    - type: context-recall
-      metric: context_recall
-      value: "The portfolio confirms Rust through System-G, PocketTrace, and ecTask, and confirms Go through Xarlatan."
-      contextTransform: 'output.context.join("\n")'
-      threshold: 0.8
-    - type: context-faithfulness
-      metric: faithfulness
-      transform: output.answer
-      contextTransform: 'output.context.join("\n")'
-      threshold: 0.9
+        Question: ¿Diego usa Rust y Go? The answer must correctly confirm both Rust and Go using supplied portfolio evidence. Rust evidence may include System-G, PocketTrace, or ecTask, and Go evidence should include Xarlatan. One or multiple portfolio searches are acceptable.
     - type: contains
       metric: tool_selection
       transform: 'output.tools.map(t => t.name).join(",")'
@@ -183,11 +182,10 @@
   assert:
     - type: llm-rubric
       metric: correctness
-      transform: output.answer
+      transform: 'JSON.stringify({answer: output.answer, context: output.context})'
       threshold: 0.8
       value: >-
-        The answer must explain the assistant's capabilities without retrieving portfolio facts.
-        It should cover portfolio lookup, date/time calculations, and simulated reminders.
+        Question: Gracias por eso. Antes de seguir, ¿qué cosas podés hacer vos acá? The answer must explain the assistant's capabilities without relying on portfolio retrieval. It should cover portfolio lookup, date/time calculations, and simulated reminders.
     - type: equals
       metric: tool_selection
       transform: 'output.tools.length'
@@ -199,18 +197,24 @@
   options:
     repeat: 5
   assert:
+    - type: javascript
+      metric: retrieval_evidence
+      value: |
+        const texts = (output.sources || []).map((item) => String(item.text || ""));
+        const hasGo = texts.some((text) => text.includes('"name": "Xarlatan"') && text.includes('"Go"'));
+        const rustProjects = ["PocketTrace", "ecTask", "System-G"];
+        const hasRust = rustProjects.some((name) => texts.some((text) => text.includes(`"name": "${name}`) && text.includes('"Rust"')));
+        return {
+          pass: hasGo && hasRust,
+          score: (Number(hasGo) + Number(hasRust)) / 2,
+          reason: hasGo && hasRust ? "Retrieved both Go and Rust project evidence" : "Missing Go and/or Rust project evidence"
+        };
     - type: llm-rubric
       metric: correctness
-      transform: output.answer
+      transform: 'JSON.stringify({answer: output.answer, context: output.context})'
       threshold: 0.8
       value: >-
-        The answer must answer both parts. It must confirm Rust and Go from portfolio evidence and give concrete evidence for each.
-        The number of portfolio searches is not part of the grading criterion.
-    - type: context-recall
-      metric: context_recall
-      value: "The portfolio confirms Rust through Rust projects and Go through Xarlatan."
-      contextTransform: 'output.context.join("\n")'
-      threshold: 0.8
+        Question: ¿Diego trabaja con Rust? ¿Y con Go? The answer must answer both parts, confirm Rust and Go from supplied portfolio evidence, and give concrete evidence for each. The number of portfolio searches is not part of the semantic grade.
     - type: contains
       metric: tool_selection
       transform: 'output.tools.map(t => t.name).join(",")'
@@ -222,18 +226,22 @@
   options:
     repeat: 5
   assert:
+    - type: javascript
+      metric: retrieval_evidence
+      value: |
+        const texts = (output.sources || []).map((item) => String(item.text || ""));
+        const found = texts.some((text) => text.includes('"name": "System-G (Growntrol)"') && text.includes('ESP32') && text.includes('Rust'));
+        return {
+          pass: found,
+          score: found ? 1 : 0,
+          reason: found ? "Retrieved System-G project evidence" : "Missing System-G project evidence"
+        };
     - type: llm-rubric
       metric: correctness
-      transform: output.answer
+      transform: 'JSON.stringify({answer: output.answer, context: output.context})'
       threshold: 0.8
       value: >-
-        System-G is a named portfolio project in this application. The answer must retrieve portfolio evidence and describe
-        the ESP32-oriented Rust control system. It must not answer with an unrelated general-knowledge meaning.
-    - type: context-recall
-      metric: context_recall
-      value: "System-G is the ESP32-oriented Rust control project in the portfolio."
-      contextTransform: 'output.context.join("\n")'
-      threshold: 0.8
+        Question: ¿Qué es System-G? System-G is a named portfolio project in this application. The answer must use supplied portfolio evidence and describe the ESP32-oriented Rust control system. It must not answer with an unrelated general-knowledge meaning.
     - type: contains
       metric: tool_selection
       transform: 'output.tools.map(t => t.name).join(",")'
