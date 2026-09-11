@@ -42,20 +42,23 @@ Promptfoo is pinned to `0.122.2` in `evals/compose.yaml`.
 ```text
 Promptfoo
   -> POST http://api:8000/v1/chat/stream
-  -> real Agent / Qwen / tools / retrieval
+  -> real Agent / local Qwen / tools / retrieval
   -> SSE response
   -> sse-transform.js
   -> { answer, context, sources, tools, trace }
-  -> built-in Promptfoo assertions
+  -> deterministic assertions
+  -> OpenAI gpt-5.6-luna cloud judge for model-graded assertions
 ```
 
 `sse-transform.js` only translates the portfolio SSE protocol. It contains no pass/fail business rules. Retrieval facts are extracted from the returned conversation context, which is part of the normal API contract. If a diagnostics trace is available, the adapter can use it as the richer source instead.
 
 ## Grading
 
-The first calibration uses the same local Qwen service as a deterministic judge (`temperature=0`) so the evaluation can run without an external API key. This judge is deliberately isolated from the product request: the agent run finishes before Promptfoo asks the judge to grade it.
+The product under test remains Qwen3.5-4B running locally. Model-graded assertions use `openai:responses:gpt-5.6-luna` with low reasoning effort, so the model under test no longer judges itself and cloud grading does not compete with local Qwen for CPU.
 
-This is a bootstrap choice, not an assumption that a 4B self-judge is perfect. Before trusting Promptfoo as the permanent evaluator, its first report must reproduce the behavior we already know from manual inspection:
+Target-agent cases remain serial because the local llama.cpp server is configured with `--parallel 1`. Cloud model-graded assertions may use up to three concurrent requests. There is intentionally no per-eval-step timeout: that timeout previously forced every slow row to fail after 180 seconds and disabled Promptfoo's grading grouping.
+
+The first cloud-judge report must still reproduce the behavior already known from manual inspection:
 
 ```text
 Known good:
@@ -72,7 +75,17 @@ Known unstable behavior:
 - capability questions after small talk/thanks may call search_portfolio unnecessarily
 ```
 
-If the local judge cannot distinguish those known cases, only the grader provider is replaced. The dataset, SSE adapter, product API and Promptfoo harness remain unchanged.
+If the cloud judge cannot distinguish those known cases, change only the grader provider. Keep the dataset, SSE adapter, product API and target runtime unchanged while calibrating the evaluator.
+
+## Cloud judge credentials
+
+Do not put the OpenAI API key in `server/.env`: that file is also loaded by the production-like API container. Export the key only in the shell that launches Promptfoo:
+
+```bash
+export OPENAI_API_KEY='sk-...'
+```
+
+`make eval` and `make eval-edge` fail immediately when the variable is missing. The key is passed only to the Promptfoo service by `evals/compose.yaml`.
 
 ## Optional local diagnostics
 
@@ -95,6 +108,7 @@ make up
 Run the stable regression suite:
 
 ```bash
+export OPENAI_API_KEY='sk-...'
 make eval
 ```
 
