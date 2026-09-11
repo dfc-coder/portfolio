@@ -16,14 +16,14 @@ POST /v1/chat/stream
 
 There is one agent, one system prompt and one bounded tool loop. There is no classifier, domain routing, worker abstraction, supervisor, planner, critic, graph, semantic tool search, reranker or agent framework.
 
-## Model
+## Models
 
 ```text
-Qwen3.5-4B
-Qwen3.5-4B-UD-Q4_K_XL.gguf
+Qwen3.5-4B / Qwen3.5-4B-UD-Q4_K_XL.gguf
+Qwen3-Embedding-0.6B / Qwen3-Embedding-0.6B-Q8_0.gguf
 ```
 
-Served by llama.cpp with Jinja tool calling and thinking disabled. Portfolio retrieval uses `Qwen3-Embedding-0.6B` only inside `search_portfolio`.
+llama.cpp serves both models. Thinking is disabled for Qwen. Embeddings are used only by `search_portfolio`.
 
 ## Production tools
 
@@ -33,53 +33,33 @@ resolve_datetime
 set_reminder_mock
 ```
 
-`app/tools.py` contains the model-facing schemas, argument validation and the explicit `execute_tool()` dispatch. There is no secondary tool registry.
+`app/tools.py` contains the model-facing schemas, validation and explicit dispatch. There is no secondary tool registry.
 
 ## Core files
 
 ```text
 app/main.py          composition root / FastAPI
 app/api/router.py    HTTP + SSE boundary
-app/agent.py         one streamed model/tool loop
-app/tools.py         schemas, validation and execution
-app/prompt.py        one system prompt
+app/agent.py         streamed model/tool loop
+app/tools.py         tool schemas, validation and execution
+app/prompt.py        system prompt
 app/conversation.py  bounded in-memory conversation state
 app/portfolio.py     portfolio retrieval
-app/trace.py         diagnostics only; no runtime decisions
+app/trace.py         diagnostics only
 app/config.py        environment configuration
 ```
 
-## Validation
-
-Deterministic runtime and integration tests:
+## Commands
 
 ```bash
-make check
+make install     # Python dependencies
+make models      # verified GGUF downloads
+make test        # deterministic tests
+make up          # local stack
+make eval        # Promptfoo regression suite
+make eval-edge   # repeated edge cases
+make eval-view   # Promptfoo local viewer
+make verify      # test + models + stack + regression eval
 ```
 
-Start the local runtime:
-
-```bash
-make models
-make up
-make eval-ready
-```
-
-Promptfoo is the external behavioral evaluator. It is isolated under `evals/` and is not a production dependency.
-
-```bash
-make eval       # stable regression cases
-make eval-edge  # repeated edge cases
-make eval-view  # local result viewer on http://localhost:3000
-```
-
-The previous Python evaluator is temporarily retained only for calibration and comparison:
-
-```bash
-make eval-legacy
-make eval-legacy-strict
-```
-
-Promptfoo design, frozen baseline and case lifecycle are documented in `evals/README.md`.
-
-Acceptance criteria for the minimal runtime are defined in `../docs/portfolio-assistant/DOD-agent-runtime-minimo.md`.
+Promptfoo is isolated under `evals/` and is not a production dependency. Its configuration, frozen baseline and case lifecycle are documented in `evals/README.md`.
