@@ -1,17 +1,18 @@
-.PHONY: install test run up down logs models eval-check eval-ready cache-check eval eval-edge eval-view verify
+.PHONY: install test run up down logs models eval-check eval-ready eval-results cache-check eval eval-edge eval-view verify
 
 ENGINE ?= $(shell if command -v podman >/dev/null 2>&1; then echo podman; elif command -v docker >/dev/null 2>&1; then echo docker; else echo none; fi)
 COMPOSE = $(ENGINE) compose
 EVAL_COMPOSE = $(COMPOSE) -f compose.yaml -f evals/compose.yaml
+EVAL_RESULTS_DIR = evals/results
 HOST_UID := $(shell id -u)
 HOST_GID := $(shell id -g)
 
 ifeq ($(ENGINE),podman)
 # Rootless Podman maps container root to the invoking host user, so files written
-# to the bind-mounted Promptfoo state directory keep the correct host ownership.
+# to bind mounts keep the correct host ownership.
 EVAL_USER = --user 0:0
 else
-# Docker can run with the invoking host UID/GID so the bind-mounted state remains writable.
+# Docker can run with the invoking host UID/GID so bind-mounted files remain writable.
 EVAL_USER = --user $(HOST_UID):$(HOST_GID)
 endif
 
@@ -57,29 +58,34 @@ eval-ready:
 	echo "Portfolio API did not become ready within 90s" >&2; \
 	exit 1
 
+eval-results:
+	@mkdir -p "$(EVAL_RESULTS_DIR)"
+
 cache-check: eval-check eval-ready
 	@uv run python scripts/check_prompt_cache.py --engine "$(ENGINE)"
 
-eval: eval-check eval-ready
+eval: eval-check eval-ready eval-results
 	@status=0; \
 	$(EVAL_COMPOSE) run --rm $(EVAL_USER) promptfoo promptfoo eval \
 		-c promptfooconfig.yaml \
 		--filter-pattern '^REG:' \
 		--no-cache \
-		--output /home/promptfoo/.promptfoo/latest-regression.json \
+		--output /results/latest-regression.json \
 		--table || status=$$?; \
-	uv run python scripts/report_eval_cache.py evals/.promptfoo/latest-regression.json || true; \
+	uv run python scripts/report_eval_cache.py "$(EVAL_RESULTS_DIR)/latest-regression.json" || true; \
+	echo "Eval report: $(EVAL_RESULTS_DIR)/latest-regression.json"; \
 	exit $$status
 
-eval-edge: eval-check eval-ready
+eval-edge: eval-check eval-ready eval-results
 	@status=0; \
 	$(EVAL_COMPOSE) run --rm $(EVAL_USER) promptfoo promptfoo eval \
 		-c promptfooconfig.yaml \
 		--filter-pattern '^EDGE:' \
 		--no-cache \
-		--output /home/promptfoo/.promptfoo/latest-edge.json \
+		--output /results/latest-edge.json \
 		--table || status=$$?; \
-	uv run python scripts/report_eval_cache.py evals/.promptfoo/latest-edge.json || true; \
+	uv run python scripts/report_eval_cache.py "$(EVAL_RESULTS_DIR)/latest-edge.json" || true; \
+	echo "Eval report: $(EVAL_RESULTS_DIR)/latest-edge.json"; \
 	exit $$status
 
 eval-view:
