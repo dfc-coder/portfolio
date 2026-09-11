@@ -45,6 +45,7 @@ def main() -> int:
     input_tokens = 0
     cached_tokens = 0
     cache_write_tokens = 0
+    judge_requests = 0
     graded_rows = 0
 
     for row in _rows(payload):
@@ -59,6 +60,7 @@ def main() -> int:
             details = {}
 
         graded_rows += 1
+        judge_requests += _as_int(usage.get("numRequests"))
         input_tokens += _as_int(usage.get("prompt"))
         cached_tokens += _as_int(details.get("cacheReadInputTokens"))
         cache_write_tokens += _as_int(details.get("cacheCreationInputTokens"))
@@ -70,14 +72,14 @@ def main() -> int:
     ratio = cached_tokens / input_tokens if input_tokens else 0.0
     print(
         "Judge prompt cache: "
-        f"rows={graded_rows}, input={input_tokens}, cached={cached_tokens}, "
-        f"written={cache_write_tokens}, hit_ratio={ratio:.1%}"
+        f"rows={graded_rows}, requests={judge_requests}, input={input_tokens}, "
+        f"cached={cached_tokens}, written={cache_write_tokens}, hit_ratio={ratio:.1%}"
     )
     if cached_tokens == 0:
         print(
-            "Judge prompt cache note: no cache reads were reported. GPT-5.6 requires "
-            "an eligible shared prefix of at least 1024 visible input tokens; do not pad "
-            "grader prompts only to force a cache hit."
+            "Judge prompt cache note: no cache reads were reported. The evaluator uses an "
+            "explicit breakpoint on the shared judge policy; inspect the rendered grading "
+            "prompt before changing product behavior."
         )
 
     return 0
