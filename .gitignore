@@ -8,6 +8,7 @@ dist/
 server/models/
 server/artifacts/
 server/uv.lock
+server/evals/.promptfoo/
 server/tests/evals/generated/*.jsonl
 server/tests/evals/reports/
 server/tests/evals/results/
