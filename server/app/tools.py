@@ -25,24 +25,13 @@ SEARCH_PORTFOLIO_SCHEMA = {
     "function": {
         "name": SEARCH_PORTFOLIO,
         "description": (
-            "Search factual professional information about the portfolio subject. Use it before stating claims "
-            "about experience, skills, projects, education, certifications, services, or professional background. "
-            "Do not use it for general knowledge."
+            "Search factual professional information about the portfolio subject needed to answer the current "
+            "visitor message. Use it before stating claims about experience, skills, projects, education, "
+            "certifications, services, or professional background. Do not use it for general knowledge."
         ),
         "parameters": {
             "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 500,
-                    "description": (
-                        "Short query containing only the specific professional fact or topic to retrieve. "
-                        "Omit the portfolio subject's name unless identity itself is the requested fact."
-                    ),
-                }
-            },
-            "required": ["query"],
+            "properties": {},
             "additionalProperties": False,
         },
     },
@@ -147,7 +136,7 @@ async def execute_tool(
     raw_arguments: str,
     portfolio: Portfolio,
     *,
-    user_query: str | None = None,
+    user_message: str | None = None,
 ) -> dict[str, object]:
     try:
         arguments = json.loads(raw_arguments or "{}")
@@ -155,13 +144,10 @@ async def execute_tool(
             raise ValueError("tool arguments must be a JSON object")
 
         if name == SEARCH_PORTFOLIO:
-            _only(arguments, {"query"})
-            search_query = _required_string(arguments, "query", max_length=500)
-            if user_query is None:
-                facts = await portfolio.search(search_query)
-            else:
-                facts = await portfolio.search(search_query, user_query=user_query)
-            result = {"facts": facts}
+            _only(arguments, set())
+            if not user_message or not user_message.strip():
+                raise ValueError("user_message is required for search_portfolio")
+            result = {"facts": await portfolio.search(user_message)}
         elif name == RESOLVE_DATETIME:
             _only(arguments, {"reference", "offset", "unit", "timezone"})
             result = resolve_datetime(
