@@ -61,18 +61,26 @@ cache-check: eval-check eval-ready
 	@uv run python scripts/check_prompt_cache.py --engine "$(ENGINE)"
 
 eval: eval-check eval-ready
+	@status=0; \
 	$(EVAL_COMPOSE) run --rm $(EVAL_USER) promptfoo promptfoo eval \
 		-c promptfooconfig.yaml \
 		--filter-pattern '^REG:' \
 		--no-cache \
-		--table
+		--output /home/promptfoo/.promptfoo/latest-regression.json \
+		--table || status=$$?; \
+	uv run python scripts/report_eval_cache.py evals/.promptfoo/latest-regression.json || true; \
+	exit $$status
 
 eval-edge: eval-check eval-ready
+	@status=0; \
 	$(EVAL_COMPOSE) run --rm $(EVAL_USER) promptfoo promptfoo eval \
 		-c promptfooconfig.yaml \
 		--filter-pattern '^EDGE:' \
 		--no-cache \
-		--table
+		--output /home/promptfoo/.promptfoo/latest-edge.json \
+		--table || status=$$?; \
+	uv run python scripts/report_eval_cache.py evals/.promptfoo/latest-edge.json || true; \
+	exit $$status
 
 eval-view:
 	$(EVAL_COMPOSE) run --rm --service-ports $(EVAL_USER) promptfoo promptfoo view \
