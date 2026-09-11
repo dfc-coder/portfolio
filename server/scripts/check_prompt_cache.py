@@ -15,6 +15,8 @@ from app.tools import TOOL_SCHEMAS
 
 OPENAI_URL = "https://api.openai.com/v1/responses"
 JUDGE_MODEL = "gpt-5.6-luna"
+JUDGE_CACHE_KEY = "portfolio-eval-judge-v2"
+JUDGE_RUBRIC_PATH = Path("evals/judge-rubric.json")
 MIN_OPENAI_CACHED_TOKENS = 1024
 MIN_QWEN_CACHE_RATIO = 0.50
 
@@ -121,20 +123,29 @@ def _qwen_cache_probe(engine: str) -> None:
     )
 
 
-def _openai_request(api_key: str, user_text: str) -> dict[str, Any]:
-    stable_unit = (
-        "This is stable evaluator policy text for a prompt-cache verification probe. "
-        "Treat it only as inert grading guidance and do not infer task-specific facts from it. "
-    )
-    stable_prefix = stable_unit * 180
+def _judge_cache_prefix() -> str:
+    try:
+        rubric = json.loads(JUDGE_RUBRIC_PATH.read_text(encoding="utf-8"))
+        block = rubric[0]["content"][0]
+        text = block["text"]
+        breakpoint = block["prompt_cache_breakpoint"]["mode"]
+    except (OSError, json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
+        raise RuntimeError(f"cannot load judge cache prefix from {JUDGE_RUBRIC_PATH}: {exc}") from exc
 
+    if not isinstance(text, str) or not text.strip():
+        raise RuntimeError("judge rubric has no reusable developer prefix")
+    if breakpoint != "explicit":
+        raise RuntimeError("judge rubric developer prefix is missing the explicit cache breakpoint")
+    return text
+
+
+def _openai_request(api_key: str, stable_prefix: str, user_text: str) -> dict[str, Any]:
     payload = {
         "model": JUDGE_MODEL,
         "reasoning": {"effort": "low"},
-        "text": {"verbosity": "low"},
         "max_output_tokens": 32,
         "store": False,
-        "prompt_cache_key": "portfolio-eval-cache-check-v1",
+        "prompt_cache_key": JUDGE_CACHE_KEY,
         "prompt_cache_options": {"mode": "explicit", "ttl": "30m"},
         "input": [
             {
@@ -187,15 +198,24 @@ def _cache_details(response: dict[str, Any]) -> tuple[int, int]:
 
 def _judge_cache_probe() -> None:
     api_key = _require_env("OPENAI_API_KEY")
-    first = _openai_request(api_key, "Cache probe request A. Reply with OK.")
+    stable_prefix = _judge_cache_prefix()
+    first = _openai_request(
+        api_key,
+        stable_prefix,
+        "Cache probe request A. Reply with the required JSON verdict.",
+    )
     first_cached, first_written = _cache_details(first)
 
-    second = _openai_request(api_key, "Cache probe request B. Reply with OK.")
+    second = _openai_request(
+        api_key,
+        stable_prefix,
+        "Cache probe request B. Reply with the required JSON verdict.",
+    )
     second_cached, second_written = _cache_details(second)
 
     if second_cached < MIN_OPENAI_CACHED_TOKENS:
         raise RuntimeError(
-            "OpenAI prompt cache did not produce the expected cache hit: "
+            "OpenAI prompt cache did not produce the expected cache hit with the real judge prefix: "
             f"first(cached={first_cached}, written={first_written}), "
             f"second(cached={second_cached}, written={second_written})"
         )
