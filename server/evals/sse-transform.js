@@ -41,26 +41,54 @@ function parseEvents(raw) {
   return events;
 }
 
+function uniqueFacts(facts) {
+  const unique = new Map();
+  for (const fact of facts) {
+    unique.set(`${fact.source}\u0000${fact.text}`, fact);
+  }
+  return [...unique.values()];
+}
+
+function appendFacts(target, result) {
+  for (const fact of result?.facts || []) {
+    if (fact && typeof fact.text === "string" && fact.text.length > 0) {
+      target.push({ source: String(fact.source || ""), text: fact.text });
+    }
+  }
+}
+
 function factsFromTrace(trace) {
   const facts = [];
 
   for (const round of trace?.rounds || []) {
     for (const call of round?.tool_calls || []) {
       const envelope = call?.result;
-      const result = envelope?.result || envelope;
-      for (const fact of result?.facts || []) {
-        if (fact && typeof fact.text === "string") {
-          facts.push({ source: String(fact.source || ""), text: fact.text });
-        }
-      }
+      appendFacts(facts, envelope?.result || envelope);
     }
   }
 
-  const unique = new Map();
-  for (const fact of facts) {
-    unique.set(`${fact.source}\u0000${fact.text}`, fact);
+  return uniqueFacts(facts);
+}
+
+function factsFromContext(messages) {
+  const facts = [];
+
+  for (const message of messages || []) {
+    if (message?.role !== "tool" || typeof message.content !== "string") {
+      continue;
+    }
+
+    let envelope;
+    try {
+      envelope = JSON.parse(message.content);
+    } catch (_error) {
+      continue;
+    }
+
+    appendFacts(facts, envelope?.result || envelope);
   }
-  return [...unique.values()];
+
+  return uniqueFacts(facts);
 }
 
 function toolsFromTrace(trace, streamedTools) {
@@ -85,6 +113,7 @@ module.exports = function transformResponse(_json, text) {
   const answer = [];
   const streamedTools = [];
   let trace = null;
+  let returnedContext = [];
 
   for (const event of parseEvents(text)) {
     if (event.name === "token" && typeof event.payload?.text === "string") {
@@ -101,6 +130,11 @@ module.exports = function transformResponse(_json, text) {
       continue;
     }
 
+    if (event.name === "context" && Array.isArray(event.payload?.messages)) {
+      returnedContext = event.payload.messages;
+      continue;
+    }
+
     if (event.name === "trace") {
       trace = event.payload;
       continue;
@@ -111,7 +145,9 @@ module.exports = function transformResponse(_json, text) {
     }
   }
 
-  const sources = factsFromTrace(trace);
+  const tracedFacts = factsFromTrace(trace);
+  const sources = tracedFacts.length > 0 ? tracedFacts : factsFromContext(returnedContext);
+
   return {
     answer: answer.join("").trim(),
     context: sources.map((fact) => fact.text),
