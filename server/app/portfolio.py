@@ -49,8 +49,8 @@ class Portfolio:
         ranked = sorted(
             (
                 (
-                    len(query_terms & self._terms(self._search_text(source, text))),
                     self._cosine(query_vector, vector),
+                    len(query_terms & self._terms(self._search_text(source, text))),
                     source,
                     text,
                 )
@@ -61,7 +61,7 @@ class Portfolio:
 
         facts: list[dict[str, str]] = []
         chars = 0
-        for lexical_matches, score, source, text in ranked:
+        for score, lexical_matches, source, text in ranked:
             if len(facts) >= self._max_documents:
                 break
             if lexical_matches == 0 and score < self._min_score:
