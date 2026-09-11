@@ -1,4 +1,4 @@
-.PHONY: install test run up down logs models eval-ready eval eval-edge eval-view verify
+.PHONY: install test run up down logs models eval-check eval-ready eval eval-edge eval-view verify
 
 ENGINE ?= $(shell if command -v podman >/dev/null 2>&1; then echo podman; elif command -v docker >/dev/null 2>&1; then echo docker; else echo none; fi)
 COMPOSE = $(ENGINE) compose
@@ -37,6 +37,13 @@ logs:
 models:
 	bash scripts/fetch_models.sh
 
+eval-check:
+	@if [ -z "$${OPENAI_API_KEY:-}" ]; then \
+		echo "OPENAI_API_KEY is required for cloud evaluation. Export it before running make eval." >&2; \
+		exit 1; \
+	fi
+	@echo "Evaluation judge: OpenAI gpt-5.6-luna"
+
 eval-ready:
 	@echo "Waiting for portfolio API on http://localhost:8000/health..."
 	@for i in $$(seq 1 90); do \
@@ -49,14 +56,14 @@ eval-ready:
 	echo "Portfolio API did not become ready within 90s" >&2; \
 	exit 1
 
-eval: eval-ready
+eval: eval-check eval-ready
 	$(EVAL_COMPOSE) run --rm $(EVAL_USER) promptfoo promptfoo eval \
 		-c promptfooconfig.yaml \
 		--filter-pattern '^REG:' \
 		--no-cache \
 		--table
 
-eval-edge: eval-ready
+eval-edge: eval-check eval-ready
 	$(EVAL_COMPOSE) run --rm $(EVAL_USER) promptfoo promptfoo eval \
 		-c promptfooconfig.yaml \
 		--filter-pattern '^EDGE:' \
@@ -64,9 +71,9 @@ eval-edge: eval-ready
 		--table
 
 eval-view:
-	$(EVAL_COMPOSE) run --rm $(EVAL_USER) --service-ports promptfoo promptfoo view \
+	$(EVAL_COMPOSE) run --rm --service-ports $(EVAL_USER) promptfoo promptfoo view \
 		/home/promptfoo/.promptfoo -n -p 3000
 
-verify: test models
+verify: eval-check test models
 	$(COMPOSE) up -d --build --force-recreate
 	$(MAKE) eval
