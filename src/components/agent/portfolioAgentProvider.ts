@@ -32,11 +32,16 @@ const parseFrame = (raw: string): SseFrame | null => {
 async function* streamPortfolioAgent(
   question: string,
   context: ReadonlyArray<AgentContextMessage>,
+  conversationId: string | null,
 ): AsyncIterable<AgentEvent> {
   const response = await fetch(`${apiBaseUrl()}/v1/chat/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: question, context }),
+    body: JSON.stringify({
+      message: question,
+      conversation_id: conversationId,
+      context,
+    }),
   });
 
   if (!response.ok || !response.body) {
@@ -86,6 +91,12 @@ async function* streamPortfolioAgent(
           };
         }
       }
+      if (frame.event === "conversation" && payload.conversation_id) {
+        yield {
+          type: "conversation",
+          conversationId: String(payload.conversation_id),
+        };
+      }
       if (frame.event === "context" && Array.isArray(payload.messages)) {
         yield {
           type: "context",
@@ -105,7 +116,8 @@ export const portfolioAgentProvider: AgentProvider = {
   async *ask(
     question: string,
     context: ReadonlyArray<AgentContextMessage>,
+    conversationId: string | null,
   ): AsyncIterable<AgentEvent> {
-    yield* streamPortfolioAgent(question, context);
+    yield* streamPortfolioAgent(question, context, conversationId);
   },
 };

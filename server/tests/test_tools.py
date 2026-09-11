@@ -1,115 +1,171 @@
+import datetime as dt
 import json
+from zoneinfo import ZoneInfo
 
 import pytest
 
-from app.tools import TOOLS, add_duration_to_datetime, run_tool_call
+from app.tools import TOOL_SCHEMAS, execute_tool, resolve_datetime, set_reminder_mock
 
 
 class FakePortfolio:
+    def __init__(self) -> None:
+        self.queries = []
+
     async def search(self, query: str):
-        return [{"source": "projects.0", "text": f"fact for {query}"}]
+        self.queries.append(query)
+        return [{"source": "profile", "text": query}]
 
 
-def test_tool_schemas_are_explicit_json_schema() -> None:
-    names = [tool["function"]["name"] for tool in TOOLS]
-
-    assert names == [
+def test_tool_schemas_have_expected_names() -> None:
+    assert [item["function"]["name"] for item in TOOL_SCHEMAS] == [
         "search_portfolio",
-        "get_current_datetime",
-        "add_duration_to_datetime",
+        "resolve_datetime",
         "set_reminder_mock",
     ]
-    for tool in TOOLS:
-        function = tool["function"]
-        parameters = function["parameters"]
-        assert tool["type"] == "function"
-        assert function["description"]
-        assert parameters["type"] == "object"
-        assert parameters["additionalProperties"] is False
-        assert "title" not in parameters
-        assert "$defs" not in parameters
-
-    assert TOOLS[0]["function"]["parameters"]["required"] == ["query"]
-    assert TOOLS[2]["function"]["parameters"]["required"] == ["datetime"]
-    assert TOOLS[3]["function"]["parameters"]["required"] == ["datetime", "message"]
 
 
-def test_add_duration_calculates_date_and_weekday_exactly() -> None:
-    result = add_duration_to_datetime(
-        "2026-09-04",
-        days=15,
-        default_timezone="America/Argentina/Buenos_Aires",
+def test_search_portfolio_schema_has_no_arguments() -> None:
+    parameters = TOOL_SCHEMAS[0]["function"]["parameters"]
+
+    assert parameters["properties"] == {}
+    assert parameters["additionalProperties"] is False
+
+
+def test_resolve_datetime_explicit_date() -> None:
+    result = resolve_datetime(
+        "2026-12-25",
+        0,
+        "days",
+        "America/Argentina/Buenos_Aires",
     )
 
-    assert result["date"] == "2026-09-19"
-    assert result["weekday"] == "Saturday"
-    assert result["weekday_es"] == "sábado"
-    assert result["iso_weekday"] == 6
-    assert result["timezone"] == "America/Argentina/Buenos_Aires"
+    assert result["date"] == "2026-12-25"
+    assert result["weekday_es"] == "viernes"
 
 
-def test_add_duration_accepts_naive_datetime_in_default_timezone() -> None:
-    result = add_duration_to_datetime(
-        "2030-01-02T10:30:00",
-        days=57,
-        hours=2,
-        minutes=15,
-        default_timezone="America/Argentina/Buenos_Aires",
+def test_resolve_datetime_relative_offset() -> None:
+    zone = ZoneInfo("America/Argentina/Buenos_Aires")
+    before = dt.datetime.now(zone) + dt.timedelta(hours=3)
+
+    result = resolve_datetime("now", 3, "hours", zone.key)
+
+    after = dt.datetime.now(zone) + dt.timedelta(hours=3)
+    actual = dt.datetime.fromisoformat(str(result["datetime"]))
+    assert before.replace(microsecond=0) <= actual <= after.replace(microsecond=0)
+
+
+def test_reminder_is_simulated_only() -> None:
+    result = set_reminder_mock(
+        "2026-09-10T15:00:00-03:00",
+        0,
+        "minutes",
+        "Revisar demo",
     )
 
-    assert result["datetime"] == "2030-02-28T12:45:00-03:00"
-
-
-def test_date_capability_owns_server_timezone(monkeypatch) -> None:
-    monkeypatch.setenv("TZ", "UTC")
-
-    result = add_duration_to_datetime("2026-09-04", days=1)
-
-    assert result["datetime"] == "2026-09-05T00:00:00+00:00"
-    assert result["timezone"] == "UTC"
+    assert result["status"] == "simulated_only"
+    assert result["persisted"] is False
+    assert result["will_notify"] is False
 
 
 @pytest.mark.asyncio
-async def test_tool_validation_error_is_returned_to_model() -> None:
-    message = await run_tool_call(
-        "call-1",
-        "add_duration_to_datetime",
-        json.dumps({"datetime": "not-a-date", "days": 2}),
-        FakePortfolio(),
-    )
+async def test_execute_search_portfolio_uses_original_user_message() -> None:
+    portfolio = FakePortfolio()
 
-    body = json.loads(message["content"])
-    assert message["role"] == "tool"
-    assert message["tool_call_id"] == "call-1"
-    assert body["ok"] is False
-    assert body["error"]["type"] == "validation_error"
-
-
-@pytest.mark.asyncio
-async def test_tool_validation_rejects_unknown_arguments() -> None:
-    message = await run_tool_call(
-        "call-2",
+    body = await execute_tool(
         "search_portfolio",
-        json.dumps({"query": "Rust", "unexpected": True}),
-        FakePortfolio(),
+        "{}",
+        portfolio,
+        user_message="¿Diego usa Rust?",
     )
 
-    body = json.loads(message["content"])
-    assert body["ok"] is False
-    assert body["error"]["type"] == "validation_error"
-    assert "unexpected tool argument" in body["error"]["message"]
+    assert body["ok"] is True
+    assert portfolio.queries == ["¿Diego usa Rust?"]
 
 
 @pytest.mark.asyncio
-async def test_tool_validation_rejects_wrong_integer_type() -> None:
-    message = await run_tool_call(
-        "call-3",
-        "add_duration_to_datetime",
-        json.dumps({"datetime": "2026-09-04", "days": "15"}),
+async def test_search_portfolio_rejects_model_generated_query() -> None:
+    portfolio = FakePortfolio()
+
+    body = await execute_tool(
+        "search_portfolio",
+        '{"query":"Rust experience"}',
+        portfolio,
+        user_message="¿Diego usa Rust?",
+    )
+
+    assert body["ok"] is False
+    assert "unexpected tool argument" in body["error"]["message"]
+    assert portfolio.queries == []
+
+
+@pytest.mark.asyncio
+async def test_unknown_tool_is_rejected() -> None:
+    body = await execute_tool("unknown", "{}", FakePortfolio())
+
+    assert body == {
+        "ok": False,
+        "error": {
+            "type": "validation_error",
+            "message": "unknown tool: unknown",
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_invalid_json_is_rejected() -> None:
+    body = await execute_tool(
+        "search_portfolio",
+        "{",
+        FakePortfolio(),
+        user_message="consulta",
+    )
+
+    assert body["ok"] is False
+    assert body["error"]["type"] == "validation_error"
+
+
+@pytest.mark.asyncio
+async def test_missing_required_argument_is_rejected() -> None:
+    body = await execute_tool(
+        "resolve_datetime",
+        '{"reference":"now","unit":"days"}',
         FakePortfolio(),
     )
 
-    body = json.loads(message["content"])
     assert body["ok"] is False
-    assert body["error"]["type"] == "validation_error"
-    assert body["error"]["message"] == "days must be an integer"
+    assert body["error"]["message"] == "offset is required"
+
+
+@pytest.mark.asyncio
+async def test_extra_argument_is_rejected() -> None:
+    portfolio = FakePortfolio()
+
+    body = await execute_tool(
+        "search_portfolio",
+        '{"extra":1}',
+        portfolio,
+        user_message="consulta",
+    )
+
+    assert body["ok"] is False
+    assert "unexpected tool argument" in body["error"]["message"]
+    assert portfolio.queries == []
+
+
+@pytest.mark.asyncio
+async def test_invalid_timezone_is_rejected_before_execution() -> None:
+    body = await execute_tool(
+        "resolve_datetime",
+        json.dumps(
+            {
+                "reference": "now",
+                "offset": 0,
+                "unit": "days",
+                "timezone": "No/Such_Zone",
+            }
+        ),
+        FakePortfolio(),
+    )
+
+    assert body["ok"] is False
+    assert "unknown timezone" in body["error"]["message"]

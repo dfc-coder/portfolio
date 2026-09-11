@@ -1,23 +1,98 @@
-.PHONY: install test check run up down logs
+.PHONY: install test run up down logs models eval-check eval-ready eval-results cache-check eval eval-edge eval-view verify
+
+ENGINE ?= $(shell if command -v podman >/dev/null 2>&1; then echo podman; elif command -v docker >/dev/null 2>&1; then echo docker; else echo none; fi)
+COMPOSE = $(ENGINE) compose
+EVAL_COMPOSE = $(COMPOSE) -f compose.yaml -f evals/compose.yaml
+EVAL_RESULTS_DIR = evals/results
+HOST_UID := $(shell id -u)
+HOST_GID := $(shell id -g)
+
+ifeq ($(ENGINE),podman)
+# Rootless Podman maps container root to the invoking host user, so files written
+# to bind mounts keep the correct host ownership.
+EVAL_USER = --user 0:0
+else
+# Docker can run with the invoking host UID/GID so bind-mounted files remain writable.
+EVAL_USER = --user $(HOST_UID):$(HOST_GID)
+endif
 
 install:
 	uv sync --extra test
 
 test:
-	uv run pytest -q
-
-check:
-	uv run python -m compileall -q app tests
+	uv run python -m compileall -q app tests scripts
 	uv run pytest -q
 
 run:
 	uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 up:
-	podman compose up --build -d
+	$(COMPOSE) up --build -d
 
 down:
-	podman compose down
+	$(COMPOSE) down
 
 logs:
-	podman compose logs -f api
+	$(COMPOSE) logs -f api
+
+models:
+	bash scripts/fetch_models.sh
+
+eval-check:
+	@set -a; [ ! -f .env ] || . ./.env; set +a; \
+	if [ -z "$${OPENAI_API_KEY:-}" ]; then \
+		echo "OPENAI_API_KEY is required for cloud evaluation. Set it in server/.env or export it." >&2; \
+		exit 1; \
+	fi
+	@echo "Evaluation judge: OpenAI gpt-5.6-luna"
+
+eval-ready:
+	@echo "Waiting for portfolio API on http://localhost:8000/health..."
+	@for i in $$(seq 1 90); do \
+		if curl -fsS http://localhost:8000/health >/dev/null 2>&1; then \
+			echo "Portfolio API ready"; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo "Portfolio API did not become ready within 90s" >&2; \
+	exit 1
+
+eval-results:
+	@mkdir -p "$(EVAL_RESULTS_DIR)"
+
+cache-check: eval-check eval-ready
+	@uv run python scripts/check_prompt_cache.py --engine "$(ENGINE)"
+
+eval: eval-check eval-ready eval-results
+	@status=0; \
+	$(EVAL_COMPOSE) run --rm $(EVAL_USER) promptfoo promptfoo eval \
+		-c promptfooconfig.yaml \
+		--filter-pattern '^REG:' \
+		--no-cache \
+		--output /results/latest-regression.json \
+		--table || status=$$?; \
+	uv run python scripts/report_eval_cache.py "$(EVAL_RESULTS_DIR)/latest-regression.json" || true; \
+	echo "Eval report: $(EVAL_RESULTS_DIR)/latest-regression.json"; \
+	exit $$status
+
+eval-edge: eval-check eval-ready eval-results
+	@status=0; \
+	$(EVAL_COMPOSE) run --rm $(EVAL_USER) promptfoo promptfoo eval \
+		-c promptfooconfig.yaml \
+		--filter-pattern '^EDGE:' \
+		--no-cache \
+		--output /results/latest-edge.json \
+		--table || status=$$?; \
+	uv run python scripts/report_eval_cache.py "$(EVAL_RESULTS_DIR)/latest-edge.json" || true; \
+	echo "Eval report: $(EVAL_RESULTS_DIR)/latest-edge.json"; \
+	exit $$status
+
+eval-view:
+	$(EVAL_COMPOSE) run --rm --service-ports $(EVAL_USER) promptfoo promptfoo view \
+		/home/promptfoo/.promptfoo -n -p 3000
+
+verify: eval-check test models
+	$(COMPOSE) up -d --build --force-recreate
+	$(MAKE) cache-check
+	$(MAKE) eval

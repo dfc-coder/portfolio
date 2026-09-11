@@ -59,6 +59,11 @@ def create_app(config: Config | None = None, agent: Agent | None = None) -> Fast
             portfolio,
             model=config.llama_model,
             temperature=config.generation_temperature,
+            top_p=config.generation_top_p,
+            top_k=config.generation_top_k,
+            min_p=config.generation_min_p,
+            presence_penalty=config.generation_presence_penalty,
+            repeat_penalty=config.generation_repeat_penalty,
             max_tokens=config.generation_max_tokens,
         )
 
@@ -70,15 +75,15 @@ def create_app(config: Config | None = None, agent: Agent | None = None) -> Fast
         for client in clients:
             await client.close()
 
-    app = FastAPI(title="Portfolio Assistant", version="0.7.0", lifespan=lifespan)
+    app = FastAPI(title="Portfolio Assistant", version="0.10.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(config.allowed_origins),
         allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["POST"],
+        allow_headers=["Content-Type"],
     )
-    app.include_router(create_router(agent))
+    app.include_router(create_router(agent, diagnostics_token=config.diagnostics_token))
 
     @app.get("/health")
     async def health() -> dict[str, bool]:

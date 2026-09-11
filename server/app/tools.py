@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import logging
 import os
 from typing import Any
 from uuid import uuid4
@@ -9,106 +10,71 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .portfolio import Portfolio
 
+SEARCH_PORTFOLIO = "search_portfolio"
+RESOLVE_DATETIME = "resolve_datetime"
+SET_REMINDER_MOCK = "set_reminder_mock"
+
 _WEEKDAYS_ES = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
 _DEFAULT_TIMEZONE = "America/Argentina/Buenos_Aires"
+_OFFSET_UNITS = ("minutes", "hours", "days", "weeks")
+
+logger = logging.getLogger(__name__)
 
 SEARCH_PORTFOLIO_SCHEMA = {
     "type": "function",
     "function": {
-        "name": "search_portfolio",
+        "name": SEARCH_PORTFOLIO,
         "description": (
-            "Search the professional portfolio and CV for factual evidence. Use it when the visitor "
-            "asks about the professional's experience, skills, projects, education, certifications, "
-            "services, or background. Do not use it for greetings, thanks, or unrelated small talk. "
-            "It returns relevant profile passages with source identifiers. An empty result means the "
-            "available profile does not confirm the fact; it is not proof that the professional lacks it."
+            "Search factual professional information about the portfolio subject needed to answer the current "
+            "visitor message. Use it before stating claims about experience, skills, projects, education, "
+            "certifications, services, or professional background. Do not use it for general knowledge. "
+            "Takes no arguments: the backend always searches using the visitor's exact message, so no query "
+            "needs to be provided."
         ),
         "parameters": {
             "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 500,
-                    "description": (
-                        "A concise search query for the exact professional fact needed, for example "
-                        "'Rust projects', 'AWS experience', or 'education'."
-                    ),
-                }
-            },
-            "required": ["query"],
+            "properties": {},
             "additionalProperties": False,
         },
     },
 }
 
-GET_CURRENT_DATETIME_SCHEMA = {
+RESOLVE_DATETIME_SCHEMA = {
     "type": "function",
     "function": {
-        "name": "get_current_datetime",
+        "name": RESOLVE_DATETIME,
         "description": (
-            "Return the actual current date and time for a timezone. Use it whenever the answer depends "
-            "on what date or time it is now, including relative requests such as 'in two weeks'. It "
-            "returns ISO datetime, date, weekday, Spanish weekday, and timezone fields. Treat those "
-            "returned values as authoritative rather than estimating the current time yourself."
+            "Resolve current, relative, or explicit date and time calculations, including weekday and timezone "
+            "questions. This tool is read-only and never creates reminders."
         ),
         "parameters": {
             "type": "object",
             "properties": {
+                "reference": {
+                    "type": "string",
+                    "description": (
+                        "Use 'now' when there is no explicit date or time. Otherwise use an ISO-8601 value. "
+                        "Use YYYY-MM-DD for a date without a time."
+                    ),
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": (
+                        "Relative amount applied to reference. Examples: tomorrow=1 day, yesterday=-1 day, "
+                        "in one week=1 week, in two hours=2 hours. Use 0 for the reference itself."
+                    ),
+                },
+                "unit": {
+                    "type": "string",
+                    "enum": list(_OFFSET_UNITS),
+                    "description": "Unit for offset: minutes, hours, days, or weeks.",
+                },
                 "timezone": {
                     "type": "string",
-                    "description": (
-                        "Optional IANA timezone such as America/Argentina/Buenos_Aires. Omit it when the "
-                        "visitor did not request another timezone; the server default timezone is used."
-                    ),
-                }
-            },
-            "additionalProperties": False,
-        },
-    },
-}
-
-ADD_DURATION_TO_DATETIME_SCHEMA = {
-    "type": "function",
-    "function": {
-        "name": "add_duration_to_datetime",
-        "description": (
-            "Add or subtract an exact duration from a supplied date or datetime. Use it for relative-date "
-            "arithmetic and for weekday lookup instead of calculating dates mentally. A zero duration is "
-            "valid when only the weekday of a known date is needed. It returns the exact resulting ISO "
-            "datetime, calendar date, weekday, Spanish weekday, and timezone. Reuse these values exactly."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "datetime": {
-                    "type": "string",
-                    "description": (
-                        "ISO-8601 date or datetime used as the calculation base, for example 2026-09-04 "
-                        "or 2026-09-04T19:00:00-03:00. Date-only or timezone-less values use the server "
-                        "default timezone."
-                    ),
-                },
-                "days": {
-                    "type": "integer",
-                    "minimum": -36500,
-                    "maximum": 36500,
-                    "description": "Whole days to add or subtract. Omit for zero.",
-                },
-                "hours": {
-                    "type": "integer",
-                    "minimum": -876000,
-                    "maximum": 876000,
-                    "description": "Whole hours to add or subtract. Omit for zero.",
-                },
-                "minutes": {
-                    "type": "integer",
-                    "minimum": -52560000,
-                    "maximum": 52560000,
-                    "description": "Whole minutes to add or subtract. Omit for zero.",
+                    "description": "Optional IANA timezone. Omit it to use the server timezone.",
                 },
             },
-            "required": ["datetime"],
+            "required": ["reference", "offset", "unit"],
             "additionalProperties": False,
         },
     },
@@ -117,186 +83,155 @@ ADD_DURATION_TO_DATETIME_SCHEMA = {
 SET_REMINDER_MOCK_SCHEMA = {
     "type": "function",
     "function": {
-        "name": "set_reminder_mock",
+        "name": SET_REMINDER_MOCK,
         "description": (
-            "Create a simulated reminder after its exact datetime has been resolved. Use it only when the "
-            "visitor explicitly asks to set or create a reminder. It returns a mock reminder identifier "
-            "and the supplied datetime/message, but it does not persist data or schedule a real reminder."
+            "Create a simulated, non-persistent reminder when the visitor asks to be reminded. It never schedules "
+            "or sends a real notification."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "datetime": {
+                "reference": {
                     "type": "string",
-                    "description": "Fully resolved ISO-8601 reminder datetime including a timezone offset.",
+                    "description": (
+                        "Use 'now' for a relative reminder. Otherwise use the explicit date or time as ISO-8601."
+                    ),
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": (
+                        "Relative amount applied to reference. Examples: in 30 minutes=30 minutes, "
+                        "in two hours=2 hours, in seven days=7 days. Use 0 for an explicit absolute schedule."
+                    ),
+                },
+                "unit": {
+                    "type": "string",
+                    "enum": list(_OFFSET_UNITS),
+                    "description": "Unit for offset: minutes, hours, days, or weeks.",
                 },
                 "message": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 500,
-                    "description": "Short text describing what the simulated reminder should say.",
+                    "description": "Reminder text without scheduling instructions.",
+                },
+                "timezone": {
+                    "type": "string",
+                    "description": "Optional IANA timezone. Omit it to use the server timezone.",
                 },
             },
-            "required": ["datetime", "message"],
+            "required": ["reference", "offset", "unit", "message"],
             "additionalProperties": False,
         },
     },
 }
 
-TOOLS = [
+TOOL_SCHEMAS = (
     SEARCH_PORTFOLIO_SCHEMA,
-    GET_CURRENT_DATETIME_SCHEMA,
-    ADD_DURATION_TO_DATETIME_SCHEMA,
+    RESOLVE_DATETIME_SCHEMA,
     SET_REMINDER_MOCK_SCHEMA,
-]
+)
 
 
-async def search_portfolio(portfolio: Portfolio, query: str) -> dict[str, object]:
-    return {"facts": await portfolio.search(query)}
-
-
-def get_current_datetime(timezone: str | None = None) -> dict[str, object]:
-    zone = _zone(timezone or _default_timezone())
-    return _datetime_result(dt.datetime.now(zone), zone.key)
-
-
-def add_duration_to_datetime(
-    datetime: str,
-    days: int = 0,
-    hours: int = 0,
-    minutes: int = 0,
-    *,
-    default_timezone: str | None = None,
-) -> dict[str, object]:
-    timezone = default_timezone or _default_timezone()
-    value = _parse_datetime(datetime, timezone)
-    result = value + dt.timedelta(days=days, hours=hours, minutes=minutes)
-    zone_name = getattr(result.tzinfo, "key", None) or result.tzname() or timezone
-    return _datetime_result(result, zone_name)
-
-
-def set_reminder_mock(datetime: str, message: str) -> dict[str, object]:
-    value = _aware_datetime(datetime)
-    return {
-        "reminder_id": f"mock-{uuid4()}",
-        "datetime": value.isoformat(timespec="seconds"),
-        "message": message,
-        "status": "mock_created",
-        "persisted": False,
-    }
-
-
-async def run_tool_call(
-    call_id: str,
+async def execute_tool(
     name: str,
     raw_arguments: str,
     portfolio: Portfolio,
-) -> dict[str, str]:
+    *,
+    user_message: str | None = None,
+) -> dict[str, object]:
     try:
-        payload = json.loads(raw_arguments or "{}")
-        if not isinstance(payload, dict):
+        arguments = json.loads(raw_arguments or "{}")
+        if not isinstance(arguments, dict):
             raise ValueError("tool arguments must be a JSON object")
-        result = await _run_tool(name, payload, portfolio)
-        body: dict[str, object] = {"ok": True, "result": result}
+
+        if name == SEARCH_PORTFOLIO:
+            _only(arguments, set())
+            if not user_message or not user_message.strip():
+                raise ValueError("user_message is required for search_portfolio")
+            result = {"facts": await portfolio.search(user_message)}
+        elif name == RESOLVE_DATETIME:
+            _only(arguments, {"reference", "offset", "unit", "timezone"})
+            result = resolve_datetime(
+                reference=_required_string(arguments, "reference", max_length=100),
+                offset=_required_integer(arguments, "offset", minimum=-52560000, maximum=52560000),
+                unit=_required_choice(arguments, "unit", _OFFSET_UNITS),
+                timezone=_optional_timezone(arguments),
+            )
+        elif name == SET_REMINDER_MOCK:
+            _only(arguments, {"reference", "offset", "unit", "message", "timezone"})
+            result = set_reminder_mock(
+                reference=_required_string(arguments, "reference", max_length=100),
+                offset=_required_integer(arguments, "offset", minimum=-52560000, maximum=52560000),
+                unit=_required_choice(arguments, "unit", _OFFSET_UNITS),
+                message=_required_string(arguments, "message", max_length=500),
+                timezone=_optional_timezone(arguments),
+            )
+        else:
+            raise ValueError(f"unknown tool: {name}")
+
+        return {"ok": True, "result": result}
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
-        body = {
+        return {
             "ok": False,
             "error": {"type": "validation_error", "message": str(exc)},
         }
-    except Exception as exc:
-        body = {
+    except Exception:
+        logger.exception("tool execution failed: %s", name)
+        return {
             "ok": False,
-            "error": {"type": "tool_error", "message": str(exc)},
+            "error": {"type": "tool_error", "message": "tool execution failed"},
         }
 
+
+def resolve_datetime(
+    reference: str,
+    offset: int,
+    unit: str,
+    timezone: str | None = None,
+) -> dict[str, object]:
+    value, zone_name = _resolve_reference(reference, timezone)
+    return _datetime_result(value + _offset_delta(offset, unit), zone_name)
+
+
+def set_reminder_mock(
+    reference: str,
+    offset: int,
+    unit: str,
+    message: str,
+    timezone: str | None = None,
+) -> dict[str, object]:
+    value, _ = _resolve_reference(reference, timezone)
     return {
-        "role": "tool",
-        "tool_call_id": call_id,
-        "content": json.dumps(body, ensure_ascii=False),
+        "reminder_id": f"mock-{uuid4()}",
+        "datetime": (value + _offset_delta(offset, unit)).isoformat(timespec="seconds"),
+        "message": message,
+        "status": "simulated_only",
+        "persisted": False,
+        "will_notify": False,
     }
 
 
-async def _run_tool(
-    name: str,
-    payload: dict[str, Any],
-    portfolio: Portfolio,
-) -> object:
-    if name == "search_portfolio":
-        _only(payload, {"query"})
-        query = _required_string(payload, "query", max_length=500)
-        return await search_portfolio(portfolio, query)
+def _resolve_reference(reference: str, timezone: str | None) -> tuple[dt.datetime, str]:
+    zone_name = timezone or os.getenv("TZ", _DEFAULT_TIMEZONE)
+    if reference == "now":
+        zone = _zone(zone_name)
+        return dt.datetime.now(zone), zone.key
 
-    if name == "get_current_datetime":
-        _only(payload, {"timezone"})
-        timezone = payload.get("timezone")
-        if timezone is not None and not isinstance(timezone, str):
-            raise ValueError("timezone must be a string")
-        if isinstance(timezone, str) and not timezone.strip():
-            raise ValueError("timezone must not be empty")
-        return get_current_datetime(timezone)
-
-    if name == "add_duration_to_datetime":
-        _only(payload, {"datetime", "days", "hours", "minutes"})
-        datetime = _required_string(payload, "datetime")
-        days = _integer(payload, "days", default=0, minimum=-36500, maximum=36500)
-        hours = _integer(payload, "hours", default=0, minimum=-876000, maximum=876000)
-        minutes = _integer(
-            payload,
-            "minutes",
-            default=0,
-            minimum=-52560000,
-            maximum=52560000,
-        )
-        return add_duration_to_datetime(
-            datetime,
-            days=days,
-            hours=hours,
-            minutes=minutes,
-        )
-
-    if name == "set_reminder_mock":
-        _only(payload, {"datetime", "message"})
-        datetime = _required_string(payload, "datetime")
-        message = _required_string(payload, "message", max_length=500)
-        return set_reminder_mock(datetime, message)
-
-    raise ValueError(f"unknown tool: {name}")
+    value = _parse_datetime(reference, zone_name)
+    return value, getattr(value.tzinfo, "key", None) or value.tzname() or zone_name
 
 
-def _only(payload: dict[str, Any], allowed: set[str]) -> None:
-    extra = set(payload) - allowed
-    if extra:
-        raise ValueError(f"unexpected tool argument: {sorted(extra)[0]}")
-
-
-def _required_string(
-    payload: dict[str, Any],
-    name: str,
-    *,
-    max_length: int | None = None,
-) -> str:
-    value = payload.get(name)
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"{name} must be a non-empty string")
-    if max_length is not None and len(value) > max_length:
-        raise ValueError(f"{name} must be at most {max_length} characters")
-    return value
-
-
-def _integer(
-    payload: dict[str, Any],
-    name: str,
-    *,
-    default: int,
-    minimum: int,
-    maximum: int,
-) -> int:
-    value = payload.get(name, default)
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"{name} must be an integer")
-    if not minimum <= value <= maximum:
-        raise ValueError(f"{name} must be between {minimum} and {maximum}")
-    return value
+def _offset_delta(offset: int, unit: str) -> dt.timedelta:
+    if unit == "minutes":
+        return dt.timedelta(minutes=offset)
+    if unit == "hours":
+        return dt.timedelta(hours=offset)
+    if unit == "days":
+        return dt.timedelta(days=offset)
+    if unit == "weeks":
+        return dt.timedelta(weeks=offset)
+    raise ValueError(f"unit must be one of: {', '.join(_OFFSET_UNITS)}")
 
 
 def _datetime_result(value: dt.datetime, timezone: str) -> dict[str, object]:
@@ -317,26 +252,11 @@ def _parse_datetime(value: str, timezone: str) -> dt.datetime:
             return dt.datetime.combine(dt.date.fromisoformat(value), dt.time.min, zone)
         parsed = dt.datetime.fromisoformat(value)
     except ValueError as exc:
-        raise ValueError("datetime must be valid ISO-8601") from exc
+        raise ValueError("reference must be 'now' or valid ISO-8601") from exc
 
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         return parsed.replace(tzinfo=zone)
     return parsed
-
-
-def _aware_datetime(value: str) -> dt.datetime:
-    try:
-        parsed = dt.datetime.fromisoformat(value)
-    except ValueError as exc:
-        raise ValueError("datetime must be valid ISO-8601") from exc
-
-    if parsed.tzinfo is None or parsed.utcoffset() is None:
-        raise ValueError("datetime must include a timezone offset")
-    return parsed
-
-
-def _default_timezone() -> str:
-    return os.getenv("TZ", _DEFAULT_TIMEZONE)
 
 
 def _zone(name: str) -> ZoneInfo:
@@ -344,3 +264,61 @@ def _zone(name: str) -> ZoneInfo:
         return ZoneInfo(name)
     except ZoneInfoNotFoundError as exc:
         raise ValueError(f"unknown timezone: {name}") from exc
+
+
+def _optional_timezone(arguments: dict[str, Any]) -> str | None:
+    value = arguments.get("timezone")
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("timezone must be a non-empty string")
+    _zone(value)
+    return value
+
+
+def _only(arguments: dict[str, Any], allowed: set[str]) -> None:
+    extra = set(arguments) - allowed
+    if extra:
+        raise ValueError(f"unexpected tool argument: {sorted(extra)[0]}")
+
+
+def _required_string(
+    arguments: dict[str, Any],
+    name: str,
+    *,
+    max_length: int | None = None,
+) -> str:
+    value = arguments.get(name)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} must be a non-empty string")
+    if max_length is not None and len(value) > max_length:
+        raise ValueError(f"{name} must be at most {max_length} characters")
+    return value
+
+
+def _required_integer(
+    arguments: dict[str, Any],
+    name: str,
+    *,
+    minimum: int,
+    maximum: int,
+) -> int:
+    if name not in arguments:
+        raise ValueError(f"{name} is required")
+    value = arguments[name]
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{name} must be an integer")
+    if not minimum <= value <= maximum:
+        raise ValueError(f"{name} must be between {minimum} and {maximum}")
+    return value
+
+
+def _required_choice(
+    arguments: dict[str, Any],
+    name: str,
+    allowed: tuple[str, ...],
+) -> str:
+    value = arguments.get(name)
+    if value not in allowed:
+        raise ValueError(f"{name} must be one of: {', '.join(allowed)}")
+    return str(value)

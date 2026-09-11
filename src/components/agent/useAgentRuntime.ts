@@ -21,12 +21,14 @@ export type AgentEvent =
       round: number;
       ok?: boolean;
     }
+  | { type: "conversation"; conversationId: string }
   | { type: "context"; messages: AgentContextMessage[] };
 
 export interface AgentProvider {
   ask(
     question: string,
     context: ReadonlyArray<AgentContextMessage>,
+    conversationId: string | null,
   ): AsyncIterable<AgentEvent | string>;
 }
 
@@ -61,6 +63,7 @@ export function useAgentRuntime(
   const error = ref<string | null>(null);
   const flow = ref<string[]>([]);
   const context = shallowRef<AgentContextMessage[]>([]);
+  const conversationId = shallowRef<string | null>(null);
   const nextId = shallowRef(1);
 
   let replyId = -1;
@@ -190,6 +193,11 @@ export function useAgentRuntime(
       return false;
     }
 
+    if (typeof event !== "string" && event.type === "conversation") {
+      conversationId.value = event.conversationId;
+      return false;
+    }
+
     if (typeof event !== "string" && event.type === "context") {
       context.value = event.messages;
       return false;
@@ -224,7 +232,11 @@ export function useAgentRuntime(
     let receivedContent = false;
 
     try {
-      for await (const event of provider.ask(question, context.value)) {
+      for await (const event of provider.ask(
+        question,
+        context.value,
+        conversationId.value,
+      )) {
         receivedContent = handleEvent(event) || receivedContent;
       }
 
@@ -258,6 +270,7 @@ export function useAgentRuntime(
     resolve?.();
     messages.value = [];
     context.value = [];
+    conversationId.value = null;
     draft.value = "";
     error.value = null;
     flow.value = [];

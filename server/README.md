@@ -1,53 +1,65 @@
 # Portfolio assistant
 
-This server is a small OpenAI-compatible agent running on Qwen through llama.cpp.
+Small local portfolio/CV assistant with an explicit, Go-like runtime.
 
-## Runtime flow
+## Runtime
 
 ```text
 POST /v1/chat/stream
+  -> ConversationStore
   -> Agent
-      -> Qwen
-          -> final answer
-          -> or tool_calls
-              -> execute tools
-              -> append assistant tool_calls + matching tool results
-              -> Qwen again
+      -> Qwen + [search_portfolio, resolve_datetime, set_reminder_mock]
+      -> final text: stream tokens to the visitor
+      -> tool call: execute -> append result -> next Qwen round
   -> SSE response
 ```
 
-Available tools:
+There is one agent, one system prompt and one bounded tool loop. There is no classifier, domain routing, worker abstraction, supervisor, planner, critic, graph, semantic tool search, reranker or agent framework.
+
+## Models
+
+```text
+Qwen3.5-4B / Qwen3.5-4B-UD-Q4_K_XL.gguf
+Qwen3-Embedding-0.6B / Qwen3-Embedding-0.6B-Q8_0.gguf
+```
+
+llama.cpp serves both models. Thinking is disabled for Qwen. Embeddings are used only by `search_portfolio`.
+
+## Production tools
 
 ```text
 search_portfolio
-get_current_datetime
-add_duration_to_datetime
+resolve_datetime
 set_reminder_mock
 ```
 
-`set_reminder_mock` is intentionally non-persistent. It exists to exercise a safe multi-round tool chain without adding a scheduler, database or calendar.
+`app/tools.py` contains the model-facing schemas, validation and explicit dispatch. There is no secondary tool registry.
 
-## Application files
+## Core files
 
 ```text
-app/main.py        # composition and FastAPI
-app/api/router.py  # HTTP/SSE boundary
-app/agent.py       # explicit bounded tool loop
-app/tools.py       # explicit schemas, validation and tool execution
-app/portfolio.py   # portfolio retrieval
-app/prompt.py      # production prompt
-app/config.py      # application environment configuration
+app/main.py          composition root / FastAPI
+app/api/router.py    HTTP + SSE boundary
+app/agent.py         streamed model/tool loop
+app/tools.py         tool schemas, validation and execution
+app/prompt.py        system prompt
+app/conversation.py  bounded in-memory conversation state
+app/portfolio.py     portfolio retrieval
+app/trace.py         diagnostics only
+app/config.py        environment configuration
 ```
 
-There is no planner, graph, tool registry, agent framework or server-side conversation store. The browser round-trips a bounded hidden OpenAI-compatible conversation context with each request, including assistant `tool_calls`, tool results, and final assistant messages.
-
-Date/time fallback configuration belongs to the date capability through the standard `TZ` environment variable. It is not Agent state. Qwen thinking mode is disabled; operational model execution is reported separately from model reasoning.
-
-## Run
+## Commands
 
 ```bash
-cp .env.example .env
-make up
+make install     # Python dependencies
+make models      # verified GGUF downloads
+make test        # deterministic tests
+make up          # local stack
+make eval        # Promptfoo regression suite
+make eval-edge   # repeated edge cases
+make eval-view   # Promptfoo local viewer
+make verify      # test + models + stack + regression eval
 ```
 
-API: `http://localhost:8000`
+Promptfoo is isolated under `evals/` and is not a production dependency. Its configuration, frozen baseline and case lifecycle are documented in `evals/README.md`.
