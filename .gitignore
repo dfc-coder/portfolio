@@ -8,6 +8,7 @@ dist/
 server/models/
 server/uv.lock
 server/evals/.promptfoo/
+server/evals/results/
 *.gguf
 __pycache__/
 .pytest_cache/
