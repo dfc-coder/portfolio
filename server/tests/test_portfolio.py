@@ -8,8 +8,10 @@ from app.portfolio import Portfolio
 class FakeEmbeddings:
     def __init__(self) -> None:
         self.embeddings = self
+        self.inputs: list[list[str]] = []
 
     async def create(self, *, model: str, input: list[str]):
+        self.inputs.append(input)
         return SimpleNamespace(
             data=[
                 SimpleNamespace(index=index, embedding=[1.0, 0.0])
@@ -22,6 +24,7 @@ class FakeEmbeddings:
 async def test_exact_technology_evidence_is_preferred() -> None:
     portfolio = Portfolio(
         {
+            "owner": {"name": "Diego Fernando Cano"},
             "skills": {"programming_languages": ["Python", "Rust", "Go"]},
             "experience": [
                 {"name": "Cloud delivery", "summary": "AWS and CI/CD delivery."},
@@ -33,7 +36,7 @@ async def test_exact_technology_evidence_is_preferred() -> None:
         max_documents=1,
     )
 
-    facts = await portfolio.search("Does he have experience with Rust?")
+    facts = await portfolio.search("¿Diego tiene experiencia con Rust?")
 
     assert len(facts) == 1
     assert facts[0]["source"] == "skills.programming_languages"
@@ -41,21 +44,36 @@ async def test_exact_technology_evidence_is_preferred() -> None:
 
 
 @pytest.mark.asyncio
-async def test_short_technology_name_is_not_dropped() -> None:
+async def test_original_message_is_used_for_semantic_query() -> None:
+    embeddings = FakeEmbeddings()
+    portfolio = Portfolio(
+        {"skills": {"programming_languages": ["Go"]}},
+        embeddings,
+        model="embedding",
+    )
+    message = "¿Diego usa Go?"
+
+    await portfolio.search(message)
+
+    assert embeddings.inputs[-1] == [
+        "Instruct: Given a visitor question about a professional portfolio, retrieve specific portfolio "
+        "passages that provide direct evidence needed to answer it.\nQuery: ¿Diego usa Go?"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_subject_name_does_not_displace_exact_technology() -> None:
     portfolio = Portfolio(
         {
+            "owner": {"name": "Diego Fernando Cano"},
             "skills": {"programming_languages": ["Python", "Rust", "Go"]},
-            "languages": [
-                {"language": "Español", "level": "Nativo"},
-                {"language": "Inglés", "level": "A2"},
-            ],
         },
         FakeEmbeddings(),
         model="embedding",
         max_documents=1,
     )
 
-    facts = await portfolio.search("Go programming language")
+    facts = await portfolio.search("¿Diego usa Go?")
 
     assert len(facts) == 1
     assert facts[0]["source"] == "skills.programming_languages"
