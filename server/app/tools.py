@@ -146,6 +146,8 @@ async def execute_tool(
     name: str,
     raw_arguments: str,
     portfolio: Portfolio,
+    *,
+    user_query: str | None = None,
 ) -> dict[str, object]:
     try:
         arguments = json.loads(raw_arguments or "{}")
@@ -154,11 +156,12 @@ async def execute_tool(
 
         if name == SEARCH_PORTFOLIO:
             _only(arguments, {"query"})
-            result = {
-                "facts": await portfolio.search(
-                    _required_string(arguments, "query", max_length=500)
-                )
-            }
+            search_query = _required_string(arguments, "query", max_length=500)
+            if user_query is None:
+                facts = await portfolio.search(search_query)
+            else:
+                facts = await portfolio.search(search_query, user_query=user_query)
+            result = {"facts": facts}
         elif name == RESOLVE_DATETIME:
             _only(arguments, {"reference", "offset", "unit", "timezone"})
             result = resolve_datetime(
