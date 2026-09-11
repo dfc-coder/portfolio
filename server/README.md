@@ -57,7 +57,7 @@ Deterministic runtime and integration tests:
 make check
 ```
 
-Start the local runtime before live Qwen validation:
+Start the local runtime:
 
 ```bash
 make models
@@ -65,13 +65,21 @@ make up
 make eval-ready
 ```
 
-Then run:
+Promptfoo is the external behavioral evaluator. It is isolated under `evals/` and is not a production dependency.
 
 ```bash
-make eval-smoke       # quick check only
-make eval-strict      # development set
-make eval-stability   # 20 critical cases x 5 runs
-make eval-holdout     # run only after prompt/runtime are frozen
+make eval       # stable regression cases
+make eval-edge  # repeated edge cases
+make eval-view  # local result viewer on http://localhost:3000
 ```
 
-Acceptance criteria are defined in `../docs/portfolio-assistant/DOD-agent-runtime-minimo.md`.
+The previous Python evaluator is temporarily retained only for calibration and comparison:
+
+```bash
+make eval-legacy
+make eval-legacy-strict
+```
+
+Promptfoo design, frozen baseline and case lifecycle are documented in `evals/README.md`.
+
+Acceptance criteria for the minimal runtime are defined in `../docs/portfolio-assistant/DOD-agent-runtime-minimo.md`.
