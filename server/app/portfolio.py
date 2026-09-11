@@ -86,10 +86,6 @@ class Portfolio:
         self._documents = self._build_documents(profile)
         self._vectors: list[list[float]] | None = None
 
-        owner = profile.get("owner")
-        owner_name = owner.get("name") if isinstance(owner, dict) else None
-        self._subject_terms = self._terms(owner_name) if isinstance(owner_name, str) else set()
-
         self._lexical_documents = [
             Counter(self._tokens(self._search_text(source, text)))
             for source, text in self._documents
@@ -108,19 +104,22 @@ class Portfolio:
 
     async def search(self, query: str) -> list[dict[str, str]]:
         await self.warm()
-        assert self._vectors is not None
+
+        vectors = self._vectors
+        if vectors is None:
+            raise RuntimeError("portfolio vectors are not initialized")
 
         query = query.strip()
         query_vector = (await self._embed([f"{_QUERY_PREFIX}{query}"]))[0]
         query_terms = {
             term
             for term in self._tokens(query)
-            if term not in _STOPWORDS and term not in self._subject_terms
+            if term not in _STOPWORDS
         }
 
         semantic_scores = [
             self._cosine(query_vector, vector)
-            for vector in self._vectors
+            for vector in vectors
         ]
         lexical_scores = [
             self._bm25(query_terms, document_terms)
@@ -266,10 +265,6 @@ class Portfolio:
             for term in re.findall(r"[\w.+#-]+", normalized)
             if len(term) >= 2
         ]
-
-    @classmethod
-    def _terms(cls, text: str) -> set[str]:
-        return set(cls._tokens(text))
 
     @staticmethod
     def _cosine(left: list[float], right: list[float]) -> float:
