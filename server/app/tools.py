@@ -27,7 +27,9 @@ SEARCH_PORTFOLIO_SCHEMA = {
         "description": (
             "Search factual professional information about the portfolio subject needed to answer the current "
             "visitor message. Use it before stating claims about experience, skills, projects, education, "
-            "certifications, services, or professional background. Do not use it for general knowledge."
+            "certifications, services, or professional background. Do not use it for general knowledge. "
+            "Takes no arguments: the backend always searches using the visitor's exact message, so no query "
+            "needs to be provided."
         ),
         "parameters": {
             "type": "object",
@@ -152,12 +154,7 @@ async def execute_tool(
             _only(arguments, {"reference", "offset", "unit", "timezone"})
             result = resolve_datetime(
                 reference=_required_string(arguments, "reference", max_length=100),
-                offset=_required_integer(
-                    arguments,
-                    "offset",
-                    minimum=-52560000,
-                    maximum=52560000,
-                ),
+                offset=_required_integer(arguments, "offset", minimum=-52560000, maximum=52560000),
                 unit=_required_choice(arguments, "unit", _OFFSET_UNITS),
                 timezone=_optional_timezone(arguments),
             )
@@ -165,12 +162,7 @@ async def execute_tool(
             _only(arguments, {"reference", "offset", "unit", "message", "timezone"})
             result = set_reminder_mock(
                 reference=_required_string(arguments, "reference", max_length=100),
-                offset=_required_integer(
-                    arguments,
-                    "offset",
-                    minimum=-52560000,
-                    maximum=52560000,
-                ),
+                offset=_required_integer(arguments, "offset", minimum=-52560000, maximum=52560000),
                 unit=_required_choice(arguments, "unit", _OFFSET_UNITS),
                 message=_required_string(arguments, "message", max_length=500),
                 timezone=_optional_timezone(arguments),
