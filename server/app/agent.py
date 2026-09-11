@@ -77,7 +77,6 @@ class Agent:
                         "top_k": self._top_k,
                         "min_p": self._min_p,
                         "repeat_penalty": self._repeat_penalty,
-                        "cache_prompt": True,
                     },
                 )
 
