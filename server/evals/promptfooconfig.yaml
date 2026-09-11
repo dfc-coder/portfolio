@@ -29,6 +29,12 @@ defaultTest:
           effort: low
         max_output_tokens: 512
         store: false
+        # Provider-native prompt caching. This is independent from Promptfoo's
+        # result cache, which stays disabled so every eval executes fresh calls.
+        prompt_cache_key: portfolio-eval-judge-v1
+        prompt_cache_options:
+          mode: implicit
+          ttl: 30m
 
 tests:
   - file://cases.yaml
