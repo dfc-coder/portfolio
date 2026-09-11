@@ -71,11 +71,9 @@ class FakeChat:
 class FakePortfolio:
     def __init__(self) -> None:
         self.queries = []
-        self.user_queries = []
 
-    async def search(self, query: str, *, user_query: str | None = None):
+    async def search(self, query: str):
         self.queries.append(query)
-        self.user_queries.append(user_query)
         return [{"source": "projects.0", "text": "Rust"}]
 
 
@@ -107,7 +105,7 @@ async def test_direct_answer_streams_token_by_token_without_tool() -> None:
 
 
 @pytest.mark.asyncio
-async def test_tool_round_is_internal_then_final_answer_streams() -> None:
+async def test_tool_round_uses_original_user_message_for_portfolio() -> None:
     chat = FakeChat(
         [
             [
@@ -117,7 +115,7 @@ async def test_tool_round_is_internal_then_final_answer_streams() -> None:
                             0,
                             call_id="call-1",
                             name="search_portfolio",
-                            arguments='{"query":"Rust"}',
+                            arguments="{}",
                         )
                     ],
                     finish_reason="tool_calls",
@@ -132,10 +130,10 @@ async def test_tool_round_is_internal_then_final_answer_streams() -> None:
     events = [event async for event in agent.respond("¿Diego usa Rust?", [])]
 
     assert token_payloads(events) == ["Diego ", "usa Rust."]
-    assert portfolio.queries == ["Rust"]
-    assert portfolio.user_queries == ["¿Diego usa Rust?"]
+    assert portfolio.queries == ["¿Diego usa Rust?"]
     second_messages = chat.chat.completions.requests[1]["messages"]
     assert second_messages[-2]["tool_calls"][0]["id"] == "call-1"
+    assert second_messages[-2]["tool_calls"][0]["function"]["arguments"] == "{}"
     assert second_messages[-1]["role"] == "tool"
     assert second_messages[-1]["tool_call_id"] == "call-1"
 
@@ -151,7 +149,7 @@ async def test_fragmented_tool_call_is_reconstructed() -> None:
                             0,
                             call_id="call-",
                             name="search_",
-                            arguments='{"query":"',
+                            arguments="{",
                         )
                     ]
                 ),
@@ -161,7 +159,7 @@ async def test_fragmented_tool_call_is_reconstructed() -> None:
                             0,
                             call_id="1",
                             name="portfolio",
-                            arguments='Rust"}',
+                            arguments="}",
                         )
                     ],
                     finish_reason="tool_calls",
@@ -176,8 +174,7 @@ async def test_fragmented_tool_call_is_reconstructed() -> None:
     events = [event async for event in agent.respond("consulta", [])]
 
     assert token_payloads(events) == ["ok"]
-    assert portfolio.queries == ["Rust"]
-    assert portfolio.user_queries == ["consulta"]
+    assert portfolio.queries == ["consulta"]
 
 
 @pytest.mark.asyncio
@@ -228,7 +225,7 @@ async def test_tool_loop_is_bounded() -> None:
                     0,
                     call_id="call-x",
                     name="search_portfolio",
-                    arguments='{"query":"Rust"}',
+                    arguments="{}",
                 )
             ],
             finish_reason="tool_calls",
@@ -262,7 +259,7 @@ async def test_context_is_sent_and_returned() -> None:
 
 
 @pytest.mark.asyncio
-async def test_diagnostics_records_tools_without_changing_runtime() -> None:
+async def test_diagnostics_records_zero_argument_portfolio_tool() -> None:
     chat = FakeChat(
         [
             [
@@ -272,7 +269,7 @@ async def test_diagnostics_records_tools_without_changing_runtime() -> None:
                             0,
                             call_id="call-1",
                             name="search_portfolio",
-                            arguments='{"query":"Rust"}',
+                            arguments="{}",
                         )
                     ],
                     finish_reason="tool_calls",
@@ -288,7 +285,7 @@ async def test_diagnostics_records_tools_without_changing_runtime() -> None:
     trace = next(payload for event, payload in events if event == "trace")
     assert trace["status"] == "ok"
     assert trace["rounds"][0]["tool_calls"][0]["name"] == "search_portfolio"
-    assert trace["rounds"][0]["tool_calls"][0]["arguments"] == {"query": "Rust"}
+    assert trace["rounds"][0]["tool_calls"][0]["arguments"] == {}
     assert trace["output"] == "final"
 
 
