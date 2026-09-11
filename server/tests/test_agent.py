@@ -71,9 +71,11 @@ class FakeChat:
 class FakePortfolio:
     def __init__(self) -> None:
         self.queries = []
+        self.user_queries = []
 
-    async def search(self, query: str):
+    async def search(self, query: str, *, user_query: str | None = None):
         self.queries.append(query)
+        self.user_queries.append(user_query)
         return [{"source": "projects.0", "text": "Rust"}]
 
 
@@ -131,6 +133,7 @@ async def test_tool_round_is_internal_then_final_answer_streams() -> None:
 
     assert token_payloads(events) == ["Diego ", "usa Rust."]
     assert portfolio.queries == ["Rust"]
+    assert portfolio.user_queries == ["¿Diego usa Rust?"]
     second_messages = chat.chat.completions.requests[1]["messages"]
     assert second_messages[-2]["tool_calls"][0]["id"] == "call-1"
     assert second_messages[-1]["role"] == "tool"
@@ -174,6 +177,7 @@ async def test_fragmented_tool_call_is_reconstructed() -> None:
 
     assert token_payloads(events) == ["ok"]
     assert portfolio.queries == ["Rust"]
+    assert portfolio.user_queries == ["consulta"]
 
 
 @pytest.mark.asyncio
