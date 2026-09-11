@@ -49,7 +49,7 @@ Promptfoo
   -> built-in Promptfoo assertions
 ```
 
-`sse-transform.js` only translates the portfolio SSE protocol. It contains no pass/fail business rules.
+`sse-transform.js` only translates the portfolio SSE protocol. It contains no pass/fail business rules. Retrieval facts are extracted from the returned conversation context, which is part of the normal API contract. If a diagnostics trace is available, the adapter can use it as the richer source instead.
 
 ## Grading
 
@@ -74,15 +74,15 @@ Known unstable behavior:
 
 If the local judge cannot distinguish those known cases, only the grader provider is replaced. The dataset, SSE adapter, product API and Promptfoo harness remain unchanged.
 
-## Required local setup
+## Optional local diagnostics
 
-`server/.env` must contain a non-empty diagnostics token because retrieval context is read from the diagnostic trace:
+`server/.env` may contain a non-empty diagnostics token if you also want the evaluator to capture the internal diagnostic trace:
 
 ```text
 AGENT_DIAGNOSTICS_TOKEN=some-local-only-value
 ```
 
-The token is only for local evaluation and must remain empty in deployed environments.
+This is optional for normal evaluation. The evaluator obtains retrieval context from the normal SSE `context` event when no trace is exposed. Keep the token empty in deployed environments unless diagnostics are explicitly required.
 
 ## Commands
 
