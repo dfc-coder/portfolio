@@ -11,5 +11,6 @@ services:
     volumes:
       - ./evals:/work:ro,Z
       - ./evals/.promptfoo:/home/promptfoo/.promptfoo:Z
+      - ./evals/results:/results:Z
     ports:
       - "127.0.0.1:3000:3000"
