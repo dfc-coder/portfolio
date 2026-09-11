@@ -3,6 +3,17 @@
 ENGINE ?= $(shell if command -v podman >/dev/null 2>&1; then echo podman; elif command -v docker >/dev/null 2>&1; then echo docker; else echo none; fi)
 COMPOSE = $(ENGINE) compose
 EVAL_COMPOSE = $(COMPOSE) -f compose.yaml -f evals/compose.yaml
+HOST_UID := $(shell id -u)
+HOST_GID := $(shell id -g)
+
+ifeq ($(ENGINE),podman)
+# Rootless Podman maps container root to the invoking host user, so files written
+# to the bind-mounted Promptfoo state directory keep the correct host ownership.
+EVAL_USER = --user 0:0
+else
+# Docker can run with the invoking host UID/GID so the bind-mounted state remains writable.
+EVAL_USER = --user $(HOST_UID):$(HOST_GID)
+endif
 
 install:
 	uv sync --extra test
@@ -39,21 +50,21 @@ eval-ready:
 	exit 1
 
 eval: eval-ready
-	$(EVAL_COMPOSE) run --rm promptfoo promptfoo eval \
+	$(EVAL_COMPOSE) run --rm $(EVAL_USER) promptfoo promptfoo eval \
 		-c promptfooconfig.yaml \
 		--filter-pattern '^REG:' \
 		--no-cache \
 		--table
 
 eval-edge: eval-ready
-	$(EVAL_COMPOSE) run --rm promptfoo promptfoo eval \
+	$(EVAL_COMPOSE) run --rm $(EVAL_USER) promptfoo promptfoo eval \
 		-c promptfooconfig.yaml \
 		--filter-pattern '^EDGE:' \
 		--no-cache \
 		--table
 
 eval-view:
-	$(EVAL_COMPOSE) run --rm --service-ports promptfoo promptfoo view \
+	$(EVAL_COMPOSE) run --rm $(EVAL_USER) --service-ports promptfoo promptfoo view \
 		/home/promptfoo/.promptfoo -n -p 3000
 
 verify: test models
