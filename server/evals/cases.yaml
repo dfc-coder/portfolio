@@ -1,0 +1,240 @@
+- description: "REG: portfolio_go"
+  vars:
+    query: "¿Diego usa Go?"
+  assert:
+    - type: llm-rubric
+      metric: correctness
+      transform: output.answer
+      threshold: 0.8
+      value: >-
+        The answer must clearly confirm that Diego uses Go and must identify Xarlatan as a Go project.
+        It must not claim that Go is unconfirmed.
+    - type: context-recall
+      metric: context_recall
+      value: "Diego uses Go, and Xarlatan is implemented in Go."
+      contextTransform: 'output.context.join("\n")'
+      threshold: 0.8
+    - type: context-faithfulness
+      metric: faithfulness
+      transform: output.answer
+      contextTransform: 'output.context.join("\n")'
+      threshold: 0.9
+    - type: contains
+      metric: tool_selection
+      transform: 'output.tools.map(t => t.name).join(",")'
+      value: search_portfolio
+
+- description: "REG: portfolio_rust"
+  vars:
+    query: "¿Diego tiene experiencia con Rust?"
+  assert:
+    - type: llm-rubric
+      metric: correctness
+      transform: output.answer
+      threshold: 0.8
+      value: >-
+        The answer must confirm Rust experience and give concrete portfolio evidence.
+        A complete answer should identify PocketTrace, ecTask, and System-G as Rust projects.
+        Do not infer Rust usage from unrelated job descriptions.
+    - type: context-recall
+      metric: context_recall
+      value: "Diego uses Rust. PocketTrace, ecTask, and System-G are Rust projects in the portfolio."
+      contextTransform: 'output.context.join("\n")'
+      threshold: 0.9
+    - type: context-faithfulness
+      metric: faithfulness
+      transform: output.answer
+      contextTransform: 'output.context.join("\n")'
+      threshold: 0.9
+    - type: contains
+      metric: tool_selection
+      transform: 'output.tools.map(t => t.name).join(",")'
+      value: search_portfolio
+
+- description: "REG: portfolio_systemg"
+  vars:
+    query: "¿Qué es System-G o Growntrol?"
+  assert:
+    - type: llm-rubric
+      metric: correctness
+      transform: output.answer
+      threshold: 0.8
+      value: >-
+        The answer must describe System-G (Growntrol) as an ESP32-oriented control system with a Rust domain core.
+        It should mention its deterministic control approach and may mention TDD, state machines, sensing, lighting, fan hysteresis, or irrigation.
+        It must not replace the portfolio project with an unrelated meaning of System-G.
+    - type: context-recall
+      metric: context_recall
+      value: "System-G (Growntrol) is an ESP32-oriented control system with a Rust domain core, TDD, state machines, and deterministic control."
+      contextTransform: 'output.context.join("\n")'
+      threshold: 0.8
+    - type: context-faithfulness
+      metric: faithfulness
+      transform: output.answer
+      contextTransform: 'output.context.join("\n")'
+      threshold: 0.9
+    - type: contains
+      metric: tool_selection
+      transform: 'output.tools.map(t => t.name).join(",")'
+      value: search_portfolio
+
+- description: "REG: portfolio_education"
+  vars:
+    query: "¿Qué estudió Diego?"
+  assert:
+    - type: llm-rubric
+      metric: correctness
+      transform: output.answer
+      threshold: 0.8
+      value: >-
+        The answer must cover all education entries present in the portfolio: Full Stack Development at Henry Bootcamp,
+        Industrial Product Design at SENA, and Systems Engineering at Universidad del Valle, noting that Systems Engineering was not completed.
+    - type: context-recall
+      metric: context_recall
+      value: >-
+        Diego studied Full Stack Development at Henry Bootcamp, Industrial Product Design at SENA,
+        and Systems Engineering at Universidad del Valle; the Systems Engineering program was not completed.
+      contextTransform: 'output.context.join("\n")'
+      threshold: 0.9
+    - type: context-faithfulness
+      metric: faithfulness
+      transform: output.answer
+      contextTransform: 'output.context.join("\n")'
+      threshold: 0.9
+    - type: contains
+      metric: tool_selection
+      transform: 'output.tools.map(t => t.name).join(",")'
+      value: search_portfolio
+
+- description: "REG: portfolio_owasp_cert"
+  vars:
+    query: "¿Tiene alguna certificación de seguridad?"
+  assert:
+    - type: llm-rubric
+      metric: correctness
+      transform: output.answer
+      threshold: 0.8
+      value: >-
+        The answer must state that the portfolio includes the OWASP Top 10 Secure Coding certification.
+        It must not say that no security certification is present.
+    - type: context-recall
+      metric: context_recall
+      value: "The portfolio includes the OWASP Top 10 Secure Coding certification."
+      contextTransform: 'output.context.join("\n")'
+      threshold: 0.9
+    - type: context-faithfulness
+      metric: faithfulness
+      transform: output.answer
+      contextTransform: 'output.context.join("\n")'
+      threshold: 0.9
+    - type: contains
+      metric: tool_selection
+      transform: 'output.tools.map(t => t.name).join(",")'
+      value: search_portfolio
+
+- description: "REG: mixed_thanks_capability"
+  vars:
+    query: "Gracias. Y decime, ¿qué podés hacer?"
+  assert:
+    - type: llm-rubric
+      metric: correctness
+      transform: output.answer
+      threshold: 0.8
+      value: >-
+        The answer must directly explain the assistant's capabilities: portfolio lookup, date/time calculations,
+        and simulated reminders. It should answer the capability question rather than only acknowledging the thanks.
+    - type: equals
+      metric: tool_selection
+      transform: 'output.tools.length'
+      value: 0
+
+- description: "REG: mixed_two_portfolio_facts"
+  vars:
+    query: "¿Diego usa Rust y Go?"
+  assert:
+    - type: llm-rubric
+      metric: correctness
+      transform: output.answer
+      threshold: 0.8
+      value: >-
+        The answer must correctly confirm both Rust and Go using portfolio evidence.
+        Rust evidence may include System-G, PocketTrace, or ecTask, and Go evidence should include Xarlatan.
+        One or multiple portfolio searches are both acceptable.
+    - type: context-recall
+      metric: context_recall
+      value: "The portfolio confirms Rust through System-G, PocketTrace, and ecTask, and confirms Go through Xarlatan."
+      contextTransform: 'output.context.join("\n")'
+      threshold: 0.8
+    - type: context-faithfulness
+      metric: faithfulness
+      transform: output.answer
+      contextTransform: 'output.context.join("\n")'
+      threshold: 0.9
+    - type: contains
+      metric: tool_selection
+      transform: 'output.tools.map(t => t.name).join(",")'
+      value: search_portfolio
+
+- description: "EDGE: capabilities_after_thanks"
+  vars:
+    query: "Gracias por eso. Antes de seguir, ¿qué cosas podés hacer vos acá?"
+  options:
+    repeat: 5
+  assert:
+    - type: llm-rubric
+      metric: correctness
+      transform: output.answer
+      threshold: 0.8
+      value: >-
+        The answer must explain the assistant's capabilities without retrieving portfolio facts.
+        It should cover portfolio lookup, date/time calculations, and simulated reminders.
+    - type: equals
+      metric: tool_selection
+      transform: 'output.tools.length'
+      value: 0
+
+- description: "EDGE: rust_and_go_split_question"
+  vars:
+    query: "¿Diego trabaja con Rust? ¿Y con Go?"
+  options:
+    repeat: 5
+  assert:
+    - type: llm-rubric
+      metric: correctness
+      transform: output.answer
+      threshold: 0.8
+      value: >-
+        The answer must answer both parts. It must confirm Rust and Go from portfolio evidence and give concrete evidence for each.
+        The number of portfolio searches is not part of the grading criterion.
+    - type: context-recall
+      metric: context_recall
+      value: "The portfolio confirms Rust through Rust projects and Go through Xarlatan."
+      contextTransform: 'output.context.join("\n")'
+      threshold: 0.8
+    - type: contains
+      metric: tool_selection
+      transform: 'output.tools.map(t => t.name).join(",")'
+      value: search_portfolio
+
+- description: "EDGE: named_project_without_owner"
+  vars:
+    query: "¿Qué es System-G?"
+  options:
+    repeat: 5
+  assert:
+    - type: llm-rubric
+      metric: correctness
+      transform: output.answer
+      threshold: 0.8
+      value: >-
+        System-G is a named portfolio project in this application. The answer must retrieve portfolio evidence and describe
+        the ESP32-oriented Rust control system. It must not answer with an unrelated general-knowledge meaning.
+    - type: context-recall
+      metric: context_recall
+      value: "System-G is the ESP32-oriented Rust control project in the portfolio."
+      contextTransform: 'output.context.join("\n")'
+      threshold: 0.8
+    - type: contains
+      metric: tool_selection
+      transform: 'output.tools.map(t => t.name).join(",")'
+      value: search_portfolio
