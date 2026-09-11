@@ -1,0 +1,14 @@
+services:
+  promptfoo:
+    image: ghcr.io/promptfoo/promptfoo:0.122.2
+    working_dir: /work
+    environment:
+      AGENT_DIAGNOSTICS_TOKEN: ${AGENT_DIAGNOSTICS_TOKEN:-}
+      PROMPTFOO_CONFIG_DIR: /home/promptfoo/.promptfoo
+      PROMPTFOO_DISABLE_UPDATE: "true"
+      PROMPTFOO_ASSERTIONS_MAX_CONCURRENCY: "1"
+    volumes:
+      - ./evals:/work:ro,Z
+      - ./evals/.promptfoo:/home/promptfoo/.promptfoo:Z
+    ports:
+      - "127.0.0.1:3000:3000"
