@@ -7,7 +7,9 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       PROMPTFOO_CONFIG_DIR: /home/promptfoo/.promptfoo
       PROMPTFOO_DISABLE_UPDATE: "true"
-      PROMPTFOO_ASSERTIONS_MAX_CONCURRENCY: "3"
+      # A single model-graded assertion per case keeps the first explicit cache
+      # write ahead of subsequent judge calls and avoids unnecessary burst routing.
+      PROMPTFOO_ASSERTIONS_MAX_CONCURRENCY: "1"
     volumes:
       - ./evals:/work:ro,Z
       - ./evals/.promptfoo:/home/promptfoo/.promptfoo:Z
