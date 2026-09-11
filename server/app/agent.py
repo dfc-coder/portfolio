@@ -165,7 +165,7 @@ class Agent:
                         call["name"],
                         call["arguments"],
                         self._portfolio,
-                        user_query=message,
+                        user_message=message,
                     )
                     tool_message = {
                         "role": "tool",
