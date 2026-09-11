@@ -80,8 +80,8 @@ def create_app(config: Config | None = None, agent: Agent | None = None) -> Fast
         CORSMiddleware,
         allow_origins=list(config.allowed_origins),
         allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["POST"],
+        allow_headers=["Content-Type"],
     )
     app.include_router(create_router(agent, diagnostics_token=config.diagnostics_token))
 
