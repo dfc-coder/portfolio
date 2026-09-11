@@ -30,9 +30,10 @@ The commit SHA is the authoritative source baseline. Promptfoo integration commi
 `pytest` checks deterministic code behavior. Promptfoo checks probabilistic product behavior against the real API.
 
 ```text
-make test       -> code correctness
-make eval       -> stable behavioral regression cases
-make eval-edge  -> repeated edge cases
+make test        -> code correctness
+make cache-check -> prompt-cache mechanisms really reuse prefixes
+make eval        -> stable behavioral regression cases
+make eval-edge   -> repeated edge cases
 ```
 
 Promptfoo is pinned to `0.122.2` in `evals/compose.yaml`.
@@ -77,15 +78,39 @@ Known unstable behavior:
 
 If the cloud judge cannot distinguish those known cases, change only the grader provider. Keep the dataset, SSE adapter, product API and target runtime unchanged while calibrating the evaluator.
 
+## Prompt caching
+
+There are three different caches and they must not be confused.
+
+### Local Qwen KV cache
+
+The llama.cpp service runs with `--cache-prompt`. The product prompt keeps the stable system prompt and tool definitions before conversation-specific content, which gives llama.cpp a reusable prefix across requests and an even larger reusable prefix across tool rounds.
+
+`make cache-check` sends two real requests to the running llama service using the application's system prompt and tool schemas. It reads llama.cpp's `timings.cache_n` and `timings.prompt_n` counters and fails unless the second request actually reuses prompt tokens. This verifies cache reuse rather than merely checking configuration text.
+
+### OpenAI judge prompt cache
+
+The judge provider uses GPT-5.6 Luna with a stable `prompt_cache_key` and native OpenAI prompt-cache options. GPT-5.6 requires an eligible shared prefix of at least 1,024 visible input tokens. Short grading prompts therefore may legitimately have no cache hit.
+
+`make cache-check` performs a separate OpenAI Responses API probe with an explicit reusable prefix above that threshold and fails unless the second request reports cached input tokens. This verifies that native caching works for the configured account/model/API path.
+
+Every `make eval` and `make eval-edge` also writes a local JSON result and reports the cache tokens Promptfoo observed from the real grader workload. A zero hit rate is diagnostic, not automatically a test failure: do not pad grader prompts or change grading semantics only to cross the 1,024-token threshold. Cache optimization is useful only when the real reusable prefix is long enough to save cost or latency.
+
+### Promptfoo result cache
+
+Promptfoo's own response/result cache remains disabled with `evaluateOptions.cache: false` and `--no-cache`. That is intentional: regression runs must execute fresh Qwen and judge calls instead of replaying previous outputs. Disabling Promptfoo's result cache does not disable llama.cpp KV caching or OpenAI's provider-native prompt cache.
+
 ## Cloud judge credentials
 
-Do not put the OpenAI API key in `server/.env`: that file is also loaded by the production-like API container. Export the key only in the shell that launches Promptfoo:
+For local development, `server/.env` may contain:
 
-```bash
-export OPENAI_API_KEY='sk-...'
+```text
+OPENAI_API_KEY=sk-...
 ```
 
-`make eval` and `make eval-edge` fail immediately when the variable is missing. The key is passed only to the Promptfoo service by `evals/compose.yaml`.
+The repository ignores `.env`. The API service explicitly overrides `OPENAI_API_KEY` to an empty value, so the credential is not exposed to the application container; `evals/compose.yaml` passes it only to Promptfoo. Exporting the variable in the shell is also supported.
+
+`make eval`, `make eval-edge`, and `make cache-check` fail immediately when the variable is missing.
 
 ## Optional local diagnostics
 
@@ -105,10 +130,15 @@ Start the current runtime normally:
 make up
 ```
 
+Verify both native prompt-cache mechanisms:
+
+```bash
+make cache-check
+```
+
 Run the stable regression suite:
 
 ```bash
-export OPENAI_API_KEY='sk-...'
 make eval
 ```
 
@@ -137,6 +167,7 @@ manual failure
   -> identify failing layer
   -> make one product change
   -> make test
+  -> make cache-check when prompt/runtime caching changed
   -> make eval
   -> make eval-edge
 ```
