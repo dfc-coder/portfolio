@@ -24,6 +24,13 @@ def test_tool_schemas_have_expected_names() -> None:
     ]
 
 
+def test_search_portfolio_schema_has_no_arguments() -> None:
+    parameters = TOOL_SCHEMAS[0]["function"]["parameters"]
+
+    assert parameters["properties"] == {}
+    assert parameters["additionalProperties"] is False
+
+
 def test_resolve_datetime_explicit_date() -> None:
     result = resolve_datetime(
         "2026-12-25",
@@ -61,17 +68,34 @@ def test_reminder_is_simulated_only() -> None:
 
 
 @pytest.mark.asyncio
-async def test_execute_search_portfolio() -> None:
+async def test_execute_search_portfolio_uses_original_user_message() -> None:
     portfolio = FakePortfolio()
 
     body = await execute_tool(
         "search_portfolio",
-        '{"query":"Rust"}',
+        "{}",
         portfolio,
+        user_message="¿Diego usa Rust?",
     )
 
     assert body["ok"] is True
-    assert portfolio.queries == ["Rust"]
+    assert portfolio.queries == ["¿Diego usa Rust?"]
+
+
+@pytest.mark.asyncio
+async def test_search_portfolio_rejects_model_generated_query() -> None:
+    portfolio = FakePortfolio()
+
+    body = await execute_tool(
+        "search_portfolio",
+        '{"query":"Rust experience"}',
+        portfolio,
+        user_message="¿Diego usa Rust?",
+    )
+
+    assert body["ok"] is False
+    assert "unexpected tool argument" in body["error"]["message"]
+    assert portfolio.queries == []
 
 
 @pytest.mark.asyncio
@@ -89,7 +113,12 @@ async def test_unknown_tool_is_rejected() -> None:
 
 @pytest.mark.asyncio
 async def test_invalid_json_is_rejected() -> None:
-    body = await execute_tool("search_portfolio", "{", FakePortfolio())
+    body = await execute_tool(
+        "search_portfolio",
+        "{",
+        FakePortfolio(),
+        user_message="consulta",
+    )
 
     assert body["ok"] is False
     assert body["error"]["type"] == "validation_error"
@@ -113,8 +142,9 @@ async def test_extra_argument_is_rejected() -> None:
 
     body = await execute_tool(
         "search_portfolio",
-        '{"query":"Rust","extra":1}',
+        '{"extra":1}',
         portfolio,
+        user_message="consulta",
     )
 
     assert body["ok"] is False
