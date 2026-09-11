@@ -6,12 +6,8 @@ dist/
 *.log
 .DS_Store
 server/models/
-server/artifacts/
 server/uv.lock
 server/evals/.promptfoo/
-server/tests/evals/generated/*.jsonl
-server/tests/evals/reports/
-server/tests/evals/results/
 *.gguf
 __pycache__/
 .pytest_cache/
