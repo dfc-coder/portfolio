@@ -39,21 +39,21 @@ eval-ready:
 	exit 1
 
 eval: eval-ready
-	$(EVAL_COMPOSE) run --rm promptfoo eval \
+	$(EVAL_COMPOSE) run --rm promptfoo promptfoo eval \
 		-c promptfooconfig.yaml \
 		--filter-pattern '^REG:' \
 		--no-cache \
 		--table
 
 eval-edge: eval-ready
-	$(EVAL_COMPOSE) run --rm promptfoo eval \
+	$(EVAL_COMPOSE) run --rm promptfoo promptfoo eval \
 		-c promptfooconfig.yaml \
 		--filter-pattern '^EDGE:' \
 		--no-cache \
 		--table
 
 eval-view:
-	$(EVAL_COMPOSE) run --rm --service-ports promptfoo view \
+	$(EVAL_COMPOSE) run --rm --service-ports promptfoo promptfoo view \
 		/home/promptfoo/.promptfoo -n -p 3000
 
 verify: test models
