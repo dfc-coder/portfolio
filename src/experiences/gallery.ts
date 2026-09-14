@@ -67,7 +67,6 @@ export const mountGalleryExperience = () => {
 
   let selectedIndex = 0;
   let isOpen = false;
-  let rootOverflow: string | null = null;
   let motionFrame = 0;
   let motionLastTime = performance.now();
   let pointerPending = false;
@@ -84,18 +83,6 @@ export const mountGalleryExperience = () => {
   );
 
   const galleryIsVisible = () => galleryActive;
-
-  const lockDocumentScroll = () => {
-    if (rootOverflow !== null) return;
-    rootOverflow = document.documentElement.style.overflow;
-    document.documentElement.style.overflow = "hidden";
-  };
-
-  const unlockDocumentScroll = () => {
-    if (rootOverflow === null) return;
-    document.documentElement.style.overflow = rootOverflow;
-    rootOverflow = null;
-  };
 
   const setSelected = (index: number) => {
     selectedIndex = (index + cards.length) % cards.length;
@@ -201,7 +188,6 @@ export const mountGalleryExperience = () => {
 
     setSelected(index);
     renderFocus();
-    lockDocumentScroll();
     isOpen = true;
     setPointerListenerActive(false);
     gallery.classList.add("is-gallery-focus-open");
@@ -213,7 +199,6 @@ export const mountGalleryExperience = () => {
   const closeFocus = () => {
     if (!isOpen) return;
     isOpen = false;
-    unlockDocumentScroll();
     gallery.classList.remove("is-gallery-focus-open");
     focus.classList.remove("is-open");
     focus.setAttribute("aria-hidden", "true");
@@ -275,6 +260,14 @@ export const mountGalleryExperience = () => {
     if (event.target === focus) closeFocus();
   };
 
+  // The Gallery lives inside a sticky, scroll-driven narrative. Mutating
+  // documentElement overflow while the modal is open changes that scroll
+  // container and can make the director temporarily leave the Gallery scene.
+  // Keep the page geometry stable and suppress scroll only on the modal layer.
+  const onFocusScrollIntent = (event: Event) => {
+    if (isOpen) event.preventDefault();
+  };
+
   const syncNarrative = (state: NarrativeState) => {
     galleryActive = state.scene === "gallery";
     setPointerListenerActive(galleryActive && !isOpen);
@@ -284,6 +277,8 @@ export const mountGalleryExperience = () => {
 
   gallery.addEventListener("click", onGalleryClick, true);
   focus.addEventListener("pointerdown", onFocusPointerDown);
+  focus.addEventListener("wheel", onFocusScrollIntent, { passive: false });
+  focus.addEventListener("touchmove", onFocusScrollIntent, { passive: false });
   addEventListener("keydown", onKeydown, true);
   addEventListener("resize", onResize, { passive: true });
   const unsubscribe = narrativeRuntime.subscribe(syncNarrative);
@@ -294,9 +289,10 @@ export const mountGalleryExperience = () => {
     if (motionFrame) cancelAnimationFrame(motionFrame);
     motionFrame = 0;
     transitionMotion.destroy();
-    unlockDocumentScroll();
     gallery.removeEventListener("click", onGalleryClick, true);
     focus.removeEventListener("pointerdown", onFocusPointerDown);
+    focus.removeEventListener("wheel", onFocusScrollIntent);
+    focus.removeEventListener("touchmove", onFocusScrollIntent);
     removeEventListener("keydown", onKeydown, true);
     removeEventListener("resize", onResize);
     focus.remove();
