@@ -102,3 +102,44 @@ test("performance: feature style variables stay on local owners", async () => {
   assert.match(scroll, /let previousChapterGallery = ""/);
   assert.match(scroll, /if \(nextChapterGallery !== previousChapterGallery\)/);
 });
+
+test("performance: pointermove consumers are owned by active scenes", async () => {
+  const [hero, systems, gallery, graphics, continuity] = await Promise.all([
+    read("src/experiences/hero.ts"),
+    read("src/experiences/systems.ts"),
+    read("src/experiences/gallery.ts"),
+    read("src/graphics/stageGraphics.ts"),
+    read("src/experiences/continuity.ts"),
+  ]);
+
+  assert.match(hero, /narrativeRuntime\.subscribe\(syncPointerOwnership\)/);
+  assert.match(hero, /setPointerActive\(state\.scene === "hero"\)/);
+  assert.match(hero, /new ResizeObserver\(measure\)/);
+  const heroPointer =
+    hero.match(/const onHeroPointerMove = \(event: PointerEvent\) => \{[\s\S]*?\n  \};/)?.[0] ?? "";
+  assert.doesNotMatch(heroPointer, /getBoundingClientRect/);
+
+  assert.match(systems, /setPointerListenerActive\(runtimeState\.scene === "systems"\)/);
+  assert.match(
+    systems,
+    /if \(active\) \{[\s\S]*addEventListener\("pointermove", onPointerMove/,
+  );
+  assert.match(systems, /pointerViewportWidth = Math\.max\(1, innerWidth\)/);
+  assert.match(systems, /pointerViewportHeight = Math\.max\(1, innerHeight\)/);
+
+  assert.match(gallery, /narrativeRuntime\.subscribe\(syncNarrative\)/);
+  assert.match(gallery, /setPointerListenerActive\(galleryActive && !isOpen\)/);
+  const galleryPointer =
+    gallery.match(/const onPointerMove = \(event: PointerEvent\) => \{[\s\S]*?\n  \};/)?.[0] ?? "";
+  assert.doesNotMatch(galleryPointer, /getBoundingClientRect|measureCards/);
+  assert.match(gallery, /if \(active\) \{[\s\S]*measureCards\(\);[\s\S]*addEventListener\("pointermove"/);
+
+  assert.match(graphics, /narrativeRuntime\.subscribe\(this\.onNarrative\)/);
+  assert.match(graphics, /this\.setPointerActive\(state\.scene === "agent"\)/);
+  assert.match(graphics, /const rect = this\.stageRect/);
+  const graphicsPointer =
+    graphics.match(/private onPointerMove = \(event: PointerEvent\): void => \{[\s\S]*?\n  \};/)?.[0] ?? "";
+  assert.doesNotMatch(graphicsPointer, /getBoundingClientRect/);
+
+  assert.match(continuity, /addEventListener\("pointermove", onPointerMove/);
+});
