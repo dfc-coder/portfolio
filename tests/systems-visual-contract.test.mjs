@@ -193,6 +193,8 @@ test("TDD: static shell owns atmosphere and Agent pointer remains WebGL-owned", 
 test("TDD: Agent renderer wakes on demand and sleeps when settled", async () => {
   const graphics = await read("src/graphics/stageGraphics.ts");
   const controller = await read("src/graphics/agent-visual-controller.ts");
+  const agent = await read("src/components/agent/AgentOS.vue");
+  const portfolio = await read("src/components/PortfolioExperience.vue");
   const main = await read("src/main.ts");
 
   assert.match(graphics, /requestAnimationFrame\(this\.render\)/);
@@ -203,7 +205,10 @@ test("TDD: Agent renderer wakes on demand and sleeps when settled", async () => 
   assert.match(controller, /bindAgentVisualWake/);
   assert.match(controller, /requestVisualFrame\(\)/);
   assert.match(controller, /agentVisualNeedsFrame/);
-  assert.match(main, /import\("\.\/graphics\/stageGraphics"\)/);
+  assert.match(agent, /mountStageGraphics/);
+  assert.match(agent, /disposeStageGraphics/);
+  assert.match(portfolio, /import\("\.\/agent\/AgentOS\.vue"\)/);
+  assert.doesNotMatch(main, /stageGraphics|mountAgentGraphicsLifecycle/);
 });
 
 test("TDD: menu transition is isolated WebGL driven by shared GSAP", async () => {
@@ -235,7 +240,7 @@ test("TDD: section titles share a register without removing runtime headers", as
 
 test("TDD: main mounts canonical experience modules only", async () => {
   const main = await read("src/main.ts");
-  assert.match(main, /mountAgentGraphicsLifecycle/);
+  assert.doesNotMatch(main, /mountAgentGraphicsLifecycle|stageGraphics|components\/agent/);
   assert.match(main, /experiences\/systems/);
   assert.match(main, /experiences\/continuity/);
   assert.doesNotMatch(main, /systems-motion\.css|-v\d|hotfix|integration-fix|cinematic-tuning/);
