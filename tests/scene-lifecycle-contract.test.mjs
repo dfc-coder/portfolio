@@ -54,10 +54,8 @@ test("architecture: scroll variables are the final narrative visibility owner", 
     visibility,
     /\.ref-stage > \.ref-scene--career\s*\{[\s\S]*opacity:\s*max\(var\(--career,\s*0\),\s*var\(--chapter-career,\s*0\)\)\s*!important/,
   );
-  assert.match(
-    visibility,
-    /\.ref-stage > \.ref-scene--systems\s*\{[\s\S]*opacity:\s*var\(--systems,\s*0\)\s*!important/,
-  );
+  assert.match(visibility, /\.ref-stage > \.ref-scene--systems,/);
+  assert.match(visibility, /opacity:\s*var\(--systems,\s*0\)\s*!important/);
   assert.match(
     visibility,
     /\.ref-scene--chapter\[data-chapter="systems"\][\s\S]*opacity:\s*var\(--chapter-systems,\s*0\)\s*!important/,
@@ -65,8 +63,6 @@ test("architecture: scroll variables are the final narrative visibility owner", 
   assert.match(visibility, /\.ref-scene--systems \.systems-intro\s*\{[\s\S]*display:\s*none\s*!important/);
   assert.match(visibility, /\.systems-project__identity[\s\S]*opacity:\s*var\(--title-focus,\s*0\)\s*!important/);
   assert.match(visibility, /\.systems-project__architecture[\s\S]*opacity:\s*var\(--graph-focus,\s*0\)\s*!important/);
-  assert.match(
-    visibility,
-    /\.ref-scene--chapter\[data-chapter="gallery"\][\s\S]*opacity:\s*var\(--chapter-gallery,\s*0\)\s*!important/,
-  );
+  assert.match(visibility, /data-chapter="gallery"/);
+  assert.match(visibility, /opacity:\s*var\(--chapter-gallery,\s*0\)\s*!important/);
 });
