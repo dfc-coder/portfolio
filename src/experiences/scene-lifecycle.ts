@@ -109,9 +109,11 @@ export const mountSceneLifecycle = () => {
   const mountedRuntimes = new Map<RuntimeScene, Cleanup>();
   const loadingRuntimes = new Map<RuntimeScene, Promise<void>>();
   let desiredRuntimes = new Set<RuntimeScene>();
+  let activationVersion = 0;
   let disposed = false;
 
-  const cleanupObsoleteRuntimes = () => {
+  const cleanupObsoleteRuntimes = (version = activationVersion) => {
+    if (version !== activationVersion) return;
     if ([...desiredRuntimes].some((scene) => !mountedRuntimes.has(scene))) return;
 
     mountedRuntimes.forEach((cleanup, scene) => {
@@ -145,23 +147,26 @@ export const mountSceneLifecycle = () => {
   };
 
   const sync = (state: NarrativeState) => {
+    const version = ++activationVersion;
+    const scene = state.scene;
     desiredRuntimes = new Set(runtimeScenesForState(state));
 
     // A stable scene downloads only its next likely runtime. Chapter states are
     // already mounting their incoming runtime, so extra prefetch would be noise.
-    if (state.scene !== "chapter") prefetchers[state.scene]();
+    if (scene !== "chapter") prefetchers[scene]();
 
     desiredRuntimes.forEach((scene) => {
       void ensureMounted(scene);
     });
 
-    cleanupObsoleteRuntimes();
+    cleanupObsoleteRuntimes(version);
   };
 
   const unsubscribe = narrativeRuntime.subscribe(sync);
 
   return () => {
     disposed = true;
+    activationVersion += 1;
     unsubscribe();
     desiredRuntimes.clear();
     mountedRuntimes.forEach((cleanup) => cleanup());
