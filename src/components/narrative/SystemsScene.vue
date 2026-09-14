@@ -1,9 +1,23 @@
 <script setup lang="ts">
+import { computed, onBeforeUnmount, ref } from "vue";
 import ChapterSignal from "./ChapterSignal.vue";
 import NarrativeHeader from "./NarrativeHeader.vue";
 import NarrativeProgressRail from "./NarrativeProgressRail.vue";
 import SystemDiagram from "./SystemDiagram.vue";
+import type { SystemGraphProfile } from "../../graph/system-graph";
 import { systemsProjects as projects } from "../../experiences/systems-projects";
+
+const MOBILE_BREAKPOINT = "(max-width: 680px)";
+const compactQuery = matchMedia(MOBILE_BREAKPOINT);
+const compact = ref(compactQuery.matches);
+const graphMode = computed<SystemGraphProfile>(() => compact.value ? "mobile" : "desktop");
+
+const onCompactChange = (event: MediaQueryListEvent) => {
+  compact.value = event.matches;
+};
+
+compactQuery.addEventListener("change", onCompactChange);
+onBeforeUnmount(() => compactQuery.removeEventListener("change", onCompactChange));
 
 const systemCount = String(projects.length).padStart(2, "0");
 const systemRailItems = projects.map((project) => ({
@@ -60,7 +74,7 @@ const systemRailItems = projects.map((project) => ({
 
           <div class="systems-graph-field">
             <div class="systems-graph-field__crosshair" aria-hidden="true" />
-            <SystemDiagram :project="project" />
+            <SystemDiagram :project="project" :mode="graphMode" />
           </div>
         </section>
 
