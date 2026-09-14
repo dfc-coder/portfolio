@@ -15,22 +15,6 @@ body::-webkit-scrollbar {
   min-height: 100vh;
 }
 
-.ref-progress b {
-  transform: scaleX(var(--physical-scroll-progress, 0)) !important;
-}
-
-.ref-progress > span:first-child {
-  position: relative;
-  color: transparent;
-}
-
-.ref-progress > span:first-child::after {
-  content: attr(data-scroll-progress);
-  position: absolute;
-  inset: 0;
-  color: #aaa49a;
-}
-
 .ref-scene--hero,
 .ref-scene--career,
 .ref-scene--systems,
