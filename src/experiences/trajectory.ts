@@ -15,31 +15,30 @@ const PARALLAX_SETTLE_EPSILON = 0.0004;
 const VELOCITY_SETTLE_EPSILON = 0.0015;
 const MOBILE_BREAKPOINT = "(max-width: 680px)";
 
-const PARALLAX_LAYERS = [
-  "years",
-  "eyebrow",
-  "role",
-  "context",
-  "summary",
-  "tags",
-  "counter",
-] as const;
-
-type ParallaxLayer = (typeof PARALLAX_LAYERS)[number];
-
-type LayerConfig = SpringConfig & {
+type MotionConfig = SpringConfig & {
   lead: number;
 };
 
-const PARALLAX_CONFIG: Record<ParallaxLayer, LayerConfig> = {
-  years: { frequency: 1.15, damping: 0.88, lead: -0.038, maxVelocity: 5.0 },
-  eyebrow: { frequency: 2.65, damping: 0.78, lead: 0.018, maxVelocity: 7.0 },
-  role: { frequency: 3.15, damping: 0.70, lead: 0.034, maxVelocity: 8.0 },
-  context: { frequency: 2.15, damping: 0.80, lead: 0.004, maxVelocity: 6.0 },
-  summary: { frequency: 1.72, damping: 0.84, lead: -0.010, maxVelocity: 5.5 },
-  tags: { frequency: 1.38, damping: 0.88, lead: -0.022, maxVelocity: 5.0 },
-  counter: { frequency: 1.92, damping: 0.82, lead: -0.008, maxVelocity: 6.0 },
+const PRIMARY_MOTION: MotionConfig = {
+  frequency: 3.0,
+  damping: 0.72,
+  lead: 0.030,
+  maxVelocity: 8.0,
 };
+
+const SECONDARY_MOTION: MotionConfig = {
+  frequency: 1.72,
+  damping: 0.84,
+  lead: -0.010,
+  maxVelocity: 5.5,
+};
+
+const YEARS_DEPTH = 1.38;
+const EYEBROW_DEPTH = 0.58;
+const CONTEXT_DEPTH = 0.86;
+const SUMMARY_DEPTH = 1.0;
+const TAGS_DEPTH = 1.16;
+const COUNTER_DEPTH = 0.88;
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 const clamp = (value: number, min: number, max: number) =>
@@ -79,6 +78,12 @@ const entryPresence = (distance: number, compact: boolean) =>
 const layerTravel = (offset: number, distance: number) =>
   offset * distance * (offset < 0 ? 0.82 : 1);
 
+const positionAtDepth = (
+  state: SpringState,
+  target: number,
+  depth: number,
+) => target + (state.value - target) * depth;
+
 export const mountTrajectoryExperience = () => {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return () => undefined;
 
@@ -100,28 +105,39 @@ export const mountTrajectoryExperience = () => {
   }
 
   const { careerStartNode, chapterSystemsNode } = narrativeModel;
+  const initialRuntimeState = narrativeRuntime.getState();
   const initialPosition = collectionPosition(
-    narrativeRuntime.getState().node,
+    initialRuntimeState.node,
     careerStartNode,
     experiences.length,
   );
 
+  let latestState = initialRuntimeState;
   let targetPosition = initialPosition;
   let driveVelocity = 0;
   let inputLastTime = performance.now();
   let latestContentReveal = 0;
   let motionFrame = 0;
   let motionLastTime = performance.now();
+  let primaryMotionState: SpringState = { value: initialPosition, velocity: 0 };
+  let secondaryMotionState: SpringState = { value: initialPosition, velocity: 0 };
 
-  const layerStates = Object.fromEntries(
-    PARALLAX_LAYERS.map((layer) => [
-      layer,
-      { value: initialPosition, velocity: 0 } satisfies SpringState,
-    ]),
-  ) as Record<ParallaxLayer, SpringState>;
+  const syncMotionToTarget = () => {
+    primaryMotionState = { value: targetPosition, velocity: 0 };
+    secondaryMotionState = { value: targetPosition, velocity: 0 };
+    driveVelocity = 0;
+  };
+
+  const stopMotion = () => {
+    if (!motionFrame) return;
+    cancelAnimationFrame(motionFrame);
+    motionFrame = 0;
+  };
 
   const renderParallax = (time: number) => {
     motionFrame = 0;
+    if (latestState.scene !== "career") return;
+
     const dt = frameDeltaSeconds(time, motionLastTime);
     motionLastTime = time;
     driveVelocity = damp(driveVelocity, 0, 5.8, dt);
@@ -129,41 +145,87 @@ export const mountTrajectoryExperience = () => {
     const compact = compactQuery.matches;
     const travelScale = compact ? 0.62 : 1;
     const velocityScale = compact ? 0.52 : 1;
+    const leadScale = compact ? 0.66 : 1;
 
-    let maxLag = 0;
-    let maxVelocity = 0;
+    const primaryTarget =
+      targetPosition + driveVelocity * PRIMARY_MOTION.lead * leadScale;
+    const secondaryTarget =
+      targetPosition + driveVelocity * SECONDARY_MOTION.lead * leadScale;
 
-    PARALLAX_LAYERS.forEach((layer) => {
-      const config = PARALLAX_CONFIG[layer];
-      const lead = compact ? config.lead * 0.66 : config.lead;
-      const drivenTarget = targetPosition + driveVelocity * lead;
-      const next = springStep(layerStates[layer], drivenTarget, config, dt);
-      layerStates[layer] = next;
-      maxLag = Math.max(maxLag, Math.abs(drivenTarget - next.value));
-      maxVelocity = Math.max(maxVelocity, Math.abs(next.velocity));
-    });
+    primaryMotionState = springStep(
+      primaryMotionState,
+      primaryTarget,
+      PRIMARY_MOTION,
+      dt,
+    );
+    secondaryMotionState = springStep(
+      secondaryMotionState,
+      secondaryTarget,
+      SECONDARY_MOTION,
+      dt,
+    );
 
+    const maxLag = Math.max(
+      Math.abs(primaryTarget - primaryMotionState.value),
+      Math.abs(secondaryTarget - secondaryMotionState.value),
+    );
+    const maxVelocity = Math.max(
+      Math.abs(primaryMotionState.velocity),
+      Math.abs(secondaryMotionState.velocity),
+    );
     const settled =
       Math.abs(driveVelocity) < VELOCITY_SETTLE_EPSILON &&
       maxLag < PARALLAX_SETTLE_EPSILON &&
       maxVelocity < VELOCITY_SETTLE_EPSILON;
 
     if (settled) {
-      PARALLAX_LAYERS.forEach((layer) => {
-        layerStates[layer].value = targetPosition;
-        layerStates[layer].velocity = 0;
-      });
-      driveVelocity = 0;
+      syncMotionToTarget();
     }
 
+    const rolePosition = primaryMotionState.value;
+    const yearsPosition = positionAtDepth(
+      primaryMotionState,
+      targetPosition,
+      YEARS_DEPTH,
+    );
+    const eyebrowPosition = positionAtDepth(
+      secondaryMotionState,
+      targetPosition,
+      EYEBROW_DEPTH,
+    );
+    const contextPosition = positionAtDepth(
+      secondaryMotionState,
+      targetPosition,
+      CONTEXT_DEPTH,
+    );
+    const summaryPosition = positionAtDepth(
+      secondaryMotionState,
+      targetPosition,
+      SUMMARY_DEPTH,
+    );
+    const tagsPosition = positionAtDepth(
+      secondaryMotionState,
+      targetPosition,
+      TAGS_DEPTH,
+    );
+    const counterPosition = positionAtDepth(
+      secondaryMotionState,
+      targetPosition,
+      COUNTER_DEPTH,
+    );
+
+    const roleVelocity = primaryMotionState.velocity;
+    const eyebrowVelocity = secondaryMotionState.velocity * EYEBROW_DEPTH;
+    const contextVelocity = secondaryMotionState.velocity * CONTEXT_DEPTH;
+    const summaryVelocity = secondaryMotionState.velocity * SUMMARY_DEPTH;
+    const tagsVelocity = secondaryMotionState.velocity * TAGS_DEPTH;
+
     const timelineProgress =
-      experiences.length > 1
-        ? layerStates.years.value / (experiences.length - 1)
-        : 0;
+      experiences.length > 1 ? yearsPosition / (experiences.length - 1) : 0;
     stage.style.setProperty("--trajectory-timeline-progress", timelineProgress.toFixed(5));
 
     yearNodes.forEach((element, index) => {
-      const offset = index - layerStates.years.value;
+      const offset = index - yearsPosition;
       const focus = Math.exp(-(offset * offset) * 3.45);
       const y = offset * (compact ? 10.2 : 14.2);
       element.style.transform = `translate3d(0, calc(-50% + ${y.toFixed(3)}vh), 0)`;
@@ -172,13 +234,12 @@ export const mountTrajectoryExperience = () => {
     });
 
     entries.forEach((element, index) => {
-      const roleOffset = index - layerStates.role.value;
-      const eyebrowOffset = index - layerStates.eyebrow.value;
-      const contextOffset = index - layerStates.context.value;
-      const summaryOffset = index - layerStates.summary.value;
-      const tagsOffset = index - layerStates.tags.value;
+      const roleOffset = index - rolePosition;
+      const eyebrowOffset = index - eyebrowPosition;
+      const contextOffset = index - contextPosition;
+      const summaryOffset = index - summaryPosition;
+      const tagsOffset = index - tagsPosition;
       const presence = entryPresence(Math.abs(roleOffset), compact);
-      const roleVelocity = layerStates.role.velocity;
 
       element.style.visibility = presence > 0.001 ? "visible" : "hidden";
       element.style.opacity = (latestContentReveal * presence).toFixed(5);
@@ -195,28 +256,28 @@ export const mountTrajectoryExperience = () => {
         "--eyebrow-y",
         `${(
           layerTravel(eyebrowOffset, 4.45 * travelScale) -
-          layerStates.eyebrow.velocity * 0.07 * velocityScale
+          eyebrowVelocity * 0.07 * velocityScale
         ).toFixed(3)}vh`,
       );
       element.style.setProperty(
         "--context-y",
         `${(
           layerTravel(contextOffset, 3.0 * travelScale) -
-          layerStates.context.velocity * 0.045 * velocityScale
+          contextVelocity * 0.045 * velocityScale
         ).toFixed(3)}vh`,
       );
       element.style.setProperty(
         "--summary-y",
         `${(
           layerTravel(summaryOffset, 2.25 * travelScale) -
-          layerStates.summary.velocity * 0.032 * velocityScale
+          summaryVelocity * 0.032 * velocityScale
         ).toFixed(3)}vh`,
       );
       element.style.setProperty(
         "--tags-y",
         `${(
           layerTravel(tagsOffset, 1.7 * travelScale) -
-          layerStates.tags.velocity * 0.024 * velocityScale
+          tagsVelocity * 0.024 * velocityScale
         ).toFixed(3)}vh`,
       );
       element.style.setProperty(
@@ -229,7 +290,7 @@ export const mountTrajectoryExperience = () => {
       );
     });
 
-    counterTrack.style.transform = `translate3d(0, ${(-layerStates.counter.value).toFixed(5)}em, 0)`;
+    counterTrack.style.transform = `translate3d(0, ${(-counterPosition).toFixed(5)}em, 0)`;
 
     if (!settled) {
       motionFrame = requestAnimationFrame(renderParallax);
@@ -237,12 +298,13 @@ export const mountTrajectoryExperience = () => {
   };
 
   const requestParallaxRender = () => {
-    if (motionFrame) return;
+    if (motionFrame || latestState.scene !== "career") return;
     motionLastTime = performance.now();
     motionFrame = requestAnimationFrame(renderParallax);
   };
 
   const renderNarrative = (state: NarrativeState) => {
+    latestState = state;
     const node = state.node;
 
     const heroExit = range(node, 0.10, 0.86);
@@ -262,11 +324,19 @@ export const mountTrajectoryExperience = () => {
     const heroShell = 1 - range(node, chapterSystemsNode - 0.62, chapterSystemsNode + 0.12);
 
     const now = performance.now();
-    const inputDt = frameDeltaSeconds(now, inputLastTime);
     const nextPosition = collectionPosition(node, careerStartNode, experiences.length);
-    const rawVelocity = clamp((nextPosition - targetPosition) / inputDt, -5, 5);
-    driveVelocity = damp(driveVelocity, rawVelocity, 14, inputDt);
-    targetPosition = nextPosition;
+
+    if (state.scene === "career") {
+      const inputDt = frameDeltaSeconds(now, inputLastTime);
+      const rawVelocity = clamp((nextPosition - targetPosition) / inputDt, -5, 5);
+      driveVelocity = damp(driveVelocity, rawVelocity, 14, inputDt);
+      targetPosition = nextPosition;
+    } else {
+      targetPosition = nextPosition;
+      syncMotionToTarget();
+      stopMotion();
+    }
+
     inputLastTime = now;
     latestContentReveal = contentReveal;
 
@@ -303,7 +373,7 @@ export const mountTrajectoryExperience = () => {
   return () => {
     unsubscribe();
     compactQuery.removeEventListener("change", onCompactChange);
-    if (motionFrame) cancelAnimationFrame(motionFrame);
+    stopMotion();
     delete stage.dataset.trajectory;
     [
       "--trajectory-hero-exit",
