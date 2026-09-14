@@ -106,8 +106,7 @@ body {
 .ref-chapter span,
 .ref-marker,
 .ref-scroll-cue,
-.ref-hero__meta,
-.ref-progress {
+.ref-hero__meta {
   font-family: var(--font-info);
   letter-spacing: var(--track-label);
 }
