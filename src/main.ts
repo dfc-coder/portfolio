@@ -28,17 +28,8 @@ import "./styles/mobile-trajectory-layout.css";
 import "./styles/mobile-systems-layout.css";
 import "./styles/narrative-visibility.css";
 
-document.documentElement.classList.add("creative-hero-pending");
-
 createApp(App).mount("#app");
 
-void document.fonts.ready.then(() => {
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      document.documentElement.classList.remove("creative-hero-pending");
-      mountScrollSyncController();
-      mountVisualContinuity();
-      mountSceneLifecycle();
-    });
-  });
-});
+mountScrollSyncController();
+mountVisualContinuity();
+mountSceneLifecycle();
