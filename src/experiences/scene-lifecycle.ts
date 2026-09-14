@@ -29,7 +29,10 @@ const runtimeLoaders = {
     return mountSystemsExperience();
   },
   gallery: async () => {
-    const { mountGalleryExperience } = await import("./gallery");
+    const [{ mountGalleryExperience }] = await Promise.all([
+      import("./gallery"),
+      import("./gallery-transition"),
+    ]);
     return mountGalleryExperience();
   },
   agent: async () => {
@@ -42,7 +45,10 @@ const runtimeLoaders = {
 const prefetchers = {
   hero: () => void import("./trajectory"),
   career: () => void import("./systems"),
-  systems: () => void import("./gallery"),
+  systems: () => {
+    void import("./gallery");
+    void import("./gallery-transition");
+  },
   gallery: () => {
     void import("../components/agent/AgentOS.vue");
     void import("../graphics/stageGraphics");
