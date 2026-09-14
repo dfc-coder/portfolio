@@ -6,7 +6,7 @@ import {
   pulseAgentVisual,
   setAgentVisualPhase,
   type AgentVisualPhase,
-} from "../../graphics/stageGraphics";
+} from "../../graphics/agent-visual-controller";
 import { portfolioAgentProvider } from "./portfolioAgentProvider";
 import { useAgentRuntime, type AgentProvider } from "./useAgentRuntime";
 

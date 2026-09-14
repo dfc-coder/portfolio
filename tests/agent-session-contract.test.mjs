@@ -61,10 +61,12 @@ test("BDD: speech, interaction, pointer and state are independent visual signals
   assert.match(controller, /const speechResponse/);
   assert.match(controller, /state\.phase !== "speaking"/);
   assert.match(controller, /updateAgentVisual/);
+  assert.match(controller, /pulseAgentInteraction/);
+  assert.match(controller, /setAgentPointer/);
 
   assert.match(stage, /updateAgentVisual\(dt\)/);
-  assert.match(stage, /setVisualPointer/);
-  assert.match(stage, /pulseAgentInteraction/);
+  assert.match(stage, /setAgentPointer\(localX, localY/);
+  assert.doesNotMatch(stage, /pulseAgentInteraction/);
   assert.doesNotMatch(stage, /interface AgentSignalState/);
 });
 
@@ -100,7 +102,7 @@ test("BDD: listening visibly attends to the cursor with layered inertia", async 
   assert.match(stage, /distanceToOrb/);
   assert.match(stage, /localX/);
   assert.match(stage, /localY/);
-  assert.match(stage, /setVisualPointer\(localX, localY/);
+  assert.match(stage, /setAgentPointer\(localX, localY/);
 
   assert.match(controller, /pointerFastX/);
   assert.match(controller, /pointerSlowX/);
@@ -147,7 +149,6 @@ test("BDD: state-derived tone gives the same agent different movement character"
   for (const tone of ["calm", "curious", "focused", "confident", "uncertain"]) {
     assert.match(controller, new RegExp(`"${tone}"`));
   }
-
   assert.match(controller, /phaseTone/);
   assert.match(controller, /toneMode/);
   assert.match(particles, /curious/);
