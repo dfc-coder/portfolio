@@ -34,6 +34,7 @@ export interface AgentProvider {
 
 export type RuntimeState = "idle" | "listening" | "working" | "speaking";
 
+// SSE chunks only feed the queue; Vue/scroll/visual work is coalesced to this cadence.
 const PRESENTATION_INTERVAL_MS = 40;
 const PRESENTATION_BASE_CPS = 84;
 const PRESENTATION_MAX_CPS = 180;
