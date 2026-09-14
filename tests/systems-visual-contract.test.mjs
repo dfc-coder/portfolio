@@ -165,13 +165,32 @@ test("TDD: Systems template chrome is persistent and project content stays seman
   assert.match(systems, /--systems-tail-out/);
 });
 
-test("TDD: Systems runtime is event-driven by narrative state", async () => {
+test("TDD: Systems runtime is scene-owned, two-spring and single-RAF", async () => {
   const runtime = await read("src/experiences/systems.ts");
 
   assert.match(runtime, /narrativeRuntime\.subscribe\(renderNarrative\)/);
   assert.doesNotMatch(runtime, /getPropertyValue\("--progress"\)/);
   assert.doesNotMatch(runtime, /requestAnimationFrame\(renderNarrative\)/);
-  assert.match(runtime, /requestAnimationFrame\(renderPointer\)/);
+  assert.equal((runtime.match(/springStep\(/g) ?? []).length, 2);
+  assert.match(runtime, /primaryMotionState/);
+  assert.match(runtime, /secondaryMotionState/);
+  assert.match(runtime, /latestState\.scene !== "systems"/);
+  assert.match(runtime, /requestAnimationFrame\(renderMotion\)/);
+  assert.doesNotMatch(runtime, /requestAnimationFrame\(renderPointer\)/);
+  assert.doesNotMatch(runtime, /pointerFrame|parallaxFrame|PARALLAX_LAYERS|layerStates/);
+  assert.match(runtime, /parallaxPending \|\| pointerPending/);
+});
+
+test("TDD: Trajectory runtime is scene-owned and uses exactly two springs", async () => {
+  const runtime = await read("src/experiences/trajectory.ts");
+
+  assert.match(runtime, /narrativeRuntime\.subscribe\(renderNarrative\)/);
+  assert.equal((runtime.match(/springStep\(/g) ?? []).length, 2);
+  assert.match(runtime, /primaryMotionState/);
+  assert.match(runtime, /secondaryMotionState/);
+  assert.match(runtime, /latestState\.scene !== "career"/);
+  assert.match(runtime, /motionFrame \|\| latestState\.scene !== "career"/);
+  assert.doesNotMatch(runtime, /PARALLAX_LAYERS|layerStates/);
 });
 
 test("TDD: static shell owns atmosphere and Agent pointer remains WebGL-owned", async () => {
