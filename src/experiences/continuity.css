@@ -35,7 +35,6 @@ html.is-section-transitioning .ref-cursor-ring {
 .ref-cursor,
 .ref-cursor-ring {
   position: fixed;
-  z-index: 2000;
   left: 0;
   top: 0;
   pointer-events: none;
@@ -49,6 +48,7 @@ html.is-section-transitioning .ref-cursor-ring {
 }
 
 .ref-cursor {
+  z-index: 2001;
   width: 0;
   height: 0;
   transition: opacity .25s linear;
@@ -63,13 +63,24 @@ html.is-section-transitioning .ref-cursor-ring {
   height: 6px;
   border-radius: inherit;
   background: #fff;
-  color: #fff;
   mix-blend-mode: difference;
   transform: translate(-50%, -50%);
   transition:
     width .28s cubic-bezier(.2, .8, .2, 1),
     height .28s cubic-bezier(.2, .8, .2, 1),
     border-radius .28s cubic-bezier(.2, .8, .2, 1);
+}
+
+@supports ((-webkit-backdrop-filter: invert(1)) or (backdrop-filter: invert(1))) {
+  .ref-cursor::after {
+    background: rgba(255, 255, 255, .01);
+    mix-blend-mode: normal;
+    -webkit-backdrop-filter: invert(1) contrast(1.3);
+    backdrop-filter: invert(1) contrast(1.3);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, .10),
+      0 0 0 2px rgba(0, 0, 0, .08);
+  }
 }
 
 .ref-cursor[data-state="hover"]::after {
@@ -89,6 +100,7 @@ html.is-section-transitioning .ref-cursor-ring {
 }
 
 .ref-cursor-ring {
+  z-index: 2000;
   width: 30px;
   height: 30px;
   margin: -15px 0 0 -15px;
