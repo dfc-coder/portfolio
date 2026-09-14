@@ -1,4 +1,5 @@
 import { gsap } from "../motion/gsap";
+import { narrativeRuntime, type NarrativeState } from "./narrative-runtime";
 
 const HERO_SELECTOR = ".ref-scene--hero";
 const STRUCTURAL_EASE = "power3.inOut";
@@ -71,10 +72,25 @@ const mountHeroPointerField = (hero: HTMLElement, thesis: HTMLElement) => {
   const thesisX = gsap.quickTo(thesis, "x", { duration: 1.4, ease: SETTLE_EASE });
   const thesisY = gsap.quickTo(thesis, "y", { duration: 1.4, ease: SETTLE_EASE });
 
+  let heroRect = hero.getBoundingClientRect();
+  let pointerActive = false;
+
+  const measure = () => {
+    heroRect = hero.getBoundingClientRect();
+  };
+
+  const resetPointerField = () => {
+    titleX?.(0);
+    titleY?.(0);
+    thesisX(0);
+    thesisY(0);
+    hero.dataset.heroHover = "false";
+  };
+
   const onHeroPointerMove = (event: PointerEvent) => {
-    const rect = hero.getBoundingClientRect();
-    const nx = (event.clientX - rect.left) / Math.max(1, rect.width) - 0.5;
-    const ny = (event.clientY - rect.top) / Math.max(1, rect.height) - 0.5;
+    if (!heroRect.width || !heroRect.height) return;
+    const nx = (event.clientX - heroRect.left) / heroRect.width - 0.5;
+    const ny = (event.clientY - heroRect.top) / heroRect.height - 0.5;
     titleX?.(nx * 9);
     titleY?.(ny * 5);
     thesisX(nx * -4);
@@ -83,19 +99,37 @@ const mountHeroPointerField = (hero: HTMLElement, thesis: HTMLElement) => {
   };
 
   const onHeroPointerLeave = () => {
-    titleX?.(0);
-    titleY?.(0);
-    thesisX(0);
-    thesisY(0);
-    hero.dataset.heroHover = "false";
+    resetPointerField();
   };
 
-  hero.addEventListener("pointermove", onHeroPointerMove, { passive: true });
-  hero.addEventListener("pointerleave", onHeroPointerLeave, { passive: true });
+  const setPointerActive = (active: boolean) => {
+    if (active === pointerActive) return;
+    pointerActive = active;
 
-  return () => {
+    if (active) {
+      measure();
+      hero.addEventListener("pointermove", onHeroPointerMove, { passive: true });
+      hero.addEventListener("pointerleave", onHeroPointerLeave, { passive: true });
+      return;
+    }
+
     hero.removeEventListener("pointermove", onHeroPointerMove);
     hero.removeEventListener("pointerleave", onHeroPointerLeave);
+    resetPointerField();
+  };
+
+  const syncPointerOwnership = (state: NarrativeState) => {
+    setPointerActive(state.scene === "hero");
+  };
+
+  const resizeObserver = new ResizeObserver(measure);
+  resizeObserver.observe(hero);
+  const unsubscribe = narrativeRuntime.subscribe(syncPointerOwnership);
+
+  return () => {
+    unsubscribe();
+    setPointerActive(false);
+    resizeObserver.disconnect();
     gsap.killTweensOf([title, thesis]);
     delete hero.dataset.heroHover;
   };
