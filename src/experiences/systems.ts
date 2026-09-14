@@ -150,6 +150,9 @@ export const mountSystemsExperience = () => {
   let pointerY = 0;
   let pointerTargetX = 0;
   let pointerTargetY = 0;
+  let pointerListenerActive = false;
+  let pointerViewportWidth = Math.max(1, innerWidth);
+  let pointerViewportHeight = Math.max(1, innerHeight);
 
   let previousSystemsRefined = "";
   let previousSystemsProgress = "";
@@ -426,16 +429,40 @@ export const mountSystemsExperience = () => {
     motionFrame = requestAnimationFrame(renderMotion);
   };
 
+  const measurePointerViewport = () => {
+    pointerViewportWidth = Math.max(1, innerWidth);
+    pointerViewportHeight = Math.max(1, innerHeight);
+  };
+
   const onPointerMove = (event: PointerEvent) => {
-    if (latestState.scene !== "systems") return;
-    pointerTargetX = event.clientX / innerWidth - 0.5;
-    pointerTargetY = event.clientY / innerHeight - 0.5;
+    pointerTargetX = event.clientX / pointerViewportWidth - 0.5;
+    pointerTargetY = event.clientY / pointerViewportHeight - 0.5;
     pointerPending = true;
     requestMotionRender();
   };
 
+  const setPointerListenerActive = (active: boolean) => {
+    if (active === pointerListenerActive) return;
+    pointerListenerActive = active;
+
+    if (active) {
+      measurePointerViewport();
+      addEventListener("pointermove", onPointerMove, { passive: true });
+      addEventListener("resize", measurePointerViewport, { passive: true });
+      return;
+    }
+
+    removeEventListener("pointermove", onPointerMove);
+    removeEventListener("resize", measurePointerViewport);
+    pointerTargetX = pointerX;
+    pointerTargetY = pointerY;
+    pointerPending = false;
+  };
+
   const renderNarrative = (runtimeState: NarrativeState) => {
     latestState = runtimeState;
+    setPointerListenerActive(runtimeState.scene === "systems");
+
     const node = runtimeState.node;
     latestChapterState = chapterState(
       node,
@@ -527,14 +554,13 @@ export const mountSystemsExperience = () => {
   };
 
   compactQuery.addEventListener("change", onCompactChange);
-  addEventListener("pointermove", onPointerMove, { passive: true });
   const unsubscribe = narrativeRuntime.subscribe(renderNarrative);
 
   return () => {
     unsubscribe();
     compactQuery.removeEventListener("change", onCompactChange);
+    setPointerListenerActive(false);
     stopMotion();
-    removeEventListener("pointermove", onPointerMove);
     resolvedProjectParts.forEach((parts) => {
       parts.architecture.style.removeProperty("transform");
       parts.detail.style.removeProperty("opacity");
