@@ -36,7 +36,8 @@ html.systems-refined-ready
 /* Systems appears only when the global Systems envelope says it is visible.
    The duplicate internal intro remains in the DOM but is no longer part of the
    visual narrative; Chapter 03 performs that handoff once. */
-.ref-stage > .ref-scene--systems {
+.ref-stage > .ref-scene--systems,
+html.systems-refined-ready .ref-stage > .ref-scene--systems {
   opacity: var(--systems, 0) !important;
   transform: none !important;
   filter: none !important;
@@ -63,8 +64,12 @@ html.systems-refined-ready
 }
 
 /* Systems -> Gallery uses the same global chapter envelope as every other
-   handoff. This overrides the legacy --systems-gallery-handoff authority. */
-.ref-scene--chapter[data-chapter="gallery"] {
+   handoff. Match the legacy selector's specificity so this late-loaded contract
+   is the final authority. */
+.ref-scene--chapter[data-chapter="gallery"],
+html.systems-refined-ready
+  .ref-stage[data-systems-refined="true"]
+  .ref-scene--chapter[data-chapter="gallery"] {
   --ch: var(--chapter-gallery, 0) !important;
   opacity: var(--chapter-gallery, 0) !important;
   transform: translate3d(
