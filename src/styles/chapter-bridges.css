@@ -208,10 +208,7 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
 
 html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue {
   translate: -50% 0 !important;
-  opacity: calc(
-    (1 - var(--trajectory-axis-reveal, 0)) *
-    (1 - var(--trajectory-cue-exit, 0) * .35)
-  ) !important;
+  opacity: var(--trajectory-cue-handoff-opacity, 1) !important;
 }
 
 html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue span {
@@ -244,24 +241,7 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
   );
 }
 
-/* Systems -> Gallery handoff belongs to the chapter boundary, not Systems CSS. */
-html.systems-refined-ready
-  .ref-stage[data-systems-refined="true"]
-  .ref-scene--chapter[data-chapter="gallery"] {
-  --ch: var(--systems-gallery-handoff, 0);
-  opacity: var(--systems-gallery-handoff, 0);
-  transform: translate3d(0, calc((1 - var(--systems-gallery-handoff, 0)) * 5vh), 0);
-  filter: none;
-  background: transparent !important;
-}
-
-html.systems-refined-ready
-  .ref-stage[data-systems-refined="true"]
-  .ref-scene--chapter[data-chapter="gallery"]
-  .ref-chapter {
-  transform: translate3d(0, calc((1 - var(--systems-gallery-handoff, 0)) * 2vh), 0);
-}
-
+/* Systems -> Gallery remains owned by the global chapter visibility envelope. */
 .ref-scene--gallery {
   opacity: var(--gallery, 0);
   filter: none;
