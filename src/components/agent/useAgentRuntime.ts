@@ -34,9 +34,10 @@ export interface AgentProvider {
 
 export type RuntimeState = "idle" | "listening" | "working" | "speaking";
 
-const PRESENTATION_BASE_CPS = 52;
-const PRESENTATION_MAX_CPS = 92;
-const PRESENTATION_MAX_BATCH = 4;
+const PRESENTATION_INTERVAL_MS = 40;
+const PRESENTATION_BASE_CPS = 84;
+const PRESENTATION_MAX_CPS = 180;
+const PRESENTATION_MAX_BATCH = 12;
 
 const timeFormatter = new Intl.DateTimeFormat("en-GB", {
   hour12: false,
@@ -67,10 +68,9 @@ export function useAgentRuntime(
   const nextId = shallowRef(1);
 
   let replyId = -1;
-  let presentationFrame = 0;
+  let presentationTimer = 0;
   let presentationQueue = "";
   let presentationBudget = 0;
-  let presentationTime = 0;
   let drainResolver: (() => void) | null = null;
 
   const state = computed<RuntimeState>(() => {
@@ -105,65 +105,58 @@ export function useAgentRuntime(
   const reply = () => messages.value.find((message) => message.id === replyId);
 
   const resolveDrain = () => {
-    if (presentationQueue || presentationFrame) return;
+    if (presentationQueue || presentationTimer) return;
     const resolve = drainResolver;
     drainResolver = null;
     resolve?.();
   };
 
-  const present = (now: number) => {
-    presentationFrame = 0;
+  const schedulePresentation = () => {
+    if (presentationTimer) return;
+    presentationTimer = window.setTimeout(present, PRESENTATION_INTERVAL_MS);
+  };
+
+  function present() {
+    presentationTimer = 0;
     if (!presentationQueue) {
-      presentationTime = 0;
+      presentationBudget = 0;
       resolveDrain();
       return;
     }
 
-    if (!presentationTime) presentationTime = now;
-    const dt = Math.min(0.05, Math.max(0.008, (now - presentationTime) / 1000));
-    presentationTime = now;
-
     const cps = Math.min(
       PRESENTATION_MAX_CPS,
-      PRESENTATION_BASE_CPS + presentationQueue.length * 0.10,
+      PRESENTATION_BASE_CPS + presentationQueue.length * 0.32,
     );
-    presentationBudget += cps * dt;
+    presentationBudget += cps * (PRESENTATION_INTERVAL_MS / 1000);
 
     const count = Math.min(
       PRESENTATION_MAX_BATCH,
       presentationQueue.length,
-      Math.floor(presentationBudget),
+      Math.max(1, Math.floor(presentationBudget)),
     );
 
-    if (count > 0) {
-      const target = reply();
-      const batch = presentationQueue.slice(0, count);
-      presentationQueue = presentationQueue.slice(count);
-      presentationBudget -= count;
+    const target = reply();
+    const batch = presentationQueue.slice(0, count);
+    presentationQueue = presentationQueue.slice(count);
+    presentationBudget = Math.max(0, presentationBudget - count);
 
-      if (target) {
-        target.text += batch;
-        hooks.onPresent?.(batch);
-      }
+    if (target) {
+      target.text += batch;
+      hooks.onPresent?.(batch);
     }
 
     if (presentationQueue) {
-      presentationFrame = requestAnimationFrame(present);
+      schedulePresentation();
       return;
     }
 
     presentationBudget = Math.min(1, presentationBudget);
-    presentationTime = 0;
     resolveDrain();
-  };
-
-  const schedulePresentation = () => {
-    if (presentationFrame) return;
-    presentationFrame = requestAnimationFrame(present);
-  };
+  }
 
   const waitForPresentation = (): Promise<void> => {
-    if (!presentationQueue && !presentationFrame) return Promise.resolve();
+    if (!presentationQueue && !presentationTimer) return Promise.resolve();
     return new Promise((resolve) => {
       drainResolver = resolve;
     });
@@ -228,7 +221,6 @@ export function useAgentRuntime(
     replyId = -1;
     presentationQueue = "";
     presentationBudget = 0;
-    presentationTime = 0;
     let receivedContent = false;
 
     try {
@@ -259,11 +251,10 @@ export function useAgentRuntime(
   };
 
   const reset = () => {
-    if (presentationFrame) cancelAnimationFrame(presentationFrame);
-    presentationFrame = 0;
+    if (presentationTimer) clearTimeout(presentationTimer);
+    presentationTimer = 0;
     presentationQueue = "";
     presentationBudget = 0;
-    presentationTime = 0;
     replyId = -1;
     const resolve = drainResolver;
     drainResolver = null;
