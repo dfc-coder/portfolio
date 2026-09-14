@@ -1,0 +1,86 @@
+/* ========================================================================== 
+   NARRATIVE VISIBILITY CONTRACT
+   
+   scroll.ts owns scene/chapter visibility through the --hero / --career /
+   --systems / --gallery / --agent and --chapter-* variables. Feature runtimes
+   may animate content inside their scene, but they must not create a second
+   scene-level fade envelope.
+   ========================================================================== */
+
+/* Trajectory intentionally substitutes the first chapter bridge. Keep that
+   runtime visible through Chapter 02, then let --career own its exit into the
+   Systems bridge. The runtime's old inline root opacity is neutralized here. */
+.ref-stage > .ref-scene--career {
+  opacity: max(var(--career, 0), var(--chapter-career, 0)) !important;
+  transform: none !important;
+  filter: none !important;
+}
+
+.ref-scene--career .trajectory-experience {
+  opacity: 1 !important;
+}
+
+/* Chapter 03 is the only Career -> Systems bridge. Systems used to hide this
+   chapter and replace it with a second intro, which produced overlap and dead
+   intervals when the runtime became lazy. */
+html.systems-refined-ready
+  .ref-scene--chapter[data-chapter="systems"] {
+  display: grid !important;
+}
+
+.ref-scene--chapter[data-chapter="systems"] {
+  --ch: var(--chapter-systems, 0) !important;
+  opacity: var(--chapter-systems, 0) !important;
+}
+
+/* Systems appears only when the global Systems envelope says it is visible.
+   The duplicate internal intro remains in the DOM but is no longer part of the
+   visual narrative; Chapter 03 performs that handoff once. */
+.ref-stage > .ref-scene--systems {
+  opacity: var(--systems, 0) !important;
+  transform: none !important;
+  filter: none !important;
+}
+
+.ref-scene--systems .systems-intro {
+  display: none !important;
+}
+
+/* Core Systems content must already be render-ready when --systems starts its
+   crossfade. Scene opacity provides the reveal; internal springs still own
+   position/focus/build motion. This prevents the scene from becoming visually
+   empty while contentReveal catches up. */
+.ref-scene--systems .systems-static-chrome {
+  opacity: 1 !important;
+}
+
+.ref-scene--systems .systems-project__identity {
+  opacity: var(--title-focus, 0) !important;
+}
+
+.ref-scene--systems .systems-project__architecture {
+  opacity: var(--graph-focus, 0) !important;
+}
+
+/* Systems -> Gallery uses the same global chapter envelope as every other
+   handoff. This overrides the legacy --systems-gallery-handoff authority. */
+.ref-scene--chapter[data-chapter="gallery"] {
+  --ch: var(--chapter-gallery, 0) !important;
+  opacity: var(--chapter-gallery, 0) !important;
+  transform: translate3d(
+    0,
+    calc((1 - var(--chapter-gallery, 0)) * 1.2vh),
+    0
+  ) !important;
+  filter: blur(calc((1 - var(--chapter-gallery, 0)) * 2px)) !important;
+}
+
+/* Gallery and Agent already follow the global envelopes; keep the contract
+   explicit here so later feature CSS cannot silently become a second owner. */
+.ref-stage > .ref-scene--gallery {
+  opacity: var(--gallery, 0) !important;
+}
+
+.ref-stage > .ref-scene--agent {
+  opacity: var(--agent, 0) !important;
+}
