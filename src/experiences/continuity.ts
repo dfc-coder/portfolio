@@ -34,7 +34,6 @@ export const mountVisualContinuity = () => {
     cursor.setAttribute("aria-hidden", "true");
     ring.setAttribute("aria-hidden", "true");
     portfolio.append(cursor, ring);
-    portfolio.classList.add("has-cursor");
   }
 
   let cursorSeen = false;
@@ -46,17 +45,28 @@ export const mountVisualContinuity = () => {
     if (ring) ring.dataset.state = state;
   };
 
+  const showCursor = () => {
+    if (!cursor || !ring || cursorSeen) return;
+    cursorSeen = true;
+    cursor.classList.add("is-on");
+    ring.classList.add("is-on");
+    portfolio.classList.add("has-cursor");
+  };
+
+  const hideCursor = () => {
+    if (!cursor || !ring) return;
+    cursorSeen = false;
+    cursor.classList.remove("is-on");
+    ring.classList.remove("is-on");
+    portfolio.classList.remove("has-cursor");
+  };
+
   const onPointerMove = (event: PointerEvent) => {
     if (!cursor || !ring) return;
     const transform = `translate3d(${event.clientX}px, ${event.clientY}px, 0)`;
     cursor.style.transform = transform;
     ring.style.transform = transform;
-
-    if (!cursorSeen) {
-      cursorSeen = true;
-      cursor.classList.add("is-on");
-      ring.classList.add("is-on");
-    }
+    showCursor();
   };
 
   const onPointerOver = (event: PointerEvent) => {
@@ -77,10 +87,8 @@ export const mountVisualContinuity = () => {
   };
 
   const onPointerOut = (event: PointerEvent) => {
-    if (event.relatedTarget || !cursor || !ring) return;
-    cursorSeen = false;
-    cursor.classList.remove("is-on");
-    ring.classList.remove("is-on");
+    if (event.relatedTarget) return;
+    hideCursor();
   };
 
   if (cursorEnabled) {
