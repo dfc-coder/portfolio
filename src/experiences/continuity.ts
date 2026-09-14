@@ -11,8 +11,8 @@ const cursorStateFor = (element: Element | null): CursorState => {
 };
 
 /**
- * Cross-chapter continuity now owns only the custom cursor and section
- * transition. Pointer illumination belongs to the shared Three atmosphere.
+ * Cross-chapter continuity owns only the custom cursor and isolated section
+ * transition. The permanent visual shell remains CSS-owned.
  */
 export const mountVisualContinuity = () => {
   const portfolio = document.querySelector<HTMLElement>(".ref-portfolio");
