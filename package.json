@@ -10,13 +10,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
-    "test:visual": "node --test tests/system-graph-contract.test.mjs tests/system-diagram-dom-contract.test.mjs tests/trajectory-data-contract.test.mjs tests/systems-visual-contract.test.mjs tests/portfolio-design-contract.test.mjs tests/agent-session-contract.test.mjs tests/agent-bundle-boundary-contract.test.mjs tests/cursor-contract.test.mjs tests/scene-lifecycle-contract.test.mjs tests/section-transition-contract.test.mjs",
+    "test:visual": "node --test tests/system-graph-contract.test.mjs tests/system-diagram-dom-contract.test.mjs tests/trajectory-data-contract.test.mjs tests/systems-visual-contract.test.mjs tests/portfolio-design-contract.test.mjs tests/agent-session-contract.test.mjs tests/agent-bundle-boundary-contract.test.mjs tests/cursor-contract.test.mjs tests/scene-lifecycle-contract.test.mjs tests/scene-compositor-contract.test.mjs tests/section-transition-contract.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
     "@fontsource/instrument-sans": "^5.3.0",
     "@fontsource/instrument-serif": "^5.3.0",
-    "@fontsource/syne": "^5.3.0",
+    "@fontsource/syne": "^1.3.0",
     "@vitejs/plugin-vue": "^6.0.0",
     "gsap": "^3.13.0",
     "three": "^0.179.1",
