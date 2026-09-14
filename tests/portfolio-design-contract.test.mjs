@@ -115,7 +115,7 @@ test("architecture: runtime anchor headers cannot be removed by visual refactors
   assert.match(systemsRuntime, /querySelector<HTMLElement>\("\.systems-header"\)/);
 });
 
-test("architecture: one GSAP module owns ScrollTrigger registration", async () => {
+test("architecture: GSAP remains isolated from the native scroll runtime", async () => {
   const motion = await read("src/motion/gsap.ts");
   const scroll = await read("src/experiences/scroll.ts");
   const hero = await read("src/experiences/hero.ts");
@@ -124,25 +124,41 @@ test("architecture: one GSAP module owns ScrollTrigger registration", async () =
   assert.match(motion, /import gsap from "gsap"/);
   assert.match(motion, /ScrollTrigger/);
   assert.match(motion, /gsap\.registerPlugin\(ScrollTrigger\)/);
-  assert.match(scroll, /from "\.\.\/motion\/gsap"/);
+  assert.doesNotMatch(scroll, /motion\/gsap|ScrollTrigger|gsap\./);
   assert.match(hero, /from "\.\.\/motion\/gsap"/);
   assert.match(transition, /from "\.\.\/motion\/gsap"/);
-  assert.doesNotMatch(scroll, /from "gsap(?:\/ScrollTrigger)?"/);
   assert.doesNotMatch(hero, /from "gsap"/);
 });
 
-test("architecture: GSAP ScrollTrigger is the single physical scroll owner", async () => {
+test("architecture: native scroll is the single physical scroll owner", async () => {
   const component = await read("src/components/PortfolioExperience.vue");
   const scroll = await read("src/experiences/scroll.ts");
   const gallery = await read("src/experiences/gallery.ts");
 
   assert.doesNotMatch(component, /ScrollTrigger|addEventListener\("wheel"/);
   assert.doesNotMatch(gallery, /addEventListener\("wheel"|scrollToNode|WHEEL_EXIT_LOCK/);
-  assert.match(scroll, /ScrollTrigger\.create/);
+  assert.match(scroll, /addEventListener\("scroll", onNativeScroll, \{ passive: true \}\)/);
+  assert.match(scroll, /requestAnimationFrame\(flushScroll\)/);
+  assert.match(scroll, /if \(scrollFrame !== 0\) return;/);
+  assert.match(scroll, /physicalProgressAt/);
   assert.match(scroll, /mapPhysicalProgressToVirtualProgress/);
   assert.match(scroll, /narrativeRuntime\.publish/);
-  assert.match(scroll, /gsap\.to\(scrollProxy/);
-  assert.doesNotMatch(scroll, /requestAnimationFrame\(runSmoothScroll\)/);
+  assert.match(scroll, /window\.scrollTo\(\{/);
+  assert.match(scroll, /transitionSectionNavigation\(\(\) => jumpToPhysicalNode\(node\), direction\)/);
+  assert.doesNotMatch(scroll, /ScrollTrigger|gsap\.to|scrollProxy|scrollTween/);
+  assert.doesNotMatch(scroll, /addEventListener\("wheel"|WHEEL_GAIN|wheelDeltaPixels|nestedScrollerCanConsume/);
+});
+
+test("architecture: narrative runtime skips irrelevant publications", async () => {
+  const runtime = await read("src/experiences/narrative-runtime.ts");
+
+  assert.match(runtime, /NARRATIVE_EPSILON = 0\.0001/);
+  assert.match(runtime, /const nearlyEqual/);
+  assert.match(runtime, /next\.scene === state\.scene/);
+  assert.match(runtime, /nearlyEqual\(next\.physicalProgress, state\.physicalProgress\)/);
+  assert.match(runtime, /nearlyEqual\(next\.progress, state\.progress\)/);
+  assert.match(runtime, /if \([\s\S]*?\) \{\s*return;\s*\}/);
+  assert.match(runtime, /listeners\.forEach\(\(listener\) => listener\(state\)\)/);
 });
 
 test("architecture: narrative consumers subscribe instead of polling CSS every frame", async () => {
@@ -233,6 +249,7 @@ test("architecture: Agent-only Three renderer sleeps and menu WebGL stays isolat
   assert.match(transition, /gsap\.timeline/);
   assert.doesNotMatch(transition, /requestAnimationFrame/);
   assert.match(continuity, /\.ref-navigation-transition\.is-active/);
+  assert.match(continuity, /html\.is-section-transitioning\s*\{[^}]*overflow:\s*hidden/is);
 });
 
 test("architecture: section titles share one register without changing component ownership", async () => {
@@ -299,6 +316,8 @@ test("architecture: Gallery remains isolated outside its active scene", async ()
   assert.match(component, /<img[^>]+draggable="false"/);
   assert.match(scrollCss, /\.ref-stage:not\(\[data-scene="gallery"\]\) \.ref-scene--gallery/);
   assert.match(gallery, /const openFocus = \(index: number\) => \{\s*if \(!galleryIsVisible\(\)\) return;/);
+  assert.match(gallery, /lockDocumentScroll\(\)/);
+  assert.match(gallery, /unlockDocumentScroll\(\)/);
   assert.match(gallery, /const onPointerMove = \(event: PointerEvent\) => \{\s*if \(!galleryIsVisible\(\) \|\| isOpen\) return;/);
 });
 
