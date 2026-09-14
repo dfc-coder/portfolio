@@ -51,15 +51,15 @@ test("architecture: pnpm remains the only frontend package manager", async () =>
   assert.ok(packageJson.dependencies.vue);
 });
 
-test("architecture: main lazy-loads Agent WebGL and keeps predictable CSS ownership", async () => {
+test("architecture: Agent boundary owns lazy WebGL and CSS", async () => {
   const main = await read("src/main.ts");
+  const portfolio = await read("src/components/PortfolioExperience.vue");
+  const agent = await read("src/components/agent/AgentOS.vue");
   const ordered = [
     'import "./styles/theme.css"',
     'import "./styles/base.css"',
     'import "./styles/shell.css"',
-    'import "./graphics/stage-graphics.css"',
     'import "./experiences/scroll.css"',
-    'import "./components/agent/agent.css"',
     'import "./experiences/hero.css"',
     'import "./experiences/trajectory.css"',
     'import "./experiences/systems.css"',
@@ -75,11 +75,14 @@ test("architecture: main lazy-loads Agent WebGL and keeps predictable CSS owners
     previous = index;
   }
 
-  assert.match(main, /mountAgentGraphicsLifecycle\(\)/);
-  assert.match(main, /agentGraphicsModule \?\?= import\("\.\/graphics\/stageGraphics"\)/);
-  assert.match(main, /scene === "gallery"/);
-  assert.doesNotMatch(main, /import \{ mountStageGraphics \} from/);
+  assert.doesNotMatch(main, /stageGraphics|components\/agent|mountAgentGraphicsLifecycle/);
   assert.match(main, /mountScrollSyncController\(\)/);
+  assert.match(portfolio, /import\("\.\/agent\/AgentOS\.vue"\)/);
+  assert.match(portfolio, /scene === "gallery"/);
+  assert.match(portfolio, /scene === "agent"/);
+  assert.match(agent, /from "\.\.\/\.\.\/graphics\/stageGraphics"/);
+  assert.match(agent, /<style src="\.\/agent\.css"><\/style>/);
+  assert.match(agent, /<style src="\.\.\/\.\.\/graphics\/stage-graphics\.css"><\/style>/);
   assert.doesNotMatch(main, /design-system|cinematic|systems-motion|trajectory-bridge/);
 });
 
@@ -203,6 +206,7 @@ test("architecture: mobile refinement is isolated from desktop ownership", async
 
 test("architecture: Agent-only Three renderer sleeps and menu WebGL stays isolated", async () => {
   const main = await read("src/main.ts");
+  const portfolio = await read("src/components/PortfolioExperience.vue");
   const graphics = await read("src/graphics/stageGraphics.ts");
   const controller = await read("src/graphics/agent-visual-controller.ts");
   const agent = await read("src/components/agent/AgentOS.vue");
@@ -229,12 +233,14 @@ test("architecture: Agent-only Three renderer sleeps and menu WebGL stays isolat
   assert.match(controller, /agentVisualNeedsFrame/);
   assert.match(controller, /requestVisualFrame\(\)/);
   assert.match(agent, /from "\.\.\/\.\.\/graphics\/agent-visual-controller"/);
-  assert.doesNotMatch(agent, /graphics\/stageGraphics/);
+  assert.match(agent, /from "\.\.\/\.\.\/graphics\/stageGraphics"/);
+  assert.match(agent, /disposeStageGraphics = mountStageGraphics\(\)/);
+  assert.match(agent, /disposeStageGraphics\?\.\(\)/);
 
-  assert.match(main, /agentGraphicsModule \?\?= import\("\.\/graphics\/stageGraphics"\)/);
-  assert.match(main, /scene !== "agent"/);
-  assert.match(main, /scene === "gallery"/);
-  assert.doesNotMatch(main, /import \{ mountStageGraphics \} from/);
+  assert.doesNotMatch(main, /stageGraphics|mountAgentGraphicsLifecycle|components\/agent/);
+  assert.match(portfolio, /import\("\.\/agent\/AgentOS\.vue"\)/);
+  assert.match(portfolio, /scene === "gallery"/);
+  assert.match(portfolio, /agentActive\.value = scene === "agent"/);
 
   assert.match(agentShader, /fluidValue/);
   assert.match(agentShader, /refractStrength/);
