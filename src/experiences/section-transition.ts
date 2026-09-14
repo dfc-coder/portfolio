@@ -10,6 +10,14 @@ const MAX_TRANSITION_PIXELS = 1_250_000;
 type NavigationCommit = () => void;
 type NavigationTransition = (commit: NavigationCommit, direction: number) => void;
 
+type TransitionRenderer = {
+  canvas: HTMLCanvasElement;
+  resize: () => void;
+  draw: (progress: number, direction: number) => void;
+  clear: () => void;
+  destroy: () => void;
+};
+
 let navigationTransition: NavigationTransition | null = null;
 
 const vertexShader = `
@@ -169,13 +177,10 @@ const compileShader = (
   return shader;
 };
 
-export const mountSectionTransition = (_portfolio: HTMLElement) => {
-  document.querySelector(".ref-navigation-transition")?.remove();
-
+const createTransitionRenderer = (): TransitionRenderer | null => {
   const canvas = document.createElement("canvas");
   canvas.className = "ref-navigation-transition";
   canvas.setAttribute("aria-hidden", "true");
-  document.body.append(canvas);
 
   const gl = canvas.getContext("webgl", {
     alpha: true,
@@ -186,11 +191,7 @@ export const mountSectionTransition = (_portfolio: HTMLElement) => {
     powerPreference: "high-performance",
   });
 
-  if (!gl) {
-    canvas.remove();
-    navigationTransition = null;
-    return null;
-  }
+  if (!gl) return null;
 
   const vertex = compileShader(gl, gl.VERTEX_SHADER, vertexShader);
   const fragment = compileShader(gl, gl.FRAGMENT_SHADER, fragmentShader);
@@ -199,8 +200,6 @@ export const mountSectionTransition = (_portfolio: HTMLElement) => {
   if (!vertex || !fragment || !program) {
     vertex && gl.deleteShader(vertex);
     fragment && gl.deleteShader(fragment);
-    canvas.remove();
-    navigationTransition = null;
     return null;
   }
 
@@ -216,8 +215,6 @@ export const mountSectionTransition = (_portfolio: HTMLElement) => {
       gl.getProgramInfoLog(program),
     );
     gl.deleteProgram(program);
-    canvas.remove();
-    navigationTransition = null;
     return null;
   }
 
@@ -231,8 +228,6 @@ export const mountSectionTransition = (_portfolio: HTMLElement) => {
   if (!buffer || positionLocation < 0) {
     buffer && gl.deleteBuffer(buffer);
     gl.deleteProgram(program);
-    canvas.remove();
-    navigationTransition = null;
     return null;
   }
 
@@ -245,11 +240,6 @@ export const mountSectionTransition = (_portfolio: HTMLElement) => {
   gl.useProgram(program);
   gl.enableVertexAttribArray(positionLocation);
   gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
-
-  let timeline: ReturnType<typeof gsap.timeline> | null = null;
-  let active = false;
-  let currentDirection = 1;
-  const state = { progress: 0 };
 
   const resize = () => {
     const cssWidth = Math.max(1, innerWidth);
@@ -269,36 +259,79 @@ export const mountSectionTransition = (_portfolio: HTMLElement) => {
     gl.viewport(0, 0, width, height);
   };
 
-  const draw = (progress: number) => {
+  const clear = () => {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
+  };
+
+  const draw = (progress: number, direction: number) => {
+    clear();
     gl.useProgram(program);
     gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
     gl.uniform1f(progressLocation, clamp(progress, 0, 1));
-    gl.uniform1f(directionLocation, currentDirection);
+    gl.uniform1f(directionLocation, direction);
     gl.uniform1f(timeLocation, performance.now() * 0.001);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
+  };
+
+  const destroy = () => {
+    removeEventListener("resize", resize);
+    clear();
+    gl.deleteBuffer(buffer);
+    gl.deleteProgram(program);
+    canvas.remove();
+  };
+
+  document.body.append(canvas);
+  addEventListener("resize", resize, { passive: true });
+  resize();
+
+  return { canvas, resize, draw, clear, destroy };
+};
+
+export const mountSectionTransition = (_portfolio: HTMLElement) => {
+  document.querySelector(".ref-navigation-transition")?.remove();
+
+  let renderer: TransitionRenderer | null = null;
+  let rendererUnavailable = false;
+  let timeline: ReturnType<typeof gsap.timeline> | null = null;
+  let active = false;
+  let currentDirection = 1;
+  const state = { progress: 0 };
+
+  const ensureRenderer = () => {
+    if (renderer) return renderer;
+    if (rendererUnavailable) return null;
+
+    renderer = createTransitionRenderer();
+    rendererUnavailable = renderer === null;
+    return renderer;
   };
 
   const finish = () => {
     active = false;
     state.progress = 0;
-    canvas.classList.remove("is-active");
+    renderer?.canvas.classList.remove("is-active");
     document.documentElement.classList.remove("is-section-transitioning");
-    gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    renderer?.clear();
   };
 
   const run: NavigationTransition = (commit, direction) => {
     if (active) return;
 
+    const currentRenderer = ensureRenderer();
+    if (!currentRenderer) {
+      commit();
+      return;
+    }
+
     active = true;
     currentDirection = direction < 0 ? -1 : 1;
     state.progress = 0;
-    resize();
-    canvas.classList.add("is-active");
+    currentRenderer.resize();
+    currentRenderer.canvas.classList.add("is-active");
     document.documentElement.classList.add("is-section-transitioning");
-    draw(0);
+    currentRenderer.draw(0, currentDirection);
 
     let committed = false;
     timeline?.kill();
@@ -317,25 +350,21 @@ export const mountSectionTransition = (_portfolio: HTMLElement) => {
           committed = true;
           commit();
         }
-        draw(state.progress);
+        currentRenderer.draw(state.progress, currentDirection);
       },
     });
   };
 
   navigationTransition = run;
-  addEventListener("resize", resize, { passive: true });
-  resize();
 
   return {
     destroy: () => {
       timeline?.kill();
       timeline = null;
-      navigationTransition = null;
-      removeEventListener("resize", resize);
       finish();
-      gl.deleteBuffer(buffer);
-      gl.deleteProgram(program);
-      canvas.remove();
+      if (navigationTransition === run) navigationTransition = null;
+      renderer?.destroy();
+      renderer = null;
     },
   };
 };
