@@ -3,6 +3,7 @@ import {
   galleryImageUrl,
   galleryItems,
 } from "./gallery-data";
+import { narrativeRuntime, type NarrativeState } from "./narrative-runtime";
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
@@ -16,14 +17,13 @@ type CardMetric = {
 export const mountGalleryGel = () => {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return () => undefined;
 
-  const stage = document.querySelector<HTMLElement>(".ref-stage");
   const gallery = document.querySelector<HTMLElement>(".ref-scene--gallery");
   const galleryStage = gallery?.querySelector<HTMLElement>(".ref-gallery-stage");
   const cards = galleryStage
     ? Array.from(galleryStage.querySelectorAll<HTMLElement>(".ref-art-card"))
     : [];
 
-  if (!stage || !gallery || !galleryStage || cards.length === 0) {
+  if (!gallery || !galleryStage || cards.length === 0) {
     return () => undefined;
   }
 
@@ -70,8 +70,10 @@ export const mountGalleryGel = () => {
   let pointerX = innerWidth * 0.5;
   let pointerY = innerHeight * 0.5;
   let cardMetrics: CardMetric[] = [];
+  let galleryActive = narrativeRuntime.getState().scene === "gallery";
+  let pointerListenerActive = false;
 
-  const galleryIsVisible = () => stage.dataset.scene === "gallery";
+  const galleryIsVisible = () => galleryActive;
 
   const lockDocumentScroll = () => {
     if (rootOverflow !== null) return;
@@ -113,6 +115,60 @@ export const mountGalleryGel = () => {
     focusIndex.textContent = String(selectedIndex + 1).padStart(2, "0");
   };
 
+  const measureCards = () => {
+    const stageRect = galleryStage.getBoundingClientRect();
+    cardMetrics = cards.map((card, index) => ({
+      centerX: stageRect.left + card.offsetLeft + card.offsetWidth * 0.5,
+      centerY: stageRect.top + card.offsetTop + card.offsetHeight * 0.5,
+      depth: 0.72 + (index % 5) * 0.11,
+    }));
+  };
+
+  const renderPointerField = () => {
+    pointerFrame = 0;
+    if (!galleryIsVisible() || isOpen || cardMetrics.length !== cards.length) return;
+
+    cards.forEach((card, index) => {
+      const metric = cardMetrics[index];
+      if (!metric) return;
+
+      const dx = pointerX - metric.centerX;
+      const dy = pointerY - metric.centerY;
+      const influence = clamp(1 - Math.hypot(dx, dy) / 620, 0, 1);
+      card.style.setProperty("--gel-x", `${(dx * 0.018 * metric.depth * influence).toFixed(2)}px`);
+      card.style.setProperty("--gel-y", `${(dy * 0.014 * metric.depth * influence).toFixed(2)}px`);
+      card.style.setProperty("--gel-rx", `${(-dy * 0.006 * influence).toFixed(2)}deg`);
+      card.style.setProperty("--gel-ry", `${(dx * 0.006 * influence).toFixed(2)}deg`);
+    });
+  };
+
+  const schedulePointerField = () => {
+    if (pointerFrame !== 0) return;
+    pointerFrame = requestAnimationFrame(renderPointerField);
+  };
+
+  const onPointerMove = (event: PointerEvent) => {
+    pointerX = event.clientX;
+    pointerY = event.clientY;
+    schedulePointerField();
+  };
+
+  const setPointerListenerActive = (active: boolean) => {
+    if (active === pointerListenerActive) return;
+    pointerListenerActive = active;
+
+    if (active) {
+      measureCards();
+      addEventListener("pointermove", onPointerMove, { passive: true });
+      schedulePointerField();
+      return;
+    }
+
+    removeEventListener("pointermove", onPointerMove);
+    if (pointerFrame !== 0) cancelAnimationFrame(pointerFrame);
+    pointerFrame = 0;
+  };
+
   const openFocus = (index: number) => {
     if (!galleryIsVisible()) return;
 
@@ -120,6 +176,7 @@ export const mountGalleryGel = () => {
     renderFocus();
     lockDocumentScroll();
     isOpen = true;
+    setPointerListenerActive(false);
     gallery.classList.add("is-gallery-focus-open");
     focus.classList.add("is-open");
     focus.setAttribute("aria-hidden", "false");
@@ -133,7 +190,10 @@ export const mountGalleryGel = () => {
     gallery.classList.remove("is-gallery-focus-open");
     focus.classList.remove("is-open");
     focus.setAttribute("aria-hidden", "true");
-    if (galleryIsVisible()) cards[selectedIndex]?.focus({ preventScroll: true });
+    if (galleryIsVisible()) {
+      setPointerListenerActive(true);
+      cards[selectedIndex]?.focus({ preventScroll: true });
+    }
   };
 
   const onGalleryClick = (event: MouseEvent) => {
@@ -173,68 +233,37 @@ export const mountGalleryGel = () => {
     if (isOpen) renderFocus();
   };
 
-  const measureCards = () => {
-    const stageRect = galleryStage.getBoundingClientRect();
-    cardMetrics = cards.map((card, index) => ({
-      centerX: stageRect.left + card.offsetLeft + card.offsetWidth * 0.5,
-      centerY: stageRect.top + card.offsetTop + card.offsetHeight * 0.5,
-      depth: 0.72 + (index % 5) * 0.11,
-    }));
-  };
-
-  const renderPointerField = () => {
-    pointerFrame = 0;
-    if (!galleryIsVisible() || isOpen) return;
-    if (cardMetrics.length !== cards.length) measureCards();
-
-    cards.forEach((card, index) => {
-      const metric = cardMetrics[index];
-      if (!metric) return;
-
-      const dx = pointerX - metric.centerX;
-      const dy = pointerY - metric.centerY;
-      const influence = clamp(1 - Math.hypot(dx, dy) / 620, 0, 1);
-      card.style.setProperty("--gel-x", `${(dx * 0.018 * metric.depth * influence).toFixed(2)}px`);
-      card.style.setProperty("--gel-y", `${(dy * 0.014 * metric.depth * influence).toFixed(2)}px`);
-      card.style.setProperty("--gel-rx", `${(-dy * 0.006 * influence).toFixed(2)}deg`);
-      card.style.setProperty("--gel-ry", `${(dx * 0.006 * influence).toFixed(2)}deg`);
-    });
-  };
-
-  const schedulePointerField = () => {
-    if (pointerFrame !== 0) return;
-    pointerFrame = requestAnimationFrame(renderPointerField);
-  };
-
-  const onPointerMove = (event: PointerEvent) => {
-    if (!galleryIsVisible() || isOpen) return;
-    pointerX = event.clientX;
-    pointerY = event.clientY;
-    schedulePointerField();
-  };
-
   const onResize = () => {
-    cardMetrics = [];
-    if (galleryIsVisible() && !isOpen) schedulePointerField();
+    if (!galleryIsVisible() || isOpen) {
+      cardMetrics = [];
+      return;
+    }
+    measureCards();
+    schedulePointerField();
   };
 
   const onFocusPointerDown = (event: PointerEvent) => {
     if (event.target === focus) closeFocus();
   };
 
+  const syncNarrative = (state: NarrativeState) => {
+    galleryActive = state.scene === "gallery";
+    setPointerListenerActive(galleryActive && !isOpen);
+  };
+
   gallery.addEventListener("click", onGalleryClick, true);
   focus.addEventListener("pointerdown", onFocusPointerDown);
   addEventListener("keydown", onKeydown, true);
-  addEventListener("pointermove", onPointerMove, { passive: true });
   addEventListener("resize", onResize, { passive: true });
+  const unsubscribe = narrativeRuntime.subscribe(syncNarrative);
 
   return () => {
-    if (pointerFrame !== 0) cancelAnimationFrame(pointerFrame);
+    unsubscribe();
+    setPointerListenerActive(false);
     unlockDocumentScroll();
     gallery.removeEventListener("click", onGalleryClick, true);
     focus.removeEventListener("pointerdown", onFocusPointerDown);
     removeEventListener("keydown", onKeydown, true);
-    removeEventListener("pointermove", onPointerMove);
     removeEventListener("resize", onResize);
     focus.remove();
     gallery.classList.remove("ref-gallery-gel-ready", "is-gallery-focus-open");
