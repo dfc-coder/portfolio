@@ -166,7 +166,14 @@
   padding: var(--shell-gutter);
   pointer-events: none;
   background: transparent !important;
-  will-change: opacity, transform, filter;
+}
+
+/* Scene roots get compositor hints only while they are actually visible or
+   crossing a narrative boundary. Gallery keeps the hint during its physical
+   handoff, which can outlive the global gallery opacity envelope. */
+.ref-scene[data-scroll-compositor="true"],
+.ref-scene--gallery[data-gallery-motion="true"] {
+  will-change: transform, opacity;
 }
 
 /* Gallery historically owned an opaque material. The shell now owns the only
