@@ -316,7 +316,7 @@ export const mountTrajectoryExperience = () => {
     const trajectoryVisibility = trajectoryIn * (1 - trajectoryOut);
 
     const introIn = range(node, 0.56, 0.82);
-    const introOut = range(node, 1.16, 1.48);
+    const introOut = range(node, 1.06, 1.32);
     const introVisibility = introIn * (1 - introOut);
 
     const axisReveal = range(node, 1.18, 1.52);
