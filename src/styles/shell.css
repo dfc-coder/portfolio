@@ -28,7 +28,7 @@
   height: 70px;
   padding: 0 22px;
   display: grid;
-  grid-template-columns: 1fr minmax(220px, 28vw) 1fr;
+  grid-template-columns: 1fr 1fr;
   align-items: center;
   border-bottom: 1px solid var(--line-light);
   background: rgba(9, 9, 8, .68);
@@ -56,29 +56,6 @@
   color: #b4aea4;
   font: var(--t-meta)/1.3 var(--font-info);
   letter-spacing: .08em;
-}
-
-.ref-progress {
-  display: grid;
-  grid-template-columns: 27px 1fr 27px;
-  align-items: center;
-  gap: 9px;
-  color: #aaa49a;
-  font-size: var(--t-telemetry);
-}
-
-.ref-progress i {
-  height: 1px;
-  overflow: hidden;
-  background: rgba(238, 234, 226, .17);
-}
-
-.ref-progress b {
-  display: block;
-  width: 100%;
-  height: 100%;
-  transform-origin: left;
-  background: var(--color-paper);
 }
 
 .ref-index-toggle {
@@ -318,14 +295,6 @@
 }
 
 @media (max-width: 980px) {
-  .ref-header {
-    grid-template-columns: 1fr auto;
-  }
-
-  .ref-progress {
-    display: none;
-  }
-
   .ref-index {
     grid-template-columns: repeat(2, 1fr);
   }
