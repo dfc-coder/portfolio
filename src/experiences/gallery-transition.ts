@@ -83,17 +83,12 @@ export const createGalleryTransitionMotion = (
 ): GalleryTransitionMotion => {
   const compactQuery = matchMedia(MOBILE_BREAKPOINT);
   const { galleryStartNode, physicalLastNode } = narrativeModel;
-  const initialState = narrativeModel.physicalLastNode
-    ? 0
-    : 0;
-  let latestPhysicalNode = initialState;
-  let previousPhysicalNode = latestPhysicalNode;
+  let initialized = false;
+  let latestPhysicalNode = 0;
+  let previousPhysicalNode = 0;
   let inputLastTime = performance.now();
   let driveVelocity = 0;
-  let globalMotionState: SpringState = {
-    value: latestPhysicalNode,
-    velocity: 0,
-  };
+  let globalMotionState: SpringState = { value: 0, velocity: 0 };
   let motionPending = false;
   let galleryMotionActive = false;
   let previousGalleryMotionOpacity = "";
@@ -230,26 +225,26 @@ export const createGalleryTransitionMotion = (
     }
   };
 
-  const setInitialPhysicalNode = (state: NarrativeState) => {
+  const initialize = (state: NarrativeState) => {
     latestPhysicalNode = state.physicalProgress * physicalLastNode;
     previousPhysicalNode = latestPhysicalNode;
     globalMotionState = { value: latestPhysicalNode, velocity: 0 };
+    inputLastTime = performance.now();
     measureDistances();
     renderCards(latestPhysicalNode, 0);
     updateVisibilityOwnership(latestPhysicalNode);
+    initialized = true;
   };
 
   const onNarrative = (state: NarrativeState) => {
-    const now = performance.now();
-    const physicalNode = state.physicalProgress * physicalLastNode;
-
-    if (!motionPending && globalMotionState.value === 0 && latestPhysicalNode === 0) {
-      setInitialPhysicalNode(state);
-      inputLastTime = now;
+    if (!initialized) {
+      initialize(state);
       return;
     }
 
+    const now = performance.now();
     const inputDt = frameDeltaSeconds(now, inputLastTime);
+    const physicalNode = state.physicalProgress * physicalLastNode;
     const rawVelocity = clamp(
       (physicalNode - previousPhysicalNode) / inputDt,
       -5.5,
@@ -265,6 +260,7 @@ export const createGalleryTransitionMotion = (
   };
 
   const onResize = () => {
+    if (!initialized) return;
     measureDistances();
     updateVisibilityOwnership(latestPhysicalNode);
     motionPending = true;
