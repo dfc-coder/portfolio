@@ -51,7 +51,7 @@ test("architecture: pnpm remains the only frontend package manager", async () =>
   assert.ok(packageJson.dependencies.vue);
 });
 
-test("architecture: main mounts one shared WebGL stage and predictable CSS ownership", async () => {
+test("architecture: main lazy-loads Agent WebGL and keeps predictable CSS ownership", async () => {
   const main = await read("src/main.ts");
   const ordered = [
     'import "./styles/theme.css"',
@@ -75,7 +75,10 @@ test("architecture: main mounts one shared WebGL stage and predictable CSS owner
     previous = index;
   }
 
-  assert.match(main, /mountStageGraphics\(\)/);
+  assert.match(main, /mountAgentGraphicsLifecycle\(\)/);
+  assert.match(main, /agentGraphicsModule \?\?= import\("\.\/graphics\/stageGraphics"\)/);
+  assert.match(main, /scene === "gallery"/);
+  assert.doesNotMatch(main, /import \{ mountStageGraphics \} from/);
   assert.match(main, /mountScrollSyncController\(\)/);
   assert.doesNotMatch(main, /design-system|cinematic|systems-motion|trajectory-bridge/);
 });
@@ -182,15 +185,17 @@ test("architecture: mobile refinement is isolated from desktop ownership", async
   assert.match(scroll, /MOBILE_SCENE_CROSSFADE_WIDTH = 0\.22/);
 });
 
-test("architecture: persistent Three stage and isolated menu WebGL have separate lifecycles", async () => {
+test("architecture: Agent-only Three renderer sleeps and menu WebGL stays isolated", async () => {
+  const main = await read("src/main.ts");
   const graphics = await read("src/graphics/stageGraphics.ts");
+  const controller = await read("src/graphics/agent-visual-controller.ts");
+  const agent = await read("src/components/agent/AgentOS.vue");
   const agentShader = await read("src/graphics/agent-liquid-shader.ts");
   const hero = await read("src/experiences/hero.ts");
   const transition = await read("src/experiences/section-transition.ts");
   const continuity = await read("src/experiences/continuity.css");
 
   assert.equal((graphics.match(/new THREE\.WebGLRenderer/g) ?? []).length, 1);
-  assert.match(graphics, /const atmosphereFragment/);
   assert.match(graphics, /agent-liquid-shader/);
   assert.match(graphics, /agentLiquidVertex/);
   assert.match(graphics, /agentLiquidFragment/);
@@ -198,8 +203,23 @@ test("architecture: persistent Three stage and isolated menu WebGL have separate
   assert.match(graphics, /new THREE\.Mesh\(this\.agentGeometry, this\.agentMaterial\)/);
   assert.doesNotMatch(graphics, /new THREE\.Points/);
   assert.match(graphics, /new THREE\.PerspectiveCamera/);
-  assert.match(graphics, /renderer\.render\(this\.atmosphereScene/);
   assert.match(graphics, /renderer\.render\(this\.agentScene/);
+  assert.match(graphics, /requestAnimationFrame\(this\.render\)/);
+  assert.match(graphics, /agentVisualNeedsFrame\(\)/);
+  assert.doesNotMatch(graphics, /atmosphereFragment|transitionFragment|setStageTransition/);
+  assert.doesNotMatch(graphics, /narrativeRuntime|setTimeout|targetFps|\.schedule\(/);
+
+  assert.match(controller, /bindAgentVisualWake/);
+  assert.match(controller, /agentVisualNeedsFrame/);
+  assert.match(controller, /requestVisualFrame\(\)/);
+  assert.match(agent, /from "\.\.\/\.\.\/graphics\/agent-visual-controller"/);
+  assert.doesNotMatch(agent, /graphics\/stageGraphics/);
+
+  assert.match(main, /agentGraphicsModule \?\?= import\("\.\/graphics\/stageGraphics"\)/);
+  assert.match(main, /scene !== "agent"/);
+  assert.match(main, /scene === "gallery"/);
+  assert.doesNotMatch(main, /import \{ mountStageGraphics \} from/);
+
   assert.match(agentShader, /fluidValue/);
   assert.match(agentShader, /refractStrength/);
   assert.match(agentShader, /caustic/);
@@ -240,6 +260,7 @@ test("architecture: CSS owns only static surface texture and small UI motion", a
   assert.match(shell, /\.ref-grain\s*\{/);
   assert.match(graphicsCss, /repeating-linear-gradient/);
   assert.match(graphicsCss, /radial-gradient/);
+  assert.doesNotMatch(graphicsCss, /has-webgl-transition|is-transitioning/);
   assert.doesNotMatch(continuity, /ref-global-pointer-light/);
   assert.match(continuity, /\.ref-cursor/);
 });
