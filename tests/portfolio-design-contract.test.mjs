@@ -16,6 +16,15 @@ const removedFrontendLayers = [
   "src/design-system/tokens.css",
   "src/design-system/primitives.css",
   "src/design-system/templates.css",
+  "src/experiences/gallery-clean.css",
+  "src/experiences/gallery-transition.css",
+  "src/experiences/trajectory-layout.css",
+  "src/styles/trajectory-role-fit.css",
+  "src/experiences/systems-project-balance.css",
+  "src/styles/mobile-experience.css",
+  "src/styles/mobile-hero-layout.css",
+  "src/styles/mobile-trajectory-layout.css",
+  "src/styles/mobile-systems-layout.css",
 ];
 
 const removedBackendFacades = [
@@ -61,12 +70,12 @@ test("architecture: bootstrap keeps global owners and scene runtimes are lazy", 
     'import "./styles/shell.css"',
     'import "./graphics/stage-graphics.css"',
     'import "./experiences/scroll.css"',
+    'import "./experiences/continuity.css"',
+    'import "./styles/chapter-bridges.css"',
     'import "./components/agent/agent.css"',
     'import "./experiences/hero.css"',
     'import "./experiences/trajectory.css"',
     'import "./experiences/systems.css"',
-    'import "./experiences/continuity.css"',
-    'import "./styles/chapter-bridges.css"',
     'import "./experiences/gallery.css"',
   ];
 
@@ -203,24 +212,32 @@ test("architecture: narrative consumers subscribe instead of polling CSS every f
   assert.doesNotMatch(systems, /requestAnimationFrame\(renderPointer\)/);
 });
 
-test("architecture: mobile refinement is isolated from desktop ownership", async () => {
+test("architecture: responsive CSS stays with its owner instead of patch layers", async () => {
   const main = await read("src/main.ts");
-  const mobile = await read("src/styles/mobile-experience.css");
+  const shell = await read("src/styles/shell.css");
+  const heroCss = await read("src/experiences/hero.css");
+  const trajectoryCss = await read("src/experiences/trajectory.css");
+  const systemsCss = await read("src/experiences/systems.css");
+  const galleryCss = await read("src/experiences/gallery.css");
+  const agentCss = await read("src/components/agent/agent.css");
   const trajectory = await read("src/experiences/trajectory.ts");
   const systemsMotion = await read("src/experiences/systems-motion-contract.ts");
   const galleryTransition = await read("src/experiences/gallery-transition.ts");
   const scroll = await read("src/experiences/scroll.ts");
 
-  const mobileImport = 'import "./styles/mobile-experience.css"';
-  const galleryTransitionImport = 'import "./experiences/gallery-transition.css"';
-
-  assert.match(main, /import "\.\/styles\/mobile-experience\.css"/);
-  assert.ok(main.indexOf(mobileImport) > main.indexOf(galleryTransitionImport));
-  assert.match(mobile, /@media \(max-width: 680px\)/);
-  assert.match(mobile, /--narrative-rail-x:\s*8\.5%/);
-  assert.match(mobile, /\.narrative-header__meta\s*\{[^}]*display:\s*none\s*!important/is);
-  assert.match(mobile, /\.systems-project__detail,[\s\S]*display:\s*none\s*!important/);
-  assert.match(mobile, /\.agent-core\s*\{[^}]*64vw/is);
+  assert.doesNotMatch(
+    main,
+    /gallery-clean|gallery-transition\.css|trajectory-layout|trajectory-role-fit|systems-project-balance|mobile-experience|mobile-hero-layout|mobile-trajectory-layout|mobile-systems-layout/,
+  );
+  for (const css of [shell, heroCss, trajectoryCss, systemsCss, galleryCss, agentCss]) {
+    assert.match(css, /@media \(max-width: 680px\)/);
+  }
+  assert.match(shell, /--narrative-rail-x:\s*8\.5%/);
+  assert.match(trajectoryCss, /\.trajectory-entry--long-role h3/);
+  assert.match(systemsCss, /\.systems-project\[data-project="05"\]/);
+  assert.match(systemsCss, /\.systems-project__detail,[\s\S]*display:\s*none\s*!important/);
+  assert.match(galleryCss, /data-gallery-motion="true"/);
+  assert.match(agentCss, /\.agent-core\s*\{[^}]*64vw/is);
   assert.match(trajectory, /entryPresence\(Math\.abs\(roleOffset\), compact\)/);
   assert.match(systemsMotion, /MOBILE_SYSTEMS_TIMING/);
   assert.match(galleryTransition, /MOBILE_ENTRY_START_OFFSET = -1\.04/);

@@ -309,6 +309,12 @@
     padding: 0 14px;
   }
 
+  .ref-brand,
+  .ref-index-toggle {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
   .ref-brand span {
     display: none;
   }
@@ -325,7 +331,7 @@
 
   .ref-stage {
     --shell-gutter: 14px;
-    --narrative-rail-x: 11.5%;
+    --narrative-rail-x: 8.5%;
   }
 
   .ref-scene {

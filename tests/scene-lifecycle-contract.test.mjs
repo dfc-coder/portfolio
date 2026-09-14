@@ -48,7 +48,7 @@ test("architecture: scroll variables are the final narrative visibility owner", 
 
   const ownershipImport = 'import "./styles/narrative-visibility.css";';
   assert.ok(main.includes(ownershipImport));
-  assert.ok(main.indexOf(ownershipImport) > main.indexOf('import "./styles/mobile-systems-layout.css";'));
+  assert.ok(main.indexOf(ownershipImport) > main.indexOf('import "./experiences/gallery.css";'));
 
   assert.match(
     visibility,
@@ -72,7 +72,7 @@ test("performance: feature style variables stay on local owners", async () => {
   const trajectory = await read("src/experiences/trajectory.ts");
   const systems = await read("src/experiences/systems.ts");
   const galleryTransition = await read("src/experiences/gallery-transition.ts");
-  const galleryTransitionCss = await read("src/experiences/gallery-transition.css");
+  const galleryCss = await read("src/experiences/gallery.css");
   const bridges = await read("src/styles/chapter-bridges.css");
 
   assert.doesNotMatch(trajectory, /stage\.style\.setProperty\("--trajectory-/);
@@ -90,7 +90,7 @@ test("performance: feature style variables stay on local owners", async () => {
   assert.match(galleryTransition, /gallery\.style\.setProperty\("--gallery-motion-opacity"/);
   assert.match(galleryTransition, /gallery\.dataset\.galleryMotion/);
   assert.match(
-    galleryTransitionCss,
+    galleryCss,
     /\.ref-scene--gallery\.ref-gallery-gel-ready\[data-gallery-motion="true"\]/,
   );
 
@@ -142,4 +142,28 @@ test("performance: pointermove consumers are owned by active scenes", async () =
   assert.doesNotMatch(graphicsPointer, /getBoundingClientRect/);
 
   assert.match(continuity, /addEventListener\("pointermove", onPointerMove/);
+});
+
+test("performance: Gallery owns one lifecycle and one motion frame", async () => {
+  const [lifecycle, gallery, transition] = await Promise.all([
+    read("src/experiences/scene-lifecycle.ts"),
+    read("src/experiences/gallery.ts"),
+    read("src/experiences/gallery-transition.ts"),
+  ]);
+
+  assert.match(lifecycle, /mountGalleryExperience\(\)/);
+  assert.doesNotMatch(lifecycle, /mountGalleryGel|mountGalleryTransition/);
+  assert.match(gallery, /createGalleryTransitionMotion/);
+  assert.equal((gallery.match(/let motionFrame = 0/g) ?? []).length, 1);
+  assert.doesNotMatch(gallery, /pointerFrame|schedulePointerField/);
+  assert.match(gallery, /transitionMotion\.render\(dt\)/);
+  assert.match(gallery, /motionFrame = requestAnimationFrame\(renderMotion\)/);
+
+  assert.equal((transition.match(/springStep\(/g) ?? []).length, 1);
+  assert.doesNotMatch(
+    transition,
+    /requestAnimationFrame|narrativeRuntime\.subscribe|CARD_PROFILES|profileFor/,
+  );
+  assert.match(transition, /entryPhaseFor/);
+  assert.match(transition, /exitPhaseFor/);
 });

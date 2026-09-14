@@ -6,7 +6,7 @@ import {
   type SpringState,
 } from "../motion/inertia";
 import { narrativeModel } from "./narrative-model";
-import { narrativeRuntime, type NarrativeState } from "./narrative-runtime";
+import type { NarrativeState } from "./narrative-runtime";
 
 const ENTRY_START_OFFSET = -0.76;
 const ENTRY_END_OFFSET = 0.08;
@@ -27,8 +27,16 @@ const MOBILE_EXIT_VISIBILITY_END_OFFSET = 1.24;
 
 const MOBILE_BREAKPOINT = "(max-width: 680px)";
 const VISIBILITY_MARGIN = 0.12;
-const POSITION_EPSILON = 0.03;
-const VELOCITY_EPSILON = 0.08;
+const NODE_POSITION_EPSILON = 0.0004;
+const NODE_VELOCITY_EPSILON = 0.0015;
+const GOLDEN_RATIO_FRACTION = 0.61803398875;
+
+const GLOBAL_MOTION: SpringConfig & { lead: number } = {
+  frequency: 1.28,
+  damping: 0.84,
+  maxVelocity: 6.5,
+  lead: 0.018,
+};
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
@@ -43,70 +51,73 @@ const smoother = (value: number) => {
 const range = (value: number, start: number, end: number) =>
   smoother((value - start) / (end - start));
 
-type CardProfile = SpringConfig & {
-  entryPhase: number;
-  exitPhase: number;
-  velocityLead: number;
+const fract = (value: number) => value - Math.floor(value);
+const entryPhaseFor = (index: number) => fract(index * GOLDEN_RATIO_FRACTION);
+const exitPhaseFor = (index: number) =>
+  fract(0.55 + index * (1 - GOLDEN_RATIO_FRACTION));
+
+const inertiaFor = (index: number, phase: number, velocity: number) => {
+  const direction = index % 2 === 0 ? -1 : 1;
+  return velocity * direction * (0.52 + phase * 0.58);
 };
 
 type CardMotion = {
   card: HTMLElement;
-  state: SpringState;
-  profile: CardProfile;
   entryDistance: number;
   exitDistance: number;
+  entryPhase: number;
+  exitPhase: number;
 };
 
-const CARD_PROFILES: CardProfile[] = [
-  { frequency: 1.42, damping: 0.80, maxVelocity: 138, entryPhase: 0.00, exitPhase: 0.12, velocityLead: -1.6 },
-  { frequency: 1.02, damping: 0.90, maxVelocity: 96, entryPhase: 0.13, exitPhase: 0.02, velocityLead: 1.0 },
-  { frequency: 1.28, damping: 0.84, maxVelocity: 118, entryPhase: 0.05, exitPhase: 0.16, velocityLead: -0.5 },
-  { frequency: 1.62, damping: 0.76, maxVelocity: 148, entryPhase: 0.18, exitPhase: 0.07, velocityLead: -1.9 },
-  { frequency: 1.12, damping: 0.88, maxVelocity: 104, entryPhase: 0.09, exitPhase: 0.20, velocityLead: 0.7 },
-  { frequency: 1.34, damping: 0.82, maxVelocity: 124, entryPhase: 0.16, exitPhase: 0.04, velocityLead: -0.8 },
-  { frequency: 0.96, damping: 0.92, maxVelocity: 90, entryPhase: 0.03, exitPhase: 0.18, velocityLead: 1.2 },
-  { frequency: 1.54, damping: 0.78, maxVelocity: 142, entryPhase: 0.21, exitPhase: 0.10, velocityLead: -1.5 },
-  { frequency: 1.18, damping: 0.86, maxVelocity: 108, entryPhase: 0.07, exitPhase: 0.22, velocityLead: 0.4 },
-  { frequency: 1.48, damping: 0.79, maxVelocity: 134, entryPhase: 0.19, exitPhase: 0.00, velocityLead: -1.2 },
-];
+export type GalleryTransitionMotion = {
+  onNarrative: (state: NarrativeState) => void;
+  onResize: () => void;
+  render: (dt: number) => boolean;
+  destroy: () => void;
+};
 
-const profileFor = (index: number) =>
-  CARD_PROFILES[index % CARD_PROFILES.length] ?? CARD_PROFILES[0];
-
-export const mountGalleryTransition = () => {
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    return () => undefined;
-  }
-
+export const createGalleryTransitionMotion = (
+  gallery: HTMLElement,
+  galleryStage: HTMLElement,
+  cards: HTMLElement[],
+): GalleryTransitionMotion => {
   const compactQuery = matchMedia(MOBILE_BREAKPOINT);
-  const gallery = document.querySelector<HTMLElement>(".ref-scene--gallery");
-  const galleryStage = gallery?.querySelector<HTMLElement>(".ref-gallery-stage");
-  const cards = galleryStage
-    ? Array.from(galleryStage.querySelectorAll<HTMLElement>(".ref-art-card"))
-    : [];
-
-  if (!gallery || !galleryStage || cards.length === 0) {
-    return () => undefined;
-  }
-
   const { galleryStartNode, physicalLastNode } = narrativeModel;
-  let latestPhysicalNode =
-    narrativeRuntime.getState().physicalProgress * physicalLastNode;
-  let previousPhysicalNode = latestPhysicalNode;
+  let initialized = false;
+  let latestPhysicalNode = 0;
+  let previousPhysicalNode = 0;
   let inputLastTime = performance.now();
-  let motionLastTime = inputLastTime;
   let driveVelocity = 0;
-  let motionFrame = 0;
+  let globalMotionState: SpringState = { value: 0, velocity: 0 };
+  let motionPending = false;
   let galleryMotionActive = false;
   let previousGalleryMotionOpacity = "";
 
   const motions: CardMotion[] = cards.map((card, index) => ({
     card,
-    state: { value: 0, velocity: 0 },
-    profile: profileFor(index),
     entryDistance: 80,
     exitDistance: 80,
+    entryPhase: entryPhaseFor(index),
+    exitPhase: exitPhaseFor(index),
   }));
+
+  const timing = () => {
+    const compact = compactQuery.matches;
+    return {
+      entryStart: compact ? MOBILE_ENTRY_START_OFFSET : ENTRY_START_OFFSET,
+      entryEnd: compact ? MOBILE_ENTRY_END_OFFSET : ENTRY_END_OFFSET,
+      exitStart: compact ? MOBILE_EXIT_START_OFFSET : EXIT_START_OFFSET,
+      exitEnd: compact ? MOBILE_EXIT_END_OFFSET : EXIT_END_OFFSET,
+      exitHold: compact
+        ? MOBILE_EXIT_VISIBILITY_HOLD_OFFSET
+        : EXIT_VISIBILITY_HOLD_OFFSET,
+      exitVisibilityEnd: compact
+        ? MOBILE_EXIT_VISIBILITY_END_OFFSET
+        : EXIT_VISIBILITY_END_OFFSET,
+      entryPhaseScale: compact ? 0.025 : 0.034,
+      exitPhaseScale: compact ? 0.040 : 0.053,
+    };
+  };
 
   const measureDistances = () => {
     const viewportHeight = Math.max(1, gallery.clientHeight || innerHeight);
@@ -130,28 +141,15 @@ export const mountGalleryTransition = () => {
     });
   };
 
-  const timing = () => {
-    const compact = compactQuery.matches;
-    return {
-      entryStart: compact ? MOBILE_ENTRY_START_OFFSET : ENTRY_START_OFFSET,
-      entryEnd: compact ? MOBILE_ENTRY_END_OFFSET : ENTRY_END_OFFSET,
-      exitStart: compact ? MOBILE_EXIT_START_OFFSET : EXIT_START_OFFSET,
-      exitEnd: compact ? MOBILE_EXIT_END_OFFSET : EXIT_END_OFFSET,
-      exitHold: compact
-        ? MOBILE_EXIT_VISIBILITY_HOLD_OFFSET
-        : EXIT_VISIBILITY_HOLD_OFFSET,
-      exitVisibilityEnd: compact
-        ? MOBILE_EXIT_VISIBILITY_END_OFFSET
-        : EXIT_VISIBILITY_END_OFFSET,
-      entryPhaseScale: compact ? 0.12 : 0.16,
-      exitPhaseScale: compact ? 0.18 : 0.24,
-    };
-  };
-
-  const targetFor = (motion: CardMotion, physicalNode: number, velocity: number) => {
+  const targetFor = (
+    motion: CardMotion,
+    index: number,
+    physicalNode: number,
+    velocity: number,
+  ) => {
     const values = timing();
-    const entryShift = motion.profile.entryPhase * values.entryPhaseScale;
-    const exitShift = motion.profile.exitPhase * values.exitPhaseScale;
+    const entryShift = motion.entryPhase * values.entryPhaseScale;
+    const exitShift = motion.exitPhase * values.exitPhaseScale;
     const enter = range(
       physicalNode,
       galleryStartNode + values.entryStart + entryShift,
@@ -166,7 +164,7 @@ export const mountGalleryTransition = () => {
     return (
       motion.entryDistance * (1 - enter) -
       motion.exitDistance * exit +
-      velocity * motion.profile.velocityLead
+      inertiaFor(index, motion.entryPhase, velocity)
     );
   };
 
@@ -188,12 +186,12 @@ export const mountGalleryTransition = () => {
     return entryOpacity * exitOpacity;
   };
 
-  measureDistances();
-  motions.forEach((motion) => {
-    const target = targetFor(motion, latestPhysicalNode, 0);
-    motion.state = { value: target, velocity: 0 };
-    motion.card.style.translate = `0 ${target.toFixed(3)}vh`;
-  });
+  const renderCards = (physicalNode: number, velocity: number) => {
+    motions.forEach((motion, index) => {
+      const target = targetFor(motion, index, physicalNode, velocity);
+      motion.card.style.translate = `0 ${target.toFixed(3)}vh`;
+    });
+  };
 
   const updateVisibilityOwnership = (physicalNode: number) => {
     const values = timing();
@@ -227,41 +225,23 @@ export const mountGalleryTransition = () => {
     }
   };
 
-  const renderMotion = (time: number) => {
-    motionFrame = 0;
-    const dt = frameDeltaSeconds(time, motionLastTime);
-    motionLastTime = time;
-    driveVelocity = damp(driveVelocity, 0, 5.2, dt);
+  const initialize = (state: NarrativeState) => {
+    latestPhysicalNode = state.physicalProgress * physicalLastNode;
+    previousPhysicalNode = latestPhysicalNode;
+    globalMotionState = { value: latestPhysicalNode, velocity: 0 };
+    inputLastTime = performance.now();
+    measureDistances();
+    renderCards(latestPhysicalNode, 0);
+    updateVisibilityOwnership(latestPhysicalNode);
+    initialized = true;
+  };
 
-    let maxPositionError = 0;
-    let maxVelocity = 0;
-
-    motions.forEach((motion) => {
-      const target = targetFor(motion, latestPhysicalNode, driveVelocity);
-      const next = springStep(motion.state, target, motion.profile, dt);
-      motion.state = next;
-      motion.card.style.translate = `0 ${next.value.toFixed(3)}vh`;
-      maxPositionError = Math.max(maxPositionError, Math.abs(target - next.value));
-      maxVelocity = Math.max(maxVelocity, Math.abs(next.velocity));
-    });
-
-    const settled =
-      Math.abs(driveVelocity) < VELOCITY_EPSILON &&
-      maxPositionError < POSITION_EPSILON &&
-      maxVelocity < VELOCITY_EPSILON;
-
-    if (!settled) {
-      motionFrame = requestAnimationFrame(renderMotion);
+  const onNarrative = (state: NarrativeState) => {
+    if (!initialized) {
+      initialize(state);
+      return;
     }
-  };
 
-  const requestMotionRender = () => {
-    if (motionFrame) return;
-    motionLastTime = performance.now();
-    motionFrame = requestAnimationFrame(renderMotion);
-  };
-
-  const renderNarrative = (state: NarrativeState) => {
     const now = performance.now();
     const inputDt = frameDeltaSeconds(now, inputLastTime);
     const physicalNode = state.physicalProgress * physicalLastNode;
@@ -276,28 +256,59 @@ export const mountGalleryTransition = () => {
     latestPhysicalNode = physicalNode;
     inputLastTime = now;
     updateVisibilityOwnership(physicalNode);
-    requestMotionRender();
+    motionPending = true;
   };
 
   const onResize = () => {
+    if (!initialized) return;
     measureDistances();
     updateVisibilityOwnership(latestPhysicalNode);
-    requestMotionRender();
+    motionPending = true;
   };
 
-  compactQuery.addEventListener("change", onResize);
-  addEventListener("resize", onResize, { passive: true });
-  const unsubscribe = narrativeRuntime.subscribe(renderNarrative);
+  const render = (dt: number) => {
+    if (!motionPending) return false;
 
-  return () => {
-    unsubscribe();
-    if (motionFrame) cancelAnimationFrame(motionFrame);
-    compactQuery.removeEventListener("change", onResize);
-    removeEventListener("resize", onResize);
-    delete gallery.dataset.galleryMotion;
-    gallery.style.removeProperty("--gallery-motion-opacity");
-    motions.forEach((motion) => {
-      motion.card.style.removeProperty("translate");
-    });
+    driveVelocity = damp(driveVelocity, 0, 5.2, dt);
+    const targetNode = latestPhysicalNode + driveVelocity * GLOBAL_MOTION.lead;
+    globalMotionState = springStep(
+      globalMotionState,
+      targetNode,
+      GLOBAL_MOTION,
+      dt,
+    );
+
+    renderCards(globalMotionState.value, globalMotionState.velocity);
+
+    const settled =
+      Math.abs(driveVelocity) < NODE_VELOCITY_EPSILON &&
+      Math.abs(targetNode - globalMotionState.value) < NODE_POSITION_EPSILON &&
+      Math.abs(globalMotionState.velocity) < NODE_VELOCITY_EPSILON;
+
+    if (settled) {
+      driveVelocity = 0;
+      globalMotionState = { value: latestPhysicalNode, velocity: 0 };
+      renderCards(latestPhysicalNode, 0);
+      motionPending = false;
+    }
+
+    return motionPending;
+  };
+
+  const onCompactChange = () => onResize();
+  compactQuery.addEventListener("change", onCompactChange);
+
+  return {
+    onNarrative,
+    onResize,
+    render,
+    destroy: () => {
+      compactQuery.removeEventListener("change", onCompactChange);
+      delete gallery.dataset.galleryMotion;
+      gallery.style.removeProperty("--gallery-motion-opacity");
+      motions.forEach((motion) => {
+        motion.card.style.removeProperty("translate");
+      });
+    },
   };
 };

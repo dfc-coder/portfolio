@@ -685,3 +685,221 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
     display: none;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Final desktop composition
+   -------------------------------------------------------------------------- */
+@media (min-width: 681px) {
+  .trajectory-static-chrome {
+    z-index: 12;
+    opacity: calc(var(--trajectory-content, 0) * .82);
+  }
+
+  .trajectory-static-chrome__context {
+    left: 29%;
+    top: 58%;
+    width: min(560px, 48vw);
+    gap: 30px;
+  }
+
+  .trajectory-static-chrome__context span {
+    padding-bottom: 10px;
+  }
+
+  .trajectory-static-chrome__focus {
+    left: 29%;
+    top: 80.5%;
+  }
+
+  .trajectory-entry {
+    left: 29%;
+    right: 7vw;
+    top: 0;
+    bottom: 0;
+    width: auto;
+    translate: var(--entry-x) 0;
+  }
+
+  .trajectory-entry__eyebrow,
+  .trajectory-entry h3,
+  .trajectory-entry__context,
+  .trajectory-entry__statement,
+  .trajectory-entry__focus {
+    position: absolute;
+    left: 0;
+    margin: 0;
+  }
+
+  .trajectory-entry__eyebrow {
+    top: 30.5%;
+  }
+
+  .trajectory-entry h3 {
+    top: 34.5%;
+    max-width: min(60vw, 820px);
+  }
+
+  .trajectory-entry__context {
+    top: 61.5%;
+    width: min(560px, 48vw);
+  }
+
+  .trajectory-entry__context > div {
+    padding: 0;
+    border: 0;
+  }
+
+  .trajectory-entry__context > div::after,
+  .trajectory-entry__context dt {
+    display: none;
+  }
+
+  .trajectory-entry__statement {
+    top: 68.5%;
+    width: min(590px, 50vw);
+  }
+
+  .trajectory-entry__focus {
+    top: 80.5%;
+    width: min(620px, 52vw);
+    grid-template-columns: 58px minmax(0, 1fr);
+  }
+
+  .trajectory-entry__focus > h4 {
+    visibility: hidden;
+  }
+
+  .trajectory-entry__focus ul {
+    align-self: start;
+  }
+
+  .trajectory-entry--long-role h3 {
+    max-width: min(64vw, 1040px);
+    font-size: clamp(3.2rem, 4.2vw, 4.7rem);
+    letter-spacing: -.045em;
+    text-wrap: wrap;
+  }
+}
+
+@media (min-width: 681px) and (max-width: 900px) {
+  .trajectory-static-chrome__context,
+  .trajectory-static-chrome__focus,
+  .trajectory-entry {
+    left: 24%;
+  }
+
+  .trajectory-static-chrome__context,
+  .trajectory-entry__context {
+    width: min(62vw, 560px);
+  }
+
+  .trajectory-entry__statement {
+    width: min(62vw, 560px);
+  }
+
+  .trajectory-entry__focus {
+    width: 68vw;
+  }
+
+  .trajectory-entry h3 {
+    max-width: 69vw;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Final mobile composition
+   -------------------------------------------------------------------------- */
+@media (max-width: 680px) {
+  .trajectory-intro {
+    left: 10vw !important;
+    width: 82vw !important;
+  }
+
+  .trajectory-static-chrome {
+    display: none !important;
+  }
+
+  .trajectory-entry {
+    left: 8vw !important;
+    right: 6vw !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    width: auto !important;
+    translate: var(--entry-x) 0 !important;
+  }
+
+  .trajectory-entry__eyebrow,
+  .trajectory-entry h3,
+  .trajectory-entry__context,
+  .trajectory-entry__statement,
+  .trajectory-entry__focus {
+    position: absolute !important;
+    left: 0 !important;
+    margin: 0 !important;
+  }
+
+  .trajectory-entry__eyebrow {
+    top: 16.5% !important;
+  }
+
+  .trajectory-entry h3 {
+    top: 20% !important;
+    max-width: 86vw !important;
+    font-size: clamp(2.35rem, 9.3vw, 4rem) !important;
+    line-height: .89 !important;
+    letter-spacing: -.047em !important;
+  }
+
+  .trajectory-entry__context {
+    top: 38% !important;
+    width: 86vw !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px 14px !important;
+  }
+
+  .trajectory-entry__context > div {
+    padding-bottom: 8px !important;
+  }
+
+  .trajectory-entry__context dt {
+    margin-bottom: 4px !important;
+    font-size: 8.5px !important;
+  }
+
+  .trajectory-entry__context dd {
+    font-size: .82rem !important;
+    line-height: 1.22 !important;
+  }
+
+  .trajectory-entry__statement {
+    top: 52.5% !important;
+    width: 86vw !important;
+    gap: 10px !important;
+  }
+
+  .trajectory-entry__statement p {
+    font-size: .88rem !important;
+    line-height: 1.36 !important;
+  }
+
+  .trajectory-entry__focus {
+    top: 72.5% !important;
+    width: 86vw !important;
+    grid-template-columns: 42px minmax(0, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .trajectory-entry__focus h4 {
+    font-size: 8.5px !important;
+  }
+
+  .trajectory-entry__focus ul {
+    gap: 6px 9px !important;
+    font-size: 8.5px !important;
+    line-height: 1.18 !important;
+  }
+
+  .trajectory-counter {
+    display: none !important;
+  }
+}

@@ -321,6 +321,23 @@ html.creative-hero-pending .ref-header {
   }
 }
 
+/* Mobile Hero footer keeps a dedicated cue lane without a separate patch file. */
+@media (max-width: 680px) {
+  .ref-hero__thesis {
+    left: 14px !important;
+    right: 72px !important;
+    width: auto !important;
+    bottom: 64px !important;
+  }
+
+  .ref-scroll-cue {
+    left: auto !important;
+    right: 18px !important;
+    bottom: 14px !important;
+    translate: 0 0 !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .creative-opening {
     display: none !important;

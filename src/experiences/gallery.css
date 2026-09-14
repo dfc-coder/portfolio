@@ -423,3 +423,103 @@
     transition: none !important;
   }
 }
+
+/* Surface cleanup belongs to Gallery itself. */
+.ref-scene--gallery.ref-gallery-gel-ready .ref-art-card {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.ref-scene--gallery.ref-gallery-gel-ready .ref-art-card::before {
+  display: none !important;
+}
+
+.ref-scene--gallery.ref-gallery-gel-ready .ref-art-card:hover,
+.ref-scene--gallery.ref-gallery-gel-ready .ref-art-card:focus-visible,
+.ref-scene--gallery.ref-gallery-gel-ready .ref-art-card.is-key-active {
+  box-shadow: none !important;
+}
+
+.ref-gallery-focus__image {
+  box-shadow: none !important;
+}
+
+/* Bidirectional Gallery handoff remains part of the Gallery visual contract. */
+.ref-scene--gallery.ref-gallery-gel-ready[data-gallery-motion="true"] {
+  opacity: var(--gallery-motion-opacity, var(--gallery, 0)) !important;
+  visibility: visible !important;
+}
+
+.ref-scene--gallery.ref-gallery-gel-ready[data-gallery-motion="true"]
+  .ref-art-card {
+  visibility: visible !important;
+}
+
+.ref-scene--gallery.ref-gallery-gel-ready .ref-art-card {
+  will-change: translate, transform;
+}
+
+/* Final mobile Gallery composition. */
+@media (max-width: 680px) {
+  .ref-scene--gallery.ref-gallery-gel-ready .ref-gallery-stage {
+    inset: 4% 0 1% !important;
+  }
+
+  .ref-gallery-gel-ready .ref-art-card:nth-child(n) {
+    --gel-rotate: 0deg;
+  }
+
+  .ref-gallery-gel-ready .ref-art-card:nth-child(1) {
+    left: -2% !important; top: 2% !important; --gel-w: 46%; --gel-h: 24%; z-index: 11 !important;
+  }
+  .ref-gallery-gel-ready .ref-art-card:nth-child(2) {
+    left: 55% !important; top: -1% !important; --gel-w: 42%; --gel-h: 22%; z-index: 8 !important;
+  }
+  .ref-gallery-gel-ready .ref-art-card:nth-child(3) {
+    left: 23% !important; top: 18% !important; --gel-w: 50%; --gel-h: 29%; z-index: 15 !important;
+  }
+  .ref-gallery-gel-ready .ref-art-card:nth-child(4) {
+    left: -4% !important; top: 35% !important; --gel-w: 42%; --gel-h: 23%; z-index: 9 !important;
+  }
+  .ref-gallery-gel-ready .ref-art-card:nth-child(5) {
+    left: 60% !important; top: 31% !important; --gel-w: 44%; --gel-h: 26%; z-index: 12 !important;
+  }
+  .ref-gallery-gel-ready .ref-art-card:nth-child(6) {
+    left: 10% !important; top: 52% !important; --gel-w: 48%; --gel-h: 25%; z-index: 14 !important;
+  }
+  .ref-gallery-gel-ready .ref-art-card:nth-child(7) {
+    left: 58% !important; top: 56% !important; --gel-w: 39%; --gel-h: 22%; z-index: 7 !important;
+  }
+  .ref-gallery-gel-ready .ref-art-card:nth-child(8) {
+    left: -2% !important; top: 73% !important; --gel-w: 43%; --gel-h: 23%; z-index: 10 !important;
+  }
+  .ref-gallery-gel-ready .ref-art-card:nth-child(9) {
+    left: 45% !important; top: 75% !important; --gel-w: 51%; --gel-h: 25%; z-index: 13 !important;
+  }
+  .ref-gallery-gel-ready .ref-art-card:nth-child(10) {
+    left: 31% !important; top: 43% !important; --gel-w: 36%; --gel-h: 20%; z-index: 6 !important;
+  }
+
+  .ref-art-card__label {
+    display: none !important;
+  }
+
+  .ref-gallery-focus {
+    padding: 8vh 4vw 3vh !important;
+  }
+
+  .ref-gallery-focus__figure {
+    width: 92vw !important;
+    height: 84vh !important;
+    gap: 18px !important;
+  }
+
+  .ref-gallery-focus__image {
+    max-height: 52vh !important;
+  }
+
+  .ref-gallery-focus__caption h3 {
+    margin-top: 16px !important;
+    font-size: clamp(1.9rem, 7.4vw, 3rem) !important;
+  }
+}

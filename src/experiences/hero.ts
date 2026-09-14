@@ -5,6 +5,23 @@ const HERO_SELECTOR = ".ref-scene--hero";
 const STRUCTURAL_EASE = "power3.inOut";
 const SETTLE_EASE = "power3.out";
 
+const HERO_INTRO_FONTS = [
+  '800 1em "Syne"',
+  '700 1em "Syne"',
+  '500 1em "Instrument Sans"',
+  '400 1em "Instrument Sans"',
+  'italic 400 1em "Instrument Serif"',
+] as const;
+
+const waitForHeroIntroFonts = async () => {
+  const missingFonts = HERO_INTRO_FONTS.filter(
+    (font) => !document.fonts.check(font),
+  );
+  if (missingFonts.length === 0) return;
+
+  await Promise.all(missingFonts.map((font) => document.fonts.load(font)));
+};
+
 const createOpening = () => {
   const opening = document.createElement("div");
   opening.className = "creative-opening";
@@ -66,9 +83,13 @@ const lockInput = () => {
 };
 
 const mountHeroPointerField = (hero: HTMLElement, thesis: HTMLElement) => {
-  const title = hero.querySelector<HTMLElement>(".ref-hero__title");
-  const titleX = title ? gsap.quickTo(title, "x", { duration: 1.25, ease: SETTLE_EASE }) : null;
-  const titleY = title ? gsap.quickTo(title, "y", { duration: 1.25, ease: SETTLE_EASE }) : null;
+  const titleWords = Array.from(
+    hero.querySelectorAll<HTMLElement>(".ref-hero__title > span > i"),
+  );
+  const wordFields = titleWords.map((word) => ({
+    x: gsap.quickTo(word, "x", { duration: 1.25, ease: SETTLE_EASE }),
+    y: gsap.quickTo(word, "y", { duration: 1.25, ease: SETTLE_EASE }),
+  }));
   const thesisX = gsap.quickTo(thesis, "x", { duration: 1.4, ease: SETTLE_EASE });
   const thesisY = gsap.quickTo(thesis, "y", { duration: 1.4, ease: SETTLE_EASE });
 
@@ -80,8 +101,10 @@ const mountHeroPointerField = (hero: HTMLElement, thesis: HTMLElement) => {
   };
 
   const resetPointerField = () => {
-    titleX?.(0);
-    titleY?.(0);
+    wordFields.forEach((field) => {
+      field.x(0);
+      field.y(0);
+    });
     thesisX(0);
     thesisY(0);
     hero.dataset.heroHover = "false";
@@ -91,8 +114,10 @@ const mountHeroPointerField = (hero: HTMLElement, thesis: HTMLElement) => {
     if (!heroRect.width || !heroRect.height) return;
     const nx = (event.clientX - heroRect.left) / heroRect.width - 0.5;
     const ny = (event.clientY - heroRect.top) / heroRect.height - 0.5;
-    titleX?.(nx * 9);
-    titleY?.(ny * 5);
+    wordFields.forEach((field) => {
+      field.x(nx * 9);
+      field.y(ny * 5);
+    });
     thesisX(nx * -4);
     thesisY(ny * -3);
     hero.dataset.heroHover = "true";
@@ -130,18 +155,20 @@ const mountHeroPointerField = (hero: HTMLElement, thesis: HTMLElement) => {
     unsubscribe();
     setPointerActive(false);
     resizeObserver.disconnect();
-    gsap.killTweensOf([title, thesis]);
+    gsap.killTweensOf([...titleWords, thesis]);
+    gsap.set(titleWords, { x: 0, y: 0 });
+    gsap.set(thesis, { x: 0, y: 0 });
     delete hero.dataset.heroHover;
   };
 };
 
-export const mountHeroExperience = () => {
+export const mountHeroExperience = async () => {
   const hero = document.querySelector<HTMLElement>(HERO_SELECTOR);
   if (!hero) return () => undefined;
 
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (reducedMotion) {
-    document.documentElement.classList.remove("is-refined-intro");
+    document.documentElement.classList.remove("creative-hero-pending", "is-refined-intro");
     return () => undefined;
   }
 
@@ -149,7 +176,15 @@ export const mountHeroExperience = () => {
   if (!thesis) return () => undefined;
 
   if (document.documentElement.classList.contains("creative-hero-complete")) {
+    document.documentElement.classList.remove("creative-hero-pending");
     return mountHeroPointerField(hero, thesis);
+  }
+
+  document.documentElement.classList.add("creative-hero-pending");
+  try {
+    await waitForHeroIntroFonts();
+  } catch {
+    // Font loading must never prevent the Hero runtime from starting.
   }
 
   const heroWords = Array.from(
@@ -162,6 +197,7 @@ export const mountHeroExperience = () => {
   const header = document.querySelector<HTMLElement>(".ref-header");
 
   if (heroWords.length !== 2 || !meta || !scrollCue || !header) {
+    document.documentElement.classList.remove("creative-hero-pending");
     return () => undefined;
   }
 
@@ -216,6 +252,7 @@ export const mountHeroExperience = () => {
   const openingProgress = opening.querySelector<HTMLElement>(".creative-opening__progress > i");
 
   const timeline = gsap.timeline({
+    paused: true,
     onComplete: () => {
       opening.remove();
       unlockInput();
@@ -276,12 +313,16 @@ export const mountHeroExperience = () => {
     .to(header, { opacity: 1, y: 0, duration: 0.18, ease: SETTLE_EASE }, "thesis+=0.38")
     .to(scrollCue, { opacity: 1, y: 0, duration: 0.18, ease: SETTLE_EASE }, "thesis+=0.44");
 
+  document.documentElement.classList.remove("creative-hero-pending");
+  timeline.play(0);
+
   const cleanupPointerField = mountHeroPointerField(hero, thesis);
 
   return () => {
     timeline.kill();
     unlockInput();
     opening.remove();
+    document.documentElement.classList.remove("creative-hero-pending");
     cleanupPointerField();
   };
 };

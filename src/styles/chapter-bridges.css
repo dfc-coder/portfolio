@@ -282,18 +282,51 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
 
 @media (max-width: 680px) {
   .ref-scene--chapter {
-    padding-left: 12vw;
+    padding-left: 10vw;
   }
 
   .trajectory-intro,
   .systems-intro {
-    left: 12vw;
-    width: 76vw;
+    left: 10vw;
+    width: 82vw;
+  }
+
+  .narrative-header {
+    left: 14px !important;
+    right: 14px !important;
+    top: 16px !important;
+  }
+
+  .narrative-header__meta {
+    display: none !important;
+  }
+
+  .narrative-header__label,
+  .ref-scene--agent .ref-marker {
+    gap: 8px !important;
+  }
+
+  .narrative-header__label > i,
+  .ref-scene--agent .ref-marker > i {
+    width: 30px !important;
+    flex-basis: 30px !important;
+  }
+
+  .narrative-header__label .narrative-signal__label,
+  .ref-scene--agent .ref-marker > span:last-child {
+    font-size: 10px !important;
+    letter-spacing: .10em !important;
+  }
+
+  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter,
+  .ref-scene--chapter[data-chapter="agent"] .ref-chapter,
+  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter > p,
+  .ref-scene--chapter[data-chapter="agent"] .ref-chapter > p {
+    width: 82vw;
   }
 
   .ref-scene--chapter[data-chapter="gallery"] .ref-chapter,
   .ref-scene--chapter[data-chapter="agent"] .ref-chapter {
-    width: 76vw;
     row-gap: 18px;
   }
 
@@ -310,7 +343,7 @@ html.creative-hero-complete .ref-stage[data-trajectory="true"] .ref-scroll-cue i
 
   .ref-scene--chapter[data-chapter="gallery"] .ref-chapter > p,
   .ref-scene--chapter[data-chapter="agent"] .ref-chapter > p {
-    width: 76vw;
-    font-size: clamp(2rem, 8vw, 3.4rem);
+    font-size: clamp(1.9rem, 7.35vw, 3rem);
+    line-height: 1.02;
   }
 }

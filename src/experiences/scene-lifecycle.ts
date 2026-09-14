@@ -29,17 +29,11 @@ const runtimeLoaders = {
     return mountSystemsExperience();
   },
   gallery: async () => {
-    const [{ mountGalleryGel }, { mountGalleryTransition }] = await Promise.all([
+    const [{ mountGalleryExperience }] = await Promise.all([
       import("./gallery"),
       import("./gallery-transition"),
     ]);
-    const gelCleanup = mountGalleryGel();
-    const transitionCleanup = mountGalleryTransition();
-
-    return () => {
-      transitionCleanup();
-      gelCleanup();
-    };
+    return mountGalleryExperience();
   },
   agent: async () => {
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return noop;
