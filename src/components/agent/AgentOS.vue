@@ -7,6 +7,7 @@ import {
   setAgentVisualPhase,
   type AgentVisualPhase,
 } from "../../graphics/agent-visual-controller";
+import { mountStageGraphics } from "../../graphics/stageGraphics";
 import { portfolioAgentProvider } from "./portfolioAgentProvider";
 import { useAgentRuntime, type AgentProvider } from "./useAgentRuntime";
 
@@ -22,6 +23,7 @@ const inputEl = ref<HTMLInputElement | null>(null);
 let scrollFrame = 0;
 let followStream = true;
 let speechChars = 0;
+let disposeStageGraphics: (() => void) | null = null;
 
 const isNearBottom = (host: HTMLElement) =>
   host.scrollHeight - host.scrollTop - host.clientHeight < 96;
@@ -175,11 +177,14 @@ watch(draft, (next, previous) => {
 });
 
 onMounted(() => {
+  disposeStageGraphics = mountStageGraphics();
   void nextTick(scheduleScrollToBottom);
 });
 
 onBeforeUnmount(() => {
   if (scrollFrame) cancelAnimationFrame(scrollFrame);
+  disposeStageGraphics?.();
+  disposeStageGraphics = null;
   setAgentVisualPhase("idle");
 });
 </script>
@@ -292,5 +297,7 @@ onBeforeUnmount(() => {
   </section>
 </template>
 
+<style src="./agent.css"></style>
 <style src="./agent-three-core.css"></style>
 <style src="./agent-empty.css"></style>
+<style src="../../graphics/stage-graphics.css"></style>
