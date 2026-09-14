@@ -349,8 +349,11 @@ test("architecture: Agent UI decouples network chunks from presentation and visu
   assert.match(os, /onPresent: \(text\) =>/);
   assert.doesNotMatch(os, /AsciiFluidCanvas/);
   assert.match(runtime, /presentationQueue/);
+  assert.match(runtime, /PRESENTATION_INTERVAL_MS = 40/);
   assert.match(runtime, /PRESENTATION_BASE_CPS/);
-  assert.match(runtime, /requestAnimationFrame\(present\)/);
+  assert.match(runtime, /PRESENTATION_MAX_BATCH = 12/);
+  assert.match(runtime, /window\.setTimeout\(present, PRESENTATION_INTERVAL_MS\)/);
+  assert.doesNotMatch(runtime, /requestAnimationFrame\(present\)/);
   assert.match(runtime, /waitForPresentation/);
   assert.doesNotMatch(runtime, /pendingText|scheduleStreamFlush|flushStream/);
   assert.doesNotMatch(runtime, /localProvider|CORPUS|CorpusEntry|chunkify|Math\.random/);
