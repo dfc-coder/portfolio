@@ -27,16 +27,13 @@
   inset: 0 0 auto;
   height: 70px;
   padding: 0 22px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
   align-items: center;
-  border-bottom: 1px solid var(--line-light);
-  background: rgba(9, 9, 8, .68);
-  backdrop-filter: blur(16px) saturate(1.1);
+  justify-content: space-between;
+  background: transparent;
 }
 
 .ref-brand {
-  justify-self: start;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -59,7 +56,6 @@
 }
 
 .ref-index-toggle {
-  justify-self: end;
   padding: 10px 0;
   background: transparent;
   font: var(--t-label)/1 var(--font-info);
