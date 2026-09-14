@@ -143,3 +143,27 @@ test("performance: pointermove consumers are owned by active scenes", async () =
 
   assert.match(continuity, /addEventListener\("pointermove", onPointerMove/);
 });
+
+test("performance: Gallery owns one lifecycle and one motion frame", async () => {
+  const [lifecycle, gallery, transition] = await Promise.all([
+    read("src/experiences/scene-lifecycle.ts"),
+    read("src/experiences/gallery.ts"),
+    read("src/experiences/gallery-transition.ts"),
+  ]);
+
+  assert.match(lifecycle, /mountGalleryExperience\(\)/);
+  assert.doesNotMatch(lifecycle, /mountGalleryGel|mountGalleryTransition/);
+  assert.match(gallery, /createGalleryTransitionMotion/);
+  assert.equal((gallery.match(/let motionFrame = 0/g) ?? []).length, 1);
+  assert.doesNotMatch(gallery, /pointerFrame|schedulePointerField/);
+  assert.match(gallery, /transitionMotion\.render\(dt\)/);
+  assert.match(gallery, /motionFrame = requestAnimationFrame\(renderMotion\)/);
+
+  assert.equal((transition.match(/springStep\(/g) ?? []).length, 1);
+  assert.doesNotMatch(
+    transition,
+    /requestAnimationFrame|narrativeRuntime\.subscribe|CARD_PROFILES|profileFor/,
+  );
+  assert.match(transition, /entryPhaseFor/);
+  assert.match(transition, /exitPhaseFor/);
+});
