@@ -174,29 +174,36 @@ test("TDD: Systems runtime is event-driven by narrative state", async () => {
   assert.match(runtime, /requestAnimationFrame\(renderPointer\)/);
 });
 
-test("TDD: global atmosphere and pointer response are WebGL-owned", async () => {
+test("TDD: static shell owns atmosphere and Agent pointer remains WebGL-owned", async () => {
   const graphics = await read("src/graphics/stageGraphics.ts");
+  const graphicsCss = await read("src/graphics/stage-graphics.css");
   const continuity = await read("src/experiences/continuity.ts");
   const continuityCss = await read("src/experiences/continuity.css");
 
-  assert.match(graphics, /const atmosphereFragment/);
-  assert.match(graphics, /uPointer/);
-  assert.match(graphics, /uVelocity/);
-  assert.match(graphics, /uTurbulence/);
+  assert.doesNotMatch(graphics, /atmosphereFragment|atmosphereScene|uTurbulence/);
   assert.match(graphics, /new THREE\.WebGLRenderer/);
   assert.match(graphics, /this\.pointer\.lerp/);
+  assert.match(graphics, /setAgentPointer/);
+  assert.match(graphicsCss, /repeating-linear-gradient/);
+  assert.match(graphicsCss, /radial-gradient/);
   assert.doesNotMatch(continuity, /targetVelocityX|lightAngle|positionLight/);
   assert.doesNotMatch(continuityCss, /ref-global-pointer-light/);
 });
 
-test("TDD: WebGL renderer adapts work to scene and interaction", async () => {
+test("TDD: Agent renderer wakes on demand and sleeps when settled", async () => {
   const graphics = await read("src/graphics/stageGraphics.ts");
+  const controller = await read("src/graphics/agent-visual-controller.ts");
+  const main = await read("src/main.ts");
 
-  assert.match(graphics, /if \(this\.transitionActive \|\| this\.scene === "agent"\) return 60/);
-  assert.match(graphics, /return 24/);
-  assert.match(graphics, /pointerHotUntil/);
+  assert.match(graphics, /requestAnimationFrame\(this\.render\)/);
+  assert.match(graphics, /agentVisualNeedsFrame\(\) \|\| this\.pointerNeedsFrame\(\)/);
   assert.match(graphics, /document\.hidden/);
   assert.match(graphics, /setPixelRatio\(Math\.min\(window\.devicePixelRatio \|\| 1, dprCap\)\)/);
+  assert.doesNotMatch(graphics, /setTimeout|targetFps|pointerHotUntil|\.schedule\(/);
+  assert.match(controller, /bindAgentVisualWake/);
+  assert.match(controller, /requestVisualFrame\(\)/);
+  assert.match(controller, /agentVisualNeedsFrame/);
+  assert.match(main, /import\("\.\/graphics\/stageGraphics"\)/);
 });
 
 test("TDD: menu transition is isolated WebGL driven by shared GSAP", async () => {
@@ -228,7 +235,7 @@ test("TDD: section titles share a register without removing runtime headers", as
 
 test("TDD: main mounts canonical experience modules only", async () => {
   const main = await read("src/main.ts");
-  assert.match(main, /mountStageGraphics/);
+  assert.match(main, /mountAgentGraphicsLifecycle/);
   assert.match(main, /experiences\/systems/);
   assert.match(main, /experiences\/continuity/);
   assert.doesNotMatch(main, /systems-motion\.css|-v\d|hotfix|integration-fix|cinematic-tuning/);
