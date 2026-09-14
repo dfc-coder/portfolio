@@ -51,7 +51,6 @@ html.is-section-transitioning .ref-cursor-ring {
   z-index: 2001;
   width: 0;
   height: 0;
-  transition: opacity .25s linear;
 }
 
 .ref-cursor::after {
@@ -110,7 +109,6 @@ html.is-section-transitioning .ref-cursor-ring {
   will-change: transform;
   transition:
     transform .075s linear,
-    opacity .25s linear,
     width .32s cubic-bezier(.16, 1, .3, 1),
     height .32s cubic-bezier(.16, 1, .3, 1),
     margin .32s cubic-bezier(.16, 1, .3, 1),
