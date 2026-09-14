@@ -7,6 +7,19 @@
    scene-level fade envelope.
    ========================================================================== */
 
+/* Hero visibility is owned exclusively by scroll.ts. Trajectory may move Hero
+   internals during the handoff, but it cannot keep the Hero scene alive with a
+   second root-opacity envelope. Match the legacy Trajectory selector so this
+   late-loaded contract wins even against its !important declaration. */
+.ref-stage > .ref-scene--hero,
+html.creative-hero-complete
+  .ref-stage[data-trajectory="true"]
+  > .ref-scene--hero {
+  opacity: var(--hero, 0) !important;
+  transform: scale(calc(.986 + var(--hero, 0) * .014)) !important;
+  filter: blur(calc((1 - var(--hero, 0)) * 2px)) !important;
+}
+
 /* Trajectory intentionally substitutes the first chapter bridge. Keep that
    runtime visible through Chapter 02, then let --career own its exit into the
    Systems bridge. The runtime's old inline root opacity is neutralized here. */
@@ -18,6 +31,48 @@
 
 .ref-scene--career .trajectory-experience {
   opacity: 1 !important;
+}
+
+/* While Chapter 02 owns the viewport, only the Trajectory editorial intro is
+   allowed to be visible. The Career runtime is already mounted for an atomic
+   handoff, but its role stack must remain closed until scene === career.
+   This prevents uninitialised/stale entry styles from painting every role at
+   once during the chapter -> Career boundary. */
+.ref-stage:not([data-scene="career"])
+  .ref-scene--career
+  .trajectory-header,
+.ref-stage:not([data-scene="career"])
+  .ref-scene--career
+  .trajectory-axis,
+.ref-stage:not([data-scene="career"])
+  .ref-scene--career
+  .trajectory-years,
+.ref-stage:not([data-scene="career"])
+  .ref-scene--career
+  .trajectory-entries,
+.ref-stage:not([data-scene="career"])
+  .ref-scene--career
+  .trajectory-counter {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+.ref-stage[data-scene="career"]
+  .ref-scene--career
+  .trajectory-header,
+.ref-stage[data-scene="career"]
+  .ref-scene--career
+  .trajectory-axis,
+.ref-stage[data-scene="career"]
+  .ref-scene--career
+  .trajectory-years,
+.ref-stage[data-scene="career"]
+  .ref-scene--career
+  .trajectory-entries,
+.ref-stage[data-scene="career"]
+  .ref-scene--career
+  .trajectory-counter {
+  visibility: visible;
 }
 
 /* Chapter 03 is the only Career -> Systems bridge. Systems used to hide this
