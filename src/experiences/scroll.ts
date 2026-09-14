@@ -112,12 +112,8 @@ export const mountScrollSyncController = () => {
   const compactQuery = matchMedia(MOBILE_BREAKPOINT);
   const track = document.querySelector<HTMLElement>(".ref-track");
   const stage = document.querySelector<HTMLElement>(".ref-stage");
-  const portfolio = document.querySelector<HTMLElement>(".ref-portfolio");
-  const progressCurrent = document.querySelector<HTMLElement>(
-    ".ref-progress > span:first-child",
-  );
 
-  if (!track || !stage || !portfolio) return () => undefined;
+  if (!track || !stage) return () => undefined;
   if (track.dataset.scrollSyncOwner === "physical") return () => undefined;
 
   const model = narrativeModel;
@@ -146,12 +142,6 @@ export const mountScrollSyncController = () => {
     const node = progress * model.virtualLastNode;
     const scene = sceneForNode(node, model);
     const opacity = sceneOpacities(node, model, compactQuery.matches);
-
-    portfolio.style.setProperty("--physical-scroll-progress", physical.toFixed(5));
-    progressCurrent?.setAttribute(
-      "data-scroll-progress",
-      String(Math.round(physical * 100)).padStart(2, "0"),
-    );
 
     stage.dataset.scene = scene;
     stage.style.setProperty("--progress", progress.toFixed(6));
@@ -265,8 +255,6 @@ export const mountScrollSyncController = () => {
     removeEventListener("resize", remeasureAndSchedule);
     track.style.removeProperty("height");
     delete track.dataset.scrollSyncOwner;
-    portfolio.style.removeProperty("--physical-scroll-progress");
-    progressCurrent?.removeAttribute("data-scroll-progress");
     [
       "--progress",
       "--scroll-director-progress",
