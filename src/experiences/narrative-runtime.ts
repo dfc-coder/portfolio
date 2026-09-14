@@ -4,6 +4,8 @@ export interface NarrativeState {
   physicalProgress: number;
   progress: number;
   node: number;
+  // Stable scene ownership also gates scene-local interaction listeners. A
+  // handoff may keep adjacent runtimes mounted, but only this scene owns input.
   scene: NarrativeScene;
 }
 
