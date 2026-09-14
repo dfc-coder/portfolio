@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import AgentOS from "./agent/AgentOS.vue";
+import { defineAsyncComponent, onBeforeUnmount, onMounted, ref } from "vue";
 import ChapterSignal from "./narrative/ChapterSignal.vue";
 import SystemsScene from "./narrative/SystemsScene.vue";
 import TrajectoryScene from "./narrative/TrajectoryScene.vue";
@@ -9,6 +8,7 @@ import {
   galleryImageSrcSet,
   galleryImageUrl,
 } from "../experiences/gallery";
+import { narrativeRuntime, type NarrativeScene } from "../experiences/narrative-runtime";
 import { systemsProjects as projects } from "../experiences/systems-projects";
 import { experiences } from "../experiences/trajectory-data";
 
@@ -42,7 +42,43 @@ const chapters = [
   },
 ] as const;
 
+let agentModulePromise: Promise<typeof import("./agent/AgentOS.vue")> | null = null;
+
+const loadAgent = () => {
+  if (!agentModulePromise) {
+    agentModulePromise = import("./agent/AgentOS.vue").catch((error) => {
+      agentModulePromise = null;
+      throw error;
+    });
+  }
+
+  return agentModulePromise;
+};
+
+const AsyncAgentOS = defineAsyncComponent(() =>
+  loadAgent().then(({ default: component }) => component),
+);
+
 const menuOpen = ref(false);
+const agentActive = ref(false);
+let stopAgentBoundary: (() => void) | null = null;
+
+const syncAgentBoundary = (scene: NarrativeScene) => {
+  if (scene === "gallery") {
+    void loadAgent().catch(() => undefined);
+  }
+
+  agentActive.value = scene === "agent";
+};
+
+onMounted(() => {
+  stopAgentBoundary = narrativeRuntime.subscribe(({ scene }) => syncAgentBoundary(scene));
+});
+
+onBeforeUnmount(() => {
+  stopAgentBoundary?.();
+  stopAgentBoundary = null;
+});
 </script>
 
 <template>
@@ -124,7 +160,7 @@ const menuOpen = ref(false);
         </article>
 
         <article class="ref-scene ref-scene--agent">
-          <AgentOS />
+          <AsyncAgentOS v-if="agentActive" />
         </article>
 
         <article
