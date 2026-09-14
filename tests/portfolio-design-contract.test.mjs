@@ -251,7 +251,9 @@ test("architecture: Agent-only Three renderer sleeps and menu WebGL stays isolat
   assert.match(graphics, /requestAnimationFrame\(this\.render\)/);
   assert.match(graphics, /agentVisualNeedsFrame\(\)/);
   assert.doesNotMatch(graphics, /atmosphereFragment|transitionFragment|setStageTransition/);
-  assert.doesNotMatch(graphics, /narrativeRuntime|setTimeout|targetFps|\.schedule\(/);
+  assert.doesNotMatch(graphics, /setTimeout|targetFps|\.schedule\(/);
+  assert.match(graphics, /narrativeRuntime\.subscribe\(this\.onNarrative\)/);
+  assert.match(graphics, /this\.setPointerActive\(state\.scene === "agent"\)/);
 
   assert.match(controller, /bindAgentVisualWake/);
   assert.match(controller, /agentVisualNeedsFrame/);
@@ -347,7 +349,12 @@ test("architecture: Gallery remains isolated outside its active scene", async ()
   assert.match(gallery, /const openFocus = \(index: number\) => \{\s*if \(!galleryIsVisible\(\)\) return;/);
   assert.match(gallery, /lockDocumentScroll\(\)/);
   assert.match(gallery, /unlockDocumentScroll\(\)/);
-  assert.match(gallery, /const onPointerMove = \(event: PointerEvent\) => \{\s*if \(!galleryIsVisible\(\) \|\| isOpen\) return;/);
+  assert.match(gallery, /narrativeRuntime\.subscribe\(syncNarrative\)/);
+  assert.match(gallery, /setPointerListenerActive\(galleryActive && !isOpen\)/);
+  assert.match(
+    gallery,
+    /if \(active\) \{[\s\S]*measureCards\(\);[\s\S]*addEventListener\("pointermove", onPointerMove/,
+  );
 });
 
 test("architecture: backend compatibility facades stay removed", async () => {
