@@ -198,8 +198,9 @@ test("architecture: narrative consumers subscribe instead of polling CSS every f
   }
 
   assert.match(trajectory, /requestAnimationFrame\(renderParallax\)/);
-  assert.match(systems, /requestAnimationFrame\(renderParallax\)/);
-  assert.match(systems, /requestAnimationFrame\(renderPointer\)/);
+  assert.match(systems, /requestAnimationFrame\(renderMotion\)/);
+  assert.doesNotMatch(systems, /requestAnimationFrame\(renderParallax\)/);
+  assert.doesNotMatch(systems, /requestAnimationFrame\(renderPointer\)/);
 });
 
 test("architecture: mobile refinement is isolated from desktop ownership", async () => {
