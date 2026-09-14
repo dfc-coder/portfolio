@@ -9,6 +9,8 @@ export interface NarrativeState {
 
 type NarrativeListener = (state: NarrativeState) => void;
 
+const NARRATIVE_EPSILON = 0.0001;
+
 let state: NarrativeState = {
   physicalProgress: 0,
   progress: 0,
@@ -18,12 +20,23 @@ let state: NarrativeState = {
 
 const listeners = new Set<NarrativeListener>();
 
+const nearlyEqual = (left: number, right: number) =>
+  Math.abs(left - right) < NARRATIVE_EPSILON;
+
 export const narrativeRuntime = {
   getState(): NarrativeState {
     return state;
   },
 
   publish(next: NarrativeState): void {
+    if (
+      next.scene === state.scene &&
+      nearlyEqual(next.physicalProgress, state.physicalProgress) &&
+      nearlyEqual(next.progress, state.progress)
+    ) {
+      return;
+    }
+
     state = next;
     listeners.forEach((listener) => listener(state));
   },
