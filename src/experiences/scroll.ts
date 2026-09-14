@@ -8,6 +8,7 @@ const MOBILE_SCENE_CROSSFADE_WIDTH = 0.22;
 const MOBILE_BREAKPOINT = "(max-width: 680px)";
 const GALLERY_EXIT_START = 0.72;
 const GALLERY_EXIT_VIRTUAL_LEAD = 0.8;
+const COMPOSITOR_VISIBILITY_EPSILON = 0.001;
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
@@ -116,6 +117,75 @@ export const mountScrollSyncController = () => {
   if (!track || !stage) return () => undefined;
   if (track.dataset.scrollSyncOwner === "physical") return () => undefined;
 
+  const sceneElements = {
+    hero: stage.querySelector<HTMLElement>(".ref-scene--hero"),
+    chapterCareer: stage.querySelector<HTMLElement>(
+      '.ref-scene--chapter[data-chapter="career"]',
+    ),
+    career: stage.querySelector<HTMLElement>(".ref-scene--career"),
+    chapterSystems: stage.querySelector<HTMLElement>(
+      '.ref-scene--chapter[data-chapter="systems"]',
+    ),
+    systems: stage.querySelector<HTMLElement>(".ref-scene--systems"),
+    chapterGallery: stage.querySelector<HTMLElement>(
+      '.ref-scene--chapter[data-chapter="gallery"]',
+    ),
+    gallery: stage.querySelector<HTMLElement>(".ref-scene--gallery"),
+    chapterAgent: stage.querySelector<HTMLElement>(
+      '.ref-scene--chapter[data-chapter="agent"]',
+    ),
+    agent: stage.querySelector<HTMLElement>(".ref-scene--agent"),
+  };
+
+  const setCompositorActive = (
+    element: HTMLElement | null,
+    active: boolean,
+  ) => {
+    if (!element) return;
+
+    if (active) {
+      if (element.dataset.scrollCompositor !== "true") {
+        element.dataset.scrollCompositor = "true";
+      }
+      return;
+    }
+
+    if (element.dataset.scrollCompositor !== undefined) {
+      delete element.dataset.scrollCompositor;
+    }
+  };
+
+  const updateCompositorOwnership = (
+    opacity: ReturnType<typeof sceneOpacities>,
+  ) => {
+    const visible = (value: number) => value > COMPOSITOR_VISIBILITY_EPSILON;
+
+    setCompositorActive(sceneElements.hero, visible(opacity.hero));
+    setCompositorActive(
+      sceneElements.chapterCareer,
+      visible(opacity.chapterCareer),
+    );
+    setCompositorActive(
+      sceneElements.career,
+      visible(Math.max(opacity.chapterCareer, opacity.career)),
+    );
+    setCompositorActive(
+      sceneElements.chapterSystems,
+      visible(opacity.chapterSystems),
+    );
+    setCompositorActive(sceneElements.systems, visible(opacity.systems));
+    setCompositorActive(
+      sceneElements.chapterGallery,
+      visible(opacity.chapterGallery),
+    );
+    setCompositorActive(sceneElements.gallery, visible(opacity.gallery));
+    setCompositorActive(
+      sceneElements.chapterAgent,
+      visible(opacity.chapterAgent),
+    );
+    setCompositorActive(sceneElements.agent, visible(opacity.agent));
+  };
+
   const model = narrativeModel;
   const trackHeightVh = 100 + model.physicalLastNode * SCROLL_STEP_VH;
 
@@ -159,6 +229,8 @@ export const mountScrollSyncController = () => {
       stage.dataset.scene = scene;
       previousScene = scene;
     }
+
+    updateCompositorOwnership(opacity);
 
     const nextProgress = progress.toFixed(6);
     if (nextProgress !== previousProgress) {
@@ -320,6 +392,9 @@ export const mountScrollSyncController = () => {
     removeEventListener("resize", remeasureAndSchedule);
     track.style.removeProperty("height");
     delete track.dataset.scrollSyncOwner;
+    Object.values(sceneElements).forEach((element) => {
+      if (element) delete element.dataset.scrollCompositor;
+    });
     [
       "--progress",
       "--scroll-director-progress",
