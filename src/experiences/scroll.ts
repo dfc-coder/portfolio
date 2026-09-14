@@ -1,4 +1,3 @@
-import { gsap, ScrollTrigger } from "../motion/gsap";
 import { transitionSectionNavigation } from "./continuity";
 import { narrativeModel, type NarrativeModel } from "./narrative-model";
 import { narrativeRuntime, type NarrativeScene } from "./narrative-runtime";
@@ -9,11 +8,8 @@ const MOBILE_SCENE_CROSSFADE_WIDTH = 0.22;
 const MOBILE_BREAKPOINT = "(max-width: 680px)";
 const GALLERY_EXIT_START = 0.72;
 const GALLERY_EXIT_VIRTUAL_LEAD = 0.8;
-const WHEEL_GAIN = 1.08;
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
-const clamp = (value: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, value));
 
 const smoother = (value: number) => {
   const x = clamp01(value);
@@ -100,27 +96,12 @@ const sceneOpacities = (
     chapterCareer: heroToChapter * (1 - chapterToCareer),
     career: chapterToCareer * (1 - careerToChapter),
     chapterSystems: careerToChapter * (1 - chapterToSystems),
-    systems: chapterToSystems * (1 - systemsToChapter),
+    systems: chapterSystems = chapterToSystems * (1 - systemsToChapter),
     chapterGallery: systemsToChapter * (1 - chapterToGallery),
     gallery: chapterToGallery * (1 - galleryToChapter),
     chapterAgent: galleryToChapter * (1 - chapterToAgent),
     agent: chapterToAgent,
   };
-};
-
-const wheelDeltaPixels = (event: WheelEvent) => {
-  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) return event.deltaY * 16;
-  if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) return event.deltaY * innerHeight;
-  return event.deltaY;
-};
-
-const nestedScrollerCanConsume = (target: EventTarget | null, delta: number) => {
-  const element = target instanceof Element ? target : null;
-  const scroller = element?.closest<HTMLElement>(".agent-lane");
-  if (!scroller) return false;
-
-  if (delta < 0) return scroller.scrollTop > 0;
-  return scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 1;
 };
 
 export const mountScrollSyncController = () => {
@@ -144,6 +125,20 @@ export const mountScrollSyncController = () => {
 
   track.dataset.scrollSyncOwner = "physical";
   track.style.setProperty("height", `${trackHeightVh}vh`, "important");
+
+  let trackStart = 0;
+  let scrollDistance = 1;
+  let latestScrollY = scrollY;
+  let scrollFrame = 0;
+
+  const measure = () => {
+    const rect = track.getBoundingClientRect();
+    trackStart = scrollY + rect.top;
+    scrollDistance = Math.max(1, track.offsetHeight - innerHeight);
+  };
+
+  const physicalProgressAt = (scrollPosition: number) =>
+    clamp01((scrollPosition - trackStart) / scrollDistance);
 
   const applyState = (physicalProgress: number) => {
     const physical = clamp01(physicalProgress);
@@ -179,55 +174,33 @@ export const mountScrollSyncController = () => {
     });
   };
 
-  const scrollProxy = { y: scrollY };
-  let targetScrollY = scrollY;
-  let scrollTween: ReturnType<typeof gsap.to> | null = null;
-
-  const maxScrollY = () =>
-    Math.max(0, document.documentElement.scrollHeight - innerHeight);
-
-  const stopSmoothScroll = () => {
-    scrollTween?.kill();
-    scrollTween = null;
-    scrollProxy.y = scrollY;
-    targetScrollY = scrollY;
+  const flushScroll = () => {
+    scrollFrame = 0;
+    applyState(physicalProgressAt(latestScrollY));
   };
 
-  const smoothTo = (top: number) => {
-    targetScrollY = clamp(top, 0, maxScrollY());
-    scrollTween?.kill();
-    scrollProxy.y = scrollY;
-    scrollTween = gsap.to(scrollProxy, {
-      y: targetScrollY,
-      duration: 0.34,
-      ease: "power3.out",
-      overwrite: true,
-      onUpdate: () => scrollTo(0, scrollProxy.y),
-      onComplete: () => {
-        scrollTo(0, targetScrollY);
-        scrollProxy.y = targetScrollY;
-        scrollTween = null;
-      },
-    });
+  const scheduleScrollUpdate = () => {
+    if (scrollFrame !== 0) return;
+    scrollFrame = requestAnimationFrame(flushScroll);
+  };
+
+  const onNativeScroll = () => {
+    latestScrollY = scrollY;
+    scheduleScrollUpdate();
   };
 
   const physicalNodeTop = (node: number) => {
-    const rect = track.getBoundingClientRect();
-    const start = scrollY + rect.top;
-    const distance = Math.max(1, track.offsetHeight - innerHeight);
     const progress = clamp01(node / model.physicalLastNode);
-    return {
-      progress,
-      top: start + distance * progress,
-    };
+    const maxScrollY = Math.max(0, document.documentElement.scrollHeight - innerHeight);
+    return Math.min(maxScrollY, trackStart + scrollDistance * progress);
   };
 
   const jumpToPhysicalNode = (node: number) => {
-    stopSmoothScroll();
-    const target = physicalNodeTop(node);
-    scrollTo({ top: target.top, behavior: "auto" });
-    applyState(target.progress);
-    ScrollTrigger.update();
+    measure();
+    window.scrollTo({
+      top: physicalNodeTop(node),
+      behavior: "auto",
+    });
   };
 
   const indexButtons = Array.from(
@@ -261,8 +234,7 @@ export const mountScrollSyncController = () => {
     if (node === undefined) return;
 
     event.preventDefault();
-    stopSmoothScroll();
-    const currentNode = trigger.progress * model.physicalLastNode;
+    const currentNode = physicalProgressAt(scrollY) * model.physicalLastNode;
     const direction = node >= currentNode ? 1 : -1;
 
     if (indexToggle?.getAttribute("aria-expanded") === "true") {
@@ -272,79 +244,25 @@ export const mountScrollSyncController = () => {
     transitionSectionNavigation(() => jumpToPhysicalNode(node), direction);
   };
 
-  const onWheel = (event: WheelEvent) => {
-    if (event.ctrlKey || event.metaKey) return;
-
-    if (document.documentElement.classList.contains("is-section-transitioning")) {
-      event.preventDefault();
-      return;
-    }
-
-    if (
-      stage.dataset.scene === "gallery" &&
-      document.querySelector(".ref-gallery-focus.is-open")
-    ) {
-      event.preventDefault();
-      return;
-    }
-
-    const delta = wheelDeltaPixels(event);
-    if (!delta || nestedScrollerCanConsume(event.target, delta)) return;
-
-    event.preventDefault();
-    const origin = scrollTween ? targetScrollY : scrollY;
-    smoothTo(origin + delta * WHEEL_GAIN);
+  const remeasureAndSchedule = () => {
+    measure();
+    latestScrollY = scrollY;
+    scheduleScrollUpdate();
   };
 
-  const onNativeScroll = () => {
-    if (scrollTween) return;
-    scrollProxy.y = scrollY;
-    targetScrollY = scrollY;
-  };
-
-  const onNativeNavigation = (event: KeyboardEvent) => {
-    if (
-      ["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(
-        event.key,
-      )
-    ) {
-      stopSmoothScroll();
-    }
-  };
-
-  const trigger = ScrollTrigger.create({
-    trigger: track,
-    start: "top top",
-    end: "bottom bottom",
-    invalidateOnRefresh: true,
-    onUpdate: (self) => applyState(self.progress),
-    onRefresh: (self) => applyState(self.progress),
-  });
-
-  const onCompactChange = () => {
-    applyState(trigger.progress);
-    ScrollTrigger.refresh();
-  };
-
-  compactQuery.addEventListener("change", onCompactChange);
+  compactQuery.addEventListener("change", remeasureAndSchedule);
   addEventListener("click", onNavigationClick, true);
-  addEventListener("wheel", onWheel, { capture: true, passive: false });
   addEventListener("scroll", onNativeScroll, { passive: true });
-  addEventListener("keydown", onNativeNavigation);
-  addEventListener("pointerdown", stopSmoothScroll, { passive: true });
+  addEventListener("resize", remeasureAndSchedule, { passive: true });
 
-  applyState(trigger.progress);
-  ScrollTrigger.refresh();
+  remeasureAndSchedule();
 
   return () => {
-    trigger.kill();
-    stopSmoothScroll();
-    compactQuery.removeEventListener("change", onCompactChange);
+    if (scrollFrame !== 0) cancelAnimationFrame(scrollFrame);
+    compactQuery.removeEventListener("change", remeasureAndSchedule);
     removeEventListener("click", onNavigationClick, true);
-    removeEventListener("wheel", onWheel, true);
     removeEventListener("scroll", onNativeScroll);
-    removeEventListener("keydown", onNativeNavigation);
-    removeEventListener("pointerdown", stopSmoothScroll);
+    removeEventListener("resize", remeasureAndSchedule);
     track.style.removeProperty("height");
     delete track.dataset.scrollSyncOwner;
     portfolio.style.removeProperty("--physical-scroll-progress");
