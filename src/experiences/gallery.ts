@@ -3,6 +3,8 @@ import {
   galleryImageUrl,
   galleryItems,
 } from "./gallery-data";
+import { createGalleryTransitionMotion } from "./gallery-transition";
+import { frameDeltaSeconds } from "../motion/inertia";
 import { narrativeRuntime, type NarrativeState } from "./narrative-runtime";
 
 const clamp = (value: number, min: number, max: number) =>
@@ -14,7 +16,7 @@ type CardMetric = {
   depth: number;
 };
 
-export const mountGalleryGel = () => {
+export const mountGalleryExperience = () => {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return () => undefined;
 
   const gallery = document.querySelector<HTMLElement>(".ref-scene--gallery");
@@ -66,12 +68,20 @@ export const mountGalleryGel = () => {
   let selectedIndex = 0;
   let isOpen = false;
   let rootOverflow: string | null = null;
-  let pointerFrame = 0;
+  let motionFrame = 0;
+  let motionLastTime = performance.now();
+  let pointerPending = false;
   let pointerX = innerWidth * 0.5;
   let pointerY = innerHeight * 0.5;
   let cardMetrics: CardMetric[] = [];
   let galleryActive = narrativeRuntime.getState().scene === "gallery";
   let pointerListenerActive = false;
+
+  const transitionMotion = createGalleryTransitionMotion(
+    gallery,
+    galleryStage,
+    cards,
+  );
 
   const galleryIsVisible = () => galleryActive;
 
@@ -125,7 +135,6 @@ export const mountGalleryGel = () => {
   };
 
   const renderPointerField = () => {
-    pointerFrame = 0;
     if (!galleryIsVisible() || isOpen || cardMetrics.length !== cards.length) return;
 
     cards.forEach((card, index) => {
@@ -142,15 +151,33 @@ export const mountGalleryGel = () => {
     });
   };
 
-  const schedulePointerField = () => {
-    if (pointerFrame !== 0) return;
-    pointerFrame = requestAnimationFrame(renderPointerField);
+  const renderMotion = (time: number) => {
+    motionFrame = 0;
+    const dt = frameDeltaSeconds(time, motionLastTime);
+    motionLastTime = time;
+
+    const transitionPending = transitionMotion.render(dt);
+    if (pointerPending) {
+      pointerPending = false;
+      renderPointerField();
+    }
+
+    if (transitionPending || pointerPending) {
+      motionFrame = requestAnimationFrame(renderMotion);
+    }
+  };
+
+  const requestMotionRender = () => {
+    if (motionFrame) return;
+    motionLastTime = performance.now();
+    motionFrame = requestAnimationFrame(renderMotion);
   };
 
   const onPointerMove = (event: PointerEvent) => {
     pointerX = event.clientX;
     pointerY = event.clientY;
-    schedulePointerField();
+    pointerPending = true;
+    requestMotionRender();
   };
 
   const setPointerListenerActive = (active: boolean) => {
@@ -159,14 +186,14 @@ export const mountGalleryGel = () => {
 
     if (active) {
       measureCards();
+      pointerPending = true;
       addEventListener("pointermove", onPointerMove, { passive: true });
-      schedulePointerField();
+      requestMotionRender();
       return;
     }
 
     removeEventListener("pointermove", onPointerMove);
-    if (pointerFrame !== 0) cancelAnimationFrame(pointerFrame);
-    pointerFrame = 0;
+    pointerPending = false;
   };
 
   const openFocus = (index: number) => {
@@ -180,7 +207,7 @@ export const mountGalleryGel = () => {
     gallery.classList.add("is-gallery-focus-open");
     focus.classList.add("is-open");
     focus.setAttribute("aria-hidden", "false");
-    requestAnimationFrame(() => closeButton?.focus({ preventScroll: true }));
+    closeButton?.focus({ preventScroll: true });
   };
 
   const closeFocus = () => {
@@ -234,12 +261,14 @@ export const mountGalleryGel = () => {
   };
 
   const onResize = () => {
+    transitionMotion.onResize();
     if (!galleryIsVisible() || isOpen) {
       cardMetrics = [];
-      return;
+    } else {
+      measureCards();
+      pointerPending = true;
     }
-    measureCards();
-    schedulePointerField();
+    requestMotionRender();
   };
 
   const onFocusPointerDown = (event: PointerEvent) => {
@@ -249,6 +278,8 @@ export const mountGalleryGel = () => {
   const syncNarrative = (state: NarrativeState) => {
     galleryActive = state.scene === "gallery";
     setPointerListenerActive(galleryActive && !isOpen);
+    transitionMotion.onNarrative(state);
+    requestMotionRender();
   };
 
   gallery.addEventListener("click", onGalleryClick, true);
@@ -260,6 +291,9 @@ export const mountGalleryGel = () => {
   return () => {
     unsubscribe();
     setPointerListenerActive(false);
+    if (motionFrame) cancelAnimationFrame(motionFrame);
+    motionFrame = 0;
+    transitionMotion.destroy();
     unlockDocumentScroll();
     gallery.removeEventListener("click", onGalleryClick, true);
     focus.removeEventListener("pointerdown", onFocusPointerDown);
