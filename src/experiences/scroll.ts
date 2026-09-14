@@ -96,7 +96,7 @@ const sceneOpacities = (
     chapterCareer: heroToChapter * (1 - chapterToCareer),
     career: chapterToCareer * (1 - careerToChapter),
     chapterSystems: careerToChapter * (1 - chapterToSystems),
-    systems: chapterSystems = chapterToSystems * (1 - systemsToChapter),
+    systems: chapterToSystems * (1 - systemsToChapter),
     chapterGallery: systemsToChapter * (1 - chapterToGallery),
     gallery: chapterToGallery * (1 - galleryToChapter),
     chapterAgent: galleryToChapter * (1 - chapterToAgent),
