@@ -122,8 +122,8 @@ test("architecture: GSAP remains isolated from the native scroll runtime", async
   const transition = await read("src/experiences/section-transition.ts");
 
   assert.match(motion, /import gsap from "gsap"/);
-  assert.match(motion, /ScrollTrigger/);
-  assert.match(motion, /gsap\.registerPlugin\(ScrollTrigger\)/);
+  assert.match(motion, /export \{ gsap \}/);
+  assert.doesNotMatch(motion, /ScrollTrigger|registerPlugin/);
   assert.doesNotMatch(scroll, /motion\/gsap|ScrollTrigger|gsap\./);
   assert.match(hero, /from "\.\.\/motion\/gsap"/);
   assert.match(transition, /from "\.\.\/motion\/gsap"/);
