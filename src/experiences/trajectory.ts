@@ -106,6 +106,7 @@ export const mountTrajectoryExperience = () => {
   }
 
   const { careerStartNode, chapterSystemsNode } = narrativeModel;
+  const careerSceneStart = careerStartNode - 0.5;
   const initialRuntimeState = narrativeRuntime.getState();
   const initialPosition = collectionPosition(
     initialRuntimeState.node,
@@ -330,11 +331,11 @@ export const mountTrajectoryExperience = () => {
     const trajectoryVisibility = trajectoryIn * (1 - trajectoryOut);
 
     const introIn = range(node, 0.56, 0.82);
-    const introOut = range(node, 1.06, 1.32);
+    const introOut = range(node, 1.06, careerSceneStart + 0.04);
     const introVisibility = introIn * (1 - introOut);
 
     const axisReveal = range(node, 1.18, 1.52);
-    const contentReveal = range(node, 1.34, 1.74);
+    const contentReveal = range(node, careerSceneStart, 1.74);
 
     const now = performance.now();
     const nextPosition = collectionPosition(node, careerStartNode, experiences.length);
