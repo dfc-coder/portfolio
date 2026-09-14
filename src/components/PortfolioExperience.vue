@@ -9,13 +9,16 @@ import {
   galleryImageUrl,
 } from "../experiences/gallery-data";
 import { narrativeRuntime } from "../experiences/narrative-runtime";
+import { runtimeScenesForState } from "../experiences/scene-lifecycle";
 import { systemsProjects as projects } from "../experiences/systems-projects";
 import { experiences } from "../experiences/trajectory-data";
 
 const AgentOS = defineAsyncComponent(() => import("./agent/AgentOS.vue"));
-const agentActive = ref(narrativeRuntime.getState().scene === "agent");
-const unsubscribeScene = narrativeRuntime.subscribe(({ scene }) => {
-  const next = scene === "agent";
+const agentActive = ref(
+  runtimeScenesForState(narrativeRuntime.getState()).includes("agent"),
+);
+const unsubscribeScene = narrativeRuntime.subscribe((state) => {
+  const next = runtimeScenesForState(state).includes("agent");
   if (next !== agentActive.value) agentActive.value = next;
 });
 
