@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { narrativeRuntime, type NarrativeState } from "../experiences/narrative-runtime";
 import { agentLiquidFragment, agentLiquidVertex } from "./agent-liquid-shader";
 import { AgentParticleCloud } from "./agent-particle-cloud";
 import {
@@ -39,6 +40,8 @@ class StageGraphics {
   private frame = 0;
   private lastRenderTime = performance.now();
   private destroyed = false;
+  private pointerListening = false;
+  private unsubscribeNarrative: (() => void) | null = null;
 
   constructor(stage: HTMLElement) {
     this.stage = stage;
@@ -84,9 +87,9 @@ class StageGraphics {
     this.resizeObserver.observe(stage);
     this.resize();
 
-    addEventListener("pointermove", this.onPointerMove, { passive: true });
     document.addEventListener("visibilitychange", this.onVisibility);
     bindAgentVisualWake(this.wake);
+    this.unsubscribeNarrative = narrativeRuntime.subscribe(this.onNarrative);
     this.wake();
   }
 
@@ -120,6 +123,25 @@ class StageGraphics {
     this.agentGroup.scale.setScalar(desktop ? 1.08 : 0.80);
     this.agentScreenCenter.set(desktop ? 0.28 : 0.50, desktop ? 0.50 : 0.40);
     this.wake();
+  };
+
+  private setPointerActive(active: boolean): void {
+    if (active === this.pointerListening) return;
+    this.pointerListening = active;
+
+    if (active) {
+      this.resize();
+      this.lastPointerTime = performance.now();
+      addEventListener("pointermove", this.onPointerMove, { passive: true });
+      return;
+    }
+
+    removeEventListener("pointermove", this.onPointerMove);
+    this.pointerVelocityTarget = 0;
+  }
+
+  private onNarrative = (state: NarrativeState): void => {
+    this.setPointerActive(state.scene === "agent");
   };
 
   private onPointerMove = (event: PointerEvent): void => {
@@ -196,9 +218,11 @@ class StageGraphics {
     this.destroyed = true;
     if (this.frame) cancelAnimationFrame(this.frame);
     this.frame = 0;
+    this.unsubscribeNarrative?.();
+    this.unsubscribeNarrative = null;
+    this.setPointerActive(false);
     bindAgentVisualWake(null);
     this.resizeObserver.disconnect();
-    removeEventListener("pointermove", this.onPointerMove);
     document.removeEventListener("visibilitychange", this.onVisibility);
 
     this.agentGeometry.dispose();
