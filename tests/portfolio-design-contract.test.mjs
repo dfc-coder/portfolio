@@ -170,7 +170,7 @@ test("architecture: native scroll is the single physical scroll owner", async ()
   const gallery = await read("src/experiences/gallery.ts");
 
   assert.doesNotMatch(component, /ScrollTrigger|addEventListener\("wheel"/);
-  assert.doesNotMatch(gallery, /addEventListener\("wheel"|scrollToNode|WHEEL_EXIT_LOCK/);
+  assert.doesNotMatch(gallery, /(?:^|\n)\s*addEventListener\("wheel"|window\.addEventListener\("wheel"|scrollToNode|WHEEL_EXIT_LOCK/m);
   assert.match(scroll, /addEventListener\("scroll", onNativeScroll, \{ passive: true \}\)/);
   assert.match(scroll, /requestAnimationFrame\(flushScroll\)/);
   assert.match(scroll, /if \(scrollFrame !== 0\) return;/);
@@ -367,8 +367,8 @@ test("architecture: Gallery remains isolated outside its active scene", async ()
   assert.match(component, /<img[^>]+draggable="false"/);
   assert.match(scrollCss, /\.ref-stage:not\(\[data-scene="gallery"\]\) \.ref-scene--gallery/);
   assert.match(gallery, /const openFocus = \(index: number\) => \{\s*if \(!galleryIsVisible\(\)\) return;/);
-  assert.match(gallery, /lockDocumentScroll\(\)/);
-  assert.match(gallery, /unlockDocumentScroll\(\)/);
+  assert.doesNotMatch(gallery, /document\.documentElement\.style\.overflow|lockDocumentScroll|unlockDocumentScroll/);
+  assert.match(gallery, /focus\.addEventListener\("wheel", onFocusScrollIntent, \{ passive: false \}\)/);
   assert.match(gallery, /narrativeRuntime\.subscribe\(syncNarrative\)/);
   assert.match(gallery, /setPointerListenerActive\(galleryActive && !isOpen\)/);
   assert.match(
