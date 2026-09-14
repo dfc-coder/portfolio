@@ -5,11 +5,14 @@
   width: 100%;
   height: 100%;
   display: block;
+  opacity: var(--agent, 0);
   pointer-events: none;
 }
 
 /* Surface-only effects remain CSS because they are static compositor layers.
-   Three is reserved for the Agent experience and is mounted only while needed. */
+   Three is reserved for the Agent experience and is mounted only while needed.
+   The canvas can be prepared during the Agent chapter handoff, but its visual
+   authority still follows the same --agent crossfade as the Agent scene. */
 .ref-grain::before,
 .ref-grain::after {
   content: "";

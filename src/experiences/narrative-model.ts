@@ -1,4 +1,4 @@
-import { galleryItems } from "./gallery";
+import { galleryItems } from "./gallery-data";
 import { systemsProjects } from "./systems-projects";
 import { experiences } from "./trajectory-data";
 

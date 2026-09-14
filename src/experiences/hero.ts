@@ -64,6 +64,43 @@ const lockInput = () => {
   };
 };
 
+const mountHeroPointerField = (hero: HTMLElement, thesis: HTMLElement) => {
+  const title = hero.querySelector<HTMLElement>(".ref-hero__title");
+  const titleX = title ? gsap.quickTo(title, "x", { duration: 1.25, ease: SETTLE_EASE }) : null;
+  const titleY = title ? gsap.quickTo(title, "y", { duration: 1.25, ease: SETTLE_EASE }) : null;
+  const thesisX = gsap.quickTo(thesis, "x", { duration: 1.4, ease: SETTLE_EASE });
+  const thesisY = gsap.quickTo(thesis, "y", { duration: 1.4, ease: SETTLE_EASE });
+
+  const onHeroPointerMove = (event: PointerEvent) => {
+    const rect = hero.getBoundingClientRect();
+    const nx = (event.clientX - rect.left) / Math.max(1, rect.width) - 0.5;
+    const ny = (event.clientY - rect.top) / Math.max(1, rect.height) - 0.5;
+    titleX?.(nx * 9);
+    titleY?.(ny * 5);
+    thesisX(nx * -4);
+    thesisY(ny * -3);
+    hero.dataset.heroHover = "true";
+  };
+
+  const onHeroPointerLeave = () => {
+    titleX?.(0);
+    titleY?.(0);
+    thesisX(0);
+    thesisY(0);
+    hero.dataset.heroHover = "false";
+  };
+
+  hero.addEventListener("pointermove", onHeroPointerMove, { passive: true });
+  hero.addEventListener("pointerleave", onHeroPointerLeave, { passive: true });
+
+  return () => {
+    hero.removeEventListener("pointermove", onHeroPointerMove);
+    hero.removeEventListener("pointerleave", onHeroPointerLeave);
+    gsap.killTweensOf([title, thesis]);
+    delete hero.dataset.heroHover;
+  };
+};
+
 export const mountHeroExperience = () => {
   const hero = document.querySelector<HTMLElement>(HERO_SELECTOR);
   if (!hero) return () => undefined;
@@ -74,17 +111,23 @@ export const mountHeroExperience = () => {
     return () => undefined;
   }
 
+  const thesis = hero.querySelector<HTMLElement>(".ref-hero__thesis");
+  if (!thesis) return () => undefined;
+
+  if (document.documentElement.classList.contains("creative-hero-complete")) {
+    return mountHeroPointerField(hero, thesis);
+  }
+
   const heroWords = Array.from(
     hero.querySelectorAll<HTMLElement>(".ref-hero__title > span > i"),
   );
   const heroInitials = Array.from(hero.querySelectorAll<HTMLElement>(".ref-hero__initial"));
   const heroTails = Array.from(hero.querySelectorAll<HTMLElement>(".ref-hero__tail"));
   const meta = hero.querySelector<HTMLElement>(".ref-hero__meta");
-  const thesis = hero.querySelector<HTMLElement>(".ref-hero__thesis");
   const scrollCue = hero.querySelector<HTMLElement>(".ref-scroll-cue");
   const header = document.querySelector<HTMLElement>(".ref-header");
 
-  if (heroWords.length !== 2 || !meta || !thesis || !scrollCue || !header) {
+  if (heroWords.length !== 2 || !meta || !scrollCue || !header) {
     return () => undefined;
   }
 
@@ -199,39 +242,12 @@ export const mountHeroExperience = () => {
     .to(header, { opacity: 1, y: 0, duration: 0.18, ease: SETTLE_EASE }, "thesis+=0.38")
     .to(scrollCue, { opacity: 1, y: 0, duration: 0.18, ease: SETTLE_EASE }, "thesis+=0.44");
 
-  const title = hero.querySelector<HTMLElement>(".ref-hero__title");
-  const titleX = title ? gsap.quickTo(title, "x", { duration: 1.25, ease: SETTLE_EASE }) : null;
-  const titleY = title ? gsap.quickTo(title, "y", { duration: 1.25, ease: SETTLE_EASE }) : null;
-  const thesisX = gsap.quickTo(thesis, "x", { duration: 1.4, ease: SETTLE_EASE });
-  const thesisY = gsap.quickTo(thesis, "y", { duration: 1.4, ease: SETTLE_EASE });
-
-  const onHeroPointerMove = (event: PointerEvent) => {
-    const rect = hero.getBoundingClientRect();
-    const nx = (event.clientX - rect.left) / Math.max(1, rect.width) - 0.5;
-    const ny = (event.clientY - rect.top) / Math.max(1, rect.height) - 0.5;
-    titleX?.(nx * 9);
-    titleY?.(ny * 5);
-    thesisX(nx * -4);
-    thesisY(ny * -3);
-    hero.dataset.heroHover = "true";
-  };
-
-  const onHeroPointerLeave = () => {
-    titleX?.(0);
-    titleY?.(0);
-    thesisX(0);
-    thesisY(0);
-    hero.dataset.heroHover = "false";
-  };
-
-  hero.addEventListener("pointermove", onHeroPointerMove, { passive: true });
-  hero.addEventListener("pointerleave", onHeroPointerLeave, { passive: true });
+  const cleanupPointerField = mountHeroPointerField(hero, thesis);
 
   return () => {
     timeline.kill();
     unlockInput();
     opening.remove();
-    hero.removeEventListener("pointermove", onHeroPointerMove);
-    hero.removeEventListener("pointerleave", onHeroPointerLeave);
+    cleanupPointerField();
   };
 };

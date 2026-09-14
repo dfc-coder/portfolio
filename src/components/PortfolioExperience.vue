@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import AgentOS from "./agent/AgentOS.vue";
+import { defineAsyncComponent, onBeforeUnmount, ref } from "vue";
 import ChapterSignal from "./narrative/ChapterSignal.vue";
 import SystemsScene from "./narrative/SystemsScene.vue";
 import TrajectoryScene from "./narrative/TrajectoryScene.vue";
@@ -8,9 +7,22 @@ import {
   galleryItems as artworks,
   galleryImageSrcSet,
   galleryImageUrl,
-} from "../experiences/gallery";
+} from "../experiences/gallery-data";
+import { narrativeRuntime } from "../experiences/narrative-runtime";
+import { runtimeScenesForState } from "../experiences/scene-lifecycle";
 import { systemsProjects as projects } from "../experiences/systems-projects";
 import { experiences } from "../experiences/trajectory-data";
+
+const AgentOS = defineAsyncComponent(() => import("./agent/AgentOS.vue"));
+const agentActive = ref(
+  runtimeScenesForState(narrativeRuntime.getState()).includes("agent"),
+);
+const unsubscribeScene = narrativeRuntime.subscribe((state) => {
+  const next = runtimeScenesForState(state).includes("agent");
+  if (next !== agentActive.value) agentActive.value = next;
+});
+
+onBeforeUnmount(unsubscribeScene);
 
 const galleryCardWidths = [320, 480, 640, 800, 960] as const;
 const galleryFallbackWidths = [480, 720, 960, 1280] as const;
@@ -124,7 +136,7 @@ const menuOpen = ref(false);
         </article>
 
         <article class="ref-scene ref-scene--agent">
-          <AgentOS />
+          <AgentOS v-if="agentActive" />
         </article>
 
         <article

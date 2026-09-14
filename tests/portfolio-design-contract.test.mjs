@@ -51,8 +51,10 @@ test("architecture: pnpm remains the only frontend package manager", async () =>
   assert.ok(packageJson.dependencies.vue);
 });
 
-test("architecture: main lazy-loads Agent WebGL and keeps predictable CSS ownership", async () => {
+test("architecture: bootstrap keeps global owners and scene runtimes are lazy", async () => {
   const main = await read("src/main.ts");
+  const lifecycle = await read("src/experiences/scene-lifecycle.ts");
+  const portfolio = await read("src/components/PortfolioExperience.vue");
   const ordered = [
     'import "./styles/theme.css"',
     'import "./styles/base.css"',
@@ -75,11 +77,34 @@ test("architecture: main lazy-loads Agent WebGL and keeps predictable CSS owners
     previous = index;
   }
 
-  assert.match(main, /mountAgentGraphicsLifecycle\(\)/);
-  assert.match(main, /agentGraphicsModule \?\?= import\("\.\/graphics\/stageGraphics"\)/);
-  assert.match(main, /scene === "gallery"/);
-  assert.doesNotMatch(main, /import \{ mountStageGraphics \} from/);
   assert.match(main, /mountScrollSyncController\(\)/);
+  assert.match(main, /mountVisualContinuity\(\)/);
+  assert.match(main, /mountSceneLifecycle\(\)/);
+  assert.doesNotMatch(
+    main,
+    /mountTrajectoryExperience|mountSystemsExperience|mountGalleryGel|mountGalleryTransition|mountStageGraphics/,
+  );
+  assert.doesNotMatch(
+    main,
+    /from "\.\/experiences\/(trajectory|systems|gallery|gallery-transition)"/,
+  );
+
+  assert.match(lifecycle, /const runtimeLoaders = \{/);
+  assert.match(lifecycle, /const prefetchers = \{/);
+  assert.match(lifecycle, /career: async \(\) => \{[\s\S]*import\("\.\/trajectory"\)/);
+  assert.match(lifecycle, /systems: async \(\) => \{[\s\S]*import\("\.\/systems"\)/);
+  assert.match(lifecycle, /gallery: async \(\) => \{[\s\S]*import\("\.\/gallery"\)[\s\S]*import\("\.\/gallery-transition"\)/);
+  assert.match(lifecycle, /agent: async \(\) => \{[\s\S]*import\("\.\.\/graphics\/stageGraphics"\)/);
+  assert.match(lifecycle, /runtimeLoaders\[scene\]\(\)/);
+  assert.match(lifecycle, /prefetchers\[scene\]\(\)/);
+  assert.match(lifecycle, /activationVersion/);
+  assert.match(lifecycle, /scene !== "chapter"/);
+  assert.doesNotMatch(lifecycle, /switch\s*\(/);
+
+  assert.match(portfolio, /defineAsyncComponent\(\(\) => import\("\.\/agent\/AgentOS\.vue"\)\)/);
+  assert.match(portfolio, /<AgentOS v-if="agentActive" \/>/);
+  assert.match(portfolio, /from "\.\.\/experiences\/gallery-data"/);
+  assert.doesNotMatch(portfolio, /import AgentOS from/);
   assert.doesNotMatch(main, /design-system|cinematic|systems-motion|trajectory-bridge/);
 });
 
@@ -203,6 +228,8 @@ test("architecture: mobile refinement is isolated from desktop ownership", async
 
 test("architecture: Agent-only Three renderer sleeps and menu WebGL stays isolated", async () => {
   const main = await read("src/main.ts");
+  const lifecycle = await read("src/experiences/scene-lifecycle.ts");
+  const portfolio = await read("src/components/PortfolioExperience.vue");
   const graphics = await read("src/graphics/stageGraphics.ts");
   const controller = await read("src/graphics/agent-visual-controller.ts");
   const agent = await read("src/components/agent/AgentOS.vue");
@@ -231,10 +258,11 @@ test("architecture: Agent-only Three renderer sleeps and menu WebGL stays isolat
   assert.match(agent, /from "\.\.\/\.\.\/graphics\/agent-visual-controller"/);
   assert.doesNotMatch(agent, /graphics\/stageGraphics/);
 
-  assert.match(main, /agentGraphicsModule \?\?= import\("\.\/graphics\/stageGraphics"\)/);
-  assert.match(main, /scene !== "agent"/);
-  assert.match(main, /scene === "gallery"/);
-  assert.doesNotMatch(main, /import \{ mountStageGraphics \} from/);
+  assert.match(lifecycle, /import\("\.\.\/graphics\/stageGraphics"\)/);
+  assert.match(lifecycle, /gallery: \(\) => \{[\s\S]*AgentOS\.vue[\s\S]*stageGraphics/);
+  assert.doesNotMatch(main, /graphics\/stageGraphics|mountStageGraphics/);
+  assert.match(portfolio, /defineAsyncComponent\(\(\) => import\("\.\/agent\/AgentOS\.vue"\)\)/);
+  assert.match(portfolio, /<AgentOS v-if="agentActive" \/>/);
 
   assert.match(agentShader, /fluidValue/);
   assert.match(agentShader, /refractStrength/);
