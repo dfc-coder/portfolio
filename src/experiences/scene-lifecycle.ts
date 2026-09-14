@@ -29,17 +29,8 @@ const runtimeLoaders = {
     return mountSystemsExperience();
   },
   gallery: async () => {
-    const [{ mountGalleryGel }, { mountGalleryTransition }] = await Promise.all([
-      import("./gallery"),
-      import("./gallery-transition"),
-    ]);
-    const gelCleanup = mountGalleryGel();
-    const transitionCleanup = mountGalleryTransition();
-
-    return () => {
-      transitionCleanup();
-      gelCleanup();
-    };
+    const { mountGalleryExperience } = await import("./gallery");
+    return mountGalleryExperience();
   },
   agent: async () => {
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return noop;
@@ -51,10 +42,7 @@ const runtimeLoaders = {
 const prefetchers = {
   hero: () => void import("./trajectory"),
   career: () => void import("./systems"),
-  systems: () => {
-    void import("./gallery");
-    void import("./gallery-transition");
-  },
+  systems: () => void import("./gallery"),
   gallery: () => {
     void import("../components/agent/AgentOS.vue");
     void import("../graphics/stageGraphics");
