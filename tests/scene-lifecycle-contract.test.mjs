@@ -48,7 +48,7 @@ test("architecture: scroll variables are the final narrative visibility owner", 
 
   const ownershipImport = 'import "./styles/narrative-visibility.css";';
   assert.ok(main.includes(ownershipImport));
-  assert.ok(main.indexOf(ownershipImport) > main.indexOf('import "./styles/mobile-systems-layout.css";'));
+  assert.ok(main.indexOf(ownershipImport) > main.indexOf('import "./experiences/gallery.css";'));
 
   assert.match(
     visibility,
@@ -72,7 +72,7 @@ test("performance: feature style variables stay on local owners", async () => {
   const trajectory = await read("src/experiences/trajectory.ts");
   const systems = await read("src/experiences/systems.ts");
   const galleryTransition = await read("src/experiences/gallery-transition.ts");
-  const galleryTransitionCss = await read("src/experiences/gallery-transition.css");
+  const galleryCss = await read("src/experiences/gallery.css");
   const bridges = await read("src/styles/chapter-bridges.css");
 
   assert.doesNotMatch(trajectory, /stage\.style\.setProperty\("--trajectory-/);
@@ -90,7 +90,7 @@ test("performance: feature style variables stay on local owners", async () => {
   assert.match(galleryTransition, /gallery\.style\.setProperty\("--gallery-motion-opacity"/);
   assert.match(galleryTransition, /gallery\.dataset\.galleryMotion/);
   assert.match(
-    galleryTransitionCss,
+    galleryCss,
     /\.ref-scene--gallery\.ref-gallery-gel-ready\[data-gallery-motion="true"\]/,
   );
 
