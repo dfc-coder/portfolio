@@ -36,6 +36,8 @@ type ControllerState = AgentVisualSignals & {
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 const clampSigned = (value: number) => Math.max(-1, Math.min(1, value));
+const settled = (value: number, target: number, epsilon = 0.002) =>
+  Math.abs(value - target) <= epsilon;
 
 const damp = (current: number, target: number, response: number, dt: number) =>
   current + (target - current) * (1 - Math.exp(-response * dt));
@@ -109,22 +111,36 @@ const state: ControllerState = {
   pointerVelocityTarget: 0,
 };
 
+let wakeVisual: (() => void) | null = null;
+
+const requestVisualFrame = (): void => {
+  wakeVisual?.();
+};
+
+export const bindAgentVisualWake = (wake: (() => void) | null): void => {
+  wakeVisual = wake;
+};
+
 export const setAgentVisualPhase = (phase: AgentVisualPhase): void => {
   state.phase = phase;
   state.tone = phaseTone(phase);
   if (phase !== "speaking") state.speechTarget = 0;
+  requestVisualFrame();
 };
 
 export const pulseAgentVisual = (strength = 0.3): void => {
   state.activityTarget = Math.max(state.activityTarget, clamp01(strength));
+  requestVisualFrame();
 };
 
 export const pulseAgentSpeech = (strength = 0.6): void => {
   state.speechTarget = Math.max(state.speechTarget, clamp01(strength));
+  requestVisualFrame();
 };
 
 export const pulseAgentInteraction = (strength = 0.75): void => {
   state.interactionTarget = Math.max(state.interactionTarget, clamp01(strength));
+  requestVisualFrame();
 };
 
 export const setAgentPointer = (
@@ -137,6 +153,33 @@ export const setAgentPointer = (
   state.pointerTargetY = clampSigned(y);
   state.pointerVelocityTarget = Math.max(state.pointerVelocityTarget, clamp01(velocity));
   state.pointerForceTarget = clamp01(force);
+  requestVisualFrame();
+};
+
+export const agentVisualNeedsFrame = (): boolean => {
+  if (state.phase !== "idle") return true;
+
+  const base = baseActivity("idle");
+  return !(
+    settled(state.activity, base) &&
+    settled(state.activityTarget, base) &&
+    settled(state.speech, 0) &&
+    settled(state.speechTarget, 0) &&
+    settled(state.interaction, 0) &&
+    settled(state.interactionTarget, 0) &&
+    settled(state.pointerFastX, state.pointerTargetX) &&
+    settled(state.pointerFastY, state.pointerTargetY) &&
+    settled(state.pointerSlowX, state.pointerTargetX) &&
+    settled(state.pointerSlowY, state.pointerTargetY) &&
+    settled(state.pointerDx, 0) &&
+    settled(state.pointerDy, 0) &&
+    settled(state.pointerForce, state.pointerForceTarget) &&
+    settled(state.pointerVelocity, 0) &&
+    settled(state.pointerVelocityTarget, 0) &&
+    settled(state.mode, 0) &&
+    settled(state.toneMode, 0) &&
+    settled(state.thinkingBlend, 0)
+  );
 };
 
 export const updateAgentVisual = (dt: number): AgentVisualSignals => {
