@@ -66,11 +66,6 @@ const menuOpen = ref(false);
         <strong>DC</strong>
         <span>SOFTWARE ENGINEER<br />+ CREATIVE TECHNOLOGIST</span>
       </button>
-      <div class="ref-progress">
-        <span>00</span>
-        <i><b /></i>
-        <span>100</span>
-      </div>
       <button
         type="button"
         class="ref-index-toggle"
