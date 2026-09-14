@@ -193,7 +193,7 @@ test("TDD: static shell owns atmosphere and Agent pointer remains WebGL-owned", 
 test("TDD: Agent renderer wakes on demand and sleeps when settled", async () => {
   const graphics = await read("src/graphics/stageGraphics.ts");
   const controller = await read("src/graphics/agent-visual-controller.ts");
-  const main = await read("src/main.ts");
+  const lifecycle = await read("src/experiences/scene-lifecycle.ts");
 
   assert.match(graphics, /requestAnimationFrame\(this\.render\)/);
   assert.match(graphics, /agentVisualNeedsFrame\(\) \|\| this\.pointerNeedsFrame\(\)/);
@@ -203,7 +203,7 @@ test("TDD: Agent renderer wakes on demand and sleeps when settled", async () => 
   assert.match(controller, /bindAgentVisualWake/);
   assert.match(controller, /requestVisualFrame\(\)/);
   assert.match(controller, /agentVisualNeedsFrame/);
-  assert.match(main, /import\("\.\/graphics\/stageGraphics"\)/);
+  assert.match(lifecycle, /import\("\.\.\/graphics\/stageGraphics"\)/);
 });
 
 test("TDD: menu transition is isolated WebGL driven by shared GSAP", async () => {
@@ -233,10 +233,18 @@ test("TDD: section titles share a register without removing runtime headers", as
   assert.match(systemsScene, /<NarrativeHeader[\s\S]*class="systems-header"/);
 });
 
-test("TDD: main mounts canonical experience modules only", async () => {
+test("TDD: main mounts global owners while scene modules stay lifecycle-owned", async () => {
   const main = await read("src/main.ts");
-  assert.match(main, /mountAgentGraphicsLifecycle/);
-  assert.match(main, /experiences\/systems/);
+  const lifecycle = await read("src/experiences/scene-lifecycle.ts");
+
+  assert.match(main, /mountSceneLifecycle/);
   assert.match(main, /experiences\/continuity/);
+  assert.doesNotMatch(
+    main,
+    /mountTrajectoryExperience|mountSystemsExperience|mountGalleryGel|mountGalleryTransition|mountStageGraphics/,
+  );
+  assert.match(lifecycle, /import\("\.\/trajectory"\)/);
+  assert.match(lifecycle, /import\("\.\/systems"\)/);
+  assert.match(lifecycle, /import\("\.\/gallery"\)/);
   assert.doesNotMatch(main, /systems-motion\.css|-v\d|hotfix|integration-fix|cinematic-tuning/);
 });
