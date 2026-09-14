@@ -426,6 +426,56 @@
   }
 }
 
+/* Final mobile Agent composition previously lived in the global mobile patch. */
+@media (max-width: 680px) {
+  .ref-scene--agent .ref-marker {
+    gap: 8px !important;
+  }
+
+  .ref-scene--agent .ref-marker > i {
+    width: 30px !important;
+    flex-basis: 30px !important;
+  }
+
+  .ref-scene--agent .ref-marker > span:last-child {
+    font-size: 10px !important;
+    letter-spacing: .10em !important;
+  }
+
+  .agent-os {
+    gap: 8px !important;
+    padding: 48px 14px 12px !important;
+  }
+
+  .agent-presence {
+    inset: 48px 0 126px !important;
+  }
+
+  .agent-core {
+    width: min(64vw, 320px) !important;
+    opacity: .30 !important;
+  }
+
+  .agent-lane {
+    min-height: 150px !important;
+    max-height: 44vh !important;
+    padding-top: 10px !important;
+  }
+
+  .agent-msg {
+    max-width: 100% !important;
+  }
+
+  .agent-ask {
+    min-height: 50px !important;
+  }
+
+  .agent-ask button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+}
+
 @media (max-width: 520px) {
   .agent-ask {
     min-height: 48px;
