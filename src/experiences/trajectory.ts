@@ -89,8 +89,9 @@ export const mountTrajectoryExperience = () => {
 
   const compactQuery = matchMedia(MOBILE_BREAKPOINT);
   const stage = document.querySelector<HTMLElement>(".ref-stage");
+  const heroScene = document.querySelector<HTMLElement>(".ref-scene--hero");
   const career = document.querySelector<HTMLElement>(".ref-scene--career");
-  if (!stage || !career) return () => undefined;
+  if (!stage || !heroScene || !career) return () => undefined;
 
   const root = career.querySelector<HTMLElement>(".trajectory-experience");
   const intro = career.querySelector<HTMLElement>(".trajectory-intro");
@@ -121,6 +122,16 @@ export const mountTrajectoryExperience = () => {
   let motionLastTime = performance.now();
   let primaryMotionState: SpringState = { value: initialPosition, velocity: 0 };
   let secondaryMotionState: SpringState = { value: initialPosition, velocity: 0 };
+
+  let previousTrajectoryActive = "";
+  let previousHeroExit = "";
+  let previousCueExit = "";
+  let previousCueHandoffOpacity = "";
+  let previousIntroIn = "";
+  let previousIntroOut = "";
+  let previousAxisReveal = "";
+  let previousContent = "";
+  let previousTimelineProgress = "";
 
   const syncMotionToTarget = () => {
     primaryMotionState = { value: targetPosition, velocity: 0 };
@@ -222,7 +233,11 @@ export const mountTrajectoryExperience = () => {
 
     const timelineProgress =
       experiences.length > 1 ? yearsPosition / (experiences.length - 1) : 0;
-    stage.style.setProperty("--trajectory-timeline-progress", timelineProgress.toFixed(5));
+    const nextTimelineProgress = timelineProgress.toFixed(5);
+    if (nextTimelineProgress !== previousTimelineProgress) {
+      root.style.setProperty("--trajectory-timeline-progress", nextTimelineProgress);
+      previousTimelineProgress = nextTimelineProgress;
+    }
 
     yearNodes.forEach((element, index) => {
       const offset = index - yearsPosition;
@@ -309,7 +324,6 @@ export const mountTrajectoryExperience = () => {
 
     const heroExit = range(node, 0.10, 0.86);
     const cueExit = range(node, 0.24, 1.06);
-    const cueHandoff = range(node, 0.60, 0.78);
 
     const trajectoryIn = range(node, 0.26, 0.56);
     const trajectoryOut = range(node, chapterSystemsNode - 0.48, chapterSystemsNode + 0.16);
@@ -321,7 +335,6 @@ export const mountTrajectoryExperience = () => {
 
     const axisReveal = range(node, 1.18, 1.52);
     const contentReveal = range(node, 1.34, 1.74);
-    const heroShell = 1 - range(node, chapterSystemsNode - 0.62, chapterSystemsNode + 0.12);
 
     const now = performance.now();
     const nextPosition = collectionPosition(node, careerStartNode, experiences.length);
@@ -340,20 +353,60 @@ export const mountTrajectoryExperience = () => {
     inputLastTime = now;
     latestContentReveal = contentReveal;
 
-    stage.dataset.trajectory = node > 0.12 && node < chapterSystemsNode + 0.18 ? "true" : "false";
-    stage.style.setProperty("--trajectory-hero-exit", heroExit.toFixed(5));
-    stage.style.setProperty("--trajectory-cue-exit", cueExit.toFixed(5));
-    stage.style.setProperty(
-      "--trajectory-cue-handoff-opacity",
-      ((1 - cueExit) * (1 - cueHandoff)).toFixed(5),
-    );
-    stage.style.setProperty("--trajectory-visibility", trajectoryVisibility.toFixed(5));
-    stage.style.setProperty("--trajectory-intro", introVisibility.toFixed(5));
-    stage.style.setProperty("--trajectory-intro-in", introIn.toFixed(5));
-    stage.style.setProperty("--trajectory-intro-out", introOut.toFixed(5));
-    stage.style.setProperty("--trajectory-axis-reveal", axisReveal.toFixed(5));
-    stage.style.setProperty("--trajectory-content", contentReveal.toFixed(5));
-    stage.style.setProperty("--trajectory-hero-shell", heroShell.toFixed(5));
+    const nextTrajectoryActive =
+      node > 0.12 && node < chapterSystemsNode + 0.18 ? "true" : "false";
+    if (nextTrajectoryActive !== previousTrajectoryActive) {
+      stage.dataset.trajectory = nextTrajectoryActive;
+      previousTrajectoryActive = nextTrajectoryActive;
+    }
+
+    const nextHeroExit = heroExit.toFixed(5);
+    if (nextHeroExit !== previousHeroExit) {
+      heroScene.style.setProperty("--trajectory-hero-exit", nextHeroExit);
+      previousHeroExit = nextHeroExit;
+    }
+
+    const nextCueExit = cueExit.toFixed(5);
+    if (nextCueExit !== previousCueExit) {
+      heroScene.style.setProperty("--trajectory-cue-exit", nextCueExit);
+      previousCueExit = nextCueExit;
+    }
+
+    const nextCueHandoffOpacity = (
+      (1 - axisReveal) *
+      (1 - cueExit * 0.35)
+    ).toFixed(5);
+    if (nextCueHandoffOpacity !== previousCueHandoffOpacity) {
+      heroScene.style.setProperty(
+        "--trajectory-cue-handoff-opacity",
+        nextCueHandoffOpacity,
+      );
+      previousCueHandoffOpacity = nextCueHandoffOpacity;
+    }
+
+    const nextIntroIn = introIn.toFixed(5);
+    if (nextIntroIn !== previousIntroIn) {
+      root.style.setProperty("--trajectory-intro-in", nextIntroIn);
+      previousIntroIn = nextIntroIn;
+    }
+
+    const nextIntroOut = introOut.toFixed(5);
+    if (nextIntroOut !== previousIntroOut) {
+      root.style.setProperty("--trajectory-intro-out", nextIntroOut);
+      previousIntroOut = nextIntroOut;
+    }
+
+    const nextAxisReveal = axisReveal.toFixed(5);
+    if (nextAxisReveal !== previousAxisReveal) {
+      root.style.setProperty("--trajectory-axis-reveal", nextAxisReveal);
+      previousAxisReveal = nextAxisReveal;
+    }
+
+    const nextContent = contentReveal.toFixed(5);
+    if (nextContent !== previousContent) {
+      root.style.setProperty("--trajectory-content", nextContent);
+      previousContent = nextContent;
+    }
 
     root.style.opacity = trajectoryVisibility.toFixed(5);
     intro.style.opacity = introVisibility.toFixed(5);
@@ -379,14 +432,13 @@ export const mountTrajectoryExperience = () => {
       "--trajectory-hero-exit",
       "--trajectory-cue-exit",
       "--trajectory-cue-handoff-opacity",
-      "--trajectory-visibility",
-      "--trajectory-intro",
+    ].forEach((property) => heroScene.style.removeProperty(property));
+    [
       "--trajectory-intro-in",
       "--trajectory-intro-out",
       "--trajectory-axis-reveal",
       "--trajectory-content",
-      "--trajectory-hero-shell",
       "--trajectory-timeline-progress",
-    ].forEach((property) => stage.style.removeProperty(property));
+    ].forEach((property) => root.style.removeProperty(property));
   };
 };
