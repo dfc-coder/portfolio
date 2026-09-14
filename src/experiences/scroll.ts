@@ -127,6 +127,18 @@ export const mountScrollSyncController = () => {
   let latestScrollY = scrollY;
   let scrollFrame = 0;
 
+  let previousScene = "";
+  let previousProgress = "";
+  let previousHero = "";
+  let previousCareer = "";
+  let previousSystems = "";
+  let previousGallery = "";
+  let previousAgent = "";
+  let previousChapterCareer = "";
+  let previousChapterSystems = "";
+  let previousChapterGallery = "";
+  let previousChapterAgent = "";
+
   const measure = () => {
     const rect = track.getBoundingClientRect();
     trackStart = scrollY + rect.top;
@@ -143,18 +155,71 @@ export const mountScrollSyncController = () => {
     const scene = sceneForNode(node, model);
     const opacity = sceneOpacities(node, model, compactQuery.matches);
 
-    stage.dataset.scene = scene;
-    stage.style.setProperty("--progress", progress.toFixed(6));
-    stage.style.setProperty("--scroll-director-progress", progress.toFixed(6));
-    stage.style.setProperty("--hero", opacity.hero.toFixed(6));
-    stage.style.setProperty("--career", opacity.career.toFixed(6));
-    stage.style.setProperty("--systems", opacity.systems.toFixed(6));
-    stage.style.setProperty("--gallery", opacity.gallery.toFixed(6));
-    stage.style.setProperty("--agent", opacity.agent.toFixed(6));
-    stage.style.setProperty("--chapter-career", opacity.chapterCareer.toFixed(6));
-    stage.style.setProperty("--chapter-systems", opacity.chapterSystems.toFixed(6));
-    stage.style.setProperty("--chapter-gallery", opacity.chapterGallery.toFixed(6));
-    stage.style.setProperty("--chapter-agent", opacity.chapterAgent.toFixed(6));
+    if (scene !== previousScene) {
+      stage.dataset.scene = scene;
+      previousScene = scene;
+    }
+
+    const nextProgress = progress.toFixed(6);
+    if (nextProgress !== previousProgress) {
+      stage.style.setProperty("--progress", nextProgress);
+      stage.style.setProperty("--scroll-director-progress", nextProgress);
+      previousProgress = nextProgress;
+    }
+
+    const nextHero = opacity.hero.toFixed(6);
+    if (nextHero !== previousHero) {
+      stage.style.setProperty("--hero", nextHero);
+      previousHero = nextHero;
+    }
+
+    const nextCareer = opacity.career.toFixed(6);
+    if (nextCareer !== previousCareer) {
+      stage.style.setProperty("--career", nextCareer);
+      previousCareer = nextCareer;
+    }
+
+    const nextSystems = opacity.systems.toFixed(6);
+    if (nextSystems !== previousSystems) {
+      stage.style.setProperty("--systems", nextSystems);
+      previousSystems = nextSystems;
+    }
+
+    const nextGallery = opacity.gallery.toFixed(6);
+    if (nextGallery !== previousGallery) {
+      stage.style.setProperty("--gallery", nextGallery);
+      previousGallery = nextGallery;
+    }
+
+    const nextAgent = opacity.agent.toFixed(6);
+    if (nextAgent !== previousAgent) {
+      stage.style.setProperty("--agent", nextAgent);
+      previousAgent = nextAgent;
+    }
+
+    const nextChapterCareer = opacity.chapterCareer.toFixed(6);
+    if (nextChapterCareer !== previousChapterCareer) {
+      stage.style.setProperty("--chapter-career", nextChapterCareer);
+      previousChapterCareer = nextChapterCareer;
+    }
+
+    const nextChapterSystems = opacity.chapterSystems.toFixed(6);
+    if (nextChapterSystems !== previousChapterSystems) {
+      stage.style.setProperty("--chapter-systems", nextChapterSystems);
+      previousChapterSystems = nextChapterSystems;
+    }
+
+    const nextChapterGallery = opacity.chapterGallery.toFixed(6);
+    if (nextChapterGallery !== previousChapterGallery) {
+      stage.style.setProperty("--chapter-gallery", nextChapterGallery);
+      previousChapterGallery = nextChapterGallery;
+    }
+
+    const nextChapterAgent = opacity.chapterAgent.toFixed(6);
+    if (nextChapterAgent !== previousChapterAgent) {
+      stage.style.setProperty("--chapter-agent", nextChapterAgent);
+      previousChapterAgent = nextChapterAgent;
+    }
 
     narrativeRuntime.publish({
       physicalProgress: physical,

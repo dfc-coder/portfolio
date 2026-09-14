@@ -108,6 +108,7 @@ export const mountSystemsExperience = () => {
 
   const resolvedProjectParts = projectParts as ProjectParts[];
   document.documentElement.classList.add("systems-refined-ready");
+  root.style.opacity = "1";
 
   const {
     chapterSystemsNode,
@@ -149,6 +150,15 @@ export const mountSystemsExperience = () => {
   let pointerY = 0;
   let pointerTargetX = 0;
   let pointerTargetY = 0;
+
+  let previousSystemsRefined = "";
+  let previousSystemsProgress = "";
+  let previousAxisReveal = "";
+  let previousIntroIn = "";
+  let previousContent = "";
+  let previousTailOut = "";
+  let previousPointerX = "";
+  let previousPointerY = "";
 
   const syncMotionToTarget = () => {
     primaryMotionState = { value: targetProjectPosition, velocity: 0 };
@@ -253,7 +263,11 @@ export const mountSystemsExperience = () => {
 
     const projectProgress =
       projectCount > 1 ? axisPosition / (projectCount - 1) : 0;
-    stage.style.setProperty("--systems-progress", projectProgress.toFixed(5));
+    const nextSystemsProgress = projectProgress.toFixed(5);
+    if (nextSystemsProgress !== previousSystemsProgress) {
+      root.style.setProperty("--systems-progress", nextSystemsProgress);
+      previousSystemsProgress = nextSystemsProgress;
+    }
 
     axisItems.forEach((element, index) => {
       const offset = index - axisPosition;
@@ -373,8 +387,18 @@ export const mountSystemsExperience = () => {
   const renderPointer = (dt: number) => {
     pointerX = damp(pointerX, pointerTargetX, 12, dt);
     pointerY = damp(pointerY, pointerTargetY, 12, dt);
-    root.style.setProperty("--systems-pointer-x", pointerX.toFixed(4));
-    root.style.setProperty("--systems-pointer-y", pointerY.toFixed(4));
+
+    const nextPointerX = pointerX.toFixed(4);
+    if (nextPointerX !== previousPointerX) {
+      root.style.setProperty("--systems-pointer-x", nextPointerX);
+      previousPointerX = nextPointerX;
+    }
+
+    const nextPointerY = pointerY.toFixed(4);
+    if (nextPointerY !== previousPointerY) {
+      root.style.setProperty("--systems-pointer-y", nextPointerY);
+      previousPointerY = nextPointerY;
+    }
 
     pointerPending =
       Math.abs(pointerX - pointerTargetX) > POINTER_SETTLE_EPSILON ||
@@ -441,41 +465,38 @@ export const mountSystemsExperience = () => {
 
     inputLastTime = now;
 
-    stage.dataset.systemsRefined =
+    const nextSystemsRefined =
       node > chapterSystemsNode - 0.36 && node < chapterGalleryNode + 0.34
         ? "true"
         : "false";
+    if (nextSystemsRefined !== previousSystemsRefined) {
+      stage.dataset.systemsRefined = nextSystemsRefined;
+      previousSystemsRefined = nextSystemsRefined;
+    }
 
-    stage.style.setProperty(
-      "--systems-editorial-visibility",
-      latestChapterState.sectionVisibility.toFixed(5),
-    );
-    stage.style.setProperty(
-      "--systems-axis-reveal",
-      latestChapterState.axisReveal.toFixed(5),
-    );
-    stage.style.setProperty(
-      "--systems-intro-in",
-      latestChapterState.introIn.toFixed(5),
-    );
-    stage.style.setProperty(
-      "--systems-intro-out",
-      latestChapterState.introOut.toFixed(5),
-    );
-    stage.style.setProperty(
-      "--systems-content",
-      latestChapterState.contentReveal.toFixed(5),
-    );
-    stage.style.setProperty(
-      "--systems-tail-out",
-      latestChapterState.tailOut.toFixed(5),
-    );
-    stage.style.setProperty(
-      "--systems-gallery-handoff",
-      latestChapterState.galleryHandoff.toFixed(5),
-    );
+    const nextAxisReveal = latestChapterState.axisReveal.toFixed(5);
+    if (nextAxisReveal !== previousAxisReveal) {
+      root.style.setProperty("--systems-axis-reveal", nextAxisReveal);
+      previousAxisReveal = nextAxisReveal;
+    }
 
-    root.style.opacity = "1";
+    const nextIntroIn = latestChapterState.introIn.toFixed(5);
+    if (nextIntroIn !== previousIntroIn) {
+      root.style.setProperty("--systems-intro-in", nextIntroIn);
+      previousIntroIn = nextIntroIn;
+    }
+
+    const nextContent = latestChapterState.contentReveal.toFixed(5);
+    if (nextContent !== previousContent) {
+      root.style.setProperty("--systems-content", nextContent);
+      previousContent = nextContent;
+    }
+
+    const nextTailOut = latestChapterState.tailOut.toFixed(5);
+    if (nextTailOut !== previousTailOut) {
+      root.style.setProperty("--systems-tail-out", nextTailOut);
+      previousTailOut = nextTailOut;
+    }
 
     intro.style.opacity = latestChapterState.introVisibility.toFixed(5);
     intro.style.transform = `translate3d(0, ${(
@@ -523,19 +544,17 @@ export const mountSystemsExperience = () => {
       parts.implementation.style.removeProperty("opacity");
       parts.implementation.style.removeProperty("transform");
     });
-    root.style.removeProperty("--systems-pointer-x");
-    root.style.removeProperty("--systems-pointer-y");
-    delete stage.dataset.systemsRefined;
     [
-      "--systems-editorial-visibility",
       "--systems-axis-reveal",
       "--systems-intro-in",
-      "--systems-intro-out",
       "--systems-content",
       "--systems-progress",
       "--systems-tail-out",
-      "--systems-gallery-handoff",
-    ].forEach((property) => stage.style.removeProperty(property));
+      "--systems-pointer-x",
+      "--systems-pointer-y",
+      "opacity",
+    ].forEach((property) => root.style.removeProperty(property));
+    delete stage.dataset.systemsRefined;
     document.documentElement.classList.remove("systems-refined-ready");
   };
 };
