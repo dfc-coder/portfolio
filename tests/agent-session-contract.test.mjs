@@ -23,21 +23,25 @@ test("agent keeps a server conversation id while retaining context fallback", as
   assert.doesNotMatch(provider, /history: history\.map/);
 });
 
-test("BDD: network chunks are presented at a stable UI-controlled pace", async () => {
+test("BDD: network chunks are coalesced into a UI-controlled presentation cadence", async () => {
   const runtime = await read("src/components/agent/useAgentRuntime.ts");
   const os = await read("src/components/agent/AgentOS.vue");
 
+  assert.match(runtime, /PRESENTATION_INTERVAL_MS = 40/);
   assert.match(runtime, /PRESENTATION_BASE_CPS/);
-  assert.match(runtime, /PRESENTATION_MAX_BATCH/);
+  assert.match(runtime, /PRESENTATION_MAX_CPS/);
+  assert.match(runtime, /PRESENTATION_MAX_BATCH = 12/);
   assert.match(runtime, /presentationQueue \+= text/);
-  assert.match(runtime, /requestAnimationFrame\(present\)/);
+  assert.match(runtime, /window\.setTimeout\(present, PRESENTATION_INTERVAL_MS\)/);
+  assert.doesNotMatch(runtime, /requestAnimationFrame\(present\)/);
   assert.match(runtime, /await waitForPresentation\(\)/);
   assert.match(runtime, /hooks\.onPresent\?\.\(batch\)/);
   assert.doesNotMatch(runtime, /target\.text \+= pendingText/);
-  assert.doesNotMatch(runtime, /scheduleStreamFlush/);
+  assert.doesNotMatch(runtime, /scheduleStreamFlush|flushStream/);
 
   assert.match(os, /onPresent: \(text\) =>/);
   assert.match(os, /pulsePresentedText\(text\)/);
+  assert.match(os, /scheduleScrollToBottom\(\)/);
   assert.match(os, /message\.streaming/);
   assert.match(os, /agent-msg__stream/);
   assert.match(os, /@scroll="handleLaneScroll"/);
