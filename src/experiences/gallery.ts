@@ -170,12 +170,25 @@ export const mountGalleryGel = () => {
 
   let selectedIndex = 0;
   let isOpen = false;
+  let rootOverflow: string | null = null;
   let pointerFrame = 0;
   let pointerX = innerWidth * 0.5;
   let pointerY = innerHeight * 0.5;
   let cardMetrics: CardMetric[] = [];
 
   const galleryIsVisible = () => stage.dataset.scene === "gallery";
+
+  const lockDocumentScroll = () => {
+    if (rootOverflow !== null) return;
+    rootOverflow = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+  };
+
+  const unlockDocumentScroll = () => {
+    if (rootOverflow === null) return;
+    document.documentElement.style.overflow = rootOverflow;
+    rootOverflow = null;
+  };
 
   const setSelected = (index: number) => {
     selectedIndex = (index + cards.length) % cards.length;
@@ -210,6 +223,7 @@ export const mountGalleryGel = () => {
 
     setSelected(index);
     renderFocus();
+    lockDocumentScroll();
     isOpen = true;
     gallery.classList.add("is-gallery-focus-open");
     focus.classList.add("is-open");
@@ -220,6 +234,7 @@ export const mountGalleryGel = () => {
   const closeFocus = () => {
     if (!isOpen) return;
     isOpen = false;
+    unlockDocumentScroll();
     gallery.classList.remove("is-gallery-focus-open");
     focus.classList.remove("is-open");
     focus.setAttribute("aria-hidden", "true");
@@ -320,6 +335,7 @@ export const mountGalleryGel = () => {
 
   return () => {
     if (pointerFrame !== 0) cancelAnimationFrame(pointerFrame);
+    unlockDocumentScroll();
     gallery.removeEventListener("click", onGalleryClick, true);
     focus.removeEventListener("pointerdown", onFocusPointerDown);
     removeEventListener("keydown", onKeydown, true);
