@@ -79,14 +79,13 @@ export const mountGalleryTransition = () => {
   }
 
   const compactQuery = matchMedia(MOBILE_BREAKPOINT);
-  const stage = document.querySelector<HTMLElement>(".ref-stage");
   const gallery = document.querySelector<HTMLElement>(".ref-scene--gallery");
   const galleryStage = gallery?.querySelector<HTMLElement>(".ref-gallery-stage");
   const cards = galleryStage
     ? Array.from(galleryStage.querySelectorAll<HTMLElement>(".ref-art-card"))
     : [];
 
-  if (!stage || !gallery || !galleryStage || cards.length === 0) {
+  if (!gallery || !galleryStage || cards.length === 0) {
     return () => undefined;
   }
 
@@ -98,6 +97,8 @@ export const mountGalleryTransition = () => {
   let motionLastTime = inputLastTime;
   let driveVelocity = 0;
   let motionFrame = 0;
+  let galleryMotionActive = false;
+  let previousGalleryMotionOpacity = "";
 
   const motions: CardMotion[] = cards.map((card, index) => ({
     card,
@@ -200,16 +201,29 @@ export const mountGalleryTransition = () => {
       galleryStartNode + values.entryStart - VISIBILITY_MARGIN;
     const transitionEnd =
       galleryStartNode + values.exitVisibilityEnd + VISIBILITY_MARGIN;
+    const active = physicalNode >= transitionStart && physicalNode <= transitionEnd;
 
-    if (physicalNode >= transitionStart && physicalNode <= transitionEnd) {
-      stage.dataset.galleryMotion = "true";
-      stage.style.setProperty(
-        "--gallery-motion-opacity",
-        transitionOpacityFor(physicalNode).toFixed(5),
-      );
-    } else {
-      delete stage.dataset.galleryMotion;
-      stage.style.removeProperty("--gallery-motion-opacity");
+    if (active) {
+      if (!galleryMotionActive) {
+        gallery.dataset.galleryMotion = "true";
+        galleryMotionActive = true;
+      }
+
+      const nextOpacity = transitionOpacityFor(physicalNode).toFixed(5);
+      if (nextOpacity !== previousGalleryMotionOpacity) {
+        gallery.style.setProperty("--gallery-motion-opacity", nextOpacity);
+        previousGalleryMotionOpacity = nextOpacity;
+      }
+      return;
+    }
+
+    if (galleryMotionActive) {
+      delete gallery.dataset.galleryMotion;
+      galleryMotionActive = false;
+    }
+    if (previousGalleryMotionOpacity !== "") {
+      gallery.style.removeProperty("--gallery-motion-opacity");
+      previousGalleryMotionOpacity = "";
     }
   };
 
@@ -280,8 +294,8 @@ export const mountGalleryTransition = () => {
     if (motionFrame) cancelAnimationFrame(motionFrame);
     compactQuery.removeEventListener("change", onResize);
     removeEventListener("resize", onResize);
-    delete stage.dataset.galleryMotion;
-    stage.style.removeProperty("--gallery-motion-opacity");
+    delete gallery.dataset.galleryMotion;
+    gallery.style.removeProperty("--gallery-motion-opacity");
     motions.forEach((motion) => {
       motion.card.style.removeProperty("translate");
     });
