@@ -345,6 +345,62 @@
   }
 }
 
+/* Mobile shell ownership. Feature-specific mobile composition lives with each
+   scene owner instead of a global correction layer. */
+@media (max-width: 680px) {
+  .ref-stage {
+    --shell-gutter: 14px;
+    --narrative-rail-x: 8.5%;
+  }
+
+  .ref-brand,
+  .ref-index-toggle {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .narrative-header {
+    left: 14px !important;
+    right: 14px !important;
+    top: 16px !important;
+  }
+
+  .narrative-header__meta {
+    display: none !important;
+  }
+
+  .narrative-header__label {
+    gap: 8px !important;
+  }
+
+  .narrative-header__label > i {
+    width: 30px !important;
+    flex-basis: 30px !important;
+  }
+
+  .narrative-header__label .narrative-signal__label {
+    font-size: 10px !important;
+    letter-spacing: .10em !important;
+  }
+
+  .ref-scene--chapter {
+    padding-left: 10vw !important;
+  }
+
+  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter,
+  .ref-scene--chapter[data-chapter="agent"] .ref-chapter,
+  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter > p,
+  .ref-scene--chapter[data-chapter="agent"] .ref-chapter > p {
+    width: 82vw !important;
+  }
+
+  .ref-scene--chapter[data-chapter="gallery"] .ref-chapter > p,
+  .ref-scene--chapter[data-chapter="agent"] .ref-chapter > p {
+    font-size: clamp(1.9rem, 7.35vw, 3rem) !important;
+    line-height: 1.02 !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ref-header,
   .ref-track,
