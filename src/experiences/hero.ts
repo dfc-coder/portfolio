@@ -66,9 +66,13 @@ const lockInput = () => {
 };
 
 const mountHeroPointerField = (hero: HTMLElement, thesis: HTMLElement) => {
-  const title = hero.querySelector<HTMLElement>(".ref-hero__title");
-  const titleX = title ? gsap.quickTo(title, "x", { duration: 1.25, ease: SETTLE_EASE }) : null;
-  const titleY = title ? gsap.quickTo(title, "y", { duration: 1.25, ease: SETTLE_EASE }) : null;
+  const titleWords = Array.from(
+    hero.querySelectorAll<HTMLElement>(".ref-hero__title > span > i"),
+  );
+  const wordFields = titleWords.map((word) => ({
+    x: gsap.quickTo(word, "x", { duration: 1.25, ease: SETTLE_EASE }),
+    y: gsap.quickTo(word, "y", { duration: 1.25, ease: SETTLE_EASE }),
+  }));
   const thesisX = gsap.quickTo(thesis, "x", { duration: 1.4, ease: SETTLE_EASE });
   const thesisY = gsap.quickTo(thesis, "y", { duration: 1.4, ease: SETTLE_EASE });
 
@@ -80,8 +84,10 @@ const mountHeroPointerField = (hero: HTMLElement, thesis: HTMLElement) => {
   };
 
   const resetPointerField = () => {
-    titleX?.(0);
-    titleY?.(0);
+    wordFields.forEach((field) => {
+      field.x(0);
+      field.y(0);
+    });
     thesisX(0);
     thesisY(0);
     hero.dataset.heroHover = "false";
@@ -91,8 +97,10 @@ const mountHeroPointerField = (hero: HTMLElement, thesis: HTMLElement) => {
     if (!heroRect.width || !heroRect.height) return;
     const nx = (event.clientX - heroRect.left) / heroRect.width - 0.5;
     const ny = (event.clientY - heroRect.top) / heroRect.height - 0.5;
-    titleX?.(nx * 9);
-    titleY?.(ny * 5);
+    wordFields.forEach((field) => {
+      field.x(nx * 9);
+      field.y(ny * 5);
+    });
     thesisX(nx * -4);
     thesisY(ny * -3);
     hero.dataset.heroHover = "true";
@@ -130,7 +138,9 @@ const mountHeroPointerField = (hero: HTMLElement, thesis: HTMLElement) => {
     unsubscribe();
     setPointerActive(false);
     resizeObserver.disconnect();
-    gsap.killTweensOf([title, thesis]);
+    gsap.killTweensOf([...titleWords, thesis]);
+    gsap.set(titleWords, { x: 0, y: 0 });
+    gsap.set(thesis, { x: 0, y: 0 });
     delete hero.dataset.heroHover;
   };
 };
