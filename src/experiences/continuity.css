@@ -19,6 +19,7 @@
 }
 
 html.is-section-transitioning {
+  overflow: hidden;
   overscroll-behavior: none;
 }
 
