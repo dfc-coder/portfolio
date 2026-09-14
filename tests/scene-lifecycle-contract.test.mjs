@@ -66,3 +66,39 @@ test("architecture: scroll variables are the final narrative visibility owner", 
   assert.match(visibility, /data-chapter="gallery"/);
   assert.match(visibility, /opacity:\s*var\(--chapter-gallery,\s*0\)\s*!important/);
 });
+
+test("performance: feature style variables stay on local owners", async () => {
+  const scroll = await read("src/experiences/scroll.ts");
+  const trajectory = await read("src/experiences/trajectory.ts");
+  const systems = await read("src/experiences/systems.ts");
+  const galleryTransition = await read("src/experiences/gallery-transition.ts");
+  const galleryTransitionCss = await read("src/experiences/gallery-transition.css");
+  const bridges = await read("src/styles/chapter-bridges.css");
+
+  assert.doesNotMatch(trajectory, /stage\.style\.setProperty\("--trajectory-/);
+  assert.match(trajectory, /root\.style\.setProperty\("--trajectory-timeline-progress"/);
+  assert.match(trajectory, /root\.style\.setProperty\("--trajectory-content"/);
+  assert.match(trajectory, /heroScene\.style\.setProperty\("--trajectory-hero-exit"/);
+  assert.match(trajectory, /heroScene\.style\.setProperty\([\s\S]*"--trajectory-cue-handoff-opacity"/);
+
+  assert.doesNotMatch(systems, /stage\.style\.setProperty\("--systems-/);
+  assert.match(systems, /root\.style\.setProperty\("--systems-progress"/);
+  assert.match(systems, /root\.style\.setProperty\("--systems-content"/);
+  assert.match(systems, /root\.style\.setProperty\("--systems-axis-reveal"/);
+
+  assert.doesNotMatch(galleryTransition, /stage\.style\.|stage\.dataset\.galleryMotion/);
+  assert.match(galleryTransition, /gallery\.style\.setProperty\("--gallery-motion-opacity"/);
+  assert.match(galleryTransition, /gallery\.dataset\.galleryMotion/);
+  assert.match(
+    galleryTransitionCss,
+    /\.ref-scene--gallery\.ref-gallery-gel-ready\[data-gallery-motion="true"\]/,
+  );
+
+  assert.match(bridges, /--trajectory-cue-handoff-opacity/);
+  assert.doesNotMatch(bridges, /--systems-gallery-handoff/);
+
+  assert.match(scroll, /let previousHero = ""/);
+  assert.match(scroll, /if \(nextHero !== previousHero\)/);
+  assert.match(scroll, /let previousChapterGallery = ""/);
+  assert.match(scroll, /if \(nextChapterGallery !== previousChapterGallery\)/);
+});
